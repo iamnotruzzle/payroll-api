@@ -18,7 +18,6 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        // Find user by username
         $user = User::where('username', $request->username)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
@@ -27,17 +26,14 @@ class AuthController extends Controller
             ]);
         }
 
-        // Check if user is active
-        if ($user->status !== 'active') {
+        if ($user->status !== 'A') {
             throw ValidationException::withMessages([
                 'username' => ['Your account is inactive. Please contact an administrator.'],
             ]);
         }
 
-        // Load relationships
-        $user->load('roles.permissions');
+        $user->load('roles');
 
-        // Create token
         $token = $user->createToken('auth-token')->plainTextToken;
 
         return response()->json([
@@ -58,7 +54,6 @@ class AuthController extends Controller
                     'name' => $role->name,
                     'display_name' => $role->display_name,
                 ]),
-                'permissions' => $user->getAllPermissions(),
                 'created_at' => $user->created_at,
                 'updated_at' => $user->updated_at,
             ],
@@ -77,7 +72,7 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user()->load('roles.permissions');
+        $user = $request->user()->load('roles');
 
         return response()->json([
             'id' => $user->id,
@@ -96,7 +91,6 @@ class AuthController extends Controller
                 'name' => $role->name,
                 'display_name' => $role->display_name,
             ]),
-            'permissions' => $user->getAllPermissions(),
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
         ]);

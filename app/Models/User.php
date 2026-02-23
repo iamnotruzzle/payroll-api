@@ -66,7 +66,7 @@ class User extends Authenticatable
         return $this->birthdate ? Carbon::parse($this->birthdate)->format('Y-m-d') : null;
     }
 
-    // Role & Permission Helper Methods
+    // Role 
     public function hasRole(string|array $roles): bool
     {
         if (is_array($roles)) {
@@ -108,45 +108,5 @@ class User extends Authenticatable
     {
         $roleIds = Role::whereIn('name', $roles)->pluck('id')->toArray();
         $this->roles()->sync($roleIds);
-    }
-
-    public function hasPermission(string $permission): bool
-    {
-        return $this->roles()
-            ->whereHas('permissions', function ($query) use ($permission) {
-                $query->where('name', $permission);
-            })
-            ->exists();
-    }
-
-    public function hasAnyPermission(array $permissions): bool
-    {
-        return $this->roles()
-            ->whereHas('permissions', function ($query) use ($permissions) {
-                $query->whereIn('name', $permissions);
-            })
-            ->exists();
-    }
-
-    public function hasAllPermissions(array $permissions): bool
-    {
-        foreach ($permissions as $permission) {
-            if (!$this->hasPermission($permission)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    public function getAllPermissions(): array
-    {
-        return $this->roles()
-            ->with('permissions')
-            ->get()
-            ->pluck('permissions')
-            ->flatten()
-            ->unique('id')
-            ->pluck('name')
-            ->toArray();
     }
 }

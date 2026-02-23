@@ -18,26 +18,6 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Permissions table
-        Schema::create('permissions', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->unique();
-            $table->string('display_name');
-            $table->string('group')->nullable(); // e.g., 'users', 'posts', 'settings'
-            $table->text('description')->nullable();
-            $table->timestamps();
-        });
-
-        // Role-Permission pivot table
-        Schema::create('permission_role', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('role_id')->constrained()->onDelete('cascade');
-            $table->foreignId('permission_id')->constrained()->onDelete('cascade');
-            $table->timestamps();
-
-            $table->unique(['role_id', 'permission_id']);
-        });
-
         // User-Role pivot table (for multi-role support)
         Schema::create('role_user', function (Blueprint $table) {
             $table->id();
@@ -59,8 +39,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('role_user');
-        Schema::dropIfExists('permission_role');
-        Schema::dropIfExists('permissions');
         Schema::dropIfExists('roles');
 
         // Restore role column if needed

@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -26,7 +25,7 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('password'),
                 'gender' => 'male',
                 'birthdate' => '1990-01-01',
-                'status' => 'active',
+                'status' => 'A',
             ]
         );
         $superAdmin->syncRoles(['super-admin']);
@@ -43,7 +42,7 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('password'),
                 'gender' => 'female',
                 'birthdate' => '1992-05-15',
-                'status' => 'active',
+                'status' => 'A',
             ]
         );
         $admin->syncRoles(['admin']);
@@ -60,7 +59,7 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('password'),
                 'gender' => 'male',
                 'birthdate' => '1988-08-20',
-                'status' => 'active',
+                'status' => 'A',
             ]
         );
         $manager->syncRoles(['manager']);
@@ -77,7 +76,7 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('password'),
                 'gender' => 'female',
                 'birthdate' => '1995-03-10',
-                'status' => 'active',
+                'status' => 'A',
             ]
         );
         $user->syncRoles(['user']);
@@ -94,7 +93,7 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('password'),
                 'gender' => 'male',
                 'birthdate' => '1993-11-25',
-                'status' => 'inactive',
+                'status' => 'A',
             ]
         );
         $inactiveUser->syncRoles(['user']);
@@ -111,7 +110,7 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('password'),
                 'gender' => 'male',
                 'birthdate' => '1991-07-14',
-                'status' => 'active',
+                'status' => 'A',
             ]
         );
         $multiRole->syncRoles(['admin', 'manager']);
@@ -122,12 +121,12 @@ class UserSeeder extends Seeder
         $this->command->table(
             ['Role', 'Username', 'Email', 'Password', 'Status'],
             [
-                ['Super Admin', 'superadmin', 'admin@example.com', 'password', 'active'],
-                ['Admin', 'admin', 'admin.user@example.com', 'password', 'active'],
-                ['Manager', 'manager', 'manager@example.com', 'password', 'active'],
-                ['User', 'user', 'user@example.com', 'password', 'active'],
+                ['Super Admin', 'superadmin', 'admin@example.com', 'password', 'A'],
+                ['Admin', 'admin', 'admin.user@example.com', 'password', 'A'],
+                ['Manager', 'manager', 'manager@example.com', 'password', 'A'],
+                ['User', 'user', 'user@example.com', 'password', 'A'],
                 ['User', 'inactive', 'inactive@example.com', 'password', 'inactive'],
-                ['Admin+Manager', 'multirole', 'multi@example.com', 'password', 'active'],
+                ['Admin+Manager', 'multirole', 'multi@example.com', 'password', 'A'],
             ]
         );
     }

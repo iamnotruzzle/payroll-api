@@ -12,7 +12,7 @@ class RoleController extends Controller
 {
     public function index(): JsonResponse
     {
-        $roles = Role::with('permissions')->get();
+        $roles = Role::all();
         return response()->json($roles);
     }
 
@@ -23,8 +23,6 @@ class RoleController extends Controller
             'display_name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'is_active' => 'boolean',
-            'permissions' => 'array',
-            'permissions.*' => 'exists:permissions,name',
         ]);
 
         if ($validator->fails()) {
@@ -42,18 +40,12 @@ class RoleController extends Controller
             'is_active' => $validated['is_active'] ?? true,
         ]);
 
-        if (!empty($validated['permissions'])) {
-            $role->syncPermissions($validated['permissions']);
-        }
-
-        $role->load('permissions');
-
         return response()->json($role, 201);
     }
 
     public function show($id): JsonResponse
     {
-        $role = Role::with('permissions')->find($id);
+        $role = Role::find($id);
 
         if (!$role) {
             return response()->json([
@@ -71,8 +63,6 @@ class RoleController extends Controller
             'display_name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'is_active' => 'boolean',
-            'permissions' => 'array',
-            'permissions.*' => 'exists:permissions,name',
         ]);
 
         if ($validator->fails()) {
@@ -97,12 +87,6 @@ class RoleController extends Controller
             'description' => $validated['description'] ?? null,
             'is_active' => $validated['is_active'] ?? true,
         ]);
-
-        if (isset($validated['permissions'])) {
-            $role->syncPermissions($validated['permissions']);
-        }
-
-        $role->load('permissions');
 
         return response()->json($role);
     }
