@@ -117,8 +117,8 @@ class UserController extends Controller
     {
         $counts = [
             'total' => User::count(),
-            'active' => User::where('status', 'active')->count(),
-            'inactive' => User::where('status', 'inactive')->count(),
+            'active' => User::where('status', 'A')->count(),
+            'inactive' => User::where('status', 'I')->count(),
         ];
 
         return response()->json($counts);
@@ -137,7 +137,7 @@ class UserController extends Controller
             'username' => 'required|string|max:255|unique:users,username',
             'password' => 'required|string|min:6',
             'role' => 'required|string|exists:roles,name', // Single role
-            'status' => 'required|string|in:active,inactive',
+            'status' => 'required|string|in:A,I',
         ]);
 
         if ($validator->fails()) {
@@ -184,7 +184,7 @@ class UserController extends Controller
             'username' => 'required|string|max:255|unique:users,username,' . $id,
             'password' => 'nullable|string|min:6',
             'role' => 'required|string|exists:roles,name', // Single role
-            'status' => 'required|string|in:active,inactive',
+            'status' => 'required|string|in:A,I',
         ]);
 
         if ($validator->fails()) {
