@@ -136,19 +136,17 @@ class UserController extends Controller
             'birthdate' => 'required|date|before:today',
             'username' => 'required|string|max:255|unique:users,username',
             'password' => 'required|string|min:6',
-            'role' => 'required|string|exists:roles,name', // Single role
+            'roles' => 'required|array|min:1',
+            'roles.*' => 'required|string|exists:roles,name',
             'status' => 'required|string|in:A,I',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'errors' => $validator->errors()
-            ], 422);
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
         $validated = $validator->validated();
 
-        // Create user
         $user = User::create([
             'first_name' => $validated['first_name'],
             'middle_name' => $validated['middle_name'] ?? null,
@@ -162,10 +160,7 @@ class UserController extends Controller
             'status' => $validated['status'],
         ]);
 
-        // Assign single role
-        $user->syncRoles([$validated['role']]);
-
-        // Load relationships for response
+        $user->syncRoles($validated['roles']);
         $user->load('roles');
 
         return response()->json($user, 201);
@@ -183,14 +178,13 @@ class UserController extends Controller
             'birthdate' => 'required|date|before:today',
             'username' => 'required|string|max:255|unique:users,username,' . $id,
             'password' => 'nullable|string|min:6',
-            'role' => 'required|string|exists:roles,name', // Single role
+            'roles' => 'required|array|min:1',
+            'roles.*' => 'required|string|exists:roles,name',
             'status' => 'required|string|in:A,I',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'errors' => $validator->errors()
-            ], 422);
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
         $validated = $validator->validated();
@@ -198,12 +192,9 @@ class UserController extends Controller
         $user = User::find($id);
 
         if (!$user) {
-            return response()->json([
-                'error' => 'User not found'
-            ], 404);
+            return response()->json(['error' => 'User not found'], 404);
         }
 
-        // Update user
         $user->update([
             'first_name' => $validated['first_name'],
             'middle_name' => $validated['middle_name'] ?? null,
@@ -216,16 +207,12 @@ class UserController extends Controller
             'status' => $validated['status'],
         ]);
 
-        // Update password if provided
         if (!empty($validated['password'])) {
             $user->password = Hash::make($validated['password']);
             $user->save();
         }
 
-        // Sync single role (replace old role)
-        $user->syncRoles([$validated['role']]);
-
-        // Load relationships for response
+        $user->syncRoles($validated['roles']);
         $user->load('roles');
 
         return response()->json($user);
