@@ -249,6 +249,11 @@ class UserController extends Controller
             ], 404);
         }
 
+        // delete avatar from storage if exists
+        if ($user->avatar) {
+            Storage::disk('public')->delete($user->avatar);
+        }
+
         $user->delete();
 
         return response()->json([
