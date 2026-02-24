@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
 {
@@ -92,6 +93,8 @@ class UserController extends Controller
                         'display_name' => $role->display_name,
                     ]),
                     'status' => $user->status,
+                    'avatar' => $user->avatar,
+                    'avatar_url' => $user->avatar_url,
                     'created_at' => $user->created_at,
                     'updated_at' => $user->updated_at,
                 ];
@@ -139,6 +142,7 @@ class UserController extends Controller
             'roles' => 'required|array|min:1',
             'roles.*' => 'required|string|exists:roles,name',
             'status' => 'required|string|in:A,I',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -146,6 +150,11 @@ class UserController extends Controller
         }
 
         $validated = $validator->validated();
+
+        $avatarPath = null;
+        if ($request->hasFile('avatar')) {
+            $avatarPath = $request->file('avatar')->store('avatars', 'public');
+        }
 
         $user = User::create([
             'first_name' => $validated['first_name'],
@@ -158,6 +167,7 @@ class UserController extends Controller
             'username' => $validated['username'],
             'password' => Hash::make($validated['password']),
             'status' => $validated['status'],
+            'avatar' => $avatarPath,
         ]);
 
         $user->syncRoles($validated['roles']);
@@ -181,6 +191,7 @@ class UserController extends Controller
             'roles' => 'required|array|min:1',
             'roles.*' => 'required|string|exists:roles,name',
             'status' => 'required|string|in:A,I',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -195,6 +206,15 @@ class UserController extends Controller
             return response()->json(['error' => 'User not found'], 404);
         }
 
+        if ($request->hasFile('avatar')) {
+            if ($user->avatar) {
+                Storage::disk('public')->delete($user->avatar);
+            }
+            $validated['avatar'] = $request->file('avatar')->store('avatars', 'public');
+        } else {
+            $validated['avatar'] = $user->avatar;
+        }
+
         $user->update([
             'first_name' => $validated['first_name'],
             'middle_name' => $validated['middle_name'] ?? null,
@@ -205,6 +225,7 @@ class UserController extends Controller
             'birthdate' => $validated['birthdate'],
             'username' => $validated['username'],
             'status' => $validated['status'],
+            'avatar' => $validated['avatar'],
         ]);
 
         if (!empty($validated['password'])) {

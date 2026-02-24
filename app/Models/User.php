@@ -27,6 +27,7 @@ class User extends Authenticatable
         'birthdate',
         'username',
         'status',
+        'avatar',
         'password',
     ];
 
@@ -40,6 +41,13 @@ class User extends Authenticatable
     ];
 
     protected $appends = ['full_name', 'birthdate_formatted'];
+
+    public function getAvatarUrlAttribute(): string|null
+    {
+        return $this->avatar
+            ? asset('storage/' . $this->avatar)
+            : null;
+    }
 
     // Relationships
     public function roles(): BelongsToMany

@@ -24,6 +24,7 @@ return new class extends Migration
             $table->string('password');
             $table->string('role', 50);
             $table->string('status');
+            $table->string('avatar')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });

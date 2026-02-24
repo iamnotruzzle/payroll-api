@@ -22,7 +22,7 @@ Route::middleware(['auth:sanctum', "throttle:{$apiRateLimit},1"])->group(functio
         Route::get('/', [UserController::class, 'index']);
         Route::get('/status-counts', [UserController::class, 'statusCounts']);
         Route::post('/', [UserController::class, 'store']);
-        Route::put('/{user}', [UserController::class, 'update']);
+        Route::post('/{user}/update', [UserController::class, 'update']);
         Route::delete('/{user}', [UserController::class, 'destroy']);
     });
 

@@ -54,6 +54,8 @@ class AuthController extends Controller
                     'name' => $role->name,
                     'display_name' => $role->display_name,
                 ]),
+                'avatar' => $user->avatar,
+                'avatar_url' => $user->avatar_url,
                 'created_at' => $user->created_at,
                 'updated_at' => $user->updated_at,
             ],
@@ -91,6 +93,8 @@ class AuthController extends Controller
                 'name' => $role->name,
                 'display_name' => $role->display_name,
             ]),
+            'avatar' => $user->avatar,
+            'avatar_url' => $user->avatar_url,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
         ]);
