@@ -15,7 +15,7 @@ class UserSeeder extends Seeder
     {
         // Super Admin User
         $superAdmin = User::firstOrCreate(
-            ['email' => 'admin@example.com'],
+            ['email' => 'sa@example.com'],
             [
                 'first_name' => 'Super',
                 'middle_name' => null,
@@ -47,32 +47,15 @@ class UserSeeder extends Seeder
         );
         $admin->syncRoles(['admin']);
 
-        // Manager User
-        $manager = User::firstOrCreate(
-            ['email' => 'manager@example.com'],
-            [
-                'first_name' => 'John',
-                'middle_name' => 'Michael',
-                'last_name' => 'Manager',
-                'suffix' => null,
-                'username' => 'manager',
-                'password' => Hash::make('password'),
-                'gender' => 'male',
-                'birthdate' => '1988-08-20',
-                'status' => 'A',
-            ]
-        );
-        $manager->syncRoles(['manager']);
-
         // Regular User
         $user = User::firstOrCreate(
-            ['email' => 'user@example.com'],
+            ['email' => 'jane@example.com'],
             [
                 'first_name' => 'Jane',
                 'middle_name' => null,
                 'last_name' => 'Doe',
                 'suffix' => null,
-                'username' => 'user',
+                'username' => 'user1',
                 'password' => Hash::make('password'),
                 'gender' => 'female',
                 'birthdate' => '1995-03-10',
@@ -83,28 +66,28 @@ class UserSeeder extends Seeder
 
         // Inactive User (for testing)
         $inactiveUser = User::firstOrCreate(
-            ['email' => 'inactive@example.com'],
+            ['email' => 'mark@example.com'],
             [
-                'first_name' => 'Inactive',
+                'first_name' => 'Mark',
                 'middle_name' => null,
-                'last_name' => 'User',
+                'last_name' => 'Doe',
                 'suffix' => null,
-                'username' => 'inactive',
+                'username' => 'user2',
                 'password' => Hash::make('password'),
                 'gender' => 'male',
                 'birthdate' => '1993-11-25',
-                'status' => 'A',
+                'status' => 'I',
             ]
         );
         $inactiveUser->syncRoles(['user']);
 
-        // Multi-role User (Admin + Manager)
+        // Multi-role User (SA + Admin)
         $multiRole = User::firstOrCreate(
             ['email' => 'multi@example.com'],
             [
-                'first_name' => 'Multi',
-                'middle_name' => 'Role',
-                'last_name' => 'User',
+                'first_name' => 'Kevin',
+                'middle_name' => null,
+                'last_name' => 'Doe',
                 'suffix' => 'Jr.',
                 'username' => 'multirole',
                 'password' => Hash::make('password'),
@@ -113,21 +96,6 @@ class UserSeeder extends Seeder
                 'status' => 'A',
             ]
         );
-        $multiRole->syncRoles(['admin', 'manager']);
-
-        $this->command->info('Users seeded successfully!');
-        $this->command->newLine();
-        $this->command->info('Test Credentials:');
-        $this->command->table(
-            ['Role', 'Username', 'Email', 'Password', 'Status'],
-            [
-                ['Super Admin', 'superadmin', 'admin@example.com', 'password', 'A'],
-                ['Admin', 'admin', 'admin.user@example.com', 'password', 'A'],
-                ['Manager', 'manager', 'manager@example.com', 'password', 'A'],
-                ['User', 'user', 'user@example.com', 'password', 'A'],
-                ['User', 'inactive', 'inactive@example.com', 'password', 'inactive'],
-                ['Admin+Manager', 'multirole', 'multi@example.com', 'password', 'A'],
-            ]
-        );
+        $multiRole->syncRoles(['super-admin', 'admin']);
     }
 }
