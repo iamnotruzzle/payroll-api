@@ -3,13 +3,20 @@
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Role\RoleController;
 use App\Http\Controllers\UserController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Broadcast;
 
 // Public routes with rate limiting
 $loginRateLimit = env('RATE_LIMIT_LOGIN', 5);
 Route::middleware(["throttle:{$loginRateLimit},1"])->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
 });
+
+// Broadcasting auth
+Route::post('/broadcasting/auth', function (Request $request) {
+    return Broadcast::auth($request);
+})->middleware('auth:sanctum');
 
 // Protected routes
 $apiRateLimit = env('RATE_LIMIT_API', 60);
@@ -27,7 +34,7 @@ Route::middleware(['auth:sanctum', "throttle:{$apiRateLimit},1"])->group(functio
     });
 
     // super-admin
-    Route::prefix('roles')->middleware('role:super-admin')->group(function () {
+    Route::prefix('roles')->middleware('role:super-admin|admin')->group(function () {
         Route::get('/', [RoleController::class, 'index']);
         Route::get('/{role}', [RoleController::class, 'show']);
         Route::post('/', [RoleController::class, 'store']);

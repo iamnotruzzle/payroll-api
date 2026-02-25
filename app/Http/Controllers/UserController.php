@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\User\UserCreated;
+use App\Events\User\UserDeleted;
+use App\Events\User\UserUpdated;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -173,6 +176,8 @@ class UserController extends Controller
         $user->syncRoles($validated['roles']);
         $user->load('roles');
 
+        broadcast(new UserCreated($user))->toOthers();
+
         return response()->json($user, 201);
     }
 
@@ -236,6 +241,8 @@ class UserController extends Controller
         $user->syncRoles($validated['roles']);
         $user->load('roles');
 
+        broadcast(new UserUpdated($user))->toOthers();
+
         return response()->json($user);
     }
 
@@ -255,6 +262,8 @@ class UserController extends Controller
         }
 
         $user->delete();
+
+        broadcast(new UserDeleted((int) $id))->toOthers();
 
         return response()->json([
             'message' => 'User deleted successfully'
