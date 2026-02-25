@@ -17,8 +17,8 @@ Route::middleware(['auth:sanctum', "throttle:{$apiRateLimit},1"])->group(functio
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 
-    // Users routes
-    Route::prefix('users')->group(function () {
+    // super-admin and admin
+    Route::prefix('users')->middleware('role:super-admin|admin')->group(function () {
         Route::get('/', [UserController::class, 'index']);
         Route::get('/status-counts', [UserController::class, 'statusCounts']);
         Route::post('/', [UserController::class, 'store']);
@@ -26,8 +26,8 @@ Route::middleware(['auth:sanctum', "throttle:{$apiRateLimit},1"])->group(functio
         Route::delete('/{user}', [UserController::class, 'destroy']);
     });
 
-    // Roles routes
-    Route::prefix('roles')->group(function () {
+    // super-admin
+    Route::prefix('roles')->middleware('role:super-admin')->group(function () {
         Route::get('/', [RoleController::class, 'index']);
         Route::get('/{role}', [RoleController::class, 'show']);
         Route::post('/', [RoleController::class, 'store']);
