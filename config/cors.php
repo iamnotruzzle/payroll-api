@@ -30,6 +30,7 @@ return [
         'Accept',
         'Origin',
         'X-CSRF-TOKEN',
+        'X-Socket-ID',
     ],
 
     'exposed_headers' => [],
