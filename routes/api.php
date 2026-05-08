@@ -1,17 +1,12 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
-use App\Http\Controllers\UserController;
-use Illuminate\Http\Request;
+use App\Http\Controllers\EmployeeController;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Broadcast;
 
-// Public routes with rate limiting
-$loginRateLimit = env('RATE_LIMIT_LOGIN', 5);
-Route::middleware(["throttle:{$loginRateLimit},1"])->group(function () {
-    Route::post('/login', [AuthController::class, 'login']);
-});
+Route::post('/login', [AuthController::class, 'login']);
 
-Route::middleware(['auth:sanctum'])->group(function () {
-    // Route::post('/logout', [AuthController::class, 'logout']);
-});
+Route::get('/employees', [EmployeeController::class, 'index']);
+Route::get('/employees/search', [EmployeeController::class, 'search']);
+Route::get('/employees/by-department/{department_id}', [EmployeeController::class, 'byDepartment']);
+Route::get('/employees/{emp_id}', [EmployeeController::class, 'show']);
