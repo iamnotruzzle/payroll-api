@@ -1,7 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Auth\AuthController;
-use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\Api\ScheduleModuleController;
 use App\Http\Controllers\Api\ShiftCodeController;
 use Illuminate\Support\Facades\Route;

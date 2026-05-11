@@ -2,7 +2,7 @@
 
 namespace App\Services\Schedule;
 
-use App\Models\Employee;
+use App\Models\Hris\Employee;
 use App\Models\Schedule\EmployeeScheduleSetting;
 use App\Models\Schedule\MonthlySchedule;
 use App\Models\Schedule\ScheduleAssignment;
@@ -43,7 +43,7 @@ class ScheduleDraftGenerationService
             $schedule->assignments()->delete();
 
             $employees = Employee::query()
-                ->when($departmentId, fn ($query) => $query->where('department_id', $departmentId))
+                ->when($departmentId, fn($query) => $query->where('department_id', $departmentId))
                 ->where('is_active', 'Y')
                 ->orderBy('lastname')
                 ->get(['emp_id', 'department_id', 'firstname', 'lastname']);

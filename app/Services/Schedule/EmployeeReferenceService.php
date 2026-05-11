@@ -2,7 +2,7 @@
 
 namespace App\Services\Schedule;
 
-use App\Models\Employee;
+use App\Models\Hris\Employee;
 use App\Models\Schedule\EmployeeReference;
 
 class EmployeeReferenceService
