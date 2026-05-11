@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\DtrLabelOptionController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\HolidayController;
 use App\Http\Controllers\Api\PositionController;
@@ -57,6 +58,12 @@ Route::prefix('holidays')->group(function () {
     Route::get('/', [HolidayController::class, 'index']);
     Route::post('/', [HolidayController::class, 'store']);
     Route::put('/{id}', [HolidayController::class, 'update']);
+});
+
+Route::prefix('dtr-label-options')->group(function () {
+    Route::get('/', [DtrLabelOptionController::class, 'index']);
+    Route::post('/', [DtrLabelOptionController::class, 'store']);
+    Route::put('/{id}', [DtrLabelOptionController::class, 'update']);
 });
 
 Route::prefix('schedule')->group(function () {
