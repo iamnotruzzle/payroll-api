@@ -1,11 +1,13 @@
 <?php
 
 use App\Http\Controllers\Api\EmployeeController;
+use App\Http\Controllers\Api\HolidayController;
 use App\Http\Controllers\Api\PositionController;
 use App\Http\Controllers\Api\SalaryGradeController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Api\ScheduleModuleController;
 use App\Http\Controllers\Api\ShiftCodeController;
+use App\Http\Controllers\Api\TimeTemplateController;
 use App\Http\Controllers\Api\UserAccountController;
 use Illuminate\Support\Facades\Route;
 
@@ -43,6 +45,18 @@ Route::prefix('salary-grades')->group(function () {
     Route::get('/', [SalaryGradeController::class, 'index']);
     Route::get('/options/salary-grades', [SalaryGradeController::class, 'salaryGradeOptions']);
     Route::get('/options/tranches', [SalaryGradeController::class, 'trancheOptions']);
+});
+
+Route::prefix('time-templates')->group(function () {
+    Route::get('/', [TimeTemplateController::class, 'index']);
+    Route::post('/', [TimeTemplateController::class, 'store']);
+    Route::put('/{id}', [TimeTemplateController::class, 'update']);
+});
+
+Route::prefix('holidays')->group(function () {
+    Route::get('/', [HolidayController::class, 'index']);
+    Route::post('/', [HolidayController::class, 'store']);
+    Route::put('/{id}', [HolidayController::class, 'update']);
 });
 
 Route::prefix('schedule')->group(function () {
