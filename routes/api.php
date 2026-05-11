@@ -4,14 +4,18 @@ use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Api\ScheduleModuleController;
 use App\Http\Controllers\Api\ShiftCodeController;
+use App\Http\Controllers\Api\UserAccountController;
 use Illuminate\Support\Facades\Route;
 
 // Route::post('/login', [AuthController::class, 'login']);
+
 
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/logout', [AuthController::class, 'logout']);
 });
+
+Route::get('/users', [UserAccountController::class, 'index']);
 
 Route::prefix('employees')->group(function () {
     Route::get('/', [EmployeeController::class, 'index']);
