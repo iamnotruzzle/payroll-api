@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\EmployeeController;
+use App\Http\Controllers\Api\PositionController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Api\ScheduleModuleController;
 use App\Http\Controllers\Api\ShiftCodeController;
@@ -30,6 +31,11 @@ Route::prefix('employees')->group(function () {
     Route::get('/{empId}/other-info', [EmployeeController::class, 'otherInfo']);
     Route::get('/{empId}/leaves', [EmployeeController::class, 'leaves']);
     Route::get('/{empId}/dtrs', [EmployeeController::class, 'dtrs']);
+});
+
+Route::prefix('positions')->group(function () {
+    Route::get('/', [PositionController::class, 'index']);
+    Route::get('/salary-grades', [PositionController::class, 'salaryGrades']);
 });
 
 Route::prefix('schedule')->group(function () {
