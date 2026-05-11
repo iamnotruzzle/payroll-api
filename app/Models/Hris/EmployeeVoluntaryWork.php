@@ -2,6 +2,7 @@
 
 namespace App\Models\Hris;
 
+use App\Casts\SafeDate;
 use Illuminate\Database\Eloquent\Model;
 
 class EmployeeVoluntaryWork extends Model
@@ -19,8 +20,8 @@ class EmployeeVoluntaryWork extends Model
     ];
 
     protected $casts = [
-        'start_date' => 'datetime',
-        'end_date' => 'datetime',
+        'start_date' => SafeDate::class,
+        'end_date'   => SafeDate::class,
         'hrs' => 'float',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

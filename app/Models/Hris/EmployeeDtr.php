@@ -21,7 +21,7 @@ class EmployeeDtr extends Model
     ];
 
     protected $casts = [
-        'dtr_date' => 'datetime',
+        'dtr_date' => 'date',
         'timeout_nextday' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

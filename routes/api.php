@@ -19,9 +19,17 @@ Route::get('/users', [UserAccountController::class, 'index']);
 
 Route::prefix('employees')->group(function () {
     Route::get('/', [EmployeeController::class, 'index']);
-    Route::get('/search', [EmployeeController::class, 'search']);
-    Route::get('/by-department/{department_id}', [EmployeeController::class, 'byDepartment']);
-    Route::get('/{emp_id}', [EmployeeController::class, 'show']);
+    Route::get('/by-department/{departmentId}', [EmployeeController::class, 'byDepartment']);
+    Route::get('/{empId}', [EmployeeController::class, 'show']);
+    Route::patch('/{empId}/active', [EmployeeController::class, 'setActive']);
+    Route::get('/{empId}/dependents', [EmployeeController::class, 'dependents']);
+    Route::get('/{empId}/education', [EmployeeController::class, 'education']);
+    Route::get('/{empId}/eligibilities', [EmployeeController::class, 'eligibilities']);
+    Route::get('/{empId}/work-experiences', [EmployeeController::class, 'workExperiences']);
+    Route::get('/{empId}/trainings', [EmployeeController::class, 'trainings']);
+    Route::get('/{empId}/other-info', [EmployeeController::class, 'otherInfo']);
+    Route::get('/{empId}/leaves', [EmployeeController::class, 'leaves']);
+    Route::get('/{empId}/dtrs', [EmployeeController::class, 'dtrs']);
 });
 
 Route::prefix('schedule')->group(function () {

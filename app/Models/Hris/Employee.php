@@ -26,8 +26,10 @@ class Employee extends Authenticatable
         'extension',
         'prefix',
         'suffix',
-        'gender',
         'position_id',
+        'department_id',
+        'gender',
+        'is_active',
         'step',
         'birthdate',
         'birthplace',
@@ -41,7 +43,6 @@ class Employee extends Authenticatable
         'house_no2',
         'street2',
         'subdiv2',
-        'department_id',
         'email',
         'religion_id',
         'citizenship_id',
@@ -76,9 +77,6 @@ class Employee extends Authenticatable
         'gov_id',
         'govid_no',
         'govid_dateplace',
-        'fingerprint_1',
-        'fingerprint_2',
-        'is_active',
         'profile_pic',
         'is_section_head',
         'separationdate',
@@ -86,37 +84,20 @@ class Employee extends Authenticatable
         'role',
     ];
 
-    protected $hidden = [
-        'password',
-        'remember_token',
-        'fingerprint_1',
-        'fingerprint_2',
-    ];
+    protected $hidden = ['password', 'fingerprint_1', 'fingerprint_2'];
 
-    protected function casts(): array
-    {
-        return [
-            'birthdate'              => 'date',
-            'date_gain_lc'           => 'date',
-            'date_hired'             => 'date',
-            'separationdate'         => 'date',
-            'height'                 => 'double',
-            'weight'                 => 'double',
-            'vacation_leave_credits' => 'double',
-            'sick_leave_credits'     => 'double',
-            'position_id'            => 'integer',
-            'step'                   => 'integer',
-            'address_id'             => 'integer',
-            'address2_id'            => 'integer',
-            'department_id'          => 'integer',
-            'religion_id'            => 'integer',
-            'citizenship_id'         => 'integer',
-            'civil_stat'             => 'integer',
-            'empstat_id'             => 'integer',
-            'separationtype'         => 'integer',
-            'password'               => 'hashed',
-        ];
-    }
+    protected $casts = [
+        'birthdate' => 'datetime',
+        'date_hired' => 'datetime',
+        'date_gain_lc' => 'datetime',
+        'separationdate' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'height' => 'float',
+        'weight' => 'float',
+        'vacation_leave_credits' => 'float',
+        'sick_leave_credits' => 'float',
+    ];
 
     public function position(): BelongsTo
     {
