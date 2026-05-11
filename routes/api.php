@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\PositionController;
+use App\Http\Controllers\Api\SalaryGradeController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Api\ScheduleModuleController;
 use App\Http\Controllers\Api\ShiftCodeController;
@@ -36,6 +37,12 @@ Route::prefix('employees')->group(function () {
 Route::prefix('positions')->group(function () {
     Route::get('/', [PositionController::class, 'index']);
     Route::get('/salary-grades', [PositionController::class, 'salaryGrades']);
+});
+
+Route::prefix('salary-grades')->group(function () {
+    Route::get('/', [SalaryGradeController::class, 'index']);
+    Route::get('/options/salary-grades', [SalaryGradeController::class, 'salaryGradeOptions']);
+    Route::get('/options/tranches', [SalaryGradeController::class, 'trancheOptions']);
 });
 
 Route::prefix('schedule')->group(function () {
