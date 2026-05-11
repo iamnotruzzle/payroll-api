@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Department extends Model
 {
+    protected $connection = 'mysql';
     protected $table = 'tbl_department';
     protected $primaryKey = 'department_id';
     public $incrementing = true;

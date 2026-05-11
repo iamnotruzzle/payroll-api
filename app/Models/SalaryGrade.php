@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class SalaryGrade extends Model
 {
+    protected $connection = 'mysql';
     protected $table = 'tbl_salary_grade';
     protected $primaryKey = 'salary_grade_id';
     public $incrementing = true;

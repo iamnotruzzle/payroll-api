@@ -12,6 +12,7 @@ class Employee extends Authenticatable
 {
     use Notifiable;
 
+    protected $connection = 'mysql';
     protected $table = 'tbl_employee';
     protected $primaryKey = 'emp_id';
     public $incrementing = false;

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Position extends Model
 {
+    protected $connection = 'mysql';
     protected $table = 'tbl_position';
     protected $primaryKey = 'position_id';
     public $incrementing = true;

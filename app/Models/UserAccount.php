@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class UserAccount extends Model
 {
+    protected $connection = 'mysql';
     protected $table = 'tbl_useraccount';
     protected $primaryKey = 'userid';
     public $incrementing = true;
