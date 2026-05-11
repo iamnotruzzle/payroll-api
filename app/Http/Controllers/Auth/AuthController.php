@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Hris\Department;
 use App\Models\Hris\UserAccount;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -29,11 +30,21 @@ class AuthController extends Controller
             return response()->json(['message' => 'Account is inactive.'], 403);
         }
 
+        $departments = Department::orderBy('department')->get();
+
         return response()->json([
-            'userid'     => $user->userid,
-            'emp_id'     => $user->emp_id,
-            'username'   => $user->username,
-            'employee'   => $user->employee,
+            'emp_id'        => $user->emp_id,
+            'username'      => $user->username,
+            'firstname'     => $user->employee->firstname,
+            'lastname'      => $user->employee->lastname,
+            'position_id'   => $user->employee->position_id,
+            'department_id' => $user->employee->department_id,
+            'departments'   => $departments,
         ]);
+    }
+
+    public function logout(): JsonResponse
+    {
+        return response()->json(['message' => 'Logged out.']);
     }
 }
