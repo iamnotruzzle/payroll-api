@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\DtrLabelOptionController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\HolidayController;
 use App\Http\Controllers\Api\PayrollAdditionalController;
+use App\Http\Controllers\Api\PayrollDeductionController;
 use App\Http\Controllers\Api\PayrollTypeController;
 use App\Http\Controllers\Api\PositionController;
 use App\Http\Controllers\Api\SalaryGradeController;
@@ -77,6 +78,13 @@ Route::prefix('payroll-additionals')->group(function () {
     Route::post('/', [PayrollAdditionalController::class, 'store']);
     Route::put('/{id}', [PayrollAdditionalController::class, 'update']);
     Route::delete('/{id}', [PayrollAdditionalController::class, 'destroy']);
+});
+
+Route::prefix('payroll-deductions')->group(function () {
+    Route::get('/', [PayrollDeductionController::class, 'index']);
+    Route::post('/', [PayrollDeductionController::class, 'store']);
+    Route::put('/{id}', [PayrollDeductionController::class, 'update']);
+    Route::delete('/{id}', [PayrollDeductionController::class, 'destroy']);
 });
 
 Route::prefix('schedule')->group(function () {
