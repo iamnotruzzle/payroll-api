@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\DtrLabelOptionController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\HolidayController;
+use App\Http\Controllers\Api\PayrollAdditionalController;
+use App\Http\Controllers\Api\PayrollTypeController;
 use App\Http\Controllers\Api\PositionController;
 use App\Http\Controllers\Api\SalaryGradeController;
 use App\Http\Controllers\Auth\AuthController;
@@ -64,6 +66,17 @@ Route::prefix('dtr-label-options')->group(function () {
     Route::get('/', [DtrLabelOptionController::class, 'index']);
     Route::post('/', [DtrLabelOptionController::class, 'store']);
     Route::put('/{id}', [DtrLabelOptionController::class, 'update']);
+});
+
+Route::prefix('payroll-types')->group(function () {
+    Route::get('/', [PayrollTypeController::class, 'index']);
+});
+
+Route::prefix('payroll-additionals')->group(function () {
+    Route::get('/', [PayrollAdditionalController::class, 'index']);
+    Route::post('/', [PayrollAdditionalController::class, 'store']);
+    Route::put('/{id}', [PayrollAdditionalController::class, 'update']);
+    Route::delete('/{id}', [PayrollAdditionalController::class, 'destroy']);
 });
 
 Route::prefix('schedule')->group(function () {
