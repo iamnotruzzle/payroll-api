@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ScheduleTemplateDay extends PayrollSchedulerModel
 {
+    protected $connection = 'payroll_scheduler';
+
     protected $fillable = ['schedule_template_id', 'day_sequence', 'shift_code_id'];
 
     protected function casts(): array

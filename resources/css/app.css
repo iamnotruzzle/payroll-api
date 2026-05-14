@@ -9,3 +9,42 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+@layer base {
+    a,
+    button,
+    select,
+    summary,
+    [role='button'],
+    [wire\:click] {
+        cursor: pointer;
+    }
+
+    input,
+    textarea {
+        cursor: text;
+    }
+
+    input[type='button'],
+    input[type='checkbox'],
+    input[type='color'],
+    input[type='file'],
+    input[type='radio'],
+    input[type='range'],
+    input[type='reset'],
+    input[type='submit'],
+    input[type='date'],
+    input[type='month'],
+    input[type='time'],
+    input[type='search']::-webkit-search-cancel-button {
+        cursor: pointer;
+    }
+
+    button:disabled,
+    select:disabled,
+    textarea:disabled,
+    input:disabled,
+    [aria-disabled='true'] {
+        cursor: not-allowed;
+    }
+}

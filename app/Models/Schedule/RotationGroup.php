@@ -6,11 +6,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class RotationGroup extends PayrollSchedulerModel
 {
-    protected $fillable = ['name', 'description', 'is_active'];
+    protected $connection = 'payroll_scheduler';
+
+    protected $fillable = ['department_id', 'name', 'description', 'is_active'];
 
     protected function casts(): array
     {
-        return ['is_active' => 'boolean'];
+        return [
+            'department_id' => 'integer',
+            'is_active' => 'boolean',
+        ];
     }
 
     public function members(): HasMany

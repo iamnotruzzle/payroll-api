@@ -7,11 +7,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ScheduleTemplate extends PayrollSchedulerModel
 {
+    protected $connection = 'payroll_scheduler';
+
     protected $fillable = ['name', 'department_id', 'rotation_group_id', 'is_active'];
 
     protected function casts(): array
     {
-        return ['department_id' => 'integer', 'is_active' => 'boolean'];
+        return [
+            'department_id' => 'integer',
+            'rotation_group_id' => 'integer',
+            'is_active' => 'boolean',
+        ];
     }
 
     public function rotationGroup(): BelongsTo

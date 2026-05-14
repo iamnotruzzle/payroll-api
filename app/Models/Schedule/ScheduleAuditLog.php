@@ -4,6 +4,8 @@ namespace App\Models\Schedule;
 
 class ScheduleAuditLog extends PayrollSchedulerModel
 {
+    protected $connection = 'payroll_scheduler';
+
     public $timestamps = false;
 
     protected $fillable = [

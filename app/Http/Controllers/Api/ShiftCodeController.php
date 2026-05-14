@@ -7,6 +7,7 @@ use App\Models\Schedule\ShiftCode;
 use App\Services\Schedule\ShiftCodeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ShiftCodeController extends Controller
 {
@@ -14,7 +15,7 @@ class ShiftCodeController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        return response()->json($this->shiftCodeService->list($request->only(['search', 'per_page'])));
+        return response()->json($this->shiftCodeService->list($request->only(['search', 'per_page', 'department_id'])));
     }
 
     public function store(Request $request): JsonResponse
@@ -36,21 +37,32 @@ class ShiftCodeController extends Controller
 
     public function seedDefaults(Request $request): JsonResponse
     {
-        $this->shiftCodeService->seedDefaults($request->user()?->getAuthIdentifier());
+        $data = $request->validate([
+            'department_id' => ['nullable', 'integer'],
+        ]);
+
+        $this->shiftCodeService->seedDefaults($request->user()?->getAuthIdentifier(), $data['department_id'] ?? null);
 
         return response()->json(['message' => 'Default shift codes are ready.']);
     }
 
     private function validated(Request $request, ?ShiftCode $shiftCode = null): array
     {
-        $id = $shiftCode?->id ?? 'NULL';
-
         return $request->validate([
-            'code' => ['required', 'string', 'max:20', "unique:payroll_scheduler.shift_codes,code,{$id}"],
+            'department_id' => ['nullable', 'integer'],
+            'code' => [
+                'required',
+                'string',
+                'max:20',
+                Rule::unique('payroll_scheduler.shift_codes', 'code')
+                    ->ignore($shiftCode?->id)
+                    ->where(fn ($query) => $query->where('department_id', $request->input('department_id'))),
+            ],
             'name' => ['required', 'string', 'max:255'],
             'start_time' => ['nullable', 'date_format:H:i'],
             'end_time' => ['nullable', 'date_format:H:i'],
             'end_day_offset' => ['nullable', 'integer', 'between:0,2'],
+            'work_hours' => ['nullable', 'numeric', 'min:0', 'max:72'],
             'is_work_shift' => ['boolean'],
             'is_night_shift' => ['boolean'],
             'is_leave_code' => ['boolean'],

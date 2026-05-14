@@ -95,8 +95,12 @@ class EmployeeController extends Controller
         return response()->json($this->sectionService->leaves($empId));
     }
 
-    public function dtrs(string $empId): JsonResponse
+    public function dtrs(Request $request, string $empId): JsonResponse
     {
-        return response()->json($this->sectionService->dtrs($empId));
+        return response()->json($this->sectionService->dtrs(
+            $empId,
+            $request->get('from'),
+            $request->get('to')
+        ));
     }
 }

@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class RotationGroupMember extends PayrollSchedulerModel
 {
+    protected $connection = 'payroll_scheduler';
+
     protected $fillable = ['rotation_group_id', 'employee_id', 'rotation_order'];
 
     protected function casts(): array

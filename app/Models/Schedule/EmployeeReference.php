@@ -4,6 +4,8 @@ namespace App\Models\Schedule;
 
 class EmployeeReference extends PayrollSchedulerModel
 {
+    protected $connection = 'payroll_scheduler';
+
     protected $fillable = [
         'hris_employee_id',
         'timekeeping_employee_id',

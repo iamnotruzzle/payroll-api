@@ -6,10 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Schedule\EmployeeScheduleSetting;
 use App\Models\Schedule\MonthlySchedule;
 use App\Models\Schedule\RotationGroup;
+use App\Models\Schedule\ScheduleAssignment;
 use App\Models\Schedule\ScheduleTemplate;
 use App\Models\Schedule\StaffingRequirement;
+use App\Services\Schedule\AuditLogService;
 use App\Services\Schedule\EmployeeReferenceService;
 use App\Services\Schedule\RotationGroupService;
+use App\Services\Schedule\ScheduleAssignmentService;
 use App\Services\Schedule\ScheduleApprovalService;
 use App\Services\Schedule\ScheduleConflictValidator;
 use App\Services\Schedule\ScheduleDraftGenerationService;
@@ -26,18 +29,33 @@ class ScheduleModuleController extends Controller
         return response()->json(['synced' => $service->syncActiveEmployees()]);
     }
 
-    public function settings(Request $request): JsonResponse
+    public function settings(Request $request, AuditLogService $auditLogService): JsonResponse
     {
         $data = $request->validate([
             'employee_id' => ['required', 'string', 'max:50'],
             'default_shift_code_id' => ['nullable', 'exists:payroll_scheduler.shift_codes,id'],
             'can_rotate_shift' => ['boolean'],
+            'uses_regular_weekday_schedule' => ['boolean'],
             'max_consecutive_duty_days' => ['nullable', 'integer', 'min:1', 'max:31'],
             'max_night_shifts_per_month' => ['nullable', 'integer', 'min:0', 'max:31'],
             'is_active' => ['boolean'],
         ]);
 
+        if ($data['uses_regular_weekday_schedule'] ?? false) {
+            $data['can_rotate_shift'] = false;
+            $data['default_shift_code_id'] = null;
+        }
+
+        $existing = EmployeeScheduleSetting::where('employee_id', $data['employee_id'])->first();
+        $before = $existing?->toArray();
         $setting = EmployeeScheduleSetting::updateOrCreate(['employee_id' => $data['employee_id']], $data);
+        $auditLogService->record(
+            $before ? 'employee_schedule_setting.updated' : 'employee_schedule_setting.created',
+            $setting,
+            $before,
+            $setting->fresh()->toArray(),
+            $request->user()?->getAuthIdentifier(),
+        );
 
         return response()->json($setting);
     }
@@ -51,6 +69,7 @@ class ScheduleModuleController extends Controller
     {
         $data = $request->validate([
             'id' => ['nullable', 'exists:payroll_scheduler.rotation_groups,id'],
+            'department_id' => ['nullable', 'integer'],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'is_active' => ['boolean'],
@@ -58,21 +77,24 @@ class ScheduleModuleController extends Controller
             'members.*' => ['nullable', 'string', 'max:50'],
         ]);
 
-        return response()->json($service->save($data));
+        return response()->json($service->save($data, $request->user()?->getAuthIdentifier()));
     }
 
     public function staffingRequirements(): JsonResponse
     {
-        return response()->json(StaffingRequirement::with('shiftCode')->orderBy('department_id')->paginate(20));
+        return response()->json(StaffingRequirement::with('shiftCode', 'rotationGroup')->orderBy('department_id')->paginate(20));
     }
 
     public function saveStaffingRequirement(Request $request, StaffingRequirementService $service): JsonResponse
     {
         $data = $request->validate([
             'department_id' => ['nullable', 'integer'],
+            'id' => ['nullable', 'exists:payroll_scheduler.staffing_requirements,id'],
+            'rotation_group_id' => ['nullable', 'exists:payroll_scheduler.rotation_groups,id'],
             'shift_code_id' => ['required', 'exists:payroll_scheduler.shift_codes,id'],
             'day_of_week' => ['nullable', 'integer', 'between:0,6'],
             'minimum_staff' => ['required', 'integer', 'min:1', 'max:999'],
+            'maximum_staff' => ['nullable', 'integer', 'min:1', 'max:999', 'gte:minimum_staff'],
             'effective_from' => ['nullable', 'date'],
             'effective_to' => ['nullable', 'date', 'after_or_equal:effective_from'],
             'is_active' => ['boolean'],
@@ -80,7 +102,7 @@ class ScheduleModuleController extends Controller
 
         $requirement = isset($data['id']) ? StaffingRequirement::find($data['id']) : null;
 
-        return response()->json($service->save($data, $requirement));
+        return response()->json($service->save($data, $requirement, $request->user()?->getAuthIdentifier()));
     }
 
     public function templates(): JsonResponse
@@ -100,7 +122,7 @@ class ScheduleModuleController extends Controller
             'days.*' => ['required', 'exists:payroll_scheduler.shift_codes,id'],
         ]);
 
-        return response()->json($service->save($data));
+        return response()->json($service->save($data, $request->user()?->getAuthIdentifier()));
     }
 
     public function generateDraft(Request $request, ScheduleDraftGenerationService $service): JsonResponse
@@ -118,6 +140,20 @@ class ScheduleModuleController extends Controller
             $data['department_id'] ?? null,
             $data['schedule_template_id'] ?? null,
             $request->user()?->getAuthIdentifier()
+        ));
+    }
+
+    public function updateAssignment(Request $request, ScheduleAssignment $assignment, ScheduleAssignmentService $service): JsonResponse
+    {
+        $data = $request->validate([
+            'shift_code_id' => ['required', 'exists:payroll_scheduler.shift_codes,id'],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        return response()->json($service->update(
+            $assignment,
+            $data,
+            $request->user()?->getAuthIdentifier(),
         ));
     }
 

@@ -7,12 +7,16 @@ use Illuminate\Support\Facades\DB;
 
 class RotationGroupService
 {
-    public function save(array $data): RotationGroup
+    public function __construct(private AuditLogService $auditLogService) {}
+
+    public function save(array $data, ?string $performedBy = null): RotationGroup
     {
-        return DB::connection('payroll_scheduler')->transaction(function () use ($data) {
+        return DB::connection('payroll_scheduler')->transaction(function () use ($data, $performedBy) {
+            $existing = isset($data['id']) ? RotationGroup::find($data['id']) : null;
+            $before = $existing?->load('members')->toArray();
             $group = RotationGroup::updateOrCreate(
                 ['id' => $data['id'] ?? null],
-                collect($data)->only(['name', 'description', 'is_active'])->all()
+                collect($data)->only(['department_id', 'name', 'description', 'is_active'])->all()
             );
 
             if (array_key_exists('members', $data)) {
@@ -24,7 +28,16 @@ class RotationGroupService
                 }
             }
 
-            return $group->fresh('members');
+            $fresh = $group->fresh('members');
+            $this->auditLogService->record(
+                $before ? 'rotation_group.updated' : 'rotation_group.created',
+                $fresh,
+                $before,
+                $fresh->toArray(),
+                $performedBy,
+            );
+
+            return $fresh;
         });
     }
 }

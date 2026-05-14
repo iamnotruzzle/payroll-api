@@ -95,11 +95,22 @@ class EmployeeSectionService
             })->toArray();
     }
 
-    public function dtrs(string $empId): array
+    public function dtrs(string $empId, ?string $from = null, ?string $to = null): array
     {
-        return EmployeeDtr::where('emp_id', $empId)
-            ->orderByDesc('dtr_date')
-            ->take(62)
-            ->get()->toArray();
+        $query = EmployeeDtr::where('emp_id', $empId);
+
+        if ($from) {
+            $query->whereDate('dtr_date', '>=', $from);
+        }
+
+        if ($to) {
+            $query->whereDate('dtr_date', '<=', $to);
+        }
+
+        if (! $from && ! $to) {
+            $query->take(62);
+        }
+
+        return $query->orderByDesc('dtr_date')->get()->toArray();
     }
 }

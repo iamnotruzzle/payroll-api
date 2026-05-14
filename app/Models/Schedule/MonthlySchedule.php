@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MonthlySchedule extends PayrollSchedulerModel
 {
+    protected $connection = 'payroll_scheduler';
+
     public const STATUS_DRAFT = 'draft';
     public const STATUS_REVIEWED = 'reviewed';
     public const STATUS_APPROVED = 'approved';
@@ -13,6 +15,8 @@ class MonthlySchedule extends PayrollSchedulerModel
 
     protected $fillable = [
         'department_id',
+        'schedule_template_id',
+        'rotation_group_id',
         'year',
         'month',
         'status',
@@ -30,6 +34,8 @@ class MonthlySchedule extends PayrollSchedulerModel
     {
         return [
             'department_id' => 'integer',
+            'schedule_template_id' => 'integer',
+            'rotation_group_id' => 'integer',
             'year' => 'integer',
             'month' => 'integer',
             'generated_at' => 'datetime',

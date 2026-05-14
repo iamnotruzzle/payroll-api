@@ -26,6 +26,7 @@ class TimeTemplateController extends Controller
             'start_time'     => 'required|date_format:H:i:s',
             'end_time'       => 'required|date_format:H:i:s',
             'end_day_offset' => 'required|integer|min:0|max:7',
+            'work_hours'     => 'required|numeric|min:0|max:168',
             'is_active'      => 'required|boolean',
         ]);
 
@@ -41,6 +42,7 @@ class TimeTemplateController extends Controller
             'start_time'     => 'required|date_format:H:i:s',
             'end_time'       => 'required|date_format:H:i:s',
             'end_day_offset' => 'required|integer|min:0|max:7',
+            'work_hours'     => 'required|numeric|min:0|max:168',
             'is_active'      => 'required|boolean',
         ]);
 

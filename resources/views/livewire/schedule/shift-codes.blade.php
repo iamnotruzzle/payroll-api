@@ -2,7 +2,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="text-xl font-semibold">Shift Code Management</h2>
-            <p class="text-sm text-slate-600">Manage dynamic duty, leave, off, holiday, and request-off codes.</p>
+            <p class="text-sm text-slate-600">Manage duty, leave, off, holiday, and request-off codes for {{ $department?->department ?? 'your department' }}.</p>
         </div>
         <button wire:click="seedDefaults" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
             Seed Standard Codes
@@ -29,18 +29,23 @@
                 @error('name') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
-            <div class="grid grid-cols-3 gap-2">
+            <div class="grid sm:grid-cols-2 gap-2 grid-cols-1">
                 <div>
                     <label class="text-sm font-medium">Start</label>
-                    <input wire:model="start_time" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <input wire:model.live="start_time" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                 </div>
                 <div>
                     <label class="text-sm font-medium">End</label>
-                    <input wire:model="end_time" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <input wire:model.live="end_time" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                 </div>
                 <div>
                     <label class="text-sm font-medium">+Day</label>
-                    <input wire:model="end_day_offset" type="number" min="0" max="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <input wire:model.live="end_day_offset" type="number" min="0" max="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="text-sm font-medium">Work Hours</label>
+                    <input wire:model.live="work_hours" type="number" min="0" max="72" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    @error('work_hours') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
             </div>
 
@@ -75,6 +80,8 @@
                             <th class="px-3 py-2">Code</th>
                             <th class="px-3 py-2">Name</th>
                             <th class="px-3 py-2">Time</th>
+                            <th class="px-3 py-2">Hours</th>
+                            <th class="px-3 py-2">Scope</th>
                             <th class="px-3 py-2">Flags</th>
                             <th class="px-3 py-2"></th>
                         </tr>
@@ -84,7 +91,13 @@
                             <tr>
                                 <td class="px-3 py-2 font-semibold">{{ $shift->code }}</td>
                                 <td class="px-3 py-2">{{ $shift->name }}</td>
-                                <td class="px-3 py-2">{{ $shift->start_time ? substr($shift->start_time, 0, 5) : '-' }} - {{ $shift->end_time ? substr($shift->end_time, 0, 5) : '-' }}</td>
+                                <td class="px-3 py-2">
+                                    {{ $shift->start_time ? \Carbon\CarbonImmutable::createFromFormat('H:i:s', $shift->start_time)->format('h:i A') : '-' }}
+                                    -
+                                    {{ $shift->end_time ? \Carbon\CarbonImmutable::createFromFormat('H:i:s', $shift->end_time)->format('h:i A') : '-' }}
+                                </td>
+                                <td class="px-3 py-2">{{ $shift->work_hours !== null ? number_format((float) $shift->work_hours, 2) : '-' }}</td>
+                                <td class="px-3 py-2">{{ $shift->department_id ? 'Office' : 'Global' }}</td>
                                 <td class="px-3 py-2">
                                     <div class="flex flex-wrap gap-1">
                                         @if ($shift->is_work_shift)<span class="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">work</span>@endif
@@ -98,7 +111,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="px-3 py-8 text-center text-slate-500">No shift codes yet.</td></tr>
+                            <tr><td colspan="7" class="px-3 py-8 text-center text-slate-500">No shift codes yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

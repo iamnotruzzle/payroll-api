@@ -3,10 +3,12 @@
 use App\Http\Controllers\Api\DtrLabelOptionController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\HolidayController;
+use App\Http\Controllers\Api\PayrollOperationsController;
 use App\Http\Controllers\Api\PayrollAdditionalController;
 use App\Http\Controllers\Api\PayrollDeductionController;
 use App\Http\Controllers\Api\PayrollTypeController;
 use App\Http\Controllers\Api\PositionController;
+use App\Http\Controllers\Api\ReferenceDataController;
 use App\Http\Controllers\Api\SalaryGradeController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Api\ScheduleModuleController;
@@ -24,6 +26,9 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::get('/users', [UserAccountController::class, 'index']);
+Route::get('/departments', [ReferenceDataController::class, 'departments']);
+Route::get('/payroll-items', [ReferenceDataController::class, 'payrollItems']);
+Route::get('/payroll-items/calculations', [ReferenceDataController::class, 'payrollItemCalculations']);
 
 Route::prefix('employees')->group(function () {
     Route::get('/', [EmployeeController::class, 'index']);
@@ -87,6 +92,35 @@ Route::prefix('payroll-deductions')->group(function () {
     Route::delete('/{id}', [PayrollDeductionController::class, 'destroy']);
 });
 
+Route::prefix('payroll')->group(function () {
+    Route::get('/periods', [PayrollOperationsController::class, 'periods']);
+    Route::get('/runs', [PayrollOperationsController::class, 'runs']);
+    Route::get('/runs/{id}', [PayrollOperationsController::class, 'run']);
+    Route::get('/runs/{id}/lines', [PayrollOperationsController::class, 'runLines']);
+    Route::get('/payslips', [PayrollOperationsController::class, 'payslips']);
+
+    Route::get('/mra-reports', [PayrollOperationsController::class, 'mraReports']);
+    Route::post('/mra-reports', [PayrollOperationsController::class, 'saveMraReport']);
+    Route::post('/mra-reports/finalize', [PayrollOperationsController::class, 'finalizeMraReport']);
+
+    Route::get('/dtr-labels', [PayrollOperationsController::class, 'dtrLabels']);
+    Route::post('/dtr-labels/bulk', [PayrollOperationsController::class, 'saveDtrLabels']);
+
+    Route::get('/dtr-adjustments', [PayrollOperationsController::class, 'dtrAdjustments']);
+    Route::post('/dtr-adjustments/bulk', [PayrollOperationsController::class, 'saveDtrAdjustments']);
+
+    Route::get('/dtr-schedule-encodings', [PayrollOperationsController::class, 'dtrScheduleEncodings']);
+    Route::post('/dtr-schedule-encodings/bulk', [PayrollOperationsController::class, 'saveDtrScheduleEncodings']);
+
+    Route::get('/leave-credit-adjustments', [PayrollOperationsController::class, 'leaveCreditAdjustments']);
+    Route::post('/leave-credit-adjustments/replace', [PayrollOperationsController::class, 'replaceLeaveCreditAdjustments']);
+
+    Route::get('/employee-deductions', [PayrollOperationsController::class, 'employeeDeductions']);
+    Route::get('/office-dtr-state', [PayrollOperationsController::class, 'officeDtrState']);
+    Route::get('/mra-preview-state', [PayrollOperationsController::class, 'mraPreviewState']);
+    Route::post('/generate-run', [PayrollOperationsController::class, 'generateRun']);
+});
+
 Route::prefix('schedule')->group(function () {
     Route::post('/employee-references/sync', [ScheduleModuleController::class, 'syncEmployees']);
     Route::post('/employee-settings', [ScheduleModuleController::class, 'settings']);
@@ -107,6 +141,7 @@ Route::prefix('schedule')->group(function () {
     Route::post('/monthly/generate-draft', [ScheduleModuleController::class, 'generateDraft']);
     Route::get('/monthly/{schedule}', [ScheduleModuleController::class, 'showSchedule']);
     Route::get('/monthly/{schedule}/conflicts', [ScheduleModuleController::class, 'conflicts']);
+    Route::put('/assignments/{assignment}', [ScheduleModuleController::class, 'updateAssignment']);
     Route::post('/monthly/{schedule}/review', [ScheduleModuleController::class, 'review']);
     Route::post('/monthly/{schedule}/approve', [ScheduleModuleController::class, 'approve']);
     Route::post('/monthly/{schedule}/lock', [ScheduleModuleController::class, 'lock']);

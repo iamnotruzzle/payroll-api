@@ -14,6 +14,10 @@ class PayrollAdditional extends Model
         'name',
         'is_percentage',
         'value',
+        'computation_type',
+        'formula',
+        'variable_name',
+        'sort_order',
         'is_active',
     ];
 
@@ -21,5 +25,6 @@ class PayrollAdditional extends Model
         'is_percentage' => 'boolean',
         'is_active' => 'boolean',
         'value' => 'decimal:4',
+        'sort_order' => 'integer',
     ];
 }

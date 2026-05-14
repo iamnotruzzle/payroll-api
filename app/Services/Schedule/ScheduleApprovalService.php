@@ -12,6 +12,10 @@ class ScheduleApprovalService
     public function review(MonthlySchedule $schedule, ?string $performedBy = null): MonthlySchedule
     {
         $this->ensureUnlocked($schedule);
+        if ($schedule->status !== MonthlySchedule::STATUS_DRAFT) {
+            throw new RuntimeException('Only draft schedules can be sent for review.');
+        }
+
         $before = $schedule->toArray();
         $schedule->update(['status' => MonthlySchedule::STATUS_REVIEWED, 'reviewed_by' => $performedBy, 'reviewed_at' => now()]);
         $this->auditLogService->record('schedule.reviewed', $schedule, $before, $schedule->fresh()->toArray(), $performedBy);
@@ -22,6 +26,10 @@ class ScheduleApprovalService
     public function approve(MonthlySchedule $schedule, ?string $performedBy = null): MonthlySchedule
     {
         $this->ensureUnlocked($schedule);
+        if ($schedule->status !== MonthlySchedule::STATUS_REVIEWED) {
+            throw new RuntimeException('Schedules must be reviewed before approval.');
+        }
+
         $conflicts = $this->validator->validate($schedule);
         if ($conflicts !== []) {
             throw new RuntimeException('Schedule has unresolved conflicts.');
