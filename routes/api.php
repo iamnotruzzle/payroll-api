@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\HolidayController;
 use App\Http\Controllers\Api\PayrollOperationsController;
 use App\Http\Controllers\Api\PayrollAdditionalController;
+use App\Http\Controllers\Api\PayrollBankTemplateController;
 use App\Http\Controllers\Api\PayrollDeductionController;
 use App\Http\Controllers\Api\PayrollTypeController;
 use App\Http\Controllers\Api\PositionController;
@@ -119,6 +120,13 @@ Route::prefix('payroll')->group(function () {
     Route::get('/office-dtr-state', [PayrollOperationsController::class, 'officeDtrState']);
     Route::get('/mra-preview-state', [PayrollOperationsController::class, 'mraPreviewState']);
     Route::post('/generate-run', [PayrollOperationsController::class, 'generateRun']);
+});
+
+Route::prefix('payroll-bank-template')->group(function () {
+    Route::get('/',              [PayrollBankTemplateController::class, 'show']);
+    Route::post('/',             [PayrollBankTemplateController::class, 'store']);
+    Route::put('/{id}',          [PayrollBankTemplateController::class, 'update']);
+    Route::get('/{id}/download', [PayrollBankTemplateController::class, 'download']);
 });
 
 Route::prefix('schedule')->group(function () {
