@@ -13,11 +13,15 @@ class PayrollBankTemplateController extends Controller
 {
     public function __construct(private PayrollBankTemplateService $service) {}
 
-    /**
-     * GET /payroll-bank-template
-     * Returns the latest saved template (or 404 if none exists).
-     */
-    public function show(): JsonResponse
+
+    //  List all templates (id + created_at), newest first.
+    public function index(): JsonResponse
+    {
+        return response()->json($this->service->getAll());
+    }
+
+    // Get the latest template with its columns.
+    public function latest(): JsonResponse
     {
         $template = $this->service->getLatest();
 
@@ -28,52 +32,38 @@ class PayrollBankTemplateController extends Controller
         return response()->json($template);
     }
 
-    /**
-     * POST /payroll-bank-template
-     * Save a new template snapshot.
-     */
+    //Get a specific template with its columns.
+    public function show(int $id): JsonResponse
+    {
+        return response()->json($this->service->getById($id));
+    }
+
+    //Always creates a new snapshot — never overwrites.
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'columns'                 => 'required|array|min:1',
-            'columns.*.column_key'    => 'required|string|max:100',
-            'columns.*.label'         => 'required|string|max:255',
-            'columns.*.width'         => 'sometimes|integer|min:50|max:500',
+            'columns'              => 'required|array|min:1',
+            'columns.*.column_key' => 'required|string|max:100',
+            'columns.*.label'      => 'required|string|max:255',
+            'columns.*.width'      => 'sometimes|integer|min:50|max:500',
         ]);
 
         $template = $this->service->save($data['columns']);
 
         return response()->json($template, 201);
     }
-
-    /**
-     * PUT /payroll-bank-template/{id}
-     * Update an existing template's columns.
-     */
-    public function update(Request $request, int $id): JsonResponse
+    // Delete a template snapshot from history.
+    public function destroy(int $id): JsonResponse
     {
-        $data = $request->validate([
-            'columns'                 => 'required|array|min:1',
-            'columns.*.column_key'    => 'required|string|max:100',
-            'columns.*.label'         => 'required|string|max:255',
-            'columns.*.width'         => 'sometimes|integer|min:50|max:500',
-        ]);
-
-        $template = $this->service->updateColumns($id, $data['columns']);
-
-        return response()->json($template);
+        $this->service->delete($id);
+        return response()->json(['message' => 'Deleted.']);
     }
 
-    /**
-     * GET /payroll-bank-template/{id}/download
-     * Download the template as a blank Excel file.
-     */
+    //  Download a template as a blank Excel file.
     public function download(int $id): BinaryFileResponse
     {
-        $template = PayrollBankTemplate::with('columns')->findOrFail($id);
-
-        $path = $this->service->buildExcel($template);
-
+        $template = $this->service->getById($id);
+        $path     = $this->service->buildExcel($template);
         $filename = 'bank_template_' . $template->created_at->format('Ymd_His') . '.xlsx';
 
         return response()->download($path, $filename, [

@@ -123,11 +123,14 @@ Route::prefix('payroll')->group(function () {
 });
 
 Route::prefix('payroll-bank-template')->group(function () {
-    Route::get('/',              [PayrollBankTemplateController::class, 'show']);
-    Route::post('/',             [PayrollBankTemplateController::class, 'store']);
-    Route::put('/{id}',          [PayrollBankTemplateController::class, 'update']);
-    Route::get('/{id}/download', [PayrollBankTemplateController::class, 'download']);
+    Route::get('/',                  [PayrollBankTemplateController::class, 'index']);
+    Route::get('/latest',            [PayrollBankTemplateController::class, 'latest']);
+    Route::get('/{id}',              [PayrollBankTemplateController::class, 'show']);
+    Route::post('/',                 [PayrollBankTemplateController::class, 'store']);
+    Route::delete('/{id}',           [PayrollBankTemplateController::class, 'destroy']);
+    Route::get('/{id}/download',     [PayrollBankTemplateController::class, 'download']);
 });
+
 
 Route::prefix('schedule')->group(function () {
     Route::post('/employee-references/sync', [ScheduleModuleController::class, 'syncEmployees']);

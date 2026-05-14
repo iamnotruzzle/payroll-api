@@ -14,10 +14,21 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class PayrollBankTemplateService
 {
-    /**
-     * Get the latest saved template with its columns.
-     * Returns null if none has been saved yet.
-     */
+    //  Get all saved templates (id + created_at only), newest first.
+    //   Used to populate the history/switcher list.
+    public function getAll(): Collection
+    {
+        return PayrollBankTemplate::orderByDesc('id')
+            ->get(['id', 'created_at']);
+    }
+
+    // Get a single template with its columns.
+    public function getById(int $id): PayrollBankTemplate
+    {
+        return PayrollBankTemplate::with('columns')->findOrFail($id);
+    }
+
+    // Get the latest saved template with its columns.
     public function getLatest(): ?PayrollBankTemplate
     {
         return PayrollBankTemplate::with('columns')
@@ -25,10 +36,8 @@ class PayrollBankTemplateService
             ->first();
     }
 
-    /**
-     * Create a new template snapshot with the provided columns.
-     * Each call creates a new record (timestamp = identifier).
-     */
+    //  Always creates a NEW template snapshot — never overwrites.
+    //   Every save = a new history entry.
     public function save(array $columns): PayrollBankTemplate
     {
         $template = PayrollBankTemplate::create([
@@ -40,79 +49,41 @@ class PayrollBankTemplateService
         return $template->load('columns');
     }
 
-    /**
-     * Update an existing template's columns in-place.
-     */
-    public function updateColumns(int $templateId, array $columns): PayrollBankTemplate
+    // Delete a template and its columns.
+    public function delete(int $id): void
     {
-        $template = PayrollBankTemplate::findOrFail($templateId);
-
-        PayrollBankTemplateColumn::where('template_id', $template->id)->delete();
-        $this->syncColumns($template, $columns);
-
-        return $template->load('columns');
+        PayrollBankTemplate::findOrFail($id)->delete();
     }
 
-    /**
-     * Build a blank Excel file from a template's columns and return the file path.
-     */
+    // Build a blank Excel file from a template's columns. Returns temp file path.
     public function buildExcel(PayrollBankTemplate $template): string
     {
-        $columns = $template->columns;
-
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Template');
 
-        // Header style
         $headerStyle = [
-            'font' => [
-                'bold'  => true,
-                'color' => ['argb' => 'FFFFFFFF'],
-                'size'  => 10,
-            ],
-            'fill' => [
-                'fillType'   => Fill::FILL_SOLID,
-                'startColor' => ['argb' => 'FF1565C0'],
-            ],
-            'alignment' => [
-                'horizontal' => Alignment::HORIZONTAL_CENTER,
-                'vertical'   => Alignment::VERTICAL_CENTER,
-                'wrapText'   => true,
-            ],
-            'borders' => [
-                'allBorders' => [
-                    'borderStyle' => Border::BORDER_THIN,
-                    'color'       => ['argb' => 'FFBBBBBB'],
-                ],
-            ],
+            'font'      => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF'], 'size' => 10],
+            'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF1565C0']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+            'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['argb' => 'FFBBBBBB']]],
         ];
 
-        // Write headers
-        foreach ($columns as $index => $col) {
-            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($index + 1);
-            $cell = $colLetter . '1';
-
-            $sheet->setCellValue($cell, $col->label);
-            $sheet->getStyle($cell)->applyFromArray($headerStyle);
-            $sheet->getColumnDimension($colLetter)->setWidth($col->width / 7); // pts → approx chars
+        foreach ($template->columns as $index => $col) {
+            $letter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($index + 1);
+            $sheet->setCellValue("{$letter}1", $col->label);
+            $sheet->getStyle("{$letter}1")->applyFromArray($headerStyle);
+            $sheet->getColumnDimension($letter)->setWidth($col->width / 7);
         }
 
-        // Freeze header row
         $sheet->freezePane('A2');
-
-        // Row height for header
         $sheet->getRowDimension(1)->setRowHeight(24);
 
-        $tempPath = sys_get_temp_dir() . '/bank_template_' . time() . '.xlsx';
+        $path = sys_get_temp_dir() . '/bank_template_' . time() . '.xlsx';
+        (new Xlsx($spreadsheet))->save($path);
 
-        $writer = new Xlsx($spreadsheet);
-        $writer->save($tempPath);
-
-        return $tempPath;
+        return $path;
     }
-
-    // ─── Private ─────────────────────────────────────────────────────────────
 
     private function syncColumns(PayrollBankTemplate $template, array $columns): void
     {
