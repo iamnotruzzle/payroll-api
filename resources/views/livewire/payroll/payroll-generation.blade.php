@@ -95,11 +95,16 @@
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="px-4 py-3">Emp ID</th>
-                            <th class="px-4 py-3">Employee</th>
-                            <th class="px-4 py-3 text-right">Prior Month Deduct Days</th>
+                            <th colspan="2" class="border-b border-slate-200 px-4 py-3 text-center">Employee Information</th>
+                            <th colspan="2" class="border-b border-slate-200 px-4 py-3 text-center">Prior Month MRA Basis</th>
+                            <th class="border-b border-slate-200 px-4 py-3 text-center">Payroll Input</th>
+                        </tr>
+                        <tr>
+                            <th class="px-4 py-3">Employee No.</th>
+                            <th class="px-4 py-3">Employee Name</th>
+                            <th class="px-4 py-3 text-right">Deduct Days</th>
                             <th class="px-4 py-3 text-right">Undertime/Tardy Minutes</th>
-                            <th class="px-4 py-3 text-right">Leave/Deduct Days</th>
+                            <th class="px-4 py-3 text-right">Deduct Days for Payroll</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -142,20 +147,27 @@
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="px-4 py-3">Employee</th>
-                            @foreach ($compensations as $item)
+                            <th rowspan="2" class="px-4 py-3 align-middle">Employee Name</th>
+                            <th colspan="{{ max(1, $compensations->count()) }}" class="border-b border-slate-200 px-4 py-3 text-center">Additional Earnings</th>
+                            <th rowspan="2" class="px-4 py-3 text-right align-middle">Gross Pay</th>
+                        </tr>
+                        <tr>
+                            @forelse ($compensations as $item)
                                 <th class="px-4 py-3 text-right">{{ $item->name }}</th>
-                            @endforeach
-                            <th class="px-4 py-3 text-right">Gross</th>
+                            @empty
+                                <th class="px-4 py-3 text-right">None</th>
+                            @endforelse
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50">
                                 <td class="px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
-                                @foreach ($compensations as $item)
+                                @forelse ($compensations as $item)
                                     <td class="px-4 py-3 text-right">{{ number_format($row['compensations'][$item->id]['amount'] ?? 0, 2) }}</td>
-                                @endforeach
+                                @empty
+                                    <td class="px-4 py-3 text-right">-</td>
+                                @endforelse
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['gross'], 2) }}</td>
                             </tr>
                         @empty
@@ -175,10 +187,13 @@
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="px-4 py-3">Employee</th>
-                            <th class="px-4 py-3 text-right">Leave/Deduct Days</th>
-                            <th class="px-4 py-3 text-right">Gross</th>
-                            <th class="px-4 py-3 text-right">Current Adjustments</th>
+                            <th rowspan="2" class="px-4 py-3 align-middle">Employee Name</th>
+                            <th colspan="2" class="border-b border-slate-200 px-4 py-3 text-center">Pay Adjustments</th>
+                            <th rowspan="2" class="px-4 py-3 text-right align-middle">Gross Pay</th>
+                        </tr>
+                        <tr>
+                            <th class="px-4 py-3 text-right">Deduct Days</th>
+                            <th class="px-4 py-3 text-right">Other Adjustments</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -186,8 +201,8 @@
                             <tr>
                                 <td class="px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['deduction_days'], 3) }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($row['gross'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">0.00</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['gross'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>

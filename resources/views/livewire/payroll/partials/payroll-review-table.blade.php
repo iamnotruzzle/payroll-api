@@ -2,23 +2,30 @@
     <table class="min-w-full divide-y divide-slate-200 text-sm">
         <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>
-                <th class="px-4 py-3">Emp ID</th>
-                <th class="px-4 py-3">Employee</th>
+                <th colspan="3" class="border-b border-slate-200 px-4 py-3 text-center">Employee Information</th>
+                <th colspan="3" class="border-b border-slate-200 px-4 py-3 text-center">Pay Basis</th>
+                <th colspan="{{ 2 + $compensations->count() }}" class="border-b border-slate-200 px-4 py-3 text-center">Earnings</th>
+                <th colspan="3" class="border-b border-slate-200 px-4 py-3 text-center">Statutory Deductions</th>
+                <th colspan="3" class="border-b border-slate-200 px-4 py-3 text-center">Net Pay Distribution</th>
+            </tr>
+            <tr>
+                <th class="px-4 py-3">Employee No.</th>
+                <th class="px-4 py-3">Employee Name</th>
                 <th class="px-4 py-3">Position</th>
-                <th class="px-4 py-3 text-right">SG</th>
+                <th class="px-4 py-3 text-right">Salary Grade</th>
                 <th class="px-4 py-3 text-right">Step</th>
-                <th class="px-4 py-3 text-right">Leave/Deduct Days</th>
-                <th class="px-4 py-3 text-right">Basic Salary</th>
+                <th class="px-4 py-3 text-right">Deduct Days</th>
+                <th class="px-4 py-3 text-right">Basic Pay</th>
                 @foreach ($compensations as $item)
                     <th class="px-4 py-3 text-right">{{ $item->name }}</th>
                 @endforeach
-                <th class="px-4 py-3 text-right">Life Retirement</th>
-                <th class="px-4 py-3 text-right">PHIC</th>
-                <th class="px-4 py-3 text-right">Mandatory Pag-IBIG</th>
-                <th class="px-4 py-3 text-right">Gross</th>
-                <th class="px-4 py-3 text-right">Net Preview</th>
-                <th class="px-4 py-3 text-right">15th</th>
-                <th class="px-4 py-3 text-right">30th</th>
+                <th class="px-4 py-3 text-right">Gross Pay</th>
+                <th class="px-4 py-3 text-right">Life & Retirement</th>
+                <th class="px-4 py-3 text-right">PhilHealth</th>
+                <th class="px-4 py-3 text-right">Pag-IBIG</th>
+                <th class="px-4 py-3 text-right">Net Pay</th>
+                <th class="px-4 py-3 text-right">15th Payroll</th>
+                <th class="px-4 py-3 text-right">30th Payroll</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
