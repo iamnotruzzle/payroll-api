@@ -172,7 +172,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ 2 + $compensations->count() }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="{{ 2 + max(1, $compensations->count()) }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -222,11 +222,14 @@
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="px-4 py-3">Employee</th>
-                            <th class="px-4 py-3 text-right">Life Retirement</th>
-                            <th class="px-4 py-3 text-right">PHIC</th>
-                            <th class="px-4 py-3 text-right">Mandatory Pag-IBIG</th>
-                            <th class="px-4 py-3 text-right">Net Preview</th>
+                            <th rowspan="2" class="px-4 py-3 align-middle">Employee Name</th>
+                            <th colspan="3" class="border-b border-slate-200 px-4 py-3 text-center">Statutory Deductions</th>
+                            <th rowspan="2" class="px-4 py-3 text-right align-middle">Net Pay</th>
+                        </tr>
+                        <tr>
+                            <th class="px-4 py-3 text-right">Life &amp; Retirement</th>
+                            <th class="px-4 py-3 text-right">PhilHealth</th>
+                            <th class="px-4 py-3 text-right">Pag-IBIG</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">

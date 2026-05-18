@@ -20,7 +20,7 @@
                     <th class="px-4 py-3 text-right">{{ $item->name }}</th>
                 @endforeach
                 <th class="px-4 py-3 text-right">Gross Pay</th>
-                <th class="px-4 py-3 text-right">Life & Retirement</th>
+                <th class="px-4 py-3 text-right">Life &amp; Retirement</th>
                 <th class="px-4 py-3 text-right">PhilHealth</th>
                 <th class="px-4 py-3 text-right">Pag-IBIG</th>
                 <th class="px-4 py-3 text-right">Net Pay</th>
