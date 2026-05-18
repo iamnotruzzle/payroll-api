@@ -9,7 +9,7 @@
     @endif
 
     <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="grid gap-3 md:grid-cols-5">
+        <div class="grid gap-3 md:grid-cols-6">
             <div>
                 <label class="text-sm font-medium">Year</label>
                 <input wire:model="year" type="number" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
@@ -30,6 +30,14 @@
                     <option value="">Auto/default</option>
                     @foreach ($templates as $template)
                         <option value="{{ $template->id }}">{{ $template->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="text-sm font-medium">Employee Type</label>
+                <select wire:model.live="employeeTypeFilter" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    @foreach ($employeeTypeOptions as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
                     @endforeach
                 </select>
             </div>
@@ -136,12 +144,25 @@
 
                 @if ($conflicts)
                     <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                        <h3 class="font-semibold">Conflicts</h3>
-                        <ul class="mt-2 list-disc pl-5">
-                            @foreach ($conflicts as $conflict)
-                                <li>{{ $conflict['message'] }}</li>
-                            @endforeach
-                        </ul>
+                        <div class="flex items-center justify-between gap-3">
+                            <h3 class="font-semibold">Conflicts</h3>
+                            <button
+                                type="button"
+                                wire:click="toggleConflicts"
+                                class="rounded-md border border-amber-300 bg-white/70 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-white"
+                            >
+                                {{ $showConflicts ? 'Hide' : 'Show' }}
+                            </button>
+                        </div>
+                        @if ($showConflicts)
+                            <ul class="mt-2 list-disc pl-5">
+                                @foreach ($conflicts as $conflict)
+                                    <li>{{ $conflict['message'] }}</li>
+                                @endforeach
+                            </ul>
+                        @else
+                            <p class="mt-2 text-xs font-medium text-amber-800">{{ count($conflicts) }} conflict{{ count($conflicts) === 1 ? '' : 's' }} hidden.</p>
+                        @endif
                     </div>
                 @endif
 
@@ -160,17 +181,32 @@
                     </div>
 
                     <div class="mt-4 overflow-x-auto">
+                        @php($weeklyTotalColumnCount = collect($tableDays)->where('ends_week', true)->count())
                         <table class="min-w-[2200px] border-separate border-spacing-0 text-xs">
                             <thead>
                                 <tr>
                                     <th class="sticky left-0 z-20 w-44 border-b border-r border-slate-200 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-700">
                                         Employee
                                     </th>
+                                    <th class="w-72 border-b border-r border-slate-200 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-700">
+                                        Pattern
+                                    </th>
                                     @foreach ($tableDays as $day)
-                                        <th class="w-16 border-b border-r border-slate-200 bg-slate-50 px-2 py-2 text-center font-semibold text-slate-700">
+                                        <th class="w-24 border-b border-r border-slate-200 bg-slate-50 px-2 py-2 text-center font-semibold text-slate-700">
                                             <span class="block">{{ $day['day'] }}</span>
                                             <span class="block text-[11px] font-medium text-slate-400">{{ $day['weekday'] }}</span>
+                                            @if ($day['holiday_label'])
+                                                <span class="mt-1 block truncate rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-800" title="{{ $day['holiday_name'] }}">
+                                                    {{ $day['holiday_label'] }}
+                                                </span>
+                                            @endif
                                         </th>
+                                        @if ($day['ends_week'])
+                                            <th class="w-20 border-b border-r border-slate-200 bg-emerald-50 px-2 py-2 text-center font-semibold text-emerald-800">
+                                                <span class="block">Week</span>
+                                                <span class="block text-[11px] font-medium text-emerald-600">Hours</span>
+                                            </th>
+                                        @endif
                                     @endforeach
                                 </tr>
                             </thead>
@@ -185,13 +221,25 @@
                                                 <span class="truncate">{{ $row['employee_name'] }}</span>
                                             </div>
                                         </th>
+                                        <td class="border-b border-r border-slate-200 bg-white px-2 py-1.5">
+                                            <select
+                                                wire:change="applyEmployeePattern('{{ $row['employee_id'] }}', $event.target.value)"
+                                                class="w-64 rounded-md border border-slate-300 py-1.5 pl-2 pr-8 text-xs font-medium text-slate-700"
+                                                @disabled($schedule->isLocked())
+                                            >
+                                                <option value="">Apply pattern...</option>
+                                                @foreach ($rowPatternOptions as $pattern)
+                                                    <option value="{{ $pattern->id }}">{{ $pattern->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </td>
                                         @foreach ($tableDays as $day)
                                             @php($cell = $row['assignments'][$day['key']] ?? null)
-                                            <td class="border-b border-r border-slate-200 bg-white px-1.5 py-1.5 text-center">
+                                            <td class="border-b border-r border-slate-200 bg-white px-2 py-1.5 text-center">
                                                 @if ($cell)
                                                     <select
                                                         wire:change="updateAssignmentShift({{ $cell['id'] }}, $event.target.value)"
-                                                        class="w-full rounded-md border border-slate-300 px-1 py-1 text-[11px] font-medium {{ $cell['night'] ? 'bg-indigo-50 text-indigo-800' : 'bg-blue-50 text-blue-800' }}"
+                                                        class="w-full min-w-20 appearance-none rounded-md border border-slate-300 px-2 py-1 text-center text-[11px] font-semibold {{ $cell['night'] ? 'bg-indigo-50 text-indigo-800' : 'bg-blue-50 text-blue-800' }}"
                                                         @disabled($schedule->isLocked())
                                                     >
                                                         @foreach ($shiftCodeOptions as $shiftCode)
@@ -204,16 +252,80 @@
                                                     <span class="text-slate-300">-</span>
                                                 @endif
                                             </td>
+                                            @if ($day['ends_week'])
+                                                @php($weeklyHours = $row['weekly_hours'][$day['week_key']] ?? 0)
+                                                <td class="border-b border-r border-slate-200 bg-emerald-50 px-2 py-1.5 text-center font-semibold text-emerald-800">
+                                                    {{ rtrim(rtrim(number_format($weeklyHours, 2), '0'), '.') }}
+                                                </td>
+                                            @endif
                                         @endforeach
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ count($tableDays) + 1 }}" class="border-b border-slate-200 px-3 py-6 text-center text-sm text-slate-500">
+                                        <td colspan="{{ count($tableDays) + $weeklyTotalColumnCount + 2 }}" class="border-b border-slate-200 px-3 py-6 text-center text-sm text-slate-500">
                                             No assignments match the current filters.
                                         </td>
                                     </tr>
                                 @endforelse
                             </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h3 class="font-semibold">Daily Shift Summary</h3>
+                            <p class="text-sm text-slate-600">Allocated shift counts per day for the current table filters.</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 overflow-x-auto">
+                        <table class="min-w-[1200px] border-separate border-spacing-0 text-xs">
+                            <thead>
+                                <tr>
+                                    @foreach ($dailyShiftSummary as $day)
+                                        <th class="w-32 border-b border-r border-slate-200 bg-slate-50 px-2 py-2 text-center font-semibold text-slate-700">
+                                            <span class="block">{{ $day['day'] }}</span>
+                                            <span class="block text-[11px] font-medium text-slate-400">{{ $day['weekday'] }}</span>
+                                        </th>
+                                    @endforeach
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    @forelse ($dailyShiftSummary as $day)
+                                        <td class="align-top border-b border-r border-slate-200 bg-white px-2 py-2">
+                                            <div class="space-y-1">
+                                                @foreach ($day['shifts'] as $shift)
+                                                    <div class="flex items-center justify-between gap-2 rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 whitespace-nowrap shadow-sm">
+                                                        <span class="font-mono text-[11px] font-bold uppercase tracking-wide text-slate-800 whitespace-nowrap">{{ $shift['code'] }}</span>
+                                                        <span class="min-w-6 rounded bg-slate-900 px-1.5 py-0.5 text-center text-xs font-bold text-white">{{ $shift['count'] }}</span>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        </td>
+                                    @empty
+                                        <td class="border-b border-slate-200 px-3 py-6 text-center text-sm text-slate-500">
+                                            No assignments match the current filters.
+                                        </td>
+                                    @endforelse
+                                </tr>
+                            </tbody>
+                            @if ($dailyShiftSummary)
+                                <tfoot>
+                                    <tr>
+                                        @foreach ($dailyShiftSummary as $day)
+                                            <td class="border-b border-r border-slate-200 bg-slate-50 px-2 py-2">
+                                                <div class="flex items-center justify-between gap-2 rounded-md bg-white px-2 py-1 font-semibold text-slate-800 ring-1 ring-slate-200">
+                                                    <span class="text-[11px] uppercase text-slate-500">Total</span>
+                                                    <span class="text-sm">{{ $day['total'] }}</span>
+                                                </div>
+                                            </td>
+                                        @endforeach
+                                    </tr>
+                                </tfoot>
+                            @endif
                         </table>
                     </div>
                 </div>

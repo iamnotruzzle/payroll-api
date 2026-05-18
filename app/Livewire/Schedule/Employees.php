@@ -10,7 +10,10 @@ use Livewire\Component;
 class Employees extends Component
 {
     public array $settings = [];
+
     public array $dirty = [];
+
+    public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
 
     public function mount(): void
     {
@@ -24,6 +27,7 @@ class Employees extends Component
             ->with('position')
             ->where('department_id', $departmentId)
             ->where('is_active', 'Y')
+            ->employeeType($this->employeeTypeFilter)
             ->orderBy('lastname')
             ->orderBy('firstname')
             ->get(['emp_id', 'firstname', 'middlename', 'lastname', 'department_id', 'position_id', 'step']);
@@ -31,8 +35,14 @@ class Employees extends Component
         return view('livewire.schedule.employees', [
             'department' => auth()->user()?->employee?->department,
             'employees' => $employees,
+            'employeeTypeOptions' => Employee::employeeTypeOptions(),
             'shiftCodes' => ShiftCode::where('is_active', true)->where('is_work_shift', true)->orderBy('code')->get(['id', 'code', 'name']),
         ]);
+    }
+
+    public function updatedEmployeeTypeFilter(): void
+    {
+        $this->loadSettings();
     }
 
     public function updatedSettings(mixed $value, string $key): void
@@ -40,24 +50,24 @@ class Employees extends Component
         [$employeeId, $field] = explode('.', $key, 2);
 
         if ($field === 'uses_regular_weekday_schedule') {
-            $this->settings[$employeeId]['can_rotate_shift'] = !$value;
+            $this->settings[$employeeId]['can_rotate_shift'] = ! $value;
         }
 
         if ($field === 'can_rotate_shift') {
-            $this->settings[$employeeId]['uses_regular_weekday_schedule'] = !$value;
+            $this->settings[$employeeId]['uses_regular_weekday_schedule'] = ! $value;
         }
     }
 
     public function updatedSettingsUsesRegularWeekdaySchedule(string $employeeId): void
     {
         $usesRegular = $this->settings[$employeeId]['uses_regular_weekday_schedule'] ?? false;
-        $this->settings[$employeeId]['can_rotate_shift'] = !$usesRegular;
+        $this->settings[$employeeId]['can_rotate_shift'] = ! $usesRegular;
     }
 
     public function updatedSettingsCanRotateShift(string $employeeId): void
     {
         $canRotate = $this->settings[$employeeId]['can_rotate_shift'] ?? false;
-        $this->settings[$employeeId]['uses_regular_weekday_schedule'] = !$canRotate;
+        $this->settings[$employeeId]['uses_regular_weekday_schedule'] = ! $canRotate;
     }
 
     public function save(string $employeeId): void
@@ -110,7 +120,7 @@ class Employees extends Component
         }
 
         $this->dirty = [];
-        session()->flash('status', count($ids) . ' record(s) saved.');
+        session()->flash('status', count($ids).' record(s) saved.');
     }
 
     private function loadSettings(): void
@@ -118,6 +128,7 @@ class Employees extends Component
         $employeeIds = Employee::query()
             ->where('department_id', $this->departmentId())
             ->where('is_active', 'Y')
+            ->employeeType($this->employeeTypeFilter)
             ->pluck('emp_id');
 
         $existing = EmployeeScheduleSetting::query()

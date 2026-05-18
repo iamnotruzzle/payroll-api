@@ -23,8 +23,12 @@ use Livewire\Component;
 class Mra extends Component
 {
     public string $from;
+
     public string $to;
+
     public ?string $remarks = null;
+
+    public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
 
     public function mount(): void
     {
@@ -41,6 +45,7 @@ class Mra extends Component
             'department' => auth()->user()?->employee?->department,
             'report' => $report,
             'previewRows' => $this->previewRows(),
+            'employeeTypeOptions' => Employee::employeeTypeOptions(),
             'reports' => PayrollMraReport::query()
                 ->where('department_id', $this->departmentId())
                 ->orderByDesc('generated_at')
@@ -124,6 +129,7 @@ class Mra extends Component
             ->with('position')
             ->where('department_id', $this->departmentId())
             ->where('is_active', 'Y')
+            ->employeeType($this->employeeTypeFilter)
             ->orderBy('lastname')
             ->orderBy('firstname')
             ->get();
@@ -185,7 +191,7 @@ class Mra extends Component
         $undertimeMinutes = 0;
 
         foreach ($leaves as $leave) {
-            $leaveName = $leave->leave_name ?? ('Leave #'.$leave->leave_type);
+            $leaveName = $leave->leave_type_name;
             $leaveDates = $this->leaveDatesFor($leave);
             $leaveDays = count($leaveDates) ?: max(1, (float) $leave->days_wpay + (float) $leave->days_wopay);
 
@@ -362,6 +368,7 @@ class Mra extends Component
         }
 
         $time = $dtr->timein_am ?: $dtr->timein_pm;
+
         return $time ? CarbonImmutable::parse($dtr->dtr_date->toDateString().' '.$time) : null;
     }
 

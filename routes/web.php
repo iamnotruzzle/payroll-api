@@ -37,4 +37,5 @@ Route::middleware('auth')->group(function () {
     Route::get('/payroll/mra', [PayrollPageController::class, 'mra'])->name('payroll.mra');
     Route::get('/payroll/generation', [PayrollPageController::class, 'generation'])->name('payroll.generation');
     Route::get('/payroll/compensations', [PayrollPageController::class, 'compensations'])->name('payroll.compensations');
+    Route::get('/payroll/holidays', [PayrollPageController::class, 'holidays'])->name('payroll.holidays');
 });

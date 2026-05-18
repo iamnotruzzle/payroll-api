@@ -30,4 +30,9 @@ class PayrollPageController extends Controller
     {
         return view('payroll.compensations');
     }
+
+    public function holidays()
+    {
+        return view('payroll.holidays');
+    }
 }

@@ -4,23 +4,45 @@ namespace App\Livewire\Schedule;
 
 use App\Models\Schedule\ShiftCode;
 use App\Services\Schedule\ShiftCodeService;
+use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 
 class ShiftCodes extends Component
 {
     public ?int $editingId = null;
+
     public string $search = '';
+
+    public string $scopeFilter = 'office';
+
+    public string $statusFilter = 'active';
+
+    public string $typeFilter = 'all';
+
     public string $code = '';
+
     public string $name = '';
+
     public ?string $start_time = null;
+
     public ?string $end_time = null;
+
     public int $end_day_offset = 0;
+
     public ?string $work_hours = null;
+
     public bool $is_work_shift = true;
+
     public bool $is_night_shift = false;
+
     public bool $is_leave_code = false;
+
     public bool $is_active = true;
+
     public ?string $description = null;
+
+    public string $scope = 'office';
+
     public bool $workHoursManuallyEdited = false;
 
     public function render()
@@ -30,6 +52,14 @@ class ShiftCodes extends Component
                 ->where(function ($query) {
                     $query->whereNull('department_id')->orWhere('department_id', $this->departmentId());
                 })
+                ->when($this->scopeFilter === 'office', fn ($query) => $query->where('department_id', $this->departmentId()))
+                ->when($this->scopeFilter === 'global', fn ($query) => $query->whereNull('department_id'))
+                ->when($this->statusFilter === 'active', fn ($query) => $query->where('is_active', true))
+                ->when($this->statusFilter === 'inactive', fn ($query) => $query->where('is_active', false))
+                ->when($this->typeFilter === 'work', fn ($query) => $query->where('is_work_shift', true))
+                ->when($this->typeFilter === 'leave', fn ($query) => $query->where('is_leave_code', true))
+                ->when($this->typeFilter === 'night', fn ($query) => $query->where('is_night_shift', true))
+                ->when($this->typeFilter === 'non_work', fn ($query) => $query->where('is_work_shift', false))
                 ->when($this->search, fn ($query) => $query->where(function ($query) {
                     $query->where('code', 'like', "%{$this->search}%")
                         ->orWhere('name', 'like', "%{$this->search}%");
@@ -59,6 +89,7 @@ class ShiftCodes extends Component
         $this->is_leave_code = $shift->is_leave_code;
         $this->is_active = $shift->is_active;
         $this->description = $shift->description;
+        $this->scope = $shift->department_id ? 'office' : 'global';
     }
 
     public function save(ShiftCodeService $service): void
@@ -75,11 +106,25 @@ class ShiftCodes extends Component
             'is_leave_code' => ['boolean'],
             'is_active' => ['boolean'],
             'description' => ['nullable', 'string'],
+            'scope' => ['required', 'in:global,office'],
         ]);
 
-        $data['department_id'] = $this->departmentId();
+        $data['department_id'] = $data['scope'] === 'office' ? $this->departmentId() : null;
+        unset($data['scope']);
 
-        $service->save($data, $this->editingId ? ShiftCode::findOrFail($this->editingId) : null, 'web');
+        $this->ensureCodeIsUniqueForScope($data['code'], $data['department_id']);
+
+        $service->save(
+            $data,
+            $this->editingId
+                ? ShiftCode::query()
+                    ->where(function ($query) {
+                        $query->whereNull('department_id')->orWhere('department_id', $this->departmentId());
+                    })
+                    ->findOrFail($this->editingId)
+                : null,
+            'web',
+        );
         session()->flash('status', 'Shift code saved.');
         $this->resetForm();
     }
@@ -104,6 +149,7 @@ class ShiftCodes extends Component
         $this->is_leave_code = false;
         $this->is_active = true;
         $this->description = null;
+        $this->scope = 'office';
         $this->workHoursManuallyEdited = false;
     }
 
@@ -146,5 +192,24 @@ class ShiftCodes extends Component
     private function departmentId(): ?int
     {
         return auth()->user()?->employee?->department_id;
+    }
+
+    private function ensureCodeIsUniqueForScope(string $code, ?int $departmentId): void
+    {
+        $duplicate = ShiftCode::query()
+            ->when(
+                $departmentId === null,
+                fn ($query) => $query->whereNull('department_id'),
+                fn ($query) => $query->where('department_id', $departmentId),
+            )
+            ->where('code', $code)
+            ->when($this->editingId, fn ($query) => $query->whereKeyNot($this->editingId))
+            ->exists();
+
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'code' => 'A shift code with this code already exists for the selected scope.',
+            ]);
+        }
     }
 }

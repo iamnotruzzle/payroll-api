@@ -24,14 +24,24 @@ use Livewire\Component;
 class DtrEncoding extends Component
 {
     public string $from;
+
     public string $to;
+
     public ?string $selectedEmpId = null;
+
     public ?string $selectedBatchLabel = null;
+
     public ?int $selectedBatchTemplateId = null;
+
     public array $selectedRows = [];
+
     public array $rows = [];
+
     public bool $isLocked = false;
+
     public bool $isLabelComplete = true;
+
+    public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
 
     public function mount(): void
     {
@@ -46,6 +56,7 @@ class DtrEncoding extends Component
         return view('livewire.payroll.dtr-encoding', [
             'department' => auth()->user()?->employee?->department,
             'employees' => $this->employees(),
+            'employeeTypeOptions' => Employee::employeeTypeOptions(),
             'dates' => $this->dates(),
             'templates' => PayrollTimeTemplate::query()->where('is_active', true)->orderBy('name')->get(),
             'labelOptions' => PayrollDtrLabelOption::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(),
@@ -54,6 +65,12 @@ class DtrEncoding extends Component
 
     public function updatedSelectedEmpId(): void
     {
+        $this->loadState();
+    }
+
+    public function updatedEmployeeTypeFilter(): void
+    {
+        $this->selectedEmpId = null;
         $this->loadState();
     }
 
@@ -69,12 +86,14 @@ class DtrEncoding extends Component
         if (blank($this->selectedEmpId)) {
             $this->rows = [];
             $this->isLabelComplete = true;
+
             return;
         }
 
         if (! $this->employees()->contains('emp_id', $this->selectedEmpId)) {
             $this->selectedEmpId = null;
             $this->rows = [];
+
             return;
         }
 
@@ -158,11 +177,13 @@ class DtrEncoding extends Component
 
         if ($this->isLocked) {
             session()->flash('status', 'This month is locked because the MRA has already been generated.');
+
             return;
         }
 
         if (blank($this->selectedEmpId)) {
             session()->flash('status', 'Select an employee first.');
+
             return;
         }
 
@@ -224,6 +245,7 @@ class DtrEncoding extends Component
 
                     if ($minutes <= 0) {
                         $existingAdjustment?->delete();
+
                         continue;
                     }
 
@@ -289,6 +311,7 @@ class DtrEncoding extends Component
             $this->rows[$date]['tardiness_minutes'] = 0;
             $this->rows[$date]['undertime_minutes'] = 0;
             $this->rows[$date]['worked_hours'] = $this->actualWorkedHours($this->rows[$date]['actual_time_in'], $this->rows[$date]['actual_time_out']);
+
             return;
         }
 
@@ -354,6 +377,7 @@ class DtrEncoding extends Component
         if (! $row['can_encode_schedule']) {
             $row['tardiness_minutes'] = 0;
             $row['undertime_minutes'] = 0;
+
             return $row;
         }
 
@@ -410,6 +434,7 @@ class DtrEncoding extends Component
             ->with('position')
             ->where('department_id', $this->departmentId())
             ->where('is_active', 'Y')
+            ->employeeType($this->employeeTypeFilter)
             ->orderBy('lastname')
             ->orderBy('firstname')
             ->get(['emp_id', 'firstname', 'middlename', 'lastname', 'position_id', 'department_id']);
@@ -468,6 +493,7 @@ class DtrEncoding extends Component
         }
 
         $time = $dtr->timein_am ?: $dtr->timein_pm;
+
         return $time ? CarbonImmutable::parse($dtr->dtr_date->toDateString().' '.$time) : null;
     }
 

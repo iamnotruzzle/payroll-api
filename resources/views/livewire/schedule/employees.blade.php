@@ -19,6 +19,17 @@
         <div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>
     @endif
 
+    <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="max-w-xs">
+            <label class="text-sm font-medium">Employee Type</label>
+            <select wire:model.live="employeeTypeFilter" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                @foreach ($employeeTypeOptions as $value => $label)
+                    <option value="{{ $value }}">{{ $label }}</option>
+                @endforeach
+            </select>
+        </div>
+    </div>
+
     <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div class="overflow-x-auto">
 

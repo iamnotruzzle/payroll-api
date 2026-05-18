@@ -5,10 +5,12 @@ namespace App\Livewire\Payroll;
 use App\Models\Hris\Department;
 use App\Models\Hris\Employee;
 use App\Models\Hris\SalaryGrade;
+use App\Models\Payroll\PayrollAdditional;
 use App\Models\Payroll\PayrollDtrAdjustment;
 use App\Models\Payroll\PayrollDtrLabel;
 use App\Models\Payroll\PayrollDtrLabelOption;
-use App\Models\Payroll\PayrollAdditional;
+use App\Models\Payroll\PayrollLeaveCreditAdjustment;
+use App\Models\Payroll\PayrollMraReport;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Livewire\Component;
@@ -16,9 +18,27 @@ use Livewire\Component;
 class PayrollGeneration extends Component
 {
     public ?int $departmentId = null;
+
     public string $period;
+
     public int $workingDays = 22;
+
     public string $search = '';
+
+    public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
+
+    public int $currentStep = 1;
+
+    public array $deductionDayOverrides = [];
+
+    public array $steps = [
+        1 => 'MRA Validation',
+        2 => 'Allowances Computation',
+        3 => 'Deductions and Adjustments',
+        4 => 'Statutory',
+        5 => 'Loan Deductions',
+        6 => 'Review',
+    ];
 
     public function mount(): void
     {
@@ -26,22 +46,52 @@ class PayrollGeneration extends Component
         $this->period = CarbonImmutable::today()->format('Y-m');
     }
 
+    public function updatedDepartmentId(): void
+    {
+        $this->resetGenerationState();
+    }
+
+    public function updatedPeriod(): void
+    {
+        $this->resetGenerationState();
+    }
+
+    public function updatedEmployeeTypeFilter(): void
+    {
+        $this->resetGenerationState();
+    }
+
+    public function goToStep(int $step): void
+    {
+        $this->currentStep = max(1, min(6, $step));
+    }
+
+    public function nextStep(): void
+    {
+        $this->goToStep($this->currentStep + 1);
+    }
+
+    public function previousStep(): void
+    {
+        $this->goToStep($this->currentStep - 1);
+    }
+
     public function render()
     {
         $compensations = $this->compensations();
         $rows = $this->payrollRows($compensations);
+        $previousMraPeriod = $this->previousMraPeriod();
+        $previousMraReport = $this->previousMraReport($previousMraPeriod);
 
         return view('livewire.payroll.payroll-generation', [
             'departments' => Department::query()->orderBy('department')->get(),
+            'employeeTypeOptions' => Employee::employeeTypeOptions(),
             'compensations' => $compensations,
             'rows' => $rows,
+            'previousMraPeriod' => $previousMraPeriod,
+            'previousMraReport' => $previousMraReport,
             'totals' => [
                 'basic_salary' => $rows->sum('basic_salary'),
-                'standard_compensations' => [
-                    'subsistence' => $rows->sum('standard_compensations.subsistence'),
-                    'pera' => $rows->sum('standard_compensations.pera'),
-                    'laundry' => $rows->sum('standard_compensations.laundry'),
-                ],
                 'compensations' => $compensations->mapWithKeys(
                     fn ($item) => [$item->id => $rows->sum(fn ($row) => $row['compensations'][$item->id]['amount'] ?? 0)]
                 ),
@@ -52,6 +102,8 @@ class PayrollGeneration extends Component
                 ],
                 'gross' => $rows->sum('gross'),
                 'net_before_other_deductions' => $rows->sum('net_before_other_deductions'),
+                'fifteenth' => $rows->sum('fifteenth'),
+                'thirtieth' => $rows->sum('thirtieth'),
             ],
         ]);
     }
@@ -66,6 +118,7 @@ class PayrollGeneration extends Component
             ->with(['position', 'department'])
             ->where('department_id', $this->departmentId)
             ->where('is_active', 'Y')
+            ->employeeType($this->employeeTypeFilter)
             ->when(trim($this->search) !== '', function ($query) {
                 $search = trim($this->search);
                 $query->where(function ($query) use ($search) {
@@ -79,8 +132,10 @@ class PayrollGeneration extends Component
             ->get();
 
         $salaryMatrix = $this->salaryMatrix();
-        $periodStart = CarbonImmutable::createFromFormat('Y-m', $this->period)->startOfMonth();
+        $periodStart = $this->selectedPeriodStart();
         $periodEnd = $periodStart->endOfMonth();
+        $previousMraPeriod = $this->previousMraPeriod();
+        $previousMraReport = $this->previousMraReport($previousMraPeriod);
         $empIds = $employees->pluck('emp_id')->all();
         $labels = PayrollDtrLabel::query()
             ->whereIn('emp_id', $empIds)
@@ -93,17 +148,29 @@ class PayrollGeneration extends Component
             ->whereIn('adjustment_type', ['TARDINESS', 'UNDERTIME'])
             ->get()
             ->groupBy('emp_id');
+        $mraAdjustments = $previousMraReport
+            ? PayrollLeaveCreditAdjustment::query()
+                ->where('mra_report_id', $previousMraReport->id)
+                ->whereIn('emp_id', $empIds)
+                ->get()
+                ->keyBy('emp_id')
+            : collect();
         $labelOptions = PayrollDtrLabelOption::query()->get()->keyBy('code');
 
-        return $employees->map(function (Employee $employee) use ($compensations, $salaryMatrix, $labels, $adjustments, $labelOptions) {
+        return $employees->map(function (Employee $employee) use ($compensations, $salaryMatrix, $labels, $adjustments, $mraAdjustments, $labelOptions, $previousMraReport) {
             $salaryGrade = (int) ($employee->position?->salary_grade ?? 0);
             $step = max(1, min(8, (int) ($employee->step ?: 1)));
             $basicSalary = (float) ($salaryMatrix[$salaryGrade][$step] ?? 0);
-            $deductionDays = $this->deductionDays(
+            $fallbackDeductionDays = $this->deductionDays(
                 $labels->get($employee->emp_id, collect()),
                 $adjustments->get($employee->emp_id, collect()),
                 $labelOptions,
             );
+            $mraAdjustment = $mraAdjustments->get($employee->emp_id);
+            $mraDeductionDays = $previousMraReport
+                ? (float) ($mraAdjustment?->adjustment_days ?? 0)
+                : $fallbackDeductionDays;
+            $deductionDays = $this->deductionDaysFor($employee->emp_id, $mraDeductionDays);
             $variables = [
                 'basic_salary' => $basicSalary,
                 'salary' => $basicSalary,
@@ -127,9 +194,11 @@ class PayrollGeneration extends Component
                 ];
             }
 
-            $standardCompensations = $this->standardCompensations($deductionDays);
             $statutoryDeductions = $this->statutoryDeductions($basicSalary);
-            $gross = $basicSalary + collect($standardCompensations)->sum() + collect($computed)->sum('amount');
+            $gross = $basicSalary + collect($computed)->sum('amount');
+            $netBeforeOtherDeductions = $gross - collect($statutoryDeductions)->sum();
+            $fifteenth = round($netBeforeOtherDeductions / 2, 2);
+            $thirtieth = round($netBeforeOtherDeductions - $fifteenth, 2);
 
             return [
                 'emp_id' => $employee->emp_id,
@@ -140,23 +209,64 @@ class PayrollGeneration extends Component
                 'step' => $step,
                 'sg_step' => $salaryGrade ? 'SG '.$salaryGrade.' / Step '.$step : '-',
                 'deduction_days' => $deductionDays,
+                'mra_deduction_days' => $mraDeductionDays,
+                'mra_minutes' => (int) ($mraAdjustment?->undertime_tardy_minutes ?? 0),
+                'has_mra_adjustment' => $mraAdjustment !== null,
                 'basic_salary' => $basicSalary,
-                'standard_compensations' => $standardCompensations,
                 'compensations' => $computed,
                 'statutory_deductions' => $statutoryDeductions,
                 'gross' => $gross,
-                'net_before_other_deductions' => $gross - collect($statutoryDeductions)->sum(),
+                'net_before_other_deductions' => $netBeforeOtherDeductions,
+                'fifteenth' => $fifteenth,
+                'thirtieth' => $thirtieth,
             ];
         });
     }
 
-    private function standardCompensations(float $deductionDays): array
+    private function resetGenerationState(): void
     {
+        $this->currentStep = 1;
+        $this->deductionDayOverrides = [];
+    }
+
+    private function selectedPeriodStart(): CarbonImmutable
+    {
+        return CarbonImmutable::createFromFormat('Y-m', $this->period)->startOfMonth();
+    }
+
+    private function previousMraPeriod(): array
+    {
+        $start = $this->selectedPeriodStart()->subMonthNoOverflow()->startOfMonth();
+
         return [
-            'subsistence' => round(max(0, 1500 - (max(0, $deductionDays) * 50)), 2),
-            'pera' => 2000.0,
-            'laundry' => round(max(0, 150 - (6.818 * max(0, $deductionDays))), 2),
+            'start' => $start,
+            'end' => $start->endOfMonth(),
         ];
+    }
+
+    private function previousMraReport(array $period): ?PayrollMraReport
+    {
+        if (! $this->departmentId) {
+            return null;
+        }
+
+        return PayrollMraReport::query()
+            ->where('department_id', $this->departmentId)
+            ->whereDate('period_start', $period['start']->toDateString())
+            ->whereDate('period_end', $period['end']->toDateString())
+            ->latest('generated_at')
+            ->first();
+    }
+
+    private function deductionDaysFor(string $empId, float $default): float
+    {
+        $override = $this->deductionDayOverrides[$empId] ?? null;
+
+        if ($override === null || $override === '' || ! is_numeric($override)) {
+            return round(max(0, $default), 3);
+        }
+
+        return round(max(0, (float) $override), 3);
     }
 
     private function deductionDays(Collection $labels, Collection $adjustments, Collection $labelOptions): float
@@ -253,15 +363,42 @@ class PayrollGeneration extends Component
         $expression = strtolower($formula);
         uksort($variables, fn ($a, $b) => strlen($b) <=> strlen($a));
 
-        foreach ($variables as $name => $value) {
-            $expression = preg_replace('/\b'.preg_quote(strtolower($name), '/').'\b/', (string) (float) $value, $expression);
-        }
+        $expression = $this->resolveFormulaFunctions($expression, $variables);
 
         if (preg_match('/[a-z_]/i', $expression) || preg_match('/[^0-9+\-*\/().\s]/', $expression)) {
             return 0.0;
         }
 
         return $this->parseExpression($expression);
+    }
+
+    private function resolveFormulaFunctions(string $expression, array $variables): string
+    {
+        uksort($variables, fn ($a, $b) => strlen($b) <=> strlen($a));
+
+        foreach ($variables as $name => $value) {
+            $expression = preg_replace('/\b'.preg_quote(strtolower($name), '/').'\b/', (string) (float) $value, $expression);
+        }
+
+        while (preg_match('/\b(max|min)\s*\(([^()]+)\)/i', $expression, $matches)) {
+            $values = collect(explode(',', $matches[2]))
+                ->map(fn ($argument) => trim($argument))
+                ->filter(fn ($argument) => $argument !== '' && ! preg_match('/[a-z_]/i', $argument))
+                ->map(fn ($argument) => $this->parseExpression($argument))
+                ->values();
+
+            if ($values->isEmpty()) {
+                return $expression;
+            }
+
+            $value = strtolower($matches[1]) === 'max'
+                ? $values->max()
+                : $values->min();
+
+            $expression = str_replace($matches[0], (string) (float) $value, $expression);
+        }
+
+        return $expression;
     }
 
     private function parseExpression(string $expression): float
@@ -275,6 +412,7 @@ class PayrollGeneration extends Component
             if ($token === '(') {
                 $value = $parseExpression();
                 $index++;
+
                 return $value;
             }
 

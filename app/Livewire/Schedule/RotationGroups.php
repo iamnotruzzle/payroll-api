@@ -10,10 +10,16 @@ use Livewire\Component;
 class RotationGroups extends Component
 {
     public ?int $editingId = null;
+
     public string $name = '';
+
     public ?string $description = null;
+
     public bool $is_active = true;
+
     public array $members = [];
+
+    public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
 
     public function mount(): void
     {
@@ -32,9 +38,11 @@ class RotationGroups extends Component
             'employees' => Employee::query()
                 ->where('department_id', $this->departmentId())
                 ->where('is_active', 'Y')
+                ->employeeType($this->employeeTypeFilter)
                 ->orderBy('lastname')
                 ->orderBy('firstname')
                 ->get(['emp_id', 'firstname', 'middlename', 'lastname']),
+            'employeeTypeOptions' => Employee::employeeTypeOptions(),
         ]);
     }
 

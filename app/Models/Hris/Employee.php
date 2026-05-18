@@ -2,20 +2,32 @@
 
 namespace App\Models\Hris;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Notifications\Notifiable;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 
 class Employee extends Authenticatable
 {
     use Notifiable;
 
+    public const CONTRACT_OF_SERVICE_POSITION_ID = 100;
+
+    public const EMPLOYEE_TYPE_PLANTILLA = 'plantilla';
+
+    public const EMPLOYEE_TYPE_COS = 'cos';
+
+    public const EMPLOYEE_TYPE_ALL = 'all';
+
     protected $connection = 'mysql';
+
     protected $table = 'tbl_employee';
+
     protected $primaryKey = 'emp_id';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -119,7 +131,7 @@ class Employee extends Authenticatable
         $parts = array_filter([
             $this->prefix,
             $this->firstname,
-            $this->middlename ? mb_substr($this->middlename, 0, 1) . '.' : null,
+            $this->middlename ? mb_substr($this->middlename, 0, 1).'.' : null,
             $this->lastname,
             $this->extension,
             $this->suffix,
@@ -136,5 +148,26 @@ class Employee extends Authenticatable
     public function getIsSectionHeadStatusAttribute(): bool
     {
         return $this->is_section_head === 'Y';
+    }
+
+    public function scopeEmployeeType(Builder $query, ?string $type = self::EMPLOYEE_TYPE_PLANTILLA): Builder
+    {
+        switch ($type ?: self::EMPLOYEE_TYPE_PLANTILLA) {
+            case self::EMPLOYEE_TYPE_COS:
+                return $query->where('position_id', self::CONTRACT_OF_SERVICE_POSITION_ID);
+            case self::EMPLOYEE_TYPE_ALL:
+                return $query;
+            default:
+                return $query->where('position_id', '!=', self::CONTRACT_OF_SERVICE_POSITION_ID);
+        }
+    }
+
+    public static function employeeTypeOptions(): array
+    {
+        return [
+            self::EMPLOYEE_TYPE_PLANTILLA => 'Plantilla Positions',
+            self::EMPLOYEE_TYPE_COS => 'Contract of Service',
+            self::EMPLOYEE_TYPE_ALL => 'All Employees',
+        ];
     }
 }

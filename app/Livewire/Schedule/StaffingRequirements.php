@@ -13,13 +13,21 @@ use Livewire\Component;
 class StaffingRequirements extends Component
 {
     public ?int $editingId = null;
+
     public ?int $rotation_group_id = null;
+
     public ?int $shift_code_id = null;
+
     public ?int $day_of_week = null;
+
     public int $minimum_staff = 1;
+
     public ?int $maximum_staff = null;
+
     public ?string $effective_from = null;
+
     public ?string $effective_to = null;
+
     public bool $is_active = true;
 
     public function render()
@@ -149,6 +157,7 @@ class StaffingRequirements extends Component
             ->values();
         $employees = Employee::query()
             ->whereIn('emp_id', $employeeIds)
+            ->employeeType(Employee::EMPLOYEE_TYPE_PLANTILLA)
             ->get(['emp_id', 'firstname', 'middlename', 'lastname'])
             ->keyBy('emp_id');
         $workShifts = ShiftCode::where('is_active', true)

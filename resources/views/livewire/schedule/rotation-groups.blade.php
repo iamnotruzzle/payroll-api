@@ -33,6 +33,15 @@
                     <button wire:click="addMember" type="button" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">Add</button>
                 </div>
 
+                <div>
+                    <label class="text-xs font-medium text-slate-600">Employee Type</label>
+                    <select wire:model.live="employeeTypeFilter" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        @foreach ($employeeTypeOptions as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
                 @foreach ($members as $index => $member)
                     <div class="flex gap-2">
                         <select wire:model="members.{{ $index }}" class="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm">

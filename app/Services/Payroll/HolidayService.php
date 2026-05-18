@@ -2,7 +2,6 @@
 
 namespace App\Services\Payroll;
 
-use App\Models\Payroll\Holiday;
 use App\Models\Payroll\PayrollHoliday;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
@@ -17,9 +16,10 @@ class HolidayService
 
     public function save(array $data, int $id = 0): PayrollHoliday
     {
-        $holiday = $id ? PayrollHoliday::findOrFail($id) : new PayrollHoliday();
+        $holiday = $id ? PayrollHoliday::findOrFail($id) : new PayrollHoliday;
         $holiday->fill($data);
         $holiday->save();
+
         return $holiday;
     }
 

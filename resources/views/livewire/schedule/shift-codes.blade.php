@@ -1,12 +1,9 @@
 <section class="space-y-4">
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
         <div>
             <h2 class="text-xl font-semibold">Shift Code Management</h2>
-            <p class="text-sm text-slate-600">Manage duty, leave, off, holiday, and request-off codes for {{ $department?->department ?? 'your department' }}.</p>
+            <p class="text-sm text-slate-600">Manage duty, leave, off, and request-off codes for {{ $department?->department ?? 'your department' }}.</p>
         </div>
-        <button wire:click="seedDefaults" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
-            Seed Standard Codes
-        </button>
     </div>
 
     @if (session('status'))
@@ -27,6 +24,15 @@
                 <label class="text-sm font-medium">Name</label>
                 <input wire:model="name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                 @error('name') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            </div>
+
+            <div>
+                <label class="text-sm font-medium">Scope</label>
+                <select wire:model="scope" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <option value="office">Office - {{ $department?->department ?? 'Current department' }}</option>
+                    <option value="global">Global - all departments</option>
+                </select>
+                @error('scope') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div class="grid sm:grid-cols-2 gap-2 grid-cols-1">
@@ -68,9 +74,28 @@
         </form>
 
         <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <div class="mb-3 flex items-center justify-between gap-3">
+            <div class="mb-3 space-y-3">
                 <h3 class="font-semibold">Codes</h3>
-                <input wire:model.live.debounce.250ms="search" placeholder="Search code or name" class="w-64 rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <div class="grid gap-2 md:grid-cols-[minmax(180px,1fr)_150px_150px_150px]">
+                    <input wire:model.live.debounce.250ms="search" placeholder="Search code or name" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <select wire:model.live="scopeFilter" class="rounded-md border border-slate-300 py-2 pl-3 pr-8 text-sm">
+                        <option value="office">Office scoped</option>
+                        <option value="global">Global scoped</option>
+                        <option value="all">All scopes</option>
+                    </select>
+                    <select wire:model.live="statusFilter" class="rounded-md border border-slate-300 py-2 pl-3 pr-8 text-sm">
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="all">All statuses</option>
+                    </select>
+                    <select wire:model.live="typeFilter" class="rounded-md border border-slate-300 py-2 pl-3 pr-8 text-sm">
+                        <option value="all">All types</option>
+                        <option value="work">Work shifts</option>
+                        <option value="non_work">Non-work codes</option>
+                        <option value="night">Night shifts</option>
+                        <option value="leave">Leave codes</option>
+                    </select>
+                </div>
             </div>
 
             <div class="overflow-x-auto">

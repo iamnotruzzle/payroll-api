@@ -38,7 +38,7 @@ class ShiftCodeService
         }
 
         $before = $shiftCode?->toArray();
-        $shiftCode ??= new ShiftCode();
+        $shiftCode ??= new ShiftCode;
         $shiftCode->fill($data);
         $shiftCode->save();
 
@@ -61,7 +61,6 @@ class ShiftCodeService
             ['code' => 'R', 'name' => 'Regular Shift', 'start_time' => '08:00', 'end_time' => '17:00', 'work_hours' => 8, 'is_work_shift' => true],
             ['code' => 'TD', 'name' => 'Training / Development', 'is_work_shift' => false],
             ['code' => 'CTO', 'name' => 'Compensatory Time Off', 'is_work_shift' => false, 'is_leave_code' => true],
-            ['code' => 'H', 'name' => 'Holiday', 'is_work_shift' => false],
             ['code' => 'O', 'name' => 'Off Duty', 'is_work_shift' => false],
             ['code' => 'RO', 'name' => 'Request Off', 'is_work_shift' => false],
             ['code' => 'ML', 'name' => 'Maternity Leave', 'is_work_shift' => false, 'is_leave_code' => true],

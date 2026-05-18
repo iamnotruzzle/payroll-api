@@ -23,7 +23,7 @@ class ScheduleDraftGenerationService
         private ScheduleConflictValidator $validator,
     ) {}
 
-    public function generate(int $year, int $month, ?int $departmentId = null, ?int $templateId = null, ?string $performedBy = null): array
+    public function generate(int $year, int $month, ?int $departmentId = null, ?int $templateId = null, ?string $performedBy = null, string $employeeType = Employee::EMPLOYEE_TYPE_PLANTILLA): array
     {
         $template = $templateId ? ScheduleTemplate::with('days.shiftCode')->findOrFail($templateId) : null;
         $existing = MonthlySchedule::query()
@@ -43,7 +43,9 @@ class ScheduleDraftGenerationService
             ->where(function ($query) use ($departmentId) {
                 $query->whereNull('department_id')->orWhere('department_id', $departmentId);
             })
-            ->where('code', 'O')
+            ->whereIn('code', ['O', 'OFF'])
+            ->orderByRaw("code = 'OFF' desc")
+            ->orderByRaw('department_id IS NULL')
             ->first();
         $defaultWorkShift = ShiftCode::where('is_work_shift', true)
             ->where(function ($query) use ($departmentId) {
@@ -59,6 +61,7 @@ class ScheduleDraftGenerationService
             })
             ->where('start_time', '08:00:00')
             ->where('end_time', '17:00:00')
+            ->orderByRaw("code = '8-5' desc")
             ->orderByRaw('department_id IS NULL')
             ->first() ?? $defaultWorkShift;
         $workShifts = ShiftCode::query()
@@ -78,7 +81,7 @@ class ScheduleDraftGenerationService
             $defaultWorkShift = $workShifts->first() ?? $defaultWorkShift;
         }
 
-        $schedule = DB::connection('payroll_scheduler')->transaction(function () use ($year, $month, $departmentId, $template, $restShift, $defaultWorkShift, $regularWeekdayShift, $workShifts, $performedBy) {
+        $schedule = DB::connection('payroll_scheduler')->transaction(function () use ($year, $month, $departmentId, $template, $restShift, $defaultWorkShift, $regularWeekdayShift, $workShifts, $performedBy, $employeeType) {
             $schedule = MonthlySchedule::query()->updateOrCreate(
                 [
                     'department_id' => $departmentId,
@@ -102,9 +105,25 @@ class ScheduleDraftGenerationService
 
             $schedule->assignments()->delete();
 
+            $rotationMemberIds = $template?->rotation_group_id
+                ? RotationGroupMember::query()
+                    ->where('rotation_group_id', $template->rotation_group_id)
+                    ->orderBy('rotation_order')
+                    ->pluck('employee_id')
+                : collect();
+            $regularWeekdayEmployeeIds = EmployeeScheduleSetting::query()
+                ->where('uses_regular_weekday_schedule', true)
+                ->where('is_active', true)
+                ->pluck('employee_id');
+            $eligibleEmployeeIds = $rotationMemberIds
+                ->merge($regularWeekdayEmployeeIds)
+                ->unique()
+                ->values();
             $employees = Employee::query()
-                ->when($departmentId, fn($query) => $query->where('department_id', $departmentId))
+                ->when($departmentId, fn ($query) => $query->where('department_id', $departmentId))
+                ->when($rotationMemberIds->isNotEmpty(), fn ($query) => $query->whereIn('emp_id', $eligibleEmployeeIds->all()))
                 ->where('is_active', 'Y')
+                ->employeeType($employeeType)
                 ->orderBy('lastname')
                 ->get(['emp_id', 'department_id', 'firstname', 'lastname']);
 
@@ -153,15 +172,19 @@ class ScheduleDraftGenerationService
                     );
                     $exceptionShift = $hasException ? $exceptions[$employee->emp_id][$date->toDateString()] : null;
                     $exceptionWasApplied = $this->isAutoAssignableShift($exceptionShift);
-                    $staffingShift = $staffingAssignments[$employee->emp_id][$date->toDateString()] ?? null;
+                    $usesRegularWeekdaySchedule = ! $setting || $setting->uses_regular_weekday_schedule;
+                    $staffingShift = $usesRegularWeekdaySchedule
+                        ? null
+                        : ($staffingAssignments[$employee->emp_id][$date->toDateString()] ?? null);
                     $shift = $exceptionWasApplied ? $exceptionShift : ($staffingShift ?? $generatedShift);
-                    $shift = $this->normalizeAutoAllocatedShift($shift, $defaultWorkShift, $restShift);
+                    if (! $this->shouldPreserveTemplateShift($template, $exceptionWasApplied, $staffingShift)) {
+                        $shift = $this->normalizeAutoAllocatedShift($shift, $defaultWorkShift, $restShift);
+                    }
 
                     if (! $shift) {
                         continue;
                     }
 
-                    $usesRegularWeekdaySchedule = ! $setting || $setting->uses_regular_weekday_schedule;
                     $maxConsecutiveDutyDays = (int) ($setting?->max_consecutive_duty_days ?: 5);
                     $forcedConsecutiveRest = false;
 
@@ -416,8 +439,7 @@ class ScheduleDraftGenerationService
         ?ShiftCode $restShift,
         ShiftCode $defaultWorkShift,
         ShiftCode $regularWeekdayShift
-    ): ?ShiftCode
-    {
+    ): ?ShiftCode {
         if (! $setting || $setting->uses_regular_weekday_schedule) {
             if ($date->isWeekend()) {
                 return $restShift;
@@ -444,6 +466,13 @@ class ScheduleDraftGenerationService
         return $this->normalizeAutoAllocatedShift($days[$offset]->shiftCode ?? $defaultWorkShift, $defaultWorkShift, $restShift);
     }
 
+    private function shouldPreserveTemplateShift(?ScheduleTemplate $template, bool $exceptionWasApplied, ?ShiftCode $staffingShift): bool
+    {
+        return (bool) $template?->days->isNotEmpty()
+            && ! $exceptionWasApplied
+            && ! $staffingShift;
+    }
+
     private function normalizeAutoAllocatedShift(?ShiftCode $shift, ShiftCode $defaultWorkShift, ?ShiftCode $restShift): ?ShiftCode
     {
         if (! $shift) {
@@ -454,13 +483,13 @@ class ScheduleDraftGenerationService
             return $shift;
         }
 
-        return strtoupper((string) $shift->code) === 'O'
+        return in_array(strtoupper((string) $shift->code), ['O', 'OFF'], true)
             ? ($restShift ?? $shift)
             : $defaultWorkShift;
     }
 
     private function isAutoAssignableShift(?ShiftCode $shift): bool
     {
-        return (bool) $shift && ($shift->is_work_shift || strtoupper((string) $shift->code) === 'O');
+        return (bool) $shift && ($shift->is_work_shift || in_array(strtoupper((string) $shift->code), ['O', 'OFF'], true));
     }
 }

@@ -17,10 +17,16 @@ use Livewire\Component;
 class Dtr extends Component
 {
     public string $from;
+
     public string $to;
+
     public array $entries = [];
+
     public bool $loaded = false;
+
     public bool $isLocked = false;
+
+    public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
 
     public function mount(): void
     {
@@ -35,6 +41,7 @@ class Dtr extends Component
         return view('livewire.payroll.dtr', [
             'department' => auth()->user()?->employee?->department,
             'employees' => $this->employees(),
+            'employeeTypeOptions' => Employee::employeeTypeOptions(),
             'dates' => $this->dates(),
             'dtrs' => $this->dtrs(),
             'labelOptions' => PayrollDtrLabelOption::query()
@@ -93,12 +100,18 @@ class Dtr extends Component
         $this->loaded = true;
     }
 
+    public function updatedEmployeeTypeFilter(): void
+    {
+        $this->loadState();
+    }
+
     public function save(): void
     {
         $this->validatePeriod();
 
         if ($this->isLocked) {
             session()->flash('status', 'This DTR period already has an MRA report and cannot be edited.');
+
             return;
         }
 
@@ -136,6 +149,7 @@ class Dtr extends Component
 
                     if ($minutes <= 0) {
                         $existingAdjustment?->delete();
+
                         continue;
                     }
 
@@ -170,6 +184,7 @@ class Dtr extends Component
             ->with('position')
             ->where('department_id', $this->departmentId())
             ->where('is_active', 'Y')
+            ->employeeType($this->employeeTypeFilter)
             ->orderBy('lastname')
             ->orderBy('firstname')
             ->get(['emp_id', 'firstname', 'middlename', 'lastname', 'position_id', 'department_id']);

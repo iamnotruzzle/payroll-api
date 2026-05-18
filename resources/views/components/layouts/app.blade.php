@@ -143,6 +143,12 @@
                             >
                                 Compensation Rules
                             </a>
+                            <a
+                                class="flex items-center rounded-md px-3 py-2.5 {{ request()->routeIs('payroll.holidays') ? 'bg-blue-50 font-medium text-blue-700' : 'text-slate-700 hover:bg-slate-100' }}"
+                                href="{{ route('payroll.holidays') }}"
+                            >
+                                Holidays
+                            </a>
                         </div>
                     </div>
 

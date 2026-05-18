@@ -5,7 +5,6 @@ namespace App\Services\Schedule;
 use App\Models\Hris\EmployeeLeave;
 use App\Models\Hris\LeaveStatusLookup;
 use App\Models\Payroll\PayrollDtrLabel;
-use App\Models\Payroll\PayrollHoliday;
 use App\Models\Schedule\ShiftCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -25,20 +24,6 @@ class ScheduleAvailabilityService
             ->first();
 
         $exceptions = [];
-
-        $holidayShift = $shiftCodes->get('H');
-        if ($holidayShift) {
-            PayrollHoliday::query()
-                ->where('is_active', true)
-                ->whereBetween('holiday_date', [$from->toDateString(), $to->toDateString()])
-                ->get()
-                ->each(function (PayrollHoliday $holiday) use (&$exceptions, $employeeIds, $holidayShift) {
-                    $date = $holiday->holiday_date->toDateString();
-                    foreach ($employeeIds as $employeeId) {
-                        $exceptions[$employeeId][$date] = $holidayShift;
-                    }
-                });
-        }
 
         $approvedStatusIds = LeaveStatusLookup::query()
             ->where('status_name', 'like', '%approved%')

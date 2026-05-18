@@ -35,4 +35,14 @@ class EmployeeLeave extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public function leaveType()
+    {
+        return $this->belongsTo(LeaveType::class, 'leave_type', 'leave_type_id');
+    }
+
+    public function getLeaveTypeNameAttribute()
+    {
+        return $this->leaveType ? $this->leaveType->leave_name : null;
+    }
 }

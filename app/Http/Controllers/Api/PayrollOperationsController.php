@@ -3,24 +3,24 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Hris\Employee;
+use App\Models\Hris\EmployeeDtr;
+use App\Models\Hris\EmployeeLeave;
+use App\Models\Hris\LeaveType;
+use App\Models\Payroll\PayrollAuditLog;
 use App\Models\Payroll\PayrollDtrAdjustment;
 use App\Models\Payroll\PayrollDtrLabel;
+use App\Models\Payroll\PayrollDtrLabelOption;
 use App\Models\Payroll\PayrollDtrScheduleEncoding;
-use App\Models\Payroll\PayrollAuditLog;
 use App\Models\Payroll\PayrollEmployeeDeduction;
 use App\Models\Payroll\PayrollEmployeePayrollLine;
 use App\Models\Payroll\PayrollEmployeeSnapshot;
+use App\Models\Payroll\PayrollHoliday;
 use App\Models\Payroll\PayrollLeaveCreditAdjustment;
 use App\Models\Payroll\PayrollMraReport;
 use App\Models\Payroll\PayrollPeriod;
 use App\Models\Payroll\PayrollRun;
 use App\Models\Payroll\PayrollTimekeepingSummary;
-use App\Models\Hris\Employee;
-use App\Models\Hris\EmployeeDtr;
-use App\Models\Hris\EmployeeLeave;
-use App\Models\Hris\LeaveType;
-use App\Models\Payroll\PayrollDtrLabelOption;
-use App\Models\Payroll\PayrollHoliday;
 use App\Models\Payroll\PayrollTimeTemplate;
 use App\Services\Payroll\SchedulerDtrSyncService;
 use Illuminate\Database\Eloquent\Builder;
@@ -186,6 +186,7 @@ class PayrollOperationsController extends Controller
     {
         $query = PayrollMraReport::query();
         $this->applyDepartmentPeriodFilter($query, $request);
+
         return response()->json($query->orderByDesc('generated_at')->get());
     }
 
@@ -221,6 +222,7 @@ class PayrollOperationsController extends Controller
             'period_end' => ['required', 'date'],
             'generated_by' => ['required', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
+            'employee_type' => ['nullable', 'in:plantilla,cos,all'],
         ]);
 
         $report = DB::connection('payroll')->transaction(function () use ($data) {
@@ -264,6 +266,7 @@ class PayrollOperationsController extends Controller
             $employees = Employee::query()
                 ->where('department_id', $data['department_id'])
                 ->where('is_active', 'Y')
+                ->employeeType($data['employee_type'] ?? Employee::EMPLOYEE_TYPE_PLANTILLA)
                 ->orderBy('lastname')
                 ->orderBy('firstname')
                 ->get();
@@ -316,6 +319,7 @@ class PayrollOperationsController extends Controller
     {
         $query = PayrollDtrLabel::query();
         $this->applyEmployeeDateFilter($query, $request);
+
         return response()->json($query->orderBy('dtr_date')->get());
     }
 
@@ -338,6 +342,7 @@ class PayrollOperationsController extends Controller
 
                 if (blank($item['label'] ?? null)) {
                     $existing?->delete();
+
                     continue;
                 }
 
@@ -361,6 +366,7 @@ class PayrollOperationsController extends Controller
     {
         $query = PayrollDtrAdjustment::query();
         $this->applyEmployeeDateFilter($query, $request);
+
         return response()->json($query->orderBy('dtr_date')->orderBy('adjustment_type')->get());
     }
 
@@ -386,6 +392,7 @@ class PayrollOperationsController extends Controller
 
                 if ((int) $item['minutes'] <= 0) {
                     $existing?->delete();
+
                     continue;
                 }
 
@@ -413,6 +420,7 @@ class PayrollOperationsController extends Controller
 
         $query = PayrollDtrScheduleEncoding::query();
         $this->applyEmployeeDateFilter($query, $request);
+
         return response()->json($query->orderBy('dtr_date')->get());
     }
 
@@ -435,6 +443,7 @@ class PayrollOperationsController extends Controller
 
                 if (blank($item['payroll_time_template_id'] ?? null)) {
                     $existing?->delete();
+
                     continue;
                 }
 
@@ -500,6 +509,7 @@ class PayrollOperationsController extends Controller
     {
         $query = PayrollEmployeeDeduction::query()->where('is_active', true);
         $this->applyEmployeeDateFilter($query, $request, 'effective_start', 'effective_end');
+
         return response()->json($query->orderByDesc('effective_start')->get());
     }
 
@@ -509,6 +519,7 @@ class PayrollOperationsController extends Controller
             'department_id' => ['required', 'integer'],
             'from' => ['required', 'date'],
             'to' => ['required', 'date'],
+            'employee_type' => ['nullable', 'in:plantilla,cos,all'],
         ]);
 
         app(SchedulerDtrSyncService::class)->syncDepartmentPeriod(
@@ -521,6 +532,7 @@ class PayrollOperationsController extends Controller
             ->with('position')
             ->where('department_id', $data['department_id'])
             ->where('is_active', 'Y')
+            ->employeeType($data['employee_type'] ?? Employee::EMPLOYEE_TYPE_PLANTILLA)
             ->orderBy('lastname')
             ->orderBy('firstname')
             ->get();
@@ -580,6 +592,7 @@ class PayrollOperationsController extends Controller
             'to' => ['required', 'date'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'employee_type' => ['nullable', 'in:plantilla,cos,all'],
         ]);
 
         app(SchedulerDtrSyncService::class)->syncDepartmentPeriod(
@@ -594,6 +607,7 @@ class PayrollOperationsController extends Controller
             ->with('position')
             ->where('department_id', $data['department_id'])
             ->where('is_active', 'Y')
+            ->employeeType($data['employee_type'] ?? Employee::EMPLOYEE_TYPE_PLANTILLA)
             ->orderBy('lastname')
             ->orderBy('firstname')
             ->paginate($perPage, ['*'], 'page', $page);
@@ -785,11 +799,13 @@ class PayrollOperationsController extends Controller
 
         if ($request->filled('department_id')) {
             $sync->syncDepartmentPeriod((int) $request->get('department_id'), $request->get('from'), $request->get('to'));
+
             return;
         }
 
         if ($request->filled('emp_id')) {
             $sync->syncEmployeesPeriod([$request->get('emp_id')], $request->get('from'), $request->get('to'));
+
             return;
         }
 
