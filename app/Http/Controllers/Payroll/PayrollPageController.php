@@ -8,7 +8,7 @@ class PayrollPageController extends Controller
 {
     public function dtr()
     {
-        return view('payroll.dtr');
+        return redirect()->route('payroll.dtr-encoding');
     }
 
     public function dtrEncoding()

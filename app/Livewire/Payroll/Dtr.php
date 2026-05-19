@@ -20,6 +20,10 @@ class Dtr extends Component
 
     public string $to;
 
+    public string $monthFilter;
+
+    public string $yearFilter;
+
     public array $entries = [];
 
     public bool $loaded = false;
@@ -31,8 +35,9 @@ class Dtr extends Component
     public function mount(): void
     {
         $today = CarbonImmutable::today();
-        $this->from = $today->startOfMonth()->toDateString();
-        $this->to = $today->endOfMonth()->toDateString();
+        $this->monthFilter = (string) $today->month;
+        $this->yearFilter = (string) $today->year;
+        $this->syncPeriodFromSelection();
         $this->loadState();
     }
 
@@ -42,6 +47,8 @@ class Dtr extends Component
             'department' => auth()->user()?->employee?->department,
             'employees' => $this->employees(),
             'employeeTypeOptions' => Employee::employeeTypeOptions(),
+            'monthOptions' => $this->monthOptions(),
+            'yearOptions' => $this->yearOptions(),
             'dates' => $this->dates(),
             'dtrs' => $this->dtrs(),
             'labelOptions' => PayrollDtrLabelOption::query()
@@ -101,6 +108,16 @@ class Dtr extends Component
     }
 
     public function updatedEmployeeTypeFilter(): void
+    {
+        $this->loadState();
+    }
+
+    public function updatedMonthFilter(): void
+    {
+        $this->loadState();
+    }
+
+    public function updatedYearFilter(): void
     {
         $this->loadState();
     }
@@ -211,6 +228,13 @@ class Dtr extends Component
     private function validatePeriod(): void
     {
         $this->validate([
+            'monthFilter' => ['required', 'integer', 'between:1,12'],
+            'yearFilter' => ['required', 'integer', 'between:1900,2100'],
+        ]);
+
+        $this->syncPeriodFromSelection();
+
+        $this->validate([
             'from' => ['required', 'date'],
             'to' => ['required', 'date', 'after_or_equal:from'],
         ]);
@@ -225,5 +249,26 @@ class Dtr extends Component
     private function departmentId(): ?int
     {
         return auth()->user()?->employee?->department_id;
+    }
+
+    private function syncPeriodFromSelection(): void
+    {
+        $period = CarbonImmutable::create((int) $this->yearFilter, (int) $this->monthFilter, 1);
+        $this->from = $period->startOfMonth()->toDateString();
+        $this->to = $period->endOfMonth()->toDateString();
+    }
+
+    private function monthOptions(): array
+    {
+        return collect(range(1, 12))
+            ->mapWithKeys(fn (int $month) => [$month => CarbonImmutable::create(2000, $month, 1)->format('F')])
+            ->all();
+    }
+
+    private function yearOptions(): array
+    {
+        $currentYear = CarbonImmutable::today()->year;
+
+        return range($currentYear - 5, $currentYear + 1);
     }
 }

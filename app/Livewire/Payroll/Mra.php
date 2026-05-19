@@ -26,6 +26,10 @@ class Mra extends Component
 
     public string $to;
 
+    public string $monthFilter;
+
+    public string $yearFilter;
+
     public ?string $remarks = null;
 
     public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
@@ -33,8 +37,9 @@ class Mra extends Component
     public function mount(): void
     {
         $today = CarbonImmutable::today()->subMonth();
-        $this->from = $today->startOfMonth()->toDateString();
-        $this->to = $today->endOfMonth()->toDateString();
+        $this->monthFilter = (string) $today->month;
+        $this->yearFilter = (string) $today->year;
+        $this->syncPeriodFromSelection();
     }
 
     public function render()
@@ -46,6 +51,8 @@ class Mra extends Component
             'report' => $report,
             'previewRows' => $this->previewRows(),
             'employeeTypeOptions' => Employee::employeeTypeOptions(),
+            'monthOptions' => $this->monthOptions(),
+            'yearOptions' => $this->yearOptions(),
             'reports' => PayrollMraReport::query()
                 ->where('department_id', $this->departmentId())
                 ->orderByDesc('generated_at')
@@ -115,6 +122,16 @@ class Mra extends Component
         });
 
         session()->flash('status', 'MRA generated. DTR labels are locked and tardiness/undertime was deducted from VL credits.');
+    }
+
+    public function updatedMonthFilter(): void
+    {
+        $this->syncPeriodFromSelection();
+    }
+
+    public function updatedYearFilter(): void
+    {
+        $this->syncPeriodFromSelection();
     }
 
     private function previewRows()
@@ -424,6 +441,13 @@ class Mra extends Component
     private function validatePeriod(): void
     {
         $this->validate([
+            'monthFilter' => ['required', 'integer', 'between:1,12'],
+            'yearFilter' => ['required', 'integer', 'between:1900,2100'],
+        ]);
+
+        $this->syncPeriodFromSelection();
+
+        $this->validate([
             'from' => ['required', 'date'],
             'to' => ['required', 'date', 'after_or_equal:from'],
         ]);
@@ -432,5 +456,26 @@ class Mra extends Component
     private function departmentId(): ?int
     {
         return auth()->user()?->employee?->department_id;
+    }
+
+    private function syncPeriodFromSelection(): void
+    {
+        $period = CarbonImmutable::create((int) $this->yearFilter, (int) $this->monthFilter, 1);
+        $this->from = $period->startOfMonth()->toDateString();
+        $this->to = $period->endOfMonth()->toDateString();
+    }
+
+    private function monthOptions(): array
+    {
+        return collect(range(1, 12))
+            ->mapWithKeys(fn (int $month) => [$month => CarbonImmutable::create(2000, $month, 1)->format('F')])
+            ->all();
+    }
+
+    private function yearOptions(): array
+    {
+        $currentYear = CarbonImmutable::today()->year;
+
+        return range($currentYear - 5, $currentYear + 1);
     }
 }

@@ -114,13 +114,7 @@
                         </button>
                         <div class="space-y-1 px-2 pb-2" x-show="open.payroll">
                             <a
-                                class="flex items-center rounded-md px-3 py-2.5 {{ request()->routeIs('payroll.dtr') ? 'bg-blue-50 font-medium text-blue-700' : 'text-slate-700 hover:bg-slate-100' }}"
-                                href="{{ route('payroll.dtr') }}"
-                            >
-                                DTR Review
-                            </a>
-                            <a
-                                class="flex items-center rounded-md px-3 py-2.5 {{ request()->routeIs('payroll.dtr-encoding') ? 'bg-blue-50 font-medium text-blue-700' : 'text-slate-700 hover:bg-slate-100' }}"
+                                class="flex items-center rounded-md px-3 py-2.5 {{ request()->routeIs('payroll.dtr', 'payroll.dtr-encoding') ? 'bg-blue-50 font-medium text-blue-700' : 'text-slate-700 hover:bg-slate-100' }}"
                                 href="{{ route('payroll.dtr-encoding') }}"
                             >
                                 DTR Encoding

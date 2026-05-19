@@ -27,6 +27,10 @@ class DtrEncoding extends Component
 
     public string $to;
 
+    public string $monthFilter;
+
+    public string $yearFilter;
+
     public ?string $selectedEmpId = null;
 
     public ?string $selectedBatchLabel = null;
@@ -46,17 +50,23 @@ class DtrEncoding extends Component
     public function mount(): void
     {
         $today = CarbonImmutable::today()->subMonth();
-        $this->from = $today->startOfMonth()->toDateString();
-        $this->to = $today->endOfMonth()->toDateString();
+        $this->monthFilter = (string) $today->month;
+        $this->yearFilter = (string) $today->year;
+        $this->syncPeriodFromSelection();
         $this->loadState();
     }
 
     public function render()
     {
+        $employees = $this->employees();
+
         return view('livewire.payroll.dtr-encoding', [
             'department' => auth()->user()?->employee?->department,
-            'employees' => $this->employees(),
+            'employees' => $employees,
             'employeeTypeOptions' => Employee::employeeTypeOptions(),
+            'monthOptions' => $this->monthOptions(),
+            'yearOptions' => $this->yearOptions(),
+            'employeeNavigation' => $this->employeeNavigation($employees),
             'dates' => $this->dates(),
             'templates' => PayrollTimeTemplate::query()->where('is_active', true)->orderBy('name')->get(),
             'labelOptions' => PayrollDtrLabelOption::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(),
@@ -71,6 +81,16 @@ class DtrEncoding extends Component
     public function updatedEmployeeTypeFilter(): void
     {
         $this->selectedEmpId = null;
+        $this->loadState();
+    }
+
+    public function updatedMonthFilter(): void
+    {
+        $this->loadState();
+    }
+
+    public function updatedYearFilter(): void
+    {
         $this->loadState();
     }
 
@@ -333,6 +353,34 @@ class DtrEncoding extends Component
         $this->selectedRows = [];
     }
 
+    public function previousEmployee(): void
+    {
+        $employeeIds = $this->employees()->pluck('emp_id')->values();
+
+        if ($employeeIds->isEmpty()) {
+            return;
+        }
+
+        $currentIndex = $employeeIds->search($this->selectedEmpId);
+        $targetIndex = $currentIndex === false ? $employeeIds->count() - 1 : max(0, $currentIndex - 1);
+        $this->selectedEmpId = $employeeIds->get($targetIndex);
+        $this->loadState();
+    }
+
+    public function nextEmployee(): void
+    {
+        $employeeIds = $this->employees()->pluck('emp_id')->values();
+
+        if ($employeeIds->isEmpty()) {
+            return;
+        }
+
+        $currentIndex = $employeeIds->search($this->selectedEmpId);
+        $targetIndex = $currentIndex === false ? 0 : min($employeeIds->count() - 1, $currentIndex + 1);
+        $this->selectedEmpId = $employeeIds->get($targetIndex);
+        $this->loadState();
+    }
+
     private function buildRow(string $date, ?EmployeeDtr $dtr, bool $hasLeave, ?string $label, ?PayrollHoliday $holiday, bool $holidayApplies, ?int $templateId, int $tardinessMinutes, int $undertimeMinutes): array
     {
         $dateValue = CarbonImmutable::parse($date);
@@ -438,6 +486,17 @@ class DtrEncoding extends Component
             ->orderBy('lastname')
             ->orderBy('firstname')
             ->get(['emp_id', 'firstname', 'middlename', 'lastname', 'position_id', 'department_id']);
+    }
+
+    private function employeeNavigation($employees): array
+    {
+        $employeeIds = $employees->pluck('emp_id')->values();
+        $currentIndex = $employeeIds->search($this->selectedEmpId);
+
+        return [
+            'has_previous' => $employeeIds->isNotEmpty() && ($currentIndex === false || $currentIndex > 0),
+            'has_next' => $employeeIds->isNotEmpty() && ($currentIndex === false || $currentIndex < $employeeIds->count() - 1),
+        ];
     }
 
     private function holidayAppliesToAssignment(?ScheduleAssignment $assignment): bool
@@ -561,6 +620,13 @@ class DtrEncoding extends Component
     private function validatePeriod(): void
     {
         $this->validate([
+            'monthFilter' => ['required', 'integer', 'between:1,12'],
+            'yearFilter' => ['required', 'integer', 'between:1900,2100'],
+        ]);
+
+        $this->syncPeriodFromSelection();
+
+        $this->validate([
             'from' => ['required', 'date'],
             'to' => ['required', 'date', 'after_or_equal:from'],
         ]);
@@ -573,5 +639,26 @@ class DtrEncoding extends Component
     private function departmentId(): ?int
     {
         return auth()->user()?->employee?->department_id;
+    }
+
+    private function syncPeriodFromSelection(): void
+    {
+        $period = CarbonImmutable::create((int) $this->yearFilter, (int) $this->monthFilter, 1);
+        $this->from = $period->startOfMonth()->toDateString();
+        $this->to = $period->endOfMonth()->toDateString();
+    }
+
+    private function monthOptions(): array
+    {
+        return collect(range(1, 12))
+            ->mapWithKeys(fn (int $month) => [$month => CarbonImmutable::create(2000, $month, 1)->format('F')])
+            ->all();
+    }
+
+    private function yearOptions(): array
+    {
+        $currentYear = CarbonImmutable::today()->year;
+
+        return range($currentYear - 5, $currentYear + 1);
     }
 }

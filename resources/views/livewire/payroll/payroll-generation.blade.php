@@ -1,4 +1,6 @@
-<section class="space-y-4">
+@php($payrollLoadingTargets = 'departmentId,period,workingDays,employeeTypeFilter,search,goToStep,nextStep,previousStep')
+
+<section class="space-y-4 pb-24">
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-xl font-semibold">Payroll Generation</h2>
@@ -13,7 +15,7 @@
         <div class="grid gap-3 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr]">
             <div>
                 <label class="text-sm font-medium">Department</label>
-                <select wire:model.live="departmentId" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <select wire:model.live="departmentId" wire:loading.attr="disabled" wire:target="{{ $payrollLoadingTargets }}" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
                     <option value="">Choose department</option>
                     @foreach ($departments as $department)
                         <option value="{{ $department->department_id }}">{{ $department->department }}</option>
@@ -22,15 +24,15 @@
             </div>
             <div>
                 <label class="text-sm font-medium">Payroll Month</label>
-                <input wire:model.live="period" type="month" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <input wire:model.live="period" wire:loading.attr="disabled" wire:target="{{ $payrollLoadingTargets }}" type="month" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
             </div>
             <div>
                 <label class="text-sm font-medium">Working Days</label>
-                <input wire:model.live="workingDays" type="number" min="1" max="31" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <input wire:model.live="workingDays" wire:loading.attr="disabled" wire:target="{{ $payrollLoadingTargets }}" type="number" min="1" max="31" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
             </div>
             <div>
                 <label class="text-sm font-medium">Employee Type</label>
-                <select wire:model.live="employeeTypeFilter" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <select wire:model.live="employeeTypeFilter" wire:loading.attr="disabled" wire:target="{{ $payrollLoadingTargets }}" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
                     @foreach ($employeeTypeOptions as $value => $label)
                         <option value="{{ $value }}">{{ $label }}</option>
                     @endforeach
@@ -38,7 +40,7 @@
             </div>
             <div>
                 <label class="text-sm font-medium">Search</label>
-                <input wire:model.live.debounce.300ms="search" type="search" placeholder="Emp ID or name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <input wire:model.live.debounce.300ms="search" wire:loading.attr="disabled" wire:target="{{ $payrollLoadingTargets }}" type="search" placeholder="Emp ID or name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
             </div>
         </div>
     </div>
@@ -49,6 +51,8 @@
                 <button
                     type="button"
                     wire:click="goToStep({{ $number }})"
+                    wire:loading.attr="disabled"
+                    wire:target="{{ $payrollLoadingTargets }}"
                     class="rounded-md border px-3 py-2 text-left text-sm transition {{ $currentStep === $number ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' }}"
                 >
                     <span class="block text-xs font-semibold uppercase tracking-wide">Step {{ $number }}</span>
@@ -77,6 +81,45 @@
         </div>
     </div>
 
+    <div
+        wire:loading.class.remove="hidden"
+        wire:target="{{ $payrollLoadingTargets }}"
+        class="hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+    >
+        <div class="flex items-center gap-2 border-b border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-800">
+            <span class="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700"></span>
+            Loading payroll rows...
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                    <tr>
+                        <th class="px-4 py-3">Employee</th>
+                        <th class="px-4 py-3">Pay Basis</th>
+                        <th class="px-4 py-3">Earnings</th>
+                        <th class="px-4 py-3">Deductions</th>
+                        <th class="px-4 py-3">Net Pay</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @for ($i = 0; $i < 8; $i++)
+                        <tr class="animate-pulse">
+                            <td class="px-4 py-4">
+                                <div class="h-4 w-44 rounded bg-slate-200"></div>
+                                <div class="mt-2 h-3 w-24 rounded bg-slate-100"></div>
+                            </td>
+                            <td class="px-4 py-4"><div class="h-4 w-28 rounded bg-slate-200"></div></td>
+                            <td class="px-4 py-4"><div class="h-4 w-36 rounded bg-slate-200"></div></td>
+                            <td class="px-4 py-4"><div class="h-4 w-32 rounded bg-slate-200"></div></td>
+                            <td class="px-4 py-4"><div class="h-4 w-28 rounded bg-slate-200"></div></td>
+                        </tr>
+                    @endfor
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div wire:loading.class="hidden" wire:target="{{ $payrollLoadingTargets }}">
     @if ($currentStep === 1)
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-4 py-3">
@@ -263,33 +306,31 @@
             @include('livewire.payroll.partials.payroll-review-table', ['rows' => $rows, 'compensations' => $compensations, 'totals' => $totals])
         </div>
     @endif
+    </div>
 
-    @if ($currentStep !== 6)
-        <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-4 py-3">
-                <h3 class="font-semibold">Payroll Preview</h3>
-            </div>
-            @include('livewire.payroll.partials.payroll-review-table', ['rows' => $rows, 'compensations' => $compensations, 'totals' => $totals])
+    <div class="pointer-events-none fixed inset-x-0 bottom-5 z-30 flex justify-center px-4">
+        <div class="pointer-events-auto flex items-center gap-3 rounded-lg border border-white/50 bg-white/70 px-3 py-2 shadow-lg shadow-slate-900/10 backdrop-blur-md">
+            <button
+                type="button"
+                wire:click="previousStep"
+                wire:loading.attr="disabled"
+                wire:target="{{ $payrollLoadingTargets }}"
+                @disabled($currentStep === 1)
+                class="rounded-md border border-slate-300/70 bg-white/60 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+                Previous
+            </button>
+            <div class="min-w-20 text-center text-sm text-slate-700">Step {{ $currentStep }} of {{ count($steps) }}</div>
+            <button
+                type="button"
+                wire:click="nextStep"
+                wire:loading.attr="disabled"
+                wire:target="{{ $payrollLoadingTargets }}"
+                @disabled($currentStep === 6)
+                class="rounded-md bg-blue-600/90 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+                Next
+            </button>
         </div>
-    @endif
-
-    <div class="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <button
-            type="button"
-            wire:click="previousStep"
-            @disabled($currentStep === 1)
-            class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-            Previous
-        </button>
-        <div class="text-sm text-slate-600">Step {{ $currentStep }} of {{ count($steps) }}</div>
-        <button
-            type="button"
-            wire:click="nextStep"
-            @disabled($currentStep === 6)
-            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-            Next
-        </button>
     </div>
 </section>
