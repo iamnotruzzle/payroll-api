@@ -10,13 +10,20 @@ use App\Models\Payroll\PayrollDtrAdjustment;
 use App\Models\Payroll\PayrollDtrLabel;
 use App\Models\Payroll\PayrollDtrLabelOption;
 use App\Models\Payroll\PayrollLeaveCreditAdjustment;
+use App\Models\Payroll\PayrollLoanImportItem;
 use App\Models\Payroll\PayrollMraReport;
+use App\Services\Payroll\PayrollLoanImportService;
+use App\Services\Payroll\PayrollLoanReferenceService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class PayrollGeneration extends Component
 {
+    use WithFileUploads;
+
     public ?int $departmentId = null;
 
     public string $period;
@@ -31,19 +38,33 @@ class PayrollGeneration extends Component
 
     public array $deductionDayOverrides = [];
 
+    public bool $showLoanImportModal = false;
+
+    public $loanFile;
+
+    public ?string $pendingLoanImportPath = null;
+
+    public ?string $pendingLoanImportOriginalFilename = null;
+
+    public array $loanImportPreview = [];
+
     public array $steps = [
         1 => 'MRA Validation',
         2 => 'Allowances Computation',
         3 => 'Deductions and Adjustments',
         4 => 'Statutory',
-        5 => 'Loan Deductions',
+        5 => 'Other Deductions',
         6 => 'Review',
     ];
+
+    public array $loanColumnGroups = [];
+
 
     public function mount(): void
     {
         $this->departmentId = auth()->user()?->employee?->department_id;
         $this->period = CarbonImmutable::today()->format('Y-m');
+        $this->loanColumnGroups = app(PayrollLoanReferenceService::class)->columnGroups();
     }
 
     public function updatedDepartmentId(): void
@@ -76,6 +97,71 @@ class PayrollGeneration extends Component
         $this->goToStep($this->currentStep - 1);
     }
 
+    public function openLoanImportModal(): void
+    {
+        $this->resetLoanImportState();
+        $this->showLoanImportModal = true;
+    }
+
+    public function closeLoanImportModal(): void
+    {
+        $this->showLoanImportModal = false;
+        $this->resetLoanImportState();
+    }
+
+    public function previewLoanImport(): void
+    {
+        $data = $this->validate([
+            'loanFile' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
+        ]);
+
+        $file = $data['loanFile'];
+        $storedPath = $file->store('payroll/loan-imports');
+        $this->pendingLoanImportPath = $storedPath;
+        $this->pendingLoanImportOriginalFilename = $file->getClientOriginalName();
+        $this->loanImportPreview = app(PayrollLoanImportService::class)->preview(Storage::path($storedPath));
+    }
+
+    public function saveLoanImport(): void
+    {
+        if (! $this->pendingLoanImportPath || empty($this->loanImportPreview)) {
+            $this->addError('loanFile', 'Preview the loan file before saving the import.');
+
+            return;
+        }
+
+        $this->loanImportPreview = app(PayrollLoanImportService::class)->preview(Storage::path($this->pendingLoanImportPath));
+        if (($this->loanImportPreview['invalid_rows'] ?? 0) > 0) {
+            $this->addError('loanFile', 'Fix invalid rows before saving the loan import.');
+
+            return;
+        }
+
+        $import = app(PayrollLoanImportService::class)->savePreview(
+            $this->loanImportPreview,
+            $this->pendingLoanImportOriginalFilename ?? 'loan_import.xlsx',
+            $this->pendingLoanImportPath,
+            auth()->user()?->emp_id,
+        );
+
+        $this->showLoanImportModal = false;
+        $this->resetLoanImportState();
+
+        session()->flash(
+            'loan_import_status',
+            "Imported {$import->total_rows} loan row(s): {$import->valid_rows} ready, {$import->invalid_rows} needing review."
+        );
+    }
+
+    private function resetLoanImportState(): void
+    {
+        $this->loanFile = null;
+        $this->pendingLoanImportPath = null;
+        $this->pendingLoanImportOriginalFilename = null;
+        $this->loanImportPreview = [];
+        $this->resetValidation('loanFile');
+    }
+
     public function render()
     {
         $compensations = $this->compensations();
@@ -100,8 +186,13 @@ class PayrollGeneration extends Component
                     'phic' => $rows->sum('statutory_deductions.phic'),
                     'mandatory_pagibig' => $rows->sum('statutory_deductions.mandatory_pagibig'),
                 ],
+                'loan_columns' => collect(array_keys($this->blankLoanColumns()))
+                    ->mapWithKeys(fn (string $key) => [$key => $rows->sum(fn ($row) => $row['loan_deductions']['columns'][$key] ?? 0)])
+                    ->all(),
                 'gross' => $rows->sum('gross'),
                 'net_before_other_deductions' => $rows->sum('net_before_other_deductions'),
+                'loan_deductions' => $rows->sum('loan_deductions.total'),
+                'net_after_loan_deductions' => $rows->sum('net_after_loan_deductions'),
                 'fifteenth' => $rows->sum('fifteenth'),
                 'thirtieth' => $rows->sum('thirtieth'),
             ],
@@ -137,6 +228,20 @@ class PayrollGeneration extends Component
         $previousMraPeriod = $this->previousMraPeriod();
         $previousMraReport = $this->previousMraReport($previousMraPeriod);
         $empIds = $employees->pluck('emp_id')->all();
+        $loanItems = PayrollLoanImportItem::query()
+            ->with('import')
+            ->where('validation_status', 'valid')
+            ->whereDate('due_month', $periodStart->toDateString())
+            ->whereIn('matched_emp_id', $empIds)
+            ->orderByDesc('id')
+            ->get()
+            ->unique(fn (PayrollLoanImportItem $item) => implode('|', [
+                strtoupper($item->entity),
+                $item->due_month?->toDateString(),
+                $item->matched_emp_id,
+                strtoupper($item->loan_account_no),
+            ]))
+            ->groupBy('matched_emp_id');
         $labels = PayrollDtrLabel::query()
             ->whereIn('emp_id', $empIds)
             ->whereBetween('dtr_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
@@ -157,7 +262,7 @@ class PayrollGeneration extends Component
             : collect();
         $labelOptions = PayrollDtrLabelOption::query()->get()->keyBy('code');
 
-        return $employees->map(function (Employee $employee) use ($compensations, $salaryMatrix, $labels, $adjustments, $mraAdjustments, $labelOptions, $previousMraReport) {
+        return $employees->map(function (Employee $employee) use ($compensations, $salaryMatrix, $labels, $adjustments, $mraAdjustments, $labelOptions, $previousMraReport, $loanItems) {
             $salaryGrade = (int) ($employee->position?->salary_grade ?? 0);
             $step = max(1, min(8, (int) ($employee->step ?: 1)));
             $basicSalary = (float) ($salaryMatrix[$salaryGrade][$step] ?? 0);
@@ -197,8 +302,25 @@ class PayrollGeneration extends Component
             $statutoryDeductions = $this->statutoryDeductions($basicSalary);
             $gross = $basicSalary + collect($computed)->sum('amount');
             $netBeforeOtherDeductions = $gross - collect($statutoryDeductions)->sum();
-            $fifteenth = round($netBeforeOtherDeductions / 2, 2);
-            $thirtieth = round($netBeforeOtherDeductions - $fifteenth, 2);
+            $employeeLoanItems = $loanItems->get($employee->emp_id, collect());
+            $loanTotal = round($employeeLoanItems->sum('amount_due'), 2);
+            $loanColumns = $this->blankLoanColumns();
+            foreach ($employeeLoanItems as $loanItem) {
+                $key = $this->loanColumnKey($loanItem);
+                $loanColumns[$key] = round(($loanColumns[$key] ?? 0) + (float) $loanItem->amount_due, 2);
+            }
+            $loanByEntity = $employeeLoanItems
+                ->groupBy('entity')
+                ->map(fn (Collection $items, string $entity) => [
+                    'entity' => $entity,
+                    'count' => $items->count(),
+                    'amount' => round($items->sum('amount_due'), 2),
+                ])
+                ->values()
+                ->all();
+            $netAfterLoanDeductions = round($netBeforeOtherDeductions - $loanTotal, 2);
+            $fifteenth = round($netAfterLoanDeductions / 2, 2);
+            $thirtieth = round($netAfterLoanDeductions - $fifteenth, 2);
 
             return [
                 'emp_id' => $employee->emp_id,
@@ -215,8 +337,21 @@ class PayrollGeneration extends Component
                 'basic_salary' => $basicSalary,
                 'compensations' => $computed,
                 'statutory_deductions' => $statutoryDeductions,
+                'loan_deductions' => [
+                    'total' => $loanTotal,
+                    'columns' => $loanColumns,
+                    'items' => $employeeLoanItems->map(fn (PayrollLoanImportItem $item) => [
+                        'entity' => $item->entity,
+                        'loan_account_no' => $item->loan_account_no,
+                        'loan_type' => $item->loan_type,
+                        'amount_due' => (float) $item->amount_due,
+                        'imported_at' => $item->import?->imported_at?->format('M d, Y'),
+                    ])->values()->all(),
+                    'by_entity' => $loanByEntity,
+                ],
                 'gross' => $gross,
                 'net_before_other_deductions' => $netBeforeOtherDeductions,
+                'net_after_loan_deductions' => $netAfterLoanDeductions,
                 'fifteenth' => $fifteenth,
                 'thirtieth' => $thirtieth,
             ];
@@ -227,6 +362,19 @@ class PayrollGeneration extends Component
     {
         $this->currentStep = 1;
         $this->deductionDayOverrides = [];
+    }
+
+    private function blankLoanColumns(): array
+    {
+        return collect($this->loanColumnGroups)
+            ->flatMap(fn (array $columns) => array_keys($columns))
+            ->mapWithKeys(fn (string $key) => [$key => 0.0])
+            ->all();
+    }
+
+    private function loanColumnKey(PayrollLoanImportItem $item): string
+    {
+        return app(PayrollLoanReferenceService::class)->columnKeyFor($item);
     }
 
     private function selectedPeriodStart(): CarbonImmutable

@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\PayrollOperationsController;
 use App\Http\Controllers\Api\PayrollAdditionalController;
 use App\Http\Controllers\Api\PayrollBankTemplateController;
 use App\Http\Controllers\Api\PayrollDeductionController;
+use App\Http\Controllers\Api\PayrollLoanReferenceController;
 use App\Http\Controllers\Api\PayrollTypeController;
 use App\Http\Controllers\Api\PositionController;
 use App\Http\Controllers\Api\ReferenceDataController;
@@ -92,6 +93,8 @@ Route::prefix('payroll-deductions')->group(function () {
     Route::put('/{id}', [PayrollDeductionController::class, 'update']);
     Route::delete('/{id}', [PayrollDeductionController::class, 'destroy']);
 });
+
+Route::get('/payroll-loan-references', [PayrollLoanReferenceController::class, 'index']);
 
 Route::prefix('payroll')->group(function () {
     Route::get('/periods', [PayrollOperationsController::class, 'periods']);

@@ -26,6 +26,16 @@ class PayrollPageController extends Controller
         return view('payroll.generation');
     }
 
+    public function loanImports()
+    {
+        return view('payroll.loan-imports');
+    }
+
+    public function loanReferences()
+    {
+        return view('payroll.loan-references');
+    }
+
     public function compensations()
     {
         return view('payroll.compensations');

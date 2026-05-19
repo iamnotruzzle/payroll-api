@@ -132,6 +132,18 @@
                                 Payroll Generation
                             </a>
                             <a
+                                class="flex items-center rounded-md px-3 py-2.5 {{ request()->routeIs('payroll.loan-imports') ? 'bg-blue-50 font-medium text-blue-700' : 'text-slate-700 hover:bg-slate-100' }}"
+                                href="{{ route('payroll.loan-imports') }}"
+                            >
+                                Loan Due Imports
+                            </a>
+                            <a
+                                class="flex items-center rounded-md px-3 py-2.5 {{ request()->routeIs('payroll.loan-references') ? 'bg-blue-50 font-medium text-blue-700' : 'text-slate-700 hover:bg-slate-100' }}"
+                                href="{{ route('payroll.loan-references') }}"
+                            >
+                                Deduction References
+                            </a>
+                            <a
                                 class="flex items-center rounded-md px-3 py-2.5 {{ request()->routeIs('payroll.compensations') ? 'bg-blue-50 font-medium text-blue-700' : 'text-slate-700 hover:bg-slate-100' }}"
                                 href="{{ route('payroll.compensations') }}"
                             >

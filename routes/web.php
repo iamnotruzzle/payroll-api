@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\WebLoginController;
+use App\Http\Controllers\Payroll\PayrollLoanImportController;
 use App\Http\Controllers\Payroll\PayrollPageController;
 use App\Http\Controllers\Schedule\SchedulePageController;
 use Illuminate\Support\Facades\Route;
@@ -36,6 +37,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/payroll/dtr-encoding', [PayrollPageController::class, 'dtrEncoding'])->name('payroll.dtr-encoding');
     Route::get('/payroll/mra', [PayrollPageController::class, 'mra'])->name('payroll.mra');
     Route::get('/payroll/generation', [PayrollPageController::class, 'generation'])->name('payroll.generation');
+    Route::get('/payroll/loan-imports', [PayrollPageController::class, 'loanImports'])->name('payroll.loan-imports');
+    Route::get('/payroll/loan-imports/template', [PayrollLoanImportController::class, 'template'])->name('payroll.loan-imports.template');
+    Route::get('/payroll/loan-references', [PayrollPageController::class, 'loanReferences'])->name('payroll.loan-references');
     Route::get('/payroll/compensations', [PayrollPageController::class, 'compensations'])->name('payroll.compensations');
     Route::get('/payroll/holidays', [PayrollPageController::class, 'holidays'])->name('payroll.holidays');
 });

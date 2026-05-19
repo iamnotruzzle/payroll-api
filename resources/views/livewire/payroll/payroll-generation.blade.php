@@ -294,16 +294,215 @@
             </div>
         </div>
     @elseif ($currentStep === 5)
-        <div class="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <h3 class="text-lg font-semibold">Loan Deductions</h3>
-            <p class="mt-2 text-sm text-slate-600">Loan deduction setup will be added here in the next pass.</p>
+        <div class="space-y-4">
+            @if (session('loan_import_status'))
+                <div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    {{ session('loan_import_status') }}
+                </div>
+            @endif
+
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <div>
+                    <h3 class="font-semibold">Other Deductions</h3>
+                    <p class="text-sm text-slate-600">Validated loan and deduction imports for {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }} are matched to active employees.</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <a href="{{ route('payroll.loan-imports.template') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                        Export Template
+                    </a>
+                    <button type="button" wire:click="openLoanImportModal" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                        Import Loan Excel
+                    </button>
+                    <a href="{{ route('payroll.loan-imports') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                        Recent Imports
+                    </a>
+                </div>
+            </div>
+
+            @if ($showLoanImportModal)
+                <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm">
+                    <div class="flex max-h-[90vh] w-full max-w-6xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
+                        <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+                            <div>
+                                <h3 class="font-semibold text-slate-900">Import Loan Excel</h3>
+                                <p class="mt-1 text-sm text-slate-600">Preview and validate the completed deduction template before saving it to payroll.</p>
+                            </div>
+                            <button type="button" wire:click="closeLoanImportModal" class="rounded-md px-2 py-1 text-xl leading-none text-slate-500 hover:bg-slate-100" aria-label="Close import modal">
+                                &times;
+                            </button>
+                        </div>
+
+                        <div class="space-y-4 overflow-y-auto px-5 py-5">
+                            <div class="grid gap-3 lg:grid-cols-[1fr_auto]">
+                                <div>
+                                    <label class="text-sm font-medium">Loan Excel file</label>
+                                    <input wire:model="loanFile" type="file" accept=".xlsx,.xls,.csv" class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                    @error('loanFile')
+                                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                    @enderror
+                                </div>
+                                <div class="flex items-end">
+                                    <button type="button" wire:click="previewLoanImport" wire:loading.attr="disabled" wire:target="previewLoanImport,loanFile" class="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60 lg:w-auto">
+                                        Preview Rows
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div wire:loading.flex wire:target="previewLoanImport,saveLoanImport,loanFile" class="items-center gap-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                                <span class="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700"></span>
+                                <span>Reading and validating loan rows...</span>
+                            </div>
+
+                            @if (! empty($loanImportPreview))
+                                <div class="grid gap-3 md:grid-cols-4">
+                                    <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Entity</p>
+                                        <p class="mt-1 font-semibold">{{ $loanImportPreview['source_entity'] ?? '-' }}</p>
+                                    </div>
+                                    <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Rows</p>
+                                        <p class="mt-1 font-semibold">{{ number_format($loanImportPreview['total_rows'] ?? 0) }}</p>
+                                    </div>
+                                    <div class="rounded-md border border-emerald-200 bg-emerald-50 p-3">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Valid</p>
+                                        <p class="mt-1 font-semibold text-emerald-800">{{ number_format($loanImportPreview['valid_rows'] ?? 0) }}</p>
+                                    </div>
+                                    <div class="rounded-md border border-amber-200 bg-amber-50 p-3">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Invalid</p>
+                                        <p class="mt-1 font-semibold text-amber-800">{{ number_format($loanImportPreview['invalid_rows'] ?? 0) }}</p>
+                                    </div>
+                                </div>
+
+                                @if (($loanImportPreview['invalid_rows'] ?? 0) > 0)
+                                    <div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                        Fix the invalid rows in the workbook and preview again before saving.
+                                    </div>
+                                @endif
+
+                                <div class="overflow-hidden rounded-lg border border-slate-200">
+                                    <div class="max-h-[420px] overflow-auto">
+                                        <table class="min-w-[1280px] border-separate border-spacing-0 text-sm">
+                                            <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
+                                                <tr>
+                                                    <th class="sticky left-0 z-20 border-b border-r border-slate-300 bg-slate-100 px-3 py-2">Row</th>
+                                                    <th class="border-b border-r border-slate-300 px-3 py-2">Status</th>
+                                                    <th class="border-b border-r border-slate-300 px-3 py-2">Due Month</th>
+                                                    <th class="border-b border-r border-slate-300 px-3 py-2">Employee ID</th>
+                                                    <th class="border-b border-r border-slate-300 px-3 py-2">Employee Name</th>
+                                                    <th class="border-b border-r border-slate-300 px-3 py-2">Reference/Account No.</th>
+                                                    <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Amount Due</th>
+                                                    <th class="border-b border-r border-slate-300 px-3 py-2">Validation</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (($loanImportPreview['items'] ?? []) as $item)
+                                                    <tr class="{{ ($item['validation_status'] ?? '') === 'valid' ? 'bg-white hover:bg-emerald-50/50' : 'bg-amber-50 hover:bg-amber-100/60' }}">
+                                                        <td class="sticky left-0 border-b border-r border-slate-200 bg-inherit px-3 py-2 font-mono text-xs">{{ $item['row_number'] }}</td>
+                                                        <td class="border-b border-r border-slate-200 px-3 py-2">
+                                                            <span class="rounded-full px-2 py-1 text-xs font-medium {{ ($item['validation_status'] ?? '') === 'valid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
+                                                                {{ ucfirst($item['validation_status'] ?? 'invalid') }}
+                                                            </span>
+                                                        </td>
+                                                        <td class="border-b border-r border-slate-200 px-3 py-2">{{ $item['due_month'] ?? '-' }}</td>
+                                                        <td class="border-b border-r border-slate-200 px-3 py-2">{{ $item['employee_id'] ?: ($item['matched_emp_id'] ?? '') }}</td>
+                                                        <td class="border-b border-r border-slate-200 px-3 py-2 font-medium">{{ $item['employee_name'] ?? '-' }}</td>
+                                                        <td class="border-b border-r border-slate-200 px-3 py-2">{{ $item['loan_account_no'] ?? '-' }}</td>
+                                                        <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format((float) ($item['amount_due'] ?? 0), 2) }}</td>
+                                                        <td class="border-b border-r border-slate-200 px-3 py-2 text-xs text-slate-600">
+                                                            {{ ! empty($item['validation_errors']) ? implode(' ', $item['validation_errors']) : 'Ready to save.' }}
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            @else
+                                <div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                                    Upload a loan Excel file, then preview rows before saving.
+                                </div>
+                            @endif
+                        </div>
+
+                        <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+                            <button type="button" wire:click="closeLoanImportModal" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                                Cancel
+                            </button>
+                            <button type="button" wire:click="saveLoanImport" wire:loading.attr="disabled" wire:target="saveLoanImport" @disabled(empty($loanImportPreview) || (($loanImportPreview['invalid_rows'] ?? 0) > 0)) class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                                Save Import
+                            </button>
+                        </div>
+                            </div>
+                </div>
+            @endif
+
+            <div class="grid gap-3 md:grid-cols-3">
+                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Employees With Deductions</p>
+                    <p class="mt-1 text-2xl font-semibold">{{ number_format($rows->filter(fn ($row) => ($row['loan_deductions']['total'] ?? 0) > 0)->count()) }}</p>
+                </div>
+                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Loan Deduction Total</p>
+                    <p class="mt-1 text-2xl font-semibold">{{ number_format($totals['loan_deductions'], 2) }}</p>
+                </div>
+                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Net After Deductions</p>
+                    <p class="mt-1 text-2xl font-semibold">{{ number_format($totals['net_after_loan_deductions'], 2) }}</p>
+                </div>
+            </div>
+
+            <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div class="max-h-[640px] overflow-auto">
+                    <table class="min-w-[1120px] border-separate border-spacing-0 text-sm">
+                        <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
+                            <tr>
+                                <th class="sticky left-0 z-20 border-b border-r border-slate-300 bg-slate-100 px-3 py-2">Employee</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net Before Other Deductions</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Other Deductions</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net After Deductions</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2">Deduction Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($rows as $row)
+                                <tr class="hover:bg-slate-50">
+                                    <td class="sticky left-0 border-b border-r border-slate-200 bg-inherit px-3 py-2">
+                                        <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
+                                        <div class="text-xs text-slate-500">{{ $row['emp_id'] }} · {{ $row['department'] }}</div>
+                                    </td>
+                                    <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ number_format($row['net_before_other_deductions'], 2) }}</td>
+                                    <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold {{ ($row['loan_deductions']['total'] ?? 0) > 0 ? 'text-blue-700' : 'text-slate-500' }}">
+                                        {{ number_format($row['loan_deductions']['total'] ?? 0, 2) }}
+                                    </td>
+                                    <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format($row['net_after_loan_deductions'], 2) }}</td>
+                                    <td class="border-b border-r border-slate-200 px-3 py-2">
+                                        @forelse ($row['loan_deductions']['items'] as $loan)
+                                            <div class="mb-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs">
+                                                <span class="font-semibold">{{ $loan['entity'] }}</span>
+                                                <span class="text-slate-500">· {{ $loan['loan_account_no'] }}</span>
+                                                <span class="float-right font-semibold">{{ number_format($loan['amount_due'], 2) }}</span>
+                                            </div>
+                                        @empty
+                                            <span class="text-xs text-slate-500">No validated deduction import matched for this month.</span>
+                                        @endforelse
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     @else
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-4 py-3">
                 <h3 class="font-semibold">Review</h3>
             </div>
-            @include('livewire.payroll.partials.payroll-review-table', ['rows' => $rows, 'compensations' => $compensations, 'totals' => $totals])
+            @include('livewire.payroll.partials.payroll-review-table', ['rows' => $rows, 'compensations' => $compensations, 'totals' => $totals, 'loanColumnGroups' => $loanColumnGroups])
         </div>
     @endif
     </div>
