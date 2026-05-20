@@ -45,6 +45,7 @@
                     ['label' => 'DTR Encoding', 'route' => 'payroll.dtr-encoding', 'icon' => 'file-clock', 'active' => request()->routeIs('payroll.dtr', 'payroll.dtr-encoding')],
                     ['label' => 'MRA', 'route' => 'payroll.mra', 'icon' => 'chart-no-axes-column', 'active' => request()->routeIs('payroll.mra')],
                     ['label' => 'Payroll Generation', 'route' => 'payroll.generation', 'icon' => 'banknote', 'active' => request()->routeIs('payroll.generation')],
+                    ['label' => 'Payroll History', 'route' => 'payroll.history', 'icon' => 'history', 'active' => request()->routeIs('payroll.history')],
                     ['label' => 'Loan Due Imports', 'route' => 'payroll.loan-imports', 'icon' => 'upload', 'active' => request()->routeIs('payroll.loan-imports')],
                     ['label' => 'Loan References', 'route' => 'payroll.loan-references', 'icon' => 'files', 'active' => request()->routeIs('payroll.loan-references')],
                     ['label' => 'Deduction Programs', 'route' => 'payroll.deduction-programs', 'icon' => 'list-checks', 'active' => request()->routeIs('payroll.deduction-programs')],
@@ -87,6 +88,7 @@
             'upload' => 'M12 3v12 M7 8l5-5 5 5 M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2',
             'user-cog' => 'M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M2 21a8 8 0 0 1 12.2-6.8 M19 15v2 M19 21v.01 M22 18h-2 M18 18h-2 M21.1 15.9l-1.4 1.4 M18.3 20.7l-1.4 1.4 M21.1 22.1l-1.4-1.4 M18.3 17.3l-1.4-1.4',
             'wallet' => 'M20 7V6a2 2 0 0 0-2-2H5a3 3 0 0 0 0 6h15v10H5a3 3 0 0 1-3-3V7 M16 14h.01',
+            'history' => 'M3 12a9 9 0 1 0 9-9 M12 7v5l3 3',
         ];
     @endphp
 

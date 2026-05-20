@@ -50,4 +50,9 @@ class PayrollPageController extends Controller
     {
         return view('payroll.holidays');
     }
+
+    public function history()
+    {
+        return view('payroll.history');
+    }
 }

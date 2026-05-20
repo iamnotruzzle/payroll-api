@@ -709,10 +709,37 @@
             $activeReviewDeductionPrograms = $deductionPrograms->filter(fn ($program) => filter_var($deductionProgramSelections[(string) $program->id]['enabled'] ?? false, FILTER_VALIDATE_BOOL));
         @endphp
 
+        {{-- SNAPSHOT HEADER --}}
+        <div class="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <div>
+                <h3 class="font-semibold">Review</h3>
+                <p class="text-sm text-slate-600">
+                    Final payroll summary before snapshot generation.
+                </p>
+            </div>
+
+            <button
+                type="button"
+                wire:click="snapshotPayroll"
+                class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+                Snapshot Payroll
+            </button>
+        </div>
+
+        @if (session('success'))
+            <div class="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                {{ session('success') }}
+            </div>
+        @endif
+
+        {{-- REVIEW TABLE --}}
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+
             <div class="border-b border-slate-200 px-4 py-3">
                 <h3 class="font-semibold">Review</h3>
             </div>
+
             @include('livewire.payroll.partials.payroll-review-table', [
                 'rows' => $rows,
                 'compensations' => $compensations,
@@ -720,6 +747,7 @@
                 'loanColumnGroups' => $loanColumnGroups,
                 'deductionPrograms' => $activeReviewDeductionPrograms,
             ])
+
         </div>
     @endif
     </div>

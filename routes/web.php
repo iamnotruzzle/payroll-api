@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\WebLoginController;
 use App\Http\Controllers\Payroll\PayrollLoanImportController;
 use App\Http\Controllers\Payroll\PayrollPageController;
 use App\Http\Controllers\Schedule\SchedulePageController;
+use App\Livewire\Payroll\PayrollHistory;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -43,4 +44,5 @@ Route::middleware('auth')->group(function () {
     Route::get('/payroll/compensations', [PayrollPageController::class, 'compensations'])->name('payroll.compensations');
     Route::get('/payroll/deduction-programs', [PayrollPageController::class, 'deductionPrograms'])->name('payroll.deduction-programs');
     Route::get('/payroll/holidays', [PayrollPageController::class, 'holidays'])->name('payroll.holidays');
+    Route::get('/payroll/history', [PayrollPageController::class, 'history'])->name('payroll.history');
 });
