@@ -1,3 +1,3 @@
-<x-layouts.app title="Deduction References">
-    <livewire:payroll.loan-references lazy="on-load" />
+<x-layouts.app title="Loan References">
+    <livewire:payroll.loan-references />
 </x-layouts.app>

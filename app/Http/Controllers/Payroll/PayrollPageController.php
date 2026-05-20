@@ -41,6 +41,11 @@ class PayrollPageController extends Controller
         return view('payroll.compensations');
     }
 
+    public function deductionPrograms()
+    {
+        return view('payroll.deduction-programs');
+    }
+
     public function holidays()
     {
         return view('payroll.holidays');

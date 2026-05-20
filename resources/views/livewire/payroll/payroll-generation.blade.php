@@ -1,4 +1,6 @@
-@php($payrollLoadingTargets = 'departmentId,period,workingDays,employeeTypeFilter,search,goToStep,nextStep,previousStep')
+@php
+    $payrollLoadingTargets = 'departmentId,period,workingDays,employeeTypeFilter,search,goToStep,nextStep,previousStep';
+@endphp
 
 <section class="space-y-4 pb-24">
     <div class="flex flex-wrap items-end justify-between gap-3">
@@ -6,9 +8,14 @@
             <h2 class="text-xl font-semibold">Payroll Generation</h2>
             <p class="text-sm text-slate-600">Generate the selected month from the previous month MRA and computed payroll items.</p>
         </div>
-        <a href="{{ route('payroll.compensations') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
-            Manage Compensations
-        </a>
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ route('payroll.deduction-programs') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                Manage Deduction Programs
+            </a>
+            <a href="{{ route('payroll.compensations') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                Manage Compensations
+            </a>
+        </div>
     </div>
 
     <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -46,14 +53,14 @@
     </div>
 
     <div class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-        <div class="grid gap-2 md:grid-cols-6">
+        <div class="grid gap-2 md:grid-cols-7">
             @foreach ($steps as $number => $label)
                 <button
                     type="button"
                     wire:click="goToStep({{ $number }})"
                     wire:loading.attr="disabled"
                     wire:target="{{ $payrollLoadingTargets }}"
-                    class="rounded-md border px-3 py-2 text-left text-sm transition {{ $currentStep === $number ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' }}"
+                    class="rounded-md border px-3 py-2 text-left text-sm transition {{ $currentStep === $number ? 'border-[#5f61e6] bg-[#5f61e6] font-semibold text-white shadow-sm shadow-[#696cff]/25' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' }}"
                 >
                     <span class="block text-xs font-semibold uppercase tracking-wide">Step {{ $number }}</span>
                     <span class="mt-1 block font-medium">{{ $label }}</span>
@@ -295,6 +302,206 @@
         </div>
     @elseif ($currentStep === 5)
         <div class="space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <div>
+                    <h3 class="font-semibold">Deduction Programs</h3>
+                    <p class="text-sm text-slate-600">Turn recurring deductions on for this payroll run and choose who they apply to.</p>
+                </div>
+                <a href="{{ route('payroll.deduction-programs') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                    Manage Programs
+                </a>
+            </div>
+
+            <div class="grid gap-3 md:grid-cols-3">
+                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Enabled Programs</p>
+                    <p class="mt-1 text-2xl font-semibold">{{ collect($deductionProgramSelections)->filter(fn ($item) => filter_var($item['enabled'] ?? false, FILTER_VALIDATE_BOOL))->count() }}</p>
+                </div>
+                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Program Deduction Total</p>
+                    <p class="mt-1 text-2xl font-semibold">{{ number_format($totals['program_deductions'], 2) }}</p>
+                </div>
+                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Net After Programs</p>
+                    <p class="mt-1 text-2xl font-semibold">{{ number_format($rows->sum('net_after_program_deductions'), 2) }}</p>
+                </div>
+            </div>
+
+            @php
+                $activeDeductionPrograms = $deductionPrograms->filter(fn ($program) => filter_var($deductionProgramSelections[(string) $program->id]['enabled'] ?? false, FILTER_VALIDATE_BOOL));
+                $programPreviewWidth = max(920, 720 + ($activeDeductionPrograms->count() * 170));
+            @endphp
+
+            <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-4 py-3">
+                    <h3 class="font-semibold">Program Setup</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-[1120px] border-separate border-spacing-0 text-sm">
+                        <thead class="bg-slate-100 text-left text-xs uppercase text-slate-600">
+                            <tr>
+                                <th class="border-b border-r border-slate-300 px-3 py-2">Program</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Default</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2">Applies To</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2">Employees</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2">Amount Source</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2">Status</th>
+                                <th class="border-b border-slate-300 px-3 py-2 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($deductionPrograms as $program)
+                                @php
+                                    $selection = $deductionProgramSelections[(string) $program->id] ?? ['enabled' => false, 'mode' => 'all', 'employee_ids' => [], 'amount_mode' => 'program'];
+                                    $isEnabled = filter_var($selection['enabled'] ?? false, FILTER_VALIDATE_BOOL);
+                                    $selectedEmployeeIds = collect($selection['employee_ids'] ?? [])->map(fn ($id) => (string) $id)->all();
+                                @endphp
+                                <tr wire:key="deduction-program-row-{{ $program->id }}" class="hover:bg-slate-50">
+                                    <td class="border-b border-r border-slate-200 px-3 py-2">
+                                        <div class="font-semibold text-slate-900">{{ $program->name }}</div>
+                                        <div class="text-xs text-slate-500">{{ $program->is_percentage ? 'Percentage of basic salary' : 'Fixed amount' }}</div>
+                                    </td>
+                                    <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-medium">
+                                        {{ number_format((float) $program->value, 4) }}
+                                    </td>
+                                    <td class="border-b border-r border-slate-200 px-3 py-2">
+                                        <select wire:model.live="deductionProgramSelections.{{ $program->id }}.mode" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+                                            <option value="all">All employees</option>
+                                            <option value="include">Specific employees only</option>
+                                            <option value="exclude">All except specific employees</option>
+                                        </select>
+                                    </td>
+                                    <td class="border-b border-r border-slate-200 px-3 py-2">
+                                        @if (($selection['mode'] ?? 'all') !== 'all')
+                                            <div wire:ignore wire:key="program-employee-picker-{{ $program->id }}-{{ $selection['mode'] ?? 'all' }}">
+                                                <select
+                                                    data-select2-employee-picker
+                                                    data-model="deductionProgramSelections.{{ $program->id }}.employee_ids"
+                                                    data-placeholder="{{ ($selection['mode'] ?? 'all') === 'include' ? 'Choose included employees' : 'Choose excluded employees' }}"
+                                                    multiple
+                                                    class="w-full"
+                                                >
+                                                    @foreach ($rows as $row)
+                                                        <option value="{{ $row['emp_id'] }}" @selected(in_array((string) $row['emp_id'], $selectedEmployeeIds, true))>
+                                                            {{ $row['emp_id'] }} - {{ $row['employee_name'] }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        @else
+                                            <span class="text-xs text-slate-500">No employee picker needed</span>
+                                        @endif
+                                    </td>
+                                    <td class="border-b border-r border-slate-200 px-3 py-2">
+                                        <select wire:model.live="deductionProgramSelections.{{ $program->id }}.amount_mode" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+                                            <option value="program">Use program value</option>
+                                            <option value="employee">Employee-specific</option>
+                                        </select>
+                                    </td>
+                                    <td class="border-b border-r border-slate-200 px-3 py-2">
+                                        <span class="rounded-full px-2 py-1 text-[11px] font-semibold {{ $isEnabled ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500' }}">
+                                            {{ $isEnabled ? 'Applied' : 'Not applied' }}
+                                        </span>
+                                    </td>
+                                    <td class="border-b border-slate-200 px-3 py-2 text-right">
+                                        <div class="flex justify-end gap-2">
+                                            @if ($isEnabled)
+                                                <button wire:click="removeDeductionProgram({{ $program->id }})" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                                                    Remove
+                                                </button>
+                                                <button wire:click="applyDeductionProgram({{ $program->id }})" type="button" class="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
+                                                    Update Table
+                                                </button>
+                                            @else
+                                                <button wire:click="applyDeductionProgram({{ $program->id }})" type="button" class="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
+                                                    Apply
+                                                </button>
+                                            @endif
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="7" class="px-4 py-8 text-center text-slate-500">
+                                        No active deduction programs. Create one from Deduction Programs management.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            </div>
+
+            <div class="grid gap-3">
+                <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                    <div class="border-b border-slate-200 px-4 py-3">
+                        <h3 class="font-semibold">Program Deduction Preview</h3>
+                    </div>
+                    <div class="max-h-[640px] overflow-auto">
+                        <table class="border-separate border-spacing-0 text-sm" style="min-width: {{ $programPreviewWidth }}px;">
+                            <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
+                                <tr>
+                                    <th class="sticky left-0 z-20 border-b border-r border-slate-300 bg-slate-100 px-3 py-2">Employee</th>
+                                    <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net Before Programs</th>
+                                    @foreach ($activeDeductionPrograms as $program)
+                                        <th class="border-b border-r border-slate-300 px-3 py-2 text-right">{{ $program->name }}</th>
+                                    @endforeach
+                                    <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Program Total</th>
+                                    <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net After Programs</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($rows as $row)
+                                    @php
+                                        $programItems = collect($row['program_deductions']['items']);
+                                    @endphp
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="sticky left-0 border-b border-r border-slate-200 bg-inherit px-3 py-2">
+                                            <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
+                                            <div class="text-xs text-slate-500">{{ $row['emp_id'] }} &middot; {{ $row['department'] }}</div>
+                                        </td>
+                                        <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ number_format($row['net_before_other_deductions'], 2) }}</td>
+                                        @foreach ($activeDeductionPrograms as $program)
+                                            @php
+                                                $programItem = $programItems->firstWhere('id', $program->id);
+                                                $programSelection = $deductionProgramSelections[(string) $program->id] ?? [];
+                                            @endphp
+                                            <td class="border-b border-r border-slate-200 px-3 py-2 text-right">
+                                                @if ($programItem && (($programSelection['amount_mode'] ?? 'program') === 'employee'))
+                                                    <input
+                                                        wire:model.live.debounce.300ms="deductionProgramSelections.{{ $program->id }}.employee_amounts.{{ $row['emp_id'] }}"
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        placeholder="{{ number_format((float) $program->value, 2, '.', '') }}"
+                                                        class="w-28 rounded-md border border-slate-300 px-2 py-1 text-right text-xs"
+                                                    >
+                                                @elseif ($programItem)
+                                                    <span class="font-semibold text-slate-800">{{ number_format($programItem['amount'], 2) }}</span>
+                                                @else
+                                                    <span class="text-xs text-slate-400">-</span>
+                                                @endif
+                                            </td>
+                                        @endforeach
+                                        <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold {{ ($row['program_deductions']['total'] ?? 0) > 0 ? 'text-blue-700' : 'text-slate-500' }}">
+                                            {{ number_format($row['program_deductions']['total'] ?? 0, 2) }}
+                                        </td>
+                                        <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format($row['net_after_program_deductions'], 2) }}</td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="{{ 4 + $activeDeductionPrograms->count() }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @elseif ($currentStep === 6)
+        <div class="space-y-4">
             @if (session('loan_import_status'))
                 <div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
                     {{ session('loan_import_status') }}
@@ -303,7 +510,7 @@
 
             <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
                 <div>
-                    <h3 class="font-semibold">Other Deductions</h3>
+                    <h3 class="font-semibold">Imported Deductions</h3>
                     <p class="text-sm text-slate-600">Validated loan and deduction imports for {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }} are matched to active employees.</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
@@ -446,7 +653,7 @@
                     <p class="mt-1 text-2xl font-semibold">{{ number_format($totals['loan_deductions'], 2) }}</p>
                 </div>
                 <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Net After Deductions</p>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Final Net After Deductions</p>
                     <p class="mt-1 text-2xl font-semibold">{{ number_format($totals['net_after_loan_deductions'], 2) }}</p>
                 </div>
             </div>
@@ -457,9 +664,9 @@
                         <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
                             <tr>
                                 <th class="sticky left-0 z-20 border-b border-r border-slate-300 bg-slate-100 px-3 py-2">Employee</th>
-                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net Before Other Deductions</th>
-                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Other Deductions</th>
-                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net After Deductions</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net After Programs</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Imported Deductions</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Final Net Pay</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2">Deduction Details</th>
                             </tr>
                         </thead>
@@ -470,7 +677,7 @@
                                         <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
                                         <div class="text-xs text-slate-500">{{ $row['emp_id'] }} · {{ $row['department'] }}</div>
                                     </td>
-                                    <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ number_format($row['net_before_other_deductions'], 2) }}</td>
+                                    <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ number_format($row['net_after_program_deductions'], 2) }}</td>
                                     <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold {{ ($row['loan_deductions']['total'] ?? 0) > 0 ? 'text-blue-700' : 'text-slate-500' }}">
                                         {{ number_format($row['loan_deductions']['total'] ?? 0, 2) }}
                                     </td>
@@ -498,11 +705,21 @@
             </div>
         </div>
     @else
+        @php
+            $activeReviewDeductionPrograms = $deductionPrograms->filter(fn ($program) => filter_var($deductionProgramSelections[(string) $program->id]['enabled'] ?? false, FILTER_VALIDATE_BOOL));
+        @endphp
+
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-4 py-3">
                 <h3 class="font-semibold">Review</h3>
             </div>
-            @include('livewire.payroll.partials.payroll-review-table', ['rows' => $rows, 'compensations' => $compensations, 'totals' => $totals, 'loanColumnGroups' => $loanColumnGroups])
+            @include('livewire.payroll.partials.payroll-review-table', [
+                'rows' => $rows,
+                'compensations' => $compensations,
+                'totals' => $totals,
+                'loanColumnGroups' => $loanColumnGroups,
+                'deductionPrograms' => $activeReviewDeductionPrograms,
+            ])
         </div>
     @endif
     </div>
@@ -525,7 +742,7 @@
                 wire:click="nextStep"
                 wire:loading.attr="disabled"
                 wire:target="{{ $payrollLoadingTargets }}"
-                @disabled($currentStep === 6)
+                @disabled($currentStep === count($steps))
                 class="rounded-md bg-blue-600/90 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
                 Next

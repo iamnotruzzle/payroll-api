@@ -1,54 +1,30 @@
 <?php
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
+class PayrollLoanReferenceSeeder extends Seeder
 {
-    protected $connection = 'payroll';
-
-    public function up(): void
+    public function run(): void
     {
-        Schema::connection('payroll')->create('payroll_loan_entities', function (Blueprint $table) {
-            $table->id();
-            $table->string('code', 40)->unique();
-            $table->string('name', 120);
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
+        if (! Schema::connection('payroll')->hasTable('payroll_loan_entities')
+            || ! Schema::connection('payroll')->hasTable('payroll_loan_types')) {
+            return;
+        }
 
-        Schema::connection('payroll')->create('payroll_loan_types', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('entity_id')->constrained('payroll_loan_entities')->cascadeOnDelete();
-            $table->string('code', 80);
-            $table->string('name', 160);
-            $table->string('review_group', 80);
-            $table->string('review_column_key', 80);
-            $table->string('review_column_label', 120);
-            $table->json('match_keywords')->nullable();
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-
-            $table->unique(['entity_id', 'code']);
-            $table->index(['review_group', 'review_column_key']);
-        });
-
-        $this->seedDefaults();
-    }
-
-    public function down(): void
-    {
-        Schema::connection('payroll')->dropIfExists('payroll_loan_types');
-        Schema::connection('payroll')->dropIfExists('payroll_loan_entities');
-    }
-
-    private function seedDefaults(): void
-    {
         $now = now();
+
+        DB::connection('payroll')->table('payroll_loan_types')
+            ->whereIn('review_column_key', ['mmmh_coop', 'death_aid', 'ea_monthly_dues'])
+            ->delete();
+
+        DB::connection('payroll')->table('payroll_loan_entities')
+            ->where('code', 'MMMHCOOP')
+            ->delete();
+
         $entities = [
             ['code' => 'GSIS', 'name' => 'Government Service Insurance System', 'sort_order' => 10],
             ['code' => 'PAG-IBIG', 'name' => 'Pag-IBIG Fund', 'sort_order' => 20],
@@ -101,4 +77,4 @@ return new class extends Migration
             );
         }
     }
-};
+}

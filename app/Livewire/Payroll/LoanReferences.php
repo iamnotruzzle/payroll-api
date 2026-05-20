@@ -107,7 +107,7 @@ class LoanReferences extends Component
         $this->resetEntityForm();
         $this->selectedEntityId = $item->id;
         $this->showEntityModal = false;
-        session()->flash('status', 'Deduction entity saved.');
+        session()->flash('status', 'Loan entity saved.');
     }
 
     public function editEntity(int $id): void
@@ -126,7 +126,7 @@ class LoanReferences extends Component
         PayrollLoanEntity::findOrFail($id)->delete();
         $this->resetEntityForm();
         $this->selectedEntityId = PayrollLoanEntity::query()->orderBy('sort_order')->value('id');
-        session()->flash('status', 'Deduction entity deleted.');
+        session()->flash('status', 'Loan entity deleted.');
     }
 
     public function saveType(): void
@@ -165,7 +165,7 @@ class LoanReferences extends Component
         $this->resetTypeForm();
         $this->selectedEntityId = $item->entity_id;
         $this->showTypeModal = false;
-        session()->flash('status', 'Deduction type saved.');
+        session()->flash('status', 'Loan type saved.');
     }
 
     public function editType(int $id): void
@@ -187,7 +187,7 @@ class LoanReferences extends Component
     {
         PayrollLoanType::findOrFail($id)->delete();
         $this->resetTypeForm();
-        session()->flash('status', 'Deduction type deleted.');
+        session()->flash('status', 'Loan type deleted.');
     }
 
     public function resetEntityForm(): void

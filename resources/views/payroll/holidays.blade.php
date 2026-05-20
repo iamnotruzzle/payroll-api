@@ -1,3 +1,3 @@
 <x-layouts.app title="Holidays">
-    <livewire:payroll.holidays lazy="on-load" />
+    <livewire:payroll.holidays />
 </x-layouts.app>

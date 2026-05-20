@@ -1,3 +1,3 @@
 <x-layouts.app title="Employees">
-    <livewire:schedule.employees lazy="on-load" />
+    <livewire:schedule.employees />
 </x-layouts.app>

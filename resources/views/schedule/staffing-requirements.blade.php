@@ -1,3 +1,3 @@
 <x-layouts.app title="Staffing Requirements">
-    <livewire:schedule.staffing-requirements lazy="on-load" />
+    <livewire:schedule.staffing-requirements />
 </x-layouts.app>

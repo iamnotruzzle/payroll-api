@@ -1,10 +1,46 @@
 import './bootstrap';
 
-import Alpine from 'alpinejs';
+import $ from 'jquery';
+import select2 from 'select2/dist/js/select2.full.js';
+import 'select2/dist/css/select2.css';
 
-window.Alpine = Alpine;
+window.$ = $;
+window.jQuery = $;
 
-Alpine.start();
+select2(window, $);
+
+const initPayrollEmployeePickers = () => {
+    document.querySelectorAll('select[data-select2-employee-picker]').forEach((select) => {
+        const $select = $(select);
+
+        if (!$.fn.select2) {
+            return;
+        }
+
+        if ($select.data('select2')) {
+            $select.trigger('change.select2');
+            return;
+        }
+
+        $select.select2({
+            closeOnSelect: false,
+            placeholder: select.dataset.placeholder || 'Select employees',
+            width: '100%',
+        });
+
+        $select.on('change.payrollProgram', () => {
+            const componentRoot = select.closest('[wire\\:id]');
+            const componentId = componentRoot?.getAttribute('wire:id');
+            const model = select.dataset.model;
+
+            if (!componentId || !model || !window.Livewire?.find) {
+                return;
+            }
+
+            window.Livewire.find(componentId).set(model, $select.val() || []);
+        });
+    });
+};
 
 (() => {
     let hooksInstalled = false;
@@ -126,23 +162,39 @@ Alpine.start();
 
         window.Livewire.hook('request', ({ succeed, fail }) => {
             startLoading();
-            succeed(stopLoading);
+            succeed(() => {
+                stopLoading();
+                queueMicrotask(initPayrollEmployeePickers);
+            });
             fail(stopLoading);
         });
 
         window.Livewire.hook('commit', ({ succeed, fail }) => {
             startLoading();
-            succeed(stopLoading);
+            succeed(() => {
+                stopLoading();
+                queueMicrotask(initPayrollEmployeePickers);
+            });
             fail(stopLoading);
         });
     };
 
-    document.addEventListener('livewire:init', installLivewireHooks);
-    document.addEventListener('livewire:initialized', installLivewireHooks);
+    document.addEventListener('livewire:init', () => {
+        installLivewireHooks();
+        initPayrollEmployeePickers();
+    });
+    document.addEventListener('livewire:initialized', () => {
+        installLivewireHooks();
+        initPayrollEmployeePickers();
+    });
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', installLivewireHooks);
+        document.addEventListener('DOMContentLoaded', () => {
+            installLivewireHooks();
+            initPayrollEmployeePickers();
+        });
     } else {
         installLivewireHooks();
+        initPayrollEmployeePickers();
     }
 })();

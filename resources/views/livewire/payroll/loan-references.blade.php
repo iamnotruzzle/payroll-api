@@ -1,8 +1,8 @@
 <section class="space-y-4 pb-12">
     <div>
         <div>
-            <h2 class="text-xl font-semibold">Deduction References</h2>
-            <p class="text-sm text-slate-600">Select an entity, then manage its loan or deduction types and Review mapping.</p>
+            <h2 class="text-xl font-semibold">Loan References</h2>
+            <p class="text-sm text-slate-600">Select a loan entity, then manage loan types and review-column mappings for imported loan files.</p>
         </div>
     </div>
 
@@ -166,7 +166,7 @@
                         </div>
                         <div class="md:col-span-2">
                             <label class="text-sm font-medium">Name</label>
-                            <input wire:model="typeName" type="text" placeholder="Multi-Purpose Loan or Monthly Dues" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            <input wire:model="typeName" type="text" placeholder="Multi-Purpose Loan" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             @error('typeName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
                         <div>

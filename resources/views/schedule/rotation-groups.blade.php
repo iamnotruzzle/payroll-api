@@ -1,3 +1,3 @@
 <x-layouts.app title="Rotation Groups">
-    <livewire:schedule.rotation-groups lazy="on-load" />
+    <livewire:schedule.rotation-groups />
 </x-layouts.app>

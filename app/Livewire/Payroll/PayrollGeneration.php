@@ -6,6 +6,7 @@ use App\Models\Hris\Department;
 use App\Models\Hris\Employee;
 use App\Models\Hris\SalaryGrade;
 use App\Models\Payroll\PayrollAdditional;
+use App\Models\Payroll\PayrollDeduction;
 use App\Models\Payroll\PayrollDtrAdjustment;
 use App\Models\Payroll\PayrollDtrLabel;
 use App\Models\Payroll\PayrollDtrLabelOption;
@@ -38,6 +39,8 @@ class PayrollGeneration extends Component
 
     public array $deductionDayOverrides = [];
 
+    public array $deductionProgramSelections = [];
+
     public bool $showLoanImportModal = false;
 
     public $loanFile;
@@ -53,8 +56,9 @@ class PayrollGeneration extends Component
         2 => 'Allowances Computation',
         3 => 'Deductions and Adjustments',
         4 => 'Statutory',
-        5 => 'Other Deductions',
-        6 => 'Review',
+        5 => 'Deduction Programs',
+        6 => 'Imported Deductions',
+        7 => 'Review',
     ];
 
     public array $loanColumnGroups = [];
@@ -84,7 +88,7 @@ class PayrollGeneration extends Component
 
     public function goToStep(int $step): void
     {
-        $this->currentStep = max(1, min(6, $step));
+        $this->currentStep = max(1, min(count($this->steps), $step));
     }
 
     public function nextStep(): void
@@ -95,6 +99,16 @@ class PayrollGeneration extends Component
     public function previousStep(): void
     {
         $this->goToStep($this->currentStep - 1);
+    }
+
+    public function applyDeductionProgram(int $programId): void
+    {
+        $this->deductionProgramSelections[(string) $programId]['enabled'] = true;
+    }
+
+    public function removeDeductionProgram(int $programId): void
+    {
+        $this->deductionProgramSelections[(string) $programId]['enabled'] = false;
     }
 
     public function openLoanImportModal(): void
@@ -165,7 +179,9 @@ class PayrollGeneration extends Component
     public function render()
     {
         $compensations = $this->compensations();
-        $rows = $this->payrollRows($compensations);
+        $deductionPrograms = $this->deductionPrograms();
+        $this->syncDeductionProgramSelections($deductionPrograms);
+        $rows = $this->payrollRows($compensations, $deductionPrograms);
         $previousMraPeriod = $this->previousMraPeriod();
         $previousMraReport = $this->previousMraReport($previousMraPeriod);
 
@@ -173,6 +189,7 @@ class PayrollGeneration extends Component
             'departments' => Department::query()->orderBy('department')->get(),
             'employeeTypeOptions' => Employee::employeeTypeOptions(),
             'compensations' => $compensations,
+            'deductionPrograms' => $deductionPrograms,
             'rows' => $rows,
             'previousMraPeriod' => $previousMraPeriod,
             'previousMraReport' => $previousMraReport,
@@ -191,6 +208,7 @@ class PayrollGeneration extends Component
                     ->all(),
                 'gross' => $rows->sum('gross'),
                 'net_before_other_deductions' => $rows->sum('net_before_other_deductions'),
+                'program_deductions' => $rows->sum('program_deductions.total'),
                 'loan_deductions' => $rows->sum('loan_deductions.total'),
                 'net_after_loan_deductions' => $rows->sum('net_after_loan_deductions'),
                 'fifteenth' => $rows->sum('fifteenth'),
@@ -199,7 +217,7 @@ class PayrollGeneration extends Component
         ]);
     }
 
-    private function payrollRows(Collection $compensations): Collection
+    private function payrollRows(Collection $compensations, Collection $deductionPrograms): Collection
     {
         if (! $this->departmentId) {
             return collect();
@@ -262,7 +280,7 @@ class PayrollGeneration extends Component
             : collect();
         $labelOptions = PayrollDtrLabelOption::query()->get()->keyBy('code');
 
-        return $employees->map(function (Employee $employee) use ($compensations, $salaryMatrix, $labels, $adjustments, $mraAdjustments, $labelOptions, $previousMraReport, $loanItems) {
+        return $employees->map(function (Employee $employee) use ($compensations, $deductionPrograms, $salaryMatrix, $labels, $adjustments, $mraAdjustments, $labelOptions, $previousMraReport, $loanItems) {
             $salaryGrade = (int) ($employee->position?->salary_grade ?? 0);
             $step = max(1, min(8, (int) ($employee->step ?: 1)));
             $basicSalary = (float) ($salaryMatrix[$salaryGrade][$step] ?? 0);
@@ -302,6 +320,8 @@ class PayrollGeneration extends Component
             $statutoryDeductions = $this->statutoryDeductions($basicSalary);
             $gross = $basicSalary + collect($computed)->sum('amount');
             $netBeforeOtherDeductions = $gross - collect($statutoryDeductions)->sum();
+            $programDeductionItems = $this->programDeductionsFor($employee, $deductionPrograms, $basicSalary);
+            $programDeductionTotal = round(collect($programDeductionItems)->sum('amount'), 2);
             $employeeLoanItems = $loanItems->get($employee->emp_id, collect());
             $loanTotal = round($employeeLoanItems->sum('amount_due'), 2);
             $loanColumns = $this->blankLoanColumns();
@@ -318,7 +338,8 @@ class PayrollGeneration extends Component
                 ])
                 ->values()
                 ->all();
-            $netAfterLoanDeductions = round($netBeforeOtherDeductions - $loanTotal, 2);
+            $netAfterProgramDeductions = round($netBeforeOtherDeductions - $programDeductionTotal, 2);
+            $netAfterLoanDeductions = round($netAfterProgramDeductions - $loanTotal, 2);
             $fifteenth = round($netAfterLoanDeductions / 2, 2);
             $thirtieth = round($netAfterLoanDeductions - $fifteenth, 2);
 
@@ -349,8 +370,13 @@ class PayrollGeneration extends Component
                     ])->values()->all(),
                     'by_entity' => $loanByEntity,
                 ],
+                'program_deductions' => [
+                    'total' => $programDeductionTotal,
+                    'items' => $programDeductionItems,
+                ],
                 'gross' => $gross,
                 'net_before_other_deductions' => $netBeforeOtherDeductions,
+                'net_after_program_deductions' => $netAfterProgramDeductions,
                 'net_after_loan_deductions' => $netAfterLoanDeductions,
                 'fifteenth' => $fifteenth,
                 'thirtieth' => $thirtieth,
@@ -362,6 +388,80 @@ class PayrollGeneration extends Component
     {
         $this->currentStep = 1;
         $this->deductionDayOverrides = [];
+        $this->deductionProgramSelections = [];
+    }
+
+    private function deductionPrograms(): Collection
+    {
+        return PayrollDeduction::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+    }
+
+    private function syncDeductionProgramSelections(Collection $programs): void
+    {
+        foreach ($programs as $program) {
+            $id = (string) $program->id;
+            $this->deductionProgramSelections[$id] = array_merge([
+                'enabled' => false,
+                'mode' => 'all',
+                'employee_ids' => [],
+                'amount_mode' => 'program',
+                'employee_amounts' => [],
+            ], $this->deductionProgramSelections[$id] ?? []);
+        }
+    }
+
+    private function programDeductionsFor(Employee $employee, Collection $programs, float $basicSalary): array
+    {
+        return $programs
+            ->filter(fn (PayrollDeduction $program) => $this->programAppliesToEmployee($program, $employee->emp_id))
+            ->map(fn (PayrollDeduction $program) => [
+                'id' => $program->id,
+                'name' => $program->name,
+                'amount' => $this->computeDeductionProgram($program, $employee->emp_id, $basicSalary),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function programAppliesToEmployee(PayrollDeduction $program, string $empId): bool
+    {
+        $selection = $this->deductionProgramSelections[(string) $program->id] ?? [];
+        if (! filter_var($selection['enabled'] ?? false, FILTER_VALIDATE_BOOL)) {
+            return false;
+        }
+
+        $mode = $selection['mode'] ?? 'all';
+        $employeeIds = collect($selection['employee_ids'] ?? [])
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->values();
+
+        return match ($mode) {
+            'include' => $employeeIds->contains($empId),
+            'exclude' => ! $employeeIds->contains($empId),
+            default => true,
+        };
+    }
+
+    private function computeDeductionProgram(PayrollDeduction $program, string $empId, float $basicSalary): float
+    {
+        $selection = $this->deductionProgramSelections[(string) $program->id] ?? [];
+        $employeeAmount = $selection['employee_amounts'][$empId] ?? null;
+        $useEmployeeAmount = ($selection['amount_mode'] ?? 'program') === 'employee'
+            && $employeeAmount !== null
+            && $employeeAmount !== ''
+            && is_numeric($employeeAmount);
+        $value = $useEmployeeAmount ? (float) $employeeAmount : (float) $program->value;
+
+        if ($program->is_percentage) {
+            return round($basicSalary * ($value > 1 ? $value / 100 : $value), 2);
+        }
+
+        return round($value, 2);
     }
 
     private function blankLoanColumns(): array

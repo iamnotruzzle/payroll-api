@@ -1,3 +1,3 @@
 <x-layouts.app title="Schedule Templates">
-    <livewire:schedule.schedule-templates lazy="on-load" />
+    <livewire:schedule.schedule-templates />
 </x-layouts.app>

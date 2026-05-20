@@ -1,3 +1,3 @@
 <x-layouts.app title="DTR Encoding">
-    <livewire:payroll.dtr-encoding lazy="on-load" />
+    <livewire:payroll.dtr-encoding />
 </x-layouts.app>

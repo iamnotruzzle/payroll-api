@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Schema;
 
 class PayrollLoanReferenceService
 {
-    public const DEFAULT_ENTITIES = ['GSIS', 'PAG-IBIG', 'UCPB', 'DBP', 'LBP', 'COCO', 'MMMHCOOP', 'OTHER'];
+    public const DEFAULT_ENTITIES = ['GSIS', 'PAG-IBIG', 'UCPB', 'DBP', 'LBP', 'COCO', 'OTHER'];
 
     public const DEFAULT_COLUMN_GROUPS = [
         'GSIS' => [
@@ -32,11 +32,6 @@ class PayrollLoanReferenceService
             'lbp' => 'LBP',
             'coco' => 'COCO',
             'other_loans' => 'Other Loans',
-        ],
-        'Other Deductions' => [
-            'mmmh_coop' => 'MMMH Coop',
-            'death_aid' => 'Death Aid',
-            'ea_monthly_dues' => 'EA Monthly Dues',
         ],
     ];
 
@@ -80,8 +75,7 @@ class PayrollLoanReferenceService
                 'DBP' => ['DBP'],
                 'LBP' => ['LBP'],
                 'COCO' => ['COCO'],
-                'MMMHCOOP', 'MMMH COOP' => ['MMMH Coop', 'EA Monthly Dues'],
-                'OTHER' => ['Other Loans', 'Death Aid', 'EA Monthly Dues'],
+                'OTHER' => ['Other Loans'],
                 default => ['Other Loans'],
             };
         }
@@ -134,9 +128,7 @@ class PayrollLoanReferenceService
                 'DBP' => 'dbp',
                 'LBP' => 'lbp',
                 'COCO' => 'coco',
-                'MMMHCOOP', 'MMMH COOP' => 'mmmh_coop',
-                'EA', 'EMPLOYEES ASSOCIATION' => 'ea_monthly_dues',
-                default => str_contains($typeText, 'DEATH AID') ? 'death_aid' : 'other_loans',
+                default => 'other_loans',
             };
     }
 

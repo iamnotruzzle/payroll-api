@@ -15,11 +15,13 @@ class PayrollDeduction extends Model
         'is_percentage',
         'value',
         'is_active',
+        'sort_order',
     ];
 
     protected $casts = [
         'is_percentage' => 'boolean',
         'is_active' => 'boolean',
         'value' => 'decimal:4',
+        'sort_order' => 'integer',
     ];
 }

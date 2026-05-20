@@ -1,3 +1,3 @@
 <x-layouts.app title="Compensation Rules">
-    <livewire:payroll.compensations lazy="on-load" />
+    <livewire:payroll.compensations />
 </x-layouts.app>
