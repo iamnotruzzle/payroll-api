@@ -6,14 +6,6 @@
 
     <div class="grid gap-3 md:grid-cols-4">
         <div>
-            <label class="text-sm font-medium">Search</label>
-            <input wire:model.live.debounce.300ms="search" placeholder="Search payroll..." class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-        </div>
-        <div>
-            <label class="text-sm font-medium">Payroll Period</label>
-            <input type="month" wire:model.live="period" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-        </div>
-        <div>
             <label class="text-sm font-medium">Date From</label>
             <input type="date" wire:model.live="dateFrom" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
         </div>
