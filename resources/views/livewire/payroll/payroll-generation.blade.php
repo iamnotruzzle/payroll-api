@@ -1,14 +1,22 @@
 @php
-    $payrollLoadingTargets = 'departmentId,period,workingDays,employeeTypeFilter,search,goToStep,nextStep,previousStep';
+    $payrollLoadingTargets = 'search,goToStep,nextStep,previousStep';
+    $selectedDepartment = $departments->firstWhere('department_id', $departmentId);
+    $selectedDivision = $divisions->firstWhere('division_id', $divisionId);
+    $scopeLabel = $selectedDepartment?->department ?? ($selectedDivision?->division ? $selectedDivision->division . ' Division' : 'Selected division');
 @endphp
 
 <section class="space-y-4 pb-24">
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-xl font-semibold">Payroll Generation</h2>
-            <p class="text-sm text-slate-600">Generate the selected month from the previous month MRA and computed payroll items.</p>
+            <p class="text-sm text-slate-600">
+                {{ $scopeLabel }} · {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }} · {{ $employeeTypeOptions[$employeeTypeFilter] ?? 'Selected employees' }}
+            </p>
         </div>
         <div class="flex flex-wrap gap-2">
+            <a href="{{ route('payroll.generation.configuration', ['division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'employee_type' => $employeeTypeFilter]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                Change Configuration
+            </a>
             <a href="{{ route('payroll.deduction-programs') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                 Manage Deduction Programs
             </a>
@@ -19,37 +27,8 @@
     </div>
 
     <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="grid gap-3 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr]">
-            <div>
-                <label class="text-sm font-medium">Department</label>
-                <select wire:model.live="departmentId" wire:loading.attr="disabled" wire:target="{{ $payrollLoadingTargets }}" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
-                    <option value="">Choose department</option>
-                    @foreach ($departments as $department)
-                        <option value="{{ $department->department_id }}">{{ $department->department }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label class="text-sm font-medium">Payroll Month</label>
-                <input wire:model.live="period" wire:loading.attr="disabled" wire:target="{{ $payrollLoadingTargets }}" type="month" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
-            </div>
-            <div>
-                <label class="text-sm font-medium">Working Days</label>
-                <input wire:model.live="workingDays" wire:loading.attr="disabled" wire:target="{{ $payrollLoadingTargets }}" type="number" min="1" max="31" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
-            </div>
-            <div>
-                <label class="text-sm font-medium">Employee Type</label>
-                <select wire:model.live="employeeTypeFilter" wire:loading.attr="disabled" wire:target="{{ $payrollLoadingTargets }}" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
-                    @foreach ($employeeTypeOptions as $value => $label)
-                        <option value="{{ $value }}">{{ $label }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label class="text-sm font-medium">Search</label>
-                <input wire:model.live.debounce.300ms="search" wire:loading.attr="disabled" wire:target="{{ $payrollLoadingTargets }}" type="search" placeholder="Emp ID or name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
-            </div>
-        </div>
+        <label class="text-sm font-medium">Employee Search</label>
+        <input wire:model.live.debounce.300ms="search" wire:loading.attr="disabled" wire:target="{{ $payrollLoadingTargets }}" type="search" placeholder="Filter generated payroll rows by employee ID or name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
     </div>
 
     <div class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
@@ -66,25 +45,6 @@
                     <span class="mt-1 block font-medium">{{ $label }}</span>
                 </button>
             @endforeach
-        </div>
-    </div>
-
-    <div class="grid gap-3 md:grid-cols-4">
-        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Employees</p>
-            <p class="mt-1 text-2xl font-semibold">{{ number_format($rows->count()) }}</p>
-        </div>
-        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Basic Salary</p>
-            <p class="mt-1 text-2xl font-semibold">{{ number_format($totals['basic_salary'], 2) }}</p>
-        </div>
-        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">15th Preview</p>
-            <p class="mt-1 text-2xl font-semibold">{{ number_format($totals['fifteenth'], 2) }}</p>
-        </div>
-        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">30th Preview</p>
-            <p class="mt-1 text-2xl font-semibold">{{ number_format($totals['thirtieth'], 2) }}</p>
         </div>
     </div>
 
@@ -310,21 +270,6 @@
                 <a href="{{ route('payroll.deduction-programs') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                     Manage Programs
                 </a>
-            </div>
-
-            <div class="grid gap-3 md:grid-cols-3">
-                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Enabled Programs</p>
-                    <p class="mt-1 text-2xl font-semibold">{{ collect($deductionProgramSelections)->filter(fn ($item) => filter_var($item['enabled'] ?? false, FILTER_VALIDATE_BOOL))->count() }}</p>
-                </div>
-                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Program Deduction Total</p>
-                    <p class="mt-1 text-2xl font-semibold">{{ number_format($totals['program_deductions'], 2) }}</p>
-                </div>
-                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Net After Programs</p>
-                    <p class="mt-1 text-2xl font-semibold">{{ number_format($rows->sum('net_after_program_deductions'), 2) }}</p>
-                </div>
             </div>
 
             @php
@@ -561,25 +506,6 @@
                             </div>
 
                             @if (! empty($loanImportPreview))
-                                <div class="grid gap-3 md:grid-cols-4">
-                                    <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
-                                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Entity</p>
-                                        <p class="mt-1 font-semibold">{{ $loanImportPreview['source_entity'] ?? '-' }}</p>
-                                    </div>
-                                    <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
-                                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Rows</p>
-                                        <p class="mt-1 font-semibold">{{ number_format($loanImportPreview['total_rows'] ?? 0) }}</p>
-                                    </div>
-                                    <div class="rounded-md border border-emerald-200 bg-emerald-50 p-3">
-                                        <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Valid</p>
-                                        <p class="mt-1 font-semibold text-emerald-800">{{ number_format($loanImportPreview['valid_rows'] ?? 0) }}</p>
-                                    </div>
-                                    <div class="rounded-md border border-amber-200 bg-amber-50 p-3">
-                                        <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Invalid</p>
-                                        <p class="mt-1 font-semibold text-amber-800">{{ number_format($loanImportPreview['invalid_rows'] ?? 0) }}</p>
-                                    </div>
-                                </div>
-
                                 @if (($loanImportPreview['invalid_rows'] ?? 0) > 0)
                                     <div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                                         Fix the invalid rows in the workbook and preview again before saving.
@@ -643,21 +569,6 @@
                 </div>
             @endif
 
-            <div class="grid gap-3 md:grid-cols-3">
-                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Employees With Deductions</p>
-                    <p class="mt-1 text-2xl font-semibold">{{ number_format($rows->filter(fn ($row) => ($row['loan_deductions']['total'] ?? 0) > 0)->count()) }}</p>
-                </div>
-                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Loan Deduction Total</p>
-                    <p class="mt-1 text-2xl font-semibold">{{ number_format($totals['loan_deductions'], 2) }}</p>
-                </div>
-                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Final Net After Deductions</p>
-                    <p class="mt-1 text-2xl font-semibold">{{ number_format($totals['net_after_loan_deductions'], 2) }}</p>
-                </div>
-            </div>
-
             <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                 <div class="max-h-[640px] overflow-auto">
                     <table class="min-w-[1120px] border-separate border-spacing-0 text-sm">
@@ -709,27 +620,42 @@
             $activeReviewDeductionPrograms = $deductionPrograms->filter(fn ($program) => filter_var($deductionProgramSelections[(string) $program->id]['enabled'] ?? false, FILTER_VALIDATE_BOOL));
         @endphp
 
-        {{-- SNAPSHOT HEADER --}}
+        {{-- FINALIZE HEADER --}}
         <div class="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
             <div>
                 <h3 class="font-semibold">Review</h3>
                 <p class="text-sm text-slate-600">
-                    Final payroll summary before snapshot generation.
+                    Final payroll summary before saving the payroll run.
                 </p>
             </div>
 
             <button
                 type="button"
-                wire:click="snapshotPayroll"
-                class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                wire:click="finalizePayroll"
+                wire:loading.attr="disabled"
+                wire:target="finalizePayroll"
+                @disabled($rows->isEmpty())
+                class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-                Snapshot Payroll
+                <span wire:loading.remove wire:target="finalizePayroll">Finalize Payroll Run</span>
+                <span wire:loading wire:target="finalizePayroll">Saving Payroll Run...</span>
             </button>
         </div>
 
+        @error('finalize')
+            <div class="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {{ $message }}
+            </div>
+        @enderror
+
         @if (session('success'))
-            <div class="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                {{ session('success') }}
+            <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                <div class="font-semibold">{{ session('success') }}</div>
+                @if ($finalizedRunId)
+                    <p class="mt-1">
+                        Run #{{ $finalizedRunId }} saved for {{ $finalizedSummary['department'] ?? 'the selected department' }} covering {{ $finalizedSummary['period'] ?? $period }}.
+                    </p>
+                @endif
             </div>
         @endif
 

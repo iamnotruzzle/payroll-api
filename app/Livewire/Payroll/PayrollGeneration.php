@@ -3,23 +3,31 @@
 namespace App\Livewire\Payroll;
 
 use App\Models\Hris\Department;
+use App\Models\Hris\Division;
 use App\Models\Hris\Employee;
 use App\Models\Hris\SalaryGrade;
 use App\Models\Payroll\PayrollAdditional;
+use App\Models\Payroll\PayrollAuditLog;
+use App\Models\Payroll\PayrollBatch;
+use App\Models\Payroll\PayrollBatchRecord;
 use App\Models\Payroll\PayrollDeduction;
 use App\Models\Payroll\PayrollDtrAdjustment;
 use App\Models\Payroll\PayrollDtrLabel;
 use App\Models\Payroll\PayrollDtrLabelOption;
+use App\Models\Payroll\PayrollEmployeePayrollLine;
+use App\Models\Payroll\PayrollEmployeeSnapshot;
 use App\Models\Payroll\PayrollLeaveCreditAdjustment;
 use App\Models\Payroll\PayrollLoanImportItem;
 use App\Models\Payroll\PayrollMraReport;
+use App\Models\Payroll\PayrollPeriod;
+use App\Models\Payroll\PayrollRun;
+use App\Models\Payroll\PayrollTimekeepingSummary;
+use App\Models\Payroll\PayrollType;
 use App\Services\Payroll\PayrollLoanImportService;
 use App\Services\Payroll\PayrollLoanReferenceService;
-use App\Models\Payroll\PayrollBatch;
-use App\Models\Payroll\PayrollBatchRecord;
-use Illuminate\Support\Facades\DB;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -27,6 +35,8 @@ use Livewire\WithFileUploads;
 class PayrollGeneration extends Component
 {
     use WithFileUploads;
+
+    public ?int $divisionId = null;
 
     public ?int $departmentId = null;
 
@@ -66,11 +76,35 @@ class PayrollGeneration extends Component
 
     public array $loanColumnGroups = [];
 
+    public ?int $finalizedRunId = null;
+
+    public array $finalizedSummary = [];
 
     public function mount(): void
     {
-        $this->departmentId = auth()->user()?->employee?->department_id;
-        $this->period = CarbonImmutable::today()->format('Y-m');
+        $userDepartmentId = auth()->user()?->employee?->department_id;
+        $userDivisionId = $userDepartmentId
+            ? Department::query()->where('department_id', $userDepartmentId)->value('division_id')
+            : null;
+
+        $this->divisionId = request()->integer('division_id') ?: $userDivisionId;
+        $this->departmentId = request()->integer('department_id') ?: null;
+
+        if ($this->departmentId && $this->divisionId && ! Department::query()
+            ->where('department_id', $this->departmentId)
+            ->where('division_id', $this->divisionId)
+            ->exists()) {
+            $this->departmentId = null;
+        }
+
+        $this->period = request()->query('period', CarbonImmutable::today()->format('Y-m'));
+        $this->workingDays = max(1, min(31, request()->integer('working_days') ?: $this->workingDays));
+
+        $employeeType = request()->query('employee_type', Employee::EMPLOYEE_TYPE_PLANTILLA);
+        $this->employeeTypeFilter = array_key_exists($employeeType, Employee::employeeTypeOptions())
+            ? $employeeType
+            : Employee::EMPLOYEE_TYPE_PLANTILLA;
+        $this->search = (string) request()->query('search', '');
         $this->loanColumnGroups = app(PayrollLoanReferenceService::class)->columnGroups();
     }
 
@@ -185,50 +219,61 @@ class PayrollGeneration extends Component
         $deductionPrograms = $this->deductionPrograms();
         $this->syncDeductionProgramSelections($deductionPrograms);
         $rows = $this->payrollRows($compensations, $deductionPrograms);
+        $totals = $this->payrollTotals($rows, $compensations);
         $previousMraPeriod = $this->previousMraPeriod();
         $previousMraReport = $this->previousMraReport($previousMraPeriod);
 
         return view('livewire.payroll.payroll-generation', [
             'departments' => Department::query()->orderBy('department')->get(),
+            'divisions' => Division::query()->orderBy('division')->get(),
             'employeeTypeOptions' => Employee::employeeTypeOptions(),
             'compensations' => $compensations,
             'deductionPrograms' => $deductionPrograms,
             'rows' => $rows,
             'previousMraPeriod' => $previousMraPeriod,
             'previousMraReport' => $previousMraReport,
-            'totals' => [
-                'basic_salary' => $rows->sum('basic_salary'),
-                'compensations' => $compensations->mapWithKeys(
-                    fn($item) => [$item->id => $rows->sum(fn($row) => $row['compensations'][$item->id]['amount'] ?? 0)]
-                ),
-                'statutory_deductions' => [
-                    'life_retirement' => $rows->sum('statutory_deductions.life_retirement'),
-                    'phic' => $rows->sum('statutory_deductions.phic'),
-                    'mandatory_pagibig' => $rows->sum('statutory_deductions.mandatory_pagibig'),
-                ],
-                'loan_columns' => collect(array_keys($this->blankLoanColumns()))
-                    ->mapWithKeys(fn(string $key) => [$key => $rows->sum(fn($row) => $row['loan_deductions']['columns'][$key] ?? 0)])
-                    ->all(),
-                'gross' => $rows->sum('gross'),
-                'net_before_other_deductions' => $rows->sum('net_before_other_deductions'),
-                'program_deductions' => $rows->sum('program_deductions.total'),
-                'loan_deductions' => $rows->sum('loan_deductions.total'),
-                'net_after_loan_deductions' => $rows->sum('net_after_loan_deductions'),
-                'fifteenth' => $rows->sum('fifteenth'),
-                'thirtieth' => $rows->sum('thirtieth'),
-            ],
+            'totals' => $totals,
         ]);
+    }
+
+    private function payrollTotals(Collection $rows, Collection $compensations): array
+    {
+        return [
+            'basic_salary' => $rows->sum('basic_salary'),
+            'compensations' => $compensations->mapWithKeys(
+                fn ($item) => [$item->id => $rows->sum(fn ($row) => $row['compensations'][$item->id]['amount'] ?? 0)]
+            ),
+            'statutory_deductions' => [
+                'life_retirement' => $rows->sum('statutory_deductions.life_retirement'),
+                'phic' => $rows->sum('statutory_deductions.phic'),
+                'mandatory_pagibig' => $rows->sum('statutory_deductions.mandatory_pagibig'),
+            ],
+            'loan_columns' => collect(array_keys($this->blankLoanColumns()))
+                ->mapWithKeys(fn (string $key) => [$key => $rows->sum(fn ($row) => $row['loan_deductions']['columns'][$key] ?? 0)])
+                ->all(),
+            'gross' => $rows->sum('gross'),
+            'net_before_other_deductions' => $rows->sum('net_before_other_deductions'),
+            'program_deductions' => $rows->sum('program_deductions.total'),
+            'loan_deductions' => $rows->sum('loan_deductions.total'),
+            'net_after_loan_deductions' => $rows->sum('net_after_loan_deductions'),
+            'fifteenth' => $rows->sum('fifteenth'),
+            'thirtieth' => $rows->sum('thirtieth'),
+        ];
     }
 
     private function payrollRows(Collection $compensations, Collection $deductionPrograms): Collection
     {
-        if (! $this->departmentId) {
+        if (! $this->divisionId && ! $this->departmentId) {
             return collect();
         }
 
         $employees = Employee::query()
             ->with(['position', 'department'])
-            ->where('department_id', $this->departmentId)
+            ->when(
+                $this->departmentId,
+                fn ($query) => $query->where('department_id', $this->departmentId),
+                fn ($query) => $query->whereHas('department', fn ($departmentQuery) => $departmentQuery->where('division_id', $this->divisionId))
+            )
             ->where('is_active', 'Y')
             ->employeeType($this->employeeTypeFilter)
             ->when(trim($this->search) !== '', function ($query) {
@@ -256,7 +301,7 @@ class PayrollGeneration extends Component
             ->whereIn('matched_emp_id', $empIds)
             ->orderByDesc('id')
             ->get()
-            ->unique(fn(PayrollLoanImportItem $item) => implode('|', [
+            ->unique(fn (PayrollLoanImportItem $item) => implode('|', [
                 strtoupper($item->entity),
                 $item->due_month?->toDateString(),
                 $item->matched_emp_id,
@@ -276,10 +321,10 @@ class PayrollGeneration extends Component
             ->groupBy('emp_id');
         $mraAdjustments = $previousMraReport
             ? PayrollLeaveCreditAdjustment::query()
-            ->where('mra_report_id', $previousMraReport->id)
-            ->whereIn('emp_id', $empIds)
-            ->get()
-            ->keyBy('emp_id')
+                ->where('mra_report_id', $previousMraReport->id)
+                ->whereIn('emp_id', $empIds)
+                ->get()
+                ->keyBy('emp_id')
             : collect();
         $labelOptions = PayrollDtrLabelOption::query()->get()->keyBy('code');
 
@@ -334,7 +379,7 @@ class PayrollGeneration extends Component
             }
             $loanByEntity = $employeeLoanItems
                 ->groupBy('entity')
-                ->map(fn(Collection $items, string $entity) => [
+                ->map(fn (Collection $items, string $entity) => [
                     'entity' => $entity,
                     'count' => $items->count(),
                     'amount' => round($items->sum('amount_due'), 2),
@@ -348,12 +393,18 @@ class PayrollGeneration extends Component
 
             return [
                 'emp_id' => $employee->emp_id,
+                'first_name' => $employee->firstname,
+                'middle_name' => $employee->middlename,
+                'last_name' => $employee->lastname,
+                'extension' => $employee->extension,
                 'employee_name' => $employee->full_name,
                 'department' => $employee->department?->department,
+                'department_id' => $employee->department_id,
+                'position_id' => $employee->position_id,
                 'position' => $employee->position?->position_title,
                 'salary_grade' => $salaryGrade ?: null,
                 'step' => $step,
-                'sg_step' => $salaryGrade ? 'SG ' . $salaryGrade . ' / Step ' . $step : '-',
+                'sg_step' => $salaryGrade ? 'SG '.$salaryGrade.' / Step '.$step : '-',
                 'deduction_days' => $deductionDays,
                 'mra_deduction_days' => $mraDeductionDays,
                 'mra_minutes' => (int) ($mraAdjustment?->undertime_tardy_minutes ?? 0),
@@ -364,7 +415,7 @@ class PayrollGeneration extends Component
                 'loan_deductions' => [
                     'total' => $loanTotal,
                     'columns' => $loanColumns,
-                    'items' => $employeeLoanItems->map(fn(PayrollLoanImportItem $item) => [
+                    'items' => $employeeLoanItems->map(fn (PayrollLoanImportItem $item) => [
                         'entity' => $item->entity,
                         'loan_account_no' => $item->loan_account_no,
                         'loan_type' => $item->loan_type,
@@ -392,6 +443,8 @@ class PayrollGeneration extends Component
         $this->currentStep = 1;
         $this->deductionDayOverrides = [];
         $this->deductionProgramSelections = [];
+        $this->finalizedRunId = null;
+        $this->finalizedSummary = [];
     }
 
     private function deductionPrograms(): Collection
@@ -420,8 +473,8 @@ class PayrollGeneration extends Component
     private function programDeductionsFor(Employee $employee, Collection $programs, float $basicSalary): array
     {
         return $programs
-            ->filter(fn(PayrollDeduction $program) => $this->programAppliesToEmployee($program, $employee->emp_id))
-            ->map(fn(PayrollDeduction $program) => [
+            ->filter(fn (PayrollDeduction $program) => $this->programAppliesToEmployee($program, $employee->emp_id))
+            ->map(fn (PayrollDeduction $program) => [
                 'id' => $program->id,
                 'name' => $program->name,
                 'amount' => $this->computeDeductionProgram($program, $employee->emp_id, $basicSalary),
@@ -440,7 +493,7 @@ class PayrollGeneration extends Component
         $mode = $selection['mode'] ?? 'all';
         $employeeIds = collect($selection['employee_ids'] ?? [])
             ->filter()
-            ->map(fn($id) => (string) $id)
+            ->map(fn ($id) => (string) $id)
             ->values();
 
         return match ($mode) {
@@ -470,8 +523,8 @@ class PayrollGeneration extends Component
     private function blankLoanColumns(): array
     {
         return collect($this->loanColumnGroups)
-            ->flatMap(fn(array $columns) => array_keys($columns))
-            ->mapWithKeys(fn(string $key) => [$key => 0.0])
+            ->flatMap(fn (array $columns) => array_keys($columns))
+            ->mapWithKeys(fn (string $key) => [$key => 0.0])
             ->all();
     }
 
@@ -568,7 +621,7 @@ class PayrollGeneration extends Component
             ->select(['salary_grade', 'step_increment', 'salary', 'effectivity_date'])
             ->orderByDesc('effectivity_date')
             ->get()
-            ->groupBy(fn($grade) => $grade->salary_grade . '|' . $grade->step_increment);
+            ->groupBy(fn ($grade) => $grade->salary_grade.'|'.$grade->step_increment);
 
         $matrix = [];
         foreach ($grades as $key => $items) {
@@ -612,7 +665,7 @@ class PayrollGeneration extends Component
     private function evaluateFormula(string $formula, array $variables): float
     {
         $expression = strtolower($formula);
-        uksort($variables, fn($a, $b) => strlen($b) <=> strlen($a));
+        uksort($variables, fn ($a, $b) => strlen($b) <=> strlen($a));
 
         $expression = $this->resolveFormulaFunctions($expression, $variables);
 
@@ -625,17 +678,17 @@ class PayrollGeneration extends Component
 
     private function resolveFormulaFunctions(string $expression, array $variables): string
     {
-        uksort($variables, fn($a, $b) => strlen($b) <=> strlen($a));
+        uksort($variables, fn ($a, $b) => strlen($b) <=> strlen($a));
 
         foreach ($variables as $name => $value) {
-            $expression = preg_replace('/\b' . preg_quote(strtolower($name), '/') . '\b/', (string) (float) $value, $expression);
+            $expression = preg_replace('/\b'.preg_quote(strtolower($name), '/').'\b/', (string) (float) $value, $expression);
         }
 
         while (preg_match('/\b(max|min)\s*\(([^()]+)\)/i', $expression, $matches)) {
             $values = collect(explode(',', $matches[2]))
-                ->map(fn($argument) => trim($argument))
-                ->filter(fn($argument) => $argument !== '' && ! preg_match('/[a-z_]/i', $argument))
-                ->map(fn($argument) => $this->parseExpression($argument))
+                ->map(fn ($argument) => trim($argument))
+                ->filter(fn ($argument) => $argument !== '' && ! preg_match('/[a-z_]/i', $argument))
+                ->map(fn ($argument) => $this->parseExpression($argument))
                 ->values();
 
             if ($values->isEmpty()) {
@@ -701,315 +754,127 @@ class PayrollGeneration extends Component
 
     public function snapshotPayroll(): void
     {
+        $this->finalizePayroll();
+    }
+
+    public function finalizePayroll(): void
+    {
+        if (! $this->divisionId && ! $this->departmentId) {
+            $this->addError('finalize', 'Choose a division before finalizing payroll.');
+
+            return;
+        }
+
         $compensations = $this->compensations();
 
         $deductionPrograms = $this->deductionPrograms();
 
         $rows = $this->payrollRows($compensations, $deductionPrograms);
+        $totals = $this->payrollTotals($rows, $compensations);
 
         if ($rows->isEmpty()) {
-            $this->addError('snapshot', 'No payroll rows found.');
+            $this->addError('finalize', 'No payroll rows found.');
 
             return;
         }
 
-        DB::connection('payroll')->transaction(function () use (
+        $run = DB::connection('payroll')->transaction(function () use (
             $rows,
             $compensations,
-            $deductionPrograms
+            $deductionPrograms,
+            $totals
         ) {
+            $periodStart = $this->selectedPeriodStart();
+            $periodEnd = $periodStart->endOfMonth();
+            $departmentName = Department::query()
+                ->where('department_id', $this->departmentId)
+                ->value('department');
+            $divisionName = Division::query()
+                ->where('division_id', $this->divisionId)
+                ->value('division');
+            $scopeName = $departmentName ?: $divisionName;
+            $generatedBy = auth()->user()?->emp_id ?? 'web';
+            $payrollType = PayrollType::query()->firstOrCreate(
+                ['code' => PayrollType::CODE_GENERAL],
+                [
+                    'name' => 'General',
+                    'description' => 'General monthly salary payroll.',
+                    'sort_order' => 10,
+                    'is_active' => true,
+                ]
+            );
+
+            $period = PayrollPeriod::create([
+                'period_start' => $periodStart->toDateString(),
+                'period_end' => $periodEnd->toDateString(),
+                'period_type' => 'monthly',
+                'is_locked' => true,
+                'locked_at' => now(),
+            ]);
+
+            $run = PayrollRun::create([
+                'payroll_period_id' => $period->id,
+                'payroll_date' => $periodEnd->toDateString(),
+                'payroll_type_id' => $payrollType->id,
+                'department_id' => $this->departmentId,
+                'department_name' => $scopeName,
+                'status' => 1,
+                'generated_by' => $generatedBy,
+                'gross_pay' => $totals['gross'],
+                'total_additions' => collect($totals['compensations'])->sum(),
+                'total_deductions' => $totals['gross'] - $totals['net_after_loan_deductions'],
+                'net_pay' => $totals['net_after_loan_deductions'],
+            ]);
 
             $batch = PayrollBatch::create([
                 'department_id' => $this->departmentId,
                 'payroll_period' => $this->period,
-                'payroll_type' => 'monthly',
-                'generated_by' => auth()->user()?->emp_id,
+                'payroll_type' => $payrollType->name,
+                'generated_by' => $generatedBy,
                 'snapshot_created_at' => now(),
-                'remarks' => 'Payroll snapshot generated from Payroll Generation module.',
+                'remarks' => "Payroll run #{$run->id} finalized from Payroll Generation module.",
             ]);
 
             foreach ($rows as $row) {
+                PayrollEmployeeSnapshot::create([
+                    'payroll_generate_id' => $run->id,
+                    'emp_id' => $row['emp_id'],
+                    'employee_name' => $row['employee_name'],
+                    'first_name' => $row['first_name'],
+                    'middle_name' => $row['middle_name'],
+                    'last_name' => $row['last_name'],
+                    'extension' => $row['extension'],
+                    'department_id' => $row['department_id'],
+                    'department_name' => $row['department'],
+                    'position_id' => $row['position_id'],
+                    'position_title' => $row['position'],
+                    'salary_grade' => $row['salary_grade'],
+                    'step' => $row['step'],
+                    'monthly_salary' => $row['basic_salary'],
+                    'created_at' => now(),
+                ]);
 
-                $dynamicCompensationColumns = [];
+                PayrollTimekeepingSummary::create([
+                    'payroll_generate_id' => $run->id,
+                    'emp_id' => $row['emp_id'],
+                    'total_work_days' => $this->workingDays,
+                    'days_with_dtr' => $this->workingDays,
+                    'regular_hours' => max(0, $this->workingDays - $row['deduction_days']) * 8,
+                    'undertime_hours' => round(($row['mra_minutes'] ?? 0) / 60, 4),
+                    'tardy_hours' => 0,
+                    'mra_hours' => round(($row['mra_minutes'] ?? 0) / 60, 4),
+                    'leave_days_with_pay' => 0,
+                    'leave_days_without_pay' => $row['deduction_days'],
+                    'absent_days' => 0,
+                    'created_at' => now(),
+                ]);
 
-                foreach ($compensations as $item) {
-                    $dynamicCompensationColumns[] = 'compensation_' . $item->id;
+                foreach ($this->payrollLinesForRow($row) as $line) {
+                    PayrollEmployeePayrollLine::create([
+                        ...$line,
+                        'payroll_generate_id' => $run->id,
+                    ]);
                 }
-
-                $dynamicProgramColumns = [];
-
-                foreach ($deductionPrograms as $program) {
-                    $dynamicProgramColumns[] = 'program_' . $program->id;
-                }
-
-                $columnGroups = [
-                    [
-                        'label' => 'Employee Information',
-                        'columns' => [
-                            'emp_id',
-                            'employee_name',
-                            'position',
-                        ],
-                    ],
-
-                    [
-                        'label' => 'Pay Basis',
-                        'columns' => [
-                            'salary_grade',
-                            'step',
-                            'deduction_days',
-                        ],
-                    ],
-
-                    [
-                        'label' => 'Earnings',
-                        'columns' => array_merge(
-                            [
-                                'basic_salary',
-                            ],
-                            $dynamicCompensationColumns,
-                            [
-                                'gross',
-                            ]
-                        ),
-                    ],
-
-                    [
-                        'label' => 'Statutory Deductions',
-                        'columns' => [
-                            'life_retirement',
-                            'phic',
-                            'mandatory_pagibig',
-                        ],
-                    ],
-
-                    [
-                        'label' => 'Deduction Programs',
-                        'columns' => array_merge(
-                            $dynamicProgramColumns,
-                            [
-                                'program_total',
-                            ]
-                        ),
-                    ],
-
-                    [
-                        'label' => 'GSIS',
-                        'columns' => [
-                            'gsis_emergency',
-                            'gsis_computer',
-                            'gsis_conso',
-                            'gsis_policy',
-                            'gsis_uoli',
-                            'gsis_optional',
-                        ],
-                    ],
-
-                    [
-                        'label' => 'Pag-IBIG',
-                        'columns' => [
-                            'pagibig_mpl',
-                            'pagibig_calamity',
-                            'pagibig_mp2',
-                        ],
-                    ],
-
-                    [
-                        'label' => 'Bank Loans',
-                        'columns' => [
-                            'ucpb',
-                            'dbp',
-                            'lbp',
-                            'coco',
-                            'other_loans',
-                        ],
-                    ],
-
-                    [
-                        'label' => 'Net Pay Distribution',
-                        'columns' => [
-                            'net_before_other_deductions',
-                            'loan_total',
-                            'net_after_loan_deductions',
-                            'fifteenth',
-                            'thirtieth',
-                        ],
-                    ],
-                ];
-
-                $columns = [
-
-                    'emp_id' => [
-                        'label' => 'Employee No.',
-                        'enabled' => true,
-                    ],
-
-                    'employee_name' => [
-                        'label' => 'Employee Name',
-                        'enabled' => true,
-                    ],
-
-                    'position' => [
-                        'label' => 'Position',
-                        'enabled' => true,
-                    ],
-
-                    'salary_grade' => [
-                        'label' => 'Salary Grade',
-                        'enabled' => true,
-                    ],
-
-                    'step' => [
-                        'label' => 'Step',
-                        'enabled' => true,
-                    ],
-
-                    'deduction_days' => [
-                        'label' => 'Deduct Days',
-                        'enabled' => true,
-                    ],
-
-                    'basic_salary' => [
-                        'label' => 'Basic Pay',
-                        'enabled' => true,
-                    ],
-
-                    'gross' => [
-                        'label' => 'Gross Pay',
-                        'enabled' => true,
-                    ],
-
-                    'life_retirement' => [
-                        'label' => 'Life & Retirement',
-                        'enabled' => true,
-                    ],
-
-                    'phic' => [
-                        'label' => 'PhilHealth',
-                        'enabled' => true,
-                    ],
-
-                    'mandatory_pagibig' => [
-                        'label' => 'Pag-IBIG',
-                        'enabled' => true,
-                    ],
-
-                    'program_total' => [
-                        'label' => 'Program Total',
-                        'enabled' => true,
-                    ],
-
-                    'net_before_other_deductions' => [
-                        'label' => 'Net Before Other Deductions',
-                        'enabled' => true,
-                    ],
-
-                    'loan_total' => [
-                        'label' => 'Total Other Deductions',
-                        'enabled' => true,
-                    ],
-
-                    'net_after_loan_deductions' => [
-                        'label' => 'Final Net Pay',
-                        'enabled' => true,
-                    ],
-
-                    'fifteenth' => [
-                        'label' => '15th Payroll',
-                        'enabled' => true,
-                    ],
-
-                    'thirtieth' => [
-                        'label' => '30th Payroll',
-                        'enabled' => true,
-                    ],
-                ];
-
-                foreach ($compensations as $item) {
-                    $columns[$item->id] = [
-                        'label' => $item->name,
-                        'enabled' => true,
-                    ];
-                }
-
-                foreach ($deductionPrograms as $program) {
-                    $columns['program_' . $program->id] = [
-                        'label' => $program->name,
-                        'enabled' => true,
-                    ];
-                }
-
-                $loanColumnLabels = [
-                    'gsis_emergency' => 'Emergency Loan',
-                    'gsis_computer' => 'Computer Loan',
-                    'gsis_conso' => 'Conso/MPL',
-                    'gsis_policy' => 'Policy Loan',
-                    'gsis_uoli' => 'UOLI Prem.',
-                    'gsis_optional' => 'Optional/AJ',
-
-                    'pagibig_mpl' => 'MPL',
-                    'pagibig_calamity' => 'Calamity',
-                    'pagibig_mp2' => 'MP2',
-
-                    'ucpb' => 'UCPB',
-                    'dbp' => 'DBP',
-                    'lbp' => 'LBP',
-                    'coco' => 'COCO',
-                    'other_loans' => 'Other Loans',
-                ];
-
-                foreach ($loanColumnLabels as $key => $label) {
-                    $columns[$key] = [
-                        'label' => $label,
-                        'enabled' => true,
-                    ];
-                }
-
-                $snapshot = [
-                    'employee' => [
-                        'emp_id' => $row['emp_id'],
-                        'employee_name' => $row['employee_name'],
-                        'department' => $row['department'],
-                        'position' => $row['position'],
-                        'salary_grade' => $row['salary_grade'],
-                        'step' => $row['step'],
-                        'sg_step' => $row['sg_step'],
-                    ],
-
-                    'pay_basis' => [
-                        'salary_grade' => $row['salary_grade'],
-                        'step' => $row['step'],
-                        'deduction_days' => $row['deduction_days'],
-                    ],
-
-                    'earnings' => [
-                        'basic_salary' => $row['basic_salary'],
-                        'compensations' => $row['compensations'],
-                        'gross' => $row['gross'],
-                    ],
-
-                    'statutory_deductions' => [
-                        'life_retirement' => $row['statutory_deductions']['life_retirement'],
-                        'phic' => $row['statutory_deductions']['phic'],
-                        'mandatory_pagibig' => $row['statutory_deductions']['mandatory_pagibig'],
-                    ],
-
-                    'program_deductions' => $row['program_deductions'],
-
-                    'loan_deductions' => $row['loan_deductions'],
-
-                    'totals' => [
-                        'gross' => $row['gross'],
-                        'net_before_other_deductions' => $row['net_before_other_deductions'],
-                        'net_after_program_deductions' => $row['net_after_program_deductions'],
-                        'net_after_loan_deductions' => $row['net_after_loan_deductions'],
-                        'fifteenth' => $row['fifteenth'],
-                        'thirtieth' => $row['thirtieth'],
-                    ],
-                    'column_groups' => $columnGroups,
-
-                    'columns' => $columns,
-                ];
 
                 PayrollBatchRecord::create([
                     'payroll_batch_id' => $batch->id,
@@ -1022,14 +887,195 @@ class PayrollGeneration extends Component
                     'fifteenth' => $row['fifteenth'],
                     'thirtieth' => $row['thirtieth'],
 
-                    'snapshot_json' => $snapshot,
+                    'snapshot_json' => $this->payrollSnapshotForRow($row, $compensations, $deductionPrograms, $run->id),
                 ]);
             }
+
+            PayrollAuditLog::create([
+                'payroll_generate_id' => $run->id,
+                'action' => 'payroll.finalized',
+                'performed_by' => $generatedBy,
+                'remarks' => "Finalized {$this->period} payroll for {$scopeName}.",
+                'created_at' => now(),
+            ]);
+
+            return $run->fresh();
         });
 
-        session()->flash(
-            'success',
-            'Payroll snapshot successfully generated.'
-        );
+        $this->finalizedRunId = $run->id;
+        $this->finalizedSummary = [
+            'employees' => $rows->count(),
+            'gross' => $totals['gross'],
+            'net' => $totals['net_after_loan_deductions'],
+            'period' => $this->selectedPeriodStart()->format('F Y'),
+            'department' => $run->department_name,
+        ];
+
+        session()->flash('success', "Payroll run #{$run->id} finalized and saved.");
+    }
+
+    private function payrollLinesForRow(array $row): array
+    {
+        $lines = [[
+            'emp_id' => $row['emp_id'],
+            'line_group' => 'EARNING',
+            'code' => 'basic_salary',
+            'name' => 'Basic Pay',
+            'amount' => $row['basic_salary'],
+            'remarks' => $this->period,
+        ]];
+
+        foreach ($row['compensations'] as $id => $compensation) {
+            $lines[] = [
+                'emp_id' => $row['emp_id'],
+                'line_group' => 'EARNING',
+                'code' => "compensation_{$id}",
+                'name' => $compensation['name'],
+                'amount' => $compensation['amount'],
+                'remarks' => $this->period,
+            ];
+        }
+
+        foreach ($row['statutory_deductions'] as $code => $amount) {
+            $lines[] = [
+                'emp_id' => $row['emp_id'],
+                'line_group' => 'DEDUCTION',
+                'code' => $code,
+                'name' => str($code)->replace('_', ' ')->title()->toString(),
+                'amount' => $amount,
+                'remarks' => 'Statutory deduction',
+            ];
+        }
+
+        foreach ($row['program_deductions']['items'] ?? [] as $item) {
+            $lines[] = [
+                'emp_id' => $row['emp_id'],
+                'line_group' => 'DEDUCTION',
+                'code' => 'program_'.$item['id'],
+                'name' => $item['name'],
+                'amount' => $item['amount'],
+                'remarks' => 'Deduction program',
+            ];
+        }
+
+        foreach (($row['loan_deductions']['columns'] ?? []) as $code => $amount) {
+            if ((float) $amount <= 0) {
+                continue;
+            }
+
+            $lines[] = [
+                'emp_id' => $row['emp_id'],
+                'line_group' => 'DEDUCTION',
+                'code' => $code,
+                'name' => $this->loanColumnLabel($code),
+                'amount' => $amount,
+                'remarks' => 'Imported deduction',
+            ];
+        }
+
+        return $lines;
+    }
+
+    private function payrollSnapshotForRow(array $row, Collection $compensations, Collection $deductionPrograms, int $runId): array
+    {
+        return [
+            'payroll_run_id' => $runId,
+            'employee' => [
+                'emp_id' => $row['emp_id'],
+                'employee_name' => $row['employee_name'],
+                'department' => $row['department'],
+                'position' => $row['position'],
+                'salary_grade' => $row['salary_grade'],
+                'step' => $row['step'],
+                'sg_step' => $row['sg_step'],
+            ],
+            'pay_basis' => [
+                'salary_grade' => $row['salary_grade'],
+                'step' => $row['step'],
+                'deduction_days' => $row['deduction_days'],
+                'working_days' => $this->workingDays,
+            ],
+            'earnings' => [
+                'basic_salary' => $row['basic_salary'],
+                'compensations' => $row['compensations'],
+                'gross' => $row['gross'],
+            ],
+            'statutory_deductions' => $row['statutory_deductions'],
+            'program_deductions' => $row['program_deductions'],
+            'loan_deductions' => $row['loan_deductions'],
+            'totals' => [
+                'gross' => $row['gross'],
+                'net_before_other_deductions' => $row['net_before_other_deductions'],
+                'net_after_program_deductions' => $row['net_after_program_deductions'],
+                'net_after_loan_deductions' => $row['net_after_loan_deductions'],
+                'fifteenth' => $row['fifteenth'],
+                'thirtieth' => $row['thirtieth'],
+            ],
+            'column_groups' => $this->snapshotColumnGroups($compensations, $deductionPrograms),
+            'columns' => $this->snapshotColumns($compensations, $deductionPrograms),
+        ];
+    }
+
+    private function snapshotColumnGroups(Collection $compensations, Collection $deductionPrograms): array
+    {
+        return [
+            ['label' => 'Employee Information', 'columns' => ['emp_id', 'employee_name', 'position']],
+            ['label' => 'Pay Basis', 'columns' => ['salary_grade', 'step', 'deduction_days']],
+            ['label' => 'Earnings', 'columns' => array_merge(['basic_salary'], $compensations->map(fn ($item) => 'compensation_'.$item->id)->all(), ['gross'])],
+            ['label' => 'Statutory Deductions', 'columns' => ['life_retirement', 'phic', 'mandatory_pagibig']],
+            ['label' => 'Deduction Programs', 'columns' => array_merge($deductionPrograms->map(fn ($program) => 'program_'.$program->id)->all(), ['program_total'])],
+            ...collect($this->loanColumnGroups)->map(fn (array $columns, string $label) => ['label' => $label, 'columns' => array_keys($columns)])->values()->all(),
+            ['label' => 'Net Pay Distribution', 'columns' => ['net_before_other_deductions', 'loan_total', 'net_after_loan_deductions', 'fifteenth', 'thirtieth']],
+        ];
+    }
+
+    private function snapshotColumns(Collection $compensations, Collection $deductionPrograms): array
+    {
+        $columns = [
+            'emp_id' => ['label' => 'Employee No.', 'enabled' => true],
+            'employee_name' => ['label' => 'Employee Name', 'enabled' => true],
+            'position' => ['label' => 'Position', 'enabled' => true],
+            'salary_grade' => ['label' => 'Salary Grade', 'enabled' => true],
+            'step' => ['label' => 'Step', 'enabled' => true],
+            'deduction_days' => ['label' => 'Deduct Days', 'enabled' => true],
+            'basic_salary' => ['label' => 'Basic Pay', 'enabled' => true],
+            'gross' => ['label' => 'Gross Pay', 'enabled' => true],
+            'life_retirement' => ['label' => 'Life & Retirement', 'enabled' => true],
+            'phic' => ['label' => 'PhilHealth', 'enabled' => true],
+            'mandatory_pagibig' => ['label' => 'Pag-IBIG', 'enabled' => true],
+            'program_total' => ['label' => 'Program Total', 'enabled' => true],
+            'net_before_other_deductions' => ['label' => 'Net Before Other Deductions', 'enabled' => true],
+            'loan_total' => ['label' => 'Total Other Deductions', 'enabled' => true],
+            'net_after_loan_deductions' => ['label' => 'Final Net Pay', 'enabled' => true],
+            'fifteenth' => ['label' => '15th Payroll', 'enabled' => true],
+            'thirtieth' => ['label' => '30th Payroll', 'enabled' => true],
+        ];
+
+        foreach ($compensations as $item) {
+            $columns['compensation_'.$item->id] = ['label' => $item->name, 'enabled' => true];
+        }
+
+        foreach ($deductionPrograms as $program) {
+            $columns['program_'.$program->id] = ['label' => $program->name, 'enabled' => true];
+        }
+
+        foreach ($this->loanColumnGroups as $group) {
+            foreach ($group as $key => $label) {
+                $columns[$key] = ['label' => $label, 'enabled' => true];
+            }
+        }
+
+        return $columns;
+    }
+
+    private function loanColumnLabel(string $key): string
+    {
+        foreach ($this->loanColumnGroups as $group) {
+            if (array_key_exists($key, $group)) {
+                return $group[$key];
+            }
+        }
+
+        return str($key)->replace('_', ' ')->title()->toString();
     }
 }

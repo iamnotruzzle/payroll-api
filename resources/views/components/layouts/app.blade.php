@@ -17,23 +17,23 @@
                 'key' => 'scheduling',
                 'label' => 'Scheduling',
                 'icon' => 'calendar-range',
-                'open' => request()->routeIs('schedule.dashboard'),
+                'open' => request()->routeIs('schedule.dashboard', 'schedule.shift-codes', 'schedule.employees', 'schedule.rotation-groups', 'schedule.staffing-requirements', 'schedule.templates', 'schedule.print-settings'),
                 'items' => [
                     ['label' => 'Schedule Dashboard', 'route' => 'schedule.dashboard', 'icon' => 'layout-dashboard', 'active' => request()->routeIs('schedule.dashboard')],
-                ],
-            ],
-            [
-                'key' => 'setup',
-                'label' => 'Schedule Setup',
-                'icon' => 'sliders',
-                'open' => request()->routeIs('schedule.shift-codes', 'schedule.employees', 'schedule.rotation-groups', 'schedule.staffing-requirements', 'schedule.templates', 'schedule.print-settings'),
-                'items' => [
-                    ['label' => 'Shift Codes', 'route' => 'schedule.shift-codes', 'icon' => 'clock-3', 'active' => request()->routeIs('schedule.shift-codes')],
-                    ['label' => 'Employee Schedule Settings', 'route' => 'schedule.employees', 'icon' => 'user-cog', 'active' => request()->routeIs('schedule.employees')],
-                    ['label' => 'Rotation Groups', 'route' => 'schedule.rotation-groups', 'icon' => 'refresh-cw', 'active' => request()->routeIs('schedule.rotation-groups')],
-                    ['label' => 'Staffing Requirements', 'route' => 'schedule.staffing-requirements', 'icon' => 'clipboard-list', 'active' => request()->routeIs('schedule.staffing-requirements')],
-                    ['label' => 'Schedule Templates', 'route' => 'schedule.templates', 'icon' => 'table-properties', 'active' => request()->routeIs('schedule.templates')],
-                    ['label' => 'Print and Export Settings', 'route' => 'schedule.print-settings', 'icon' => 'printer', 'active' => request()->routeIs('schedule.print-settings')],
+                    [
+                        'key' => 'scheduling_setup',
+                        'label' => 'Schedule Setup',
+                        'icon' => 'sliders',
+                        'open' => request()->routeIs('schedule.shift-codes', 'schedule.employees', 'schedule.rotation-groups', 'schedule.staffing-requirements', 'schedule.templates', 'schedule.print-settings'),
+                        'children' => [
+                            ['label' => 'Shift Codes', 'route' => 'schedule.shift-codes', 'icon' => 'clock-3', 'active' => request()->routeIs('schedule.shift-codes')],
+                            ['label' => 'Employee Schedule Settings', 'route' => 'schedule.employees', 'icon' => 'user-cog', 'active' => request()->routeIs('schedule.employees')],
+                            ['label' => 'Rotation Groups', 'route' => 'schedule.rotation-groups', 'icon' => 'refresh-cw', 'active' => request()->routeIs('schedule.rotation-groups')],
+                            ['label' => 'Staffing Requirements', 'route' => 'schedule.staffing-requirements', 'icon' => 'clipboard-list', 'active' => request()->routeIs('schedule.staffing-requirements')],
+                            ['label' => 'Schedule Templates', 'route' => 'schedule.templates', 'icon' => 'table-properties', 'active' => request()->routeIs('schedule.templates')],
+                            ['label' => 'Print and Export Settings', 'route' => 'schedule.print-settings', 'icon' => 'printer', 'active' => request()->routeIs('schedule.print-settings')],
+                        ],
+                    ],
                 ],
             ],
             [
@@ -44,7 +44,7 @@
                 'items' => [
                     ['label' => 'DTR Encoding', 'route' => 'payroll.dtr-encoding', 'icon' => 'file-clock', 'active' => request()->routeIs('payroll.dtr', 'payroll.dtr-encoding')],
                     ['label' => 'MRA', 'route' => 'payroll.mra', 'icon' => 'chart-no-axes-column', 'active' => request()->routeIs('payroll.mra')],
-                    ['label' => 'Payroll Generation', 'route' => 'payroll.generation', 'icon' => 'banknote', 'active' => request()->routeIs('payroll.generation')],
+                    ['label' => 'Payroll Generation', 'route' => 'payroll.generation.configuration', 'icon' => 'banknote', 'active' => request()->routeIs('payroll.generation', 'payroll.generation.configuration', 'payroll.generation.hazard', 'payroll.generation.medicare')],
                     ['label' => 'Payroll History', 'route' => 'payroll.history', 'icon' => 'history', 'active' => request()->routeIs('payroll.history')],
                     ['label' => 'Loan Due Imports', 'route' => 'payroll.loan-imports', 'icon' => 'upload', 'active' => request()->routeIs('payroll.loan-imports')],
                     ['label' => 'Loan References', 'route' => 'payroll.loan-references', 'icon' => 'files', 'active' => request()->routeIs('payroll.loan-references')],
@@ -107,7 +107,15 @@
 
                 <nav
                     class="space-y-1 px-3 py-3 text-sm"
-                    x-data="{ open: @js(collect($navGroups)->mapWithKeys(fn ($group) => [$group['key'] => $group['open']])->all()) }"
+                    x-data="{ open: @js(collect($navGroups)
+                        ->flatMap(fn ($group) => array_merge(
+                            [$group['key'] => $group['open']],
+                            collect($group['items'] ?? [])
+                                ->filter(fn ($item) => isset($item['children']))
+                                ->mapWithKeys(fn ($item) => [$item['key'] => $item['open']])
+                                ->all()
+                        ))
+                        ->all()) }"
                 >
                     @foreach ($navGroups as $group)
                         <div class="erp-nav-group">
@@ -130,17 +138,50 @@
 
                             <div class="mt-1 space-y-0.5 pb-1" x-show="open.{{ $group['key'] }}">
                                 @foreach ($group['items'] as $item)
-                                    <a
-                                        class="erp-nav-link {{ $item['active'] ? 'erp-nav-link-active' : '' }}"
-                                        href="{{ isset($item['route']) ? route($item['route']) : $item['href'] }}"
-                                    >
-                                        <span class="erp-nav-item-icon" aria-hidden="true">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="{{ $icons[$item['icon']] }}"></path>
-                                            </svg>
-                                        </span>
-                                        <span class="truncate">{{ $item['label'] }}</span>
-                                    </a>
+                                    @if (isset($item['children']))
+                                        <button
+                                            type="button"
+                                            class="erp-nav-link erp-nav-link-depth-1 w-full {{ collect($item['children'])->contains(fn ($child) => $child['active'] ?? false) ? 'erp-nav-link-parent-active' : '' }}"
+                                            x-on:click="open.{{ $item['key'] }} = ! open.{{ $item['key'] }}"
+                                            :aria-expanded="open.{{ $item['key'] }}.toString()"
+                                        >
+                                            <span class="erp-nav-item-icon" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="{{ $icons[$item['icon']] }}"></path>
+                                                </svg>
+                                            </span>
+                                            <span class="truncate">{{ $item['label'] }}</span>
+                                            <span class="ml-auto text-sm text-[#a8abb4]" x-text="open.{{ $item['key'] }} ? '-' : '+'"></span>
+                                        </button>
+
+                                        <div class="space-y-0.5" x-show="open.{{ $item['key'] }}">
+                                            @foreach ($item['children'] as $child)
+                                                <a
+                                                    class="erp-nav-link erp-nav-link-depth-2 {{ $child['active'] ? 'erp-nav-link-active' : '' }}"
+                                                    href="{{ isset($child['route']) ? route($child['route']) : $child['href'] }}"
+                                                >
+                                                    <span class="erp-nav-item-icon" aria-hidden="true">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="{{ $icons[$child['icon']] }}"></path>
+                                                        </svg>
+                                                    </span>
+                                                    <span class="truncate">{{ $child['label'] }}</span>
+                                                </a>
+                                            @endforeach
+                                        </div>
+                                    @else
+                                        <a
+                                            class="erp-nav-link erp-nav-link-depth-1 {{ $item['active'] ? 'erp-nav-link-active' : '' }}"
+                                            href="{{ isset($item['route']) ? route($item['route']) : $item['href'] }}"
+                                        >
+                                            <span class="erp-nav-item-icon" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="{{ $icons[$item['icon']] }}"></path>
+                                                </svg>
+                                            </span>
+                                            <span class="truncate">{{ $item['label'] }}</span>
+                                        </a>
+                                    @endif
                                 @endforeach
                             </div>
                         </div>

@@ -4,7 +4,6 @@ use App\Http\Controllers\Auth\WebLoginController;
 use App\Http\Controllers\Payroll\PayrollLoanImportController;
 use App\Http\Controllers\Payroll\PayrollPageController;
 use App\Http\Controllers\Schedule\SchedulePageController;
-use App\Livewire\Payroll\PayrollHistory;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -37,7 +36,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/payroll/dtr', [PayrollPageController::class, 'dtr'])->name('payroll.dtr');
     Route::get('/payroll/dtr-encoding', [PayrollPageController::class, 'dtrEncoding'])->name('payroll.dtr-encoding');
     Route::get('/payroll/mra', [PayrollPageController::class, 'mra'])->name('payroll.mra');
+    Route::get('/payroll/generation/configuration', [PayrollPageController::class, 'generationConfiguration'])->name('payroll.generation.configuration');
     Route::get('/payroll/generation', [PayrollPageController::class, 'generation'])->name('payroll.generation');
+    Route::get('/payroll/generation/hazard', [PayrollPageController::class, 'hazardGeneration'])->name('payroll.generation.hazard');
+    Route::get('/payroll/generation/medicare', [PayrollPageController::class, 'medicareGeneration'])->name('payroll.generation.medicare');
     Route::get('/payroll/loan-imports', [PayrollPageController::class, 'loanImports'])->name('payroll.loan-imports');
     Route::get('/payroll/loan-imports/template', [PayrollLoanImportController::class, 'template'])->name('payroll.loan-imports.template');
     Route::get('/payroll/loan-references', [PayrollPageController::class, 'loanReferences'])->name('payroll.loan-references');

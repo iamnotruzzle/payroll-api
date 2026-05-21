@@ -17,7 +17,8 @@ class PayrollTypeService
         $query = PayrollType::query()
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($q2) use ($search) {
-                    $q2->where('name', 'like', "%{$search}%")
+                    $q2->where('code', 'like', "%{$search}%")
+                        ->orWhere('name', 'like', "%{$search}%")
                         ->orWhere('description', 'like', "%{$search}%");
 
                     if (is_numeric($search)) {
@@ -27,7 +28,8 @@ class PayrollTypeService
             });
 
         $query->orderBy(match ($sort) {
-            'id'    => 'id',
+            'id' => 'id',
+            'code' => 'code',
             default => 'name',
         }, $direction === 'descending' ? 'desc' : 'asc');
 

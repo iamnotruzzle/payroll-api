@@ -21,9 +21,24 @@ class PayrollPageController extends Controller
         return view('payroll.mra');
     }
 
+    public function generationConfiguration()
+    {
+        return view('payroll.generation-configuration');
+    }
+
     public function generation()
     {
         return view('payroll.generation');
+    }
+
+    public function hazardGeneration()
+    {
+        return view('payroll.generation-hazard');
+    }
+
+    public function medicareGeneration()
+    {
+        return view('payroll.generation-medicare');
     }
 
     public function loanImports()
