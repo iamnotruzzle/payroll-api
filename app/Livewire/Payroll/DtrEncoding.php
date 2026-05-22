@@ -168,8 +168,9 @@ class DtrEncoding extends Component
             $row = $this->buildRow(
                 $date,
                 $dtrs->get($date),
-                $leaveDates[$date] ?? false,
+                $leaveDates[$date] ?? null,
                 $labels->get($date)?->label,
+                $labels->get($date)?->remarks,
                 $holidays->get($date),
                 $this->holidayAppliesToAssignment($assignments->get($date)),
                 $templateId,
@@ -217,13 +218,13 @@ class DtrEncoding extends Component
                     ->whereDate('dtr_date', $row['date'])
                     ->first();
 
-                $labelValue = ($row['is_holiday'] || $row['has_label_without_dtr']) ? ($row['label'] ?: null) : null;
+                $labelValue = ($row['is_holiday'] || $row['has_label_without_dtr'] || $row['has_leave']) ? ($row['label'] ?: null) : null;
                 if (blank($labelValue)) {
                     $existingLabel?->delete();
                 } else {
                     PayrollDtrLabel::updateOrCreate(
                         ['emp_id' => $this->selectedEmpId, 'dtr_date' => $row['date']],
-                        ['label' => $labelValue, 'remarks' => null],
+                        ['label' => $labelValue, 'remarks' => $row['leave_name'] ?? null],
                     );
                 }
             }
@@ -381,18 +382,21 @@ class DtrEncoding extends Component
         $this->loadState();
     }
 
-    private function buildRow(string $date, ?EmployeeDtr $dtr, bool $hasLeave, ?string $label, ?PayrollHoliday $holiday, bool $holidayApplies, ?int $templateId, int $tardinessMinutes, int $undertimeMinutes): array
+    private function buildRow(string $date, ?EmployeeDtr $dtr, ?array $leave, ?string $label, ?string $labelRemarks, ?PayrollHoliday $holiday, bool $holidayApplies, ?int $templateId, int $tardinessMinutes, int $undertimeMinutes): array
     {
         $dateValue = CarbonImmutable::parse($date);
         $actualTimeIn = $this->timeIn($dtr);
         $actualTimeOut = $this->timeOut($dtr);
         $isWeekend = $dateValue->isWeekend();
         $isHoliday = $holiday !== null;
+        $hasLeave = $leave !== null;
         $hasDtr = $actualTimeIn !== null || $actualTimeOut !== null || $dtr !== null;
         $hasCompleteDtr = $actualTimeIn !== null && $actualTimeOut !== null && $actualTimeOut->greaterThan($actualTimeIn);
-        $displayLabel = $isHoliday ? ($label ?: $holiday?->label_code) : ($isWeekend ? 'WEEKEND' : $label);
+        $leaveLabel = $leave['label'] ?? null;
+        $leaveName = $leave['name'] ?? $labelRemarks;
+        $displayLabel = $isHoliday ? ($label ?: $holiday?->label_code) : ($isWeekend ? 'WEEKEND' : ($label ?: $leaveLabel));
         $isBlankWorkday = ! $isWeekend && ! $isHoliday && ! $hasDtr && ! $hasLeave;
-        $hasLabelWithoutDtr = $isBlankWorkday && filled($displayLabel);
+        $hasLabelWithoutDtr = ! $isWeekend && ! $isHoliday && ! $hasDtr && filled($displayLabel);
 
         return [
             'date' => $date,
@@ -403,6 +407,7 @@ class DtrEncoding extends Component
             'time_out_display' => $this->formatTime($actualTimeOut, $dateValue),
             'worked_hours' => $this->actualWorkedHours($actualTimeIn?->toDateTimeString(), $actualTimeOut?->toDateTimeString()),
             'has_leave' => $hasLeave,
+            'leave_name' => $leaveName,
             'is_weekend' => $isWeekend,
             'is_holiday' => $isHoliday,
             'holiday_applies' => $isHoliday && $holidayApplies,
@@ -528,21 +533,39 @@ class DtrEncoding extends Component
     private function leaveDates(string $employeeId): array
     {
         $dates = [];
-        foreach (EmployeeLeave::query()
+        $query = EmployeeLeave::query()
+            ->with('leaveType')
             ->where('emp_id', $employeeId)
+            ->where('status', 0)
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
             ->whereDate('start_date', '<=', $this->to)
-            ->whereDate('end_date', '>=', $this->from)
-            ->get() as $leave) {
+            ->whereDate('end_date', '>=', $this->from);
+
+        foreach ($query->get() as $leave) {
+            $leaveLabel = $this->leaveLabelFor($leave);
             for ($date = CarbonImmutable::parse($leave->start_date); $date->lessThanOrEqualTo(CarbonImmutable::parse($leave->end_date)); $date = $date->addDay()) {
                 if ($date->betweenIncluded(CarbonImmutable::parse($this->from), CarbonImmutable::parse($this->to))) {
-                    $dates[$date->toDateString()] = true;
+                    $dates[$date->toDateString()] = $leaveLabel;
                 }
             }
         }
 
         return $dates;
+    }
+
+    private function leaveLabelFor(EmployeeLeave $leave): array
+    {
+        $leaveName = $leave->leave_type_name
+            ?: $leave->leaveType?->leave_name
+            ?: 'Leave';
+
+        return [
+            'label' => ((float) $leave->days_wopay > 0 && (float) $leave->days_wpay <= 0)
+                ? 'LEAVE_WITHOUT_PAY'
+                : 'LEAVE_WITH_PAY',
+            'name' => $leaveName,
+        ];
     }
 
     private function timeIn(?EmployeeDtr $dtr): ?CarbonImmutable

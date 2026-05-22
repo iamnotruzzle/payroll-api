@@ -17,18 +17,21 @@ const initPayrollEmployeePickers = () => {
             return;
         }
 
+        const isMultiple = select.multiple;
+
         if ($select.data('select2')) {
-            $select.trigger('change.select2');
-            return;
+            $select.off('change.payrollSelect2');
+            $select.select2('destroy');
         }
 
         $select.select2({
-            closeOnSelect: false,
-            placeholder: select.dataset.placeholder || 'Select employees',
+            allowClear: !isMultiple,
+            closeOnSelect: !isMultiple,
+            placeholder: select.dataset.placeholder || (isMultiple ? 'Select employees' : 'Select employee'),
             width: '100%',
         });
 
-        $select.on('change.payrollProgram', () => {
+        $select.on('change.payrollSelect2', () => {
             const componentRoot = select.closest('[wire\\:id]');
             const componentId = componentRoot?.getAttribute('wire:id');
             const model = select.dataset.model;
@@ -37,7 +40,7 @@ const initPayrollEmployeePickers = () => {
                 return;
             }
 
-            window.Livewire.find(componentId).set(model, $select.val() || []);
+            window.Livewire.find(componentId).set(model, isMultiple ? ($select.val() || []) : ($select.val() || null));
         });
     });
 };

@@ -92,6 +92,7 @@
                             $payBasis = $snapshot['pay_basis'] ?? [];
                             $earnings = $snapshot['earnings'] ?? [];
                             $statutory = $snapshot['statutory_deductions'] ?? [];
+                            $tax = $snapshot['tax'] ?? [];
                             $programs = $snapshot['program_deductions'] ?? [];
                             $loans = $snapshot['loan_deductions'] ?? [];
                             $totals = $snapshot['totals'] ?? [];
@@ -116,6 +117,14 @@
                                             {{ $payBasis['salary_grade'] ?? '-' }}
                                         @elseif ($columnKey === 'step')
                                             {{ $payBasis['step'] ?? '-' }}
+                                        @elseif ($columnKey === 'subsistence_deduct_days')
+                                            {{ number_format($payBasis['leave_deduction']['subsistence_days'] ?? 0) }}
+                                        @elseif ($columnKey === 'pera_deduct_days')
+                                            {{ ($payBasis['leave_deduction']['pera_days'] ?? 0) > 0 ? number_format($payBasis['leave_deduction']['pera_days']) : '-' }}
+                                        @elseif ($columnKey === 'laundry_deduct_days')
+                                            {{ number_format($payBasis['leave_deduction']['laundry_days'] ?? 0) }}
+                                        @elseif ($columnKey === 'tev_deduct_days')
+                                            {{ number_format($payBasis['leave_deduction']['tev_days'] ?? 0) }}
                                         @elseif ($columnKey === 'deduction_days')
                                             {{ number_format($payBasis['deduction_days'] ?? 0, 3) }}
                                         {{-- EARNINGS --}}
@@ -132,6 +141,41 @@
                                             {{ number_format($statutory['phic'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'mandatory_pagibig')
                                             {{ number_format($statutory['mandatory_pagibig'] ?? 0, 2) }}
+                                        {{-- TAX CALCULATION --}}
+                                        @elseif ($columnKey === 'entry_date')
+                                            {{ $tax['entry_date'] ?? '-' }}
+                                        @elseif ($columnKey === 'tax_salary_grade')
+                                            {{ $tax['salary_grade'] ?? '-' }}
+                                        @elseif ($columnKey === 'tax_salary')
+                                            {{ number_format($tax['salary'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'tax_subsistence')
+                                            {{ number_format($tax['subsistence'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'tax_hazard')
+                                            {{ number_format($tax['hazard'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'tax_deductions')
+                                            {{ number_format($tax['monthly_mandatory_deductions'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'tax_monthly_net_income')
+                                            {{ number_format($tax['monthly_net_income'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'tax_adjustment')
+                                            {{ number_format($tax['tax_adjustment'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'tax_total_months')
+                                            {{ number_format($tax['total_months'] ?? 12, 2) }}
+                                        @elseif ($columnKey === 'tax_leave_without_pay_months')
+                                            {{ number_format($tax['leave_without_pay_months'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'tax_net_months')
+                                            {{ number_format($tax['months'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'tax_total_gross_income')
+                                            {{ number_format($tax['annual_gross_income'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'tax_total_deductions')
+                                            {{ number_format($tax['annual_mandatory_deductions'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'annual_taxable_income')
+                                            {{ number_format($tax['annual_taxable_income'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'annual_tax_due')
+                                            {{ number_format($tax['annual_tax_due'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'withholding_tax')
+                                            {{ number_format($tax['monthly_tax_due'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'net_after_tax')
+                                            {{ number_format($totals['net_after_tax'] ?? 0, 2) }}
                                         {{-- NET PAY DISTRIBUTION --}}
                                         @elseif ($columnKey === 'net_before_other_deductions')
                                             {{ number_format($totals['net_before_other_deductions'] ?? 0, 2) }}

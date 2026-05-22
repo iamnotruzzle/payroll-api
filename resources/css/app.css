@@ -370,7 +370,31 @@
     padding: 0.125rem 0.25rem;
 }
 
-.erp-content .select2-container--default.select2-container--focus .select2-selection--multiple {
+.erp-content .select2-container--default .select2-selection--single {
+    height: 2.5rem;
+    border-color: #cbd5e1;
+    border-radius: 0.375rem;
+}
+
+.erp-content .select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 2.5rem;
+    padding-left: 0.75rem;
+    padding-right: 2rem;
+    color: #0f172a;
+}
+
+.erp-content .select2-container--default .select2-selection--single .select2-selection__placeholder {
+    color: #64748b;
+}
+
+.erp-content .select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 2.5rem;
+    right: 0.5rem;
+}
+
+.erp-content .select2-container--default.select2-container--focus .select2-selection--multiple,
+.erp-content .select2-container--default.select2-container--focus .select2-selection--single,
+.erp-content .select2-container--default.select2-container--open .select2-selection--single {
     border-color: var(--erp-primary);
     box-shadow: 0 0 0 3px rgba(105, 108, 255, 0.12);
 }

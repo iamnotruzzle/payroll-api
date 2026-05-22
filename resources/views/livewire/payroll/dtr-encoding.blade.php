@@ -52,10 +52,17 @@
             </div>
             <div>
                 <label class="text-sm font-medium">Employee</label>
-                <select wire:model.live="selectedEmpId" wire:loading.attr="disabled" wire:target="monthFilter,yearFilter,employeeTypeFilter,selectedEmpId,previousEmployee,nextEmployee,loadState" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
-                    <option value="">Select employee</option>
+                <select
+                    wire:loading.attr="disabled"
+                    wire:target="monthFilter,yearFilter,employeeTypeFilter,selectedEmpId,previousEmployee,nextEmployee,loadState"
+                    data-select2-employee-picker
+                    data-model="selectedEmpId"
+                    data-placeholder="Select employee"
+                    class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500"
+                >
+                    <option value="" @selected(blank($selectedEmpId))>Select employee</option>
                     @foreach ($employees as $employee)
-                        <option value="{{ $employee->emp_id }}">{{ $employee->lastname }}, {{ $employee->firstname }} ({{ $employee->emp_id }})</option>
+                        <option value="{{ $employee->emp_id }}" @selected($selectedEmpId === $employee->emp_id)>{{ $employee->lastname }}, {{ $employee->firstname }} ({{ $employee->emp_id }})</option>
                     @endforeach
                 </select>
             </div>
@@ -256,6 +263,9 @@
                                     <div class="text-xs text-slate-500">{{ $row['holiday_name'] }}</div>
                                 @elseif ($row['is_weekend'])
                                     <span class="rounded bg-slate-100 px-2 py-1 text-xs font-medium">{{ \Carbon\CarbonImmutable::parse($date)->format('l') }}</span>
+                                @elseif ($row['has_leave'])
+                                    <span class="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800">{{ str_replace('_', ' ', $row['label']) }}</span>
+                                    <div class="mt-1 text-xs text-slate-500">{{ $row['leave_name'] }}</div>
                                 @elseif ($row['has_label_without_dtr'])
                                     <span class="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800">{{ str_replace('_', ' ', $row['label']) }}</span>
                                 @else

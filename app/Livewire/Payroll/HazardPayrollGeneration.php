@@ -6,6 +6,7 @@ use App\Models\Hris\Department;
 use App\Models\Hris\Division;
 use App\Models\Hris\Employee;
 use App\Models\Hris\SalaryGrade;
+use App\Services\Payroll\PayrollTaxService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Livewire\Component;
@@ -27,6 +28,14 @@ class HazardPayrollGeneration extends Component
     public array $adjustments = [];
 
     public array $overpayments = [];
+
+    public int $currentStep = 1;
+
+    public array $steps = [
+        1 => 'Hazard Computation',
+        2 => 'Tax Calculation',
+        3 => 'Review',
+    ];
 
     public function mount(): void
     {
@@ -70,8 +79,25 @@ class HazardPayrollGeneration extends Component
                 'adjustments' => $rows->sum('adjustment'),
                 'overpayments' => $rows->sum('overpayment'),
                 'adjusted_gross_hazard_pay' => $rows->sum('adjusted_gross_hazard_pay'),
+                'withholding_tax' => $rows->sum('tax.monthly_tax_due'),
+                'net_after_tax' => $rows->sum('net_after_tax'),
             ],
         ]);
+    }
+
+    public function goToStep(int $step): void
+    {
+        $this->currentStep = max(1, min(count($this->steps), $step));
+    }
+
+    public function nextStep(): void
+    {
+        $this->goToStep($this->currentStep + 1);
+    }
+
+    public function previousStep(): void
+    {
+        $this->goToStep($this->currentStep - 1);
     }
 
     private function hazardRows(): Collection
@@ -110,6 +136,19 @@ class HazardPayrollGeneration extends Component
                 $grossHazardPay = round($basicSalary * $hazardRate, 2);
                 $adjustment = round((float) ($this->adjustments[$employee->emp_id] ?? 0), 2);
                 $overpayment = round((float) ($this->overpayments[$employee->emp_id] ?? 0), 2);
+                $adjustedGrossHazardPay = round($grossHazardPay + $adjustment - $overpayment, 2);
+                $tax = [
+                    'entry_date' => $employee->date_hired?->format('Y-m-d'),
+                    'salary_grade' => $salaryGrade ?: null,
+                    'salary' => $basicSalary,
+                    'subsistence' => 0.0,
+                    'hazard' => $adjustedGrossHazardPay,
+                    'tax_adjustment' => 0.0,
+                    'total_months' => PayrollTaxService::ANNUALIZED_MONTHS,
+                    'leave_without_pay_months' => 0.0,
+                    ...app(PayrollTaxService::class)->calculation($adjustedGrossHazardPay, 0),
+                    'monthly_net_income' => $adjustedGrossHazardPay,
+                ];
 
                 return [
                     'emp_id' => $employee->emp_id,
@@ -124,7 +163,9 @@ class HazardPayrollGeneration extends Component
                     'gross_hazard_pay' => $grossHazardPay,
                     'adjustment' => $adjustment,
                     'overpayment' => $overpayment,
-                    'adjusted_gross_hazard_pay' => round($grossHazardPay + $adjustment - $overpayment, 2),
+                    'adjusted_gross_hazard_pay' => $adjustedGrossHazardPay,
+                    'tax' => $tax,
+                    'net_after_tax' => round($adjustedGrossHazardPay - $tax['monthly_tax_due'], 2),
                 ];
             });
     }

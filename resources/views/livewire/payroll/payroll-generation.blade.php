@@ -32,7 +32,7 @@
     </div>
 
     <div class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-        <div class="grid gap-2 md:grid-cols-7">
+        <div class="grid gap-2 md:grid-cols-4 lg:grid-cols-8">
             @foreach ($steps as $number => $label)
                 <button
                     type="button"
@@ -106,14 +106,18 @@
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
                             <th colspan="2" class="border-b border-slate-200 px-4 py-3 text-center">Employee Information</th>
-                            <th colspan="2" class="border-b border-slate-200 px-4 py-3 text-center">Prior Month MRA Basis</th>
+                            <th colspan="6" class="border-b border-slate-200 px-4 py-3 text-center">Leave Basis</th>
                             <th class="border-b border-slate-200 px-4 py-3 text-center">Payroll Input</th>
                         </tr>
                         <tr>
                             <th class="px-4 py-3">Employee No.</th>
                             <th class="px-4 py-3">Employee Name</th>
-                            <th class="px-4 py-3 text-right">Deduct Days</th>
-                            <th class="px-4 py-3 text-right">Undertime/Tardy Minutes</th>
+                            <th class="px-4 py-3">Leave Period</th>
+                            <th class="px-4 py-3 text-right">Subsistence</th>
+                            <th class="px-4 py-3 text-right">PERA</th>
+                            <th class="px-4 py-3 text-right">Laundry</th>
+                            <th class="px-4 py-3 text-right">TEV</th>
+                            <th class="px-4 py-3 text-right">Prior MRA Days</th>
                             <th class="px-4 py-3 text-right">Deduct Days for Payroll</th>
                         </tr>
                     </thead>
@@ -125,11 +129,23 @@
                                     <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
                                     <div class="text-xs text-slate-500">{{ $row['department'] }}</div>
                                 </td>
-                                <td class="px-4 py-3 text-right">{{ number_format($row['mra_deduction_days'], 3) }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($row['mra_minutes']) }}</td>
+                                <td class="px-4 py-3">{{ implode(', ', $row['leave_deduction']['periods'] ?? []) ?: '-' }}</td>
+                                <td class="px-4 py-3 text-right">
+                                    <input wire:model.blur="leaveDeductionOverrides.{{ $row['emp_id'] }}.subsistence_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <input wire:model.blur="leaveDeductionOverrides.{{ $row['emp_id'] }}.pera_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <input wire:model.blur="leaveDeductionOverrides.{{ $row['emp_id'] }}.laundry_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <input wire:model.blur="leaveDeductionOverrides.{{ $row['emp_id'] }}.tev_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                </td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['mra_adjustment_days'] ?? 0, 3) }}</td>
                                 <td class="px-4 py-3 text-right">
                                     <input
-                                        wire:model.live.debounce.300ms="deductionDayOverrides.{{ $row['emp_id'] }}"
+                                        wire:model.blur="deductionDayOverrides.{{ $row['emp_id'] }}"
                                         type="number"
                                         min="0"
                                         max="31"
@@ -141,7 +157,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="9" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -415,7 +431,7 @@
                                             <td class="border-b border-r border-slate-200 px-3 py-2 text-right">
                                                 @if ($programItem && (($programSelection['amount_mode'] ?? 'program') === 'employee'))
                                                     <input
-                                                        wire:model.live.debounce.300ms="deductionProgramSelections.{{ $program->id }}.employee_amounts.{{ $row['emp_id'] }}"
+                                                        wire:model.blur="deductionProgramSelections.{{ $program->id }}.employee_amounts.{{ $row['emp_id'] }}"
                                                         type="number"
                                                         min="0"
                                                         step="0.01"
@@ -615,6 +631,93 @@
                 </div>
             </div>
         </div>
+    @elseif ($currentStep === 7)
+        <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-4 py-3">
+                <h3 class="font-semibold">Tax Calculation</h3>
+                <p class="text-sm text-slate-600">Annualized taxable income and monthly withholding tax before final review.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-[1980px] divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                        <tr>
+                            <th class="px-4 py-3">Employee</th>
+                            <th class="px-4 py-3">Entry Date</th>
+                            <th class="px-4 py-3 text-right">SG</th>
+                            <th class="px-4 py-3 text-right">Salary</th>
+                            <th class="px-4 py-3 text-right">Subsistence</th>
+                            <th class="px-4 py-3 text-right">Hazard</th>
+                            <th class="px-4 py-3 text-right">Deductions</th>
+                            <th class="px-4 py-3 text-right">Net Monthly Income</th>
+                            <th class="px-4 py-3 text-right">Tax Adjustment</th>
+                            <th class="px-4 py-3 text-right">Total Months</th>
+                            <th class="px-4 py-3 text-right">Leave W/O Pay (Months)</th>
+                            <th class="px-4 py-3 text-right">Net, Months</th>
+                            <th class="px-4 py-3 text-right">Total Gross Income</th>
+                            <th class="px-4 py-3 text-right">Total Deductions</th>
+                            <th class="px-4 py-3 text-right">Taxable Income (Year)</th>
+                            <th class="px-4 py-3 text-right">Tax Due (Year)</th>
+                            <th class="px-4 py-3 text-right">Withholding Tax</th>
+                            <th class="px-4 py-3 text-right">Net After Tax</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @forelse ($rows as $row)
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-4 py-3">
+                                    <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
+                                    <div class="text-xs text-slate-500">{{ $row['emp_id'] }} Â· {{ $row['department'] }}</div>
+                                </td>
+                                <td class="px-4 py-3">{{ $row['tax']['entry_date'] ?? '-' }}</td>
+                                <td class="px-4 py-3 text-right">{{ $row['tax']['salary_grade'] ?? '-' }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['salary'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['subsistence'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['hazard'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['monthly_mandatory_deductions'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['monthly_net_income'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['tax_adjustment'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_months'] ?? 12, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['leave_without_pay_months'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['months'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_gross_income'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_mandatory_deductions'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_taxable_income'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_tax_due'], 2) }}</td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['monthly_tax_due'], 2) }}</td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_tax'], 2) }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="18" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                    @if ($rows->isNotEmpty())
+                        <tfoot class="bg-slate-50 font-semibold">
+                            <tr>
+                                <td class="px-4 py-3">Totals</td>
+                                <td colspan="2"></td>
+                                <td class="px-4 py-3 text-right">{{ number_format($totals['basic_salary'], 2) }}</td>
+                                <td></td>
+                                <td></td>
+                                <td class="px-4 py-3 text-right">{{ number_format(collect($totals['statutory_deductions'])->sum(), 2) }}</td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['annual_gross_income'] ?? 0), 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['annual_mandatory_deductions'] ?? 0), 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['annual_taxable_income'] ?? 0), 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['annual_tax_due'] ?? 0), 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($totals['withholding_tax'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($totals['net_after_tax'], 2) }}</td>
+                            </tr>
+                        </tfoot>
+                    @endif
+                </table>
+            </div>
+        </div>
     @else
         @php
             $activeReviewDeductionPrograms = $deductionPrograms->filter(fn ($program) => filter_var($deductionProgramSelections[(string) $program->id]['enabled'] ?? false, FILTER_VALIDATE_BOOL));
@@ -629,17 +732,31 @@
                 </p>
             </div>
 
-            <button
-                type="button"
-                wire:click="finalizePayroll"
-                wire:loading.attr="disabled"
-                wire:target="finalizePayroll"
-                @disabled($rows->isEmpty())
-                class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-                <span wire:loading.remove wire:target="finalizePayroll">Finalize Payroll Run</span>
-                <span wire:loading wire:target="finalizePayroll">Saving Payroll Run...</span>
-            </button>
+            <div class="flex flex-wrap items-center gap-2">
+                <button
+                    type="button"
+                    wire:click="exportRegularPayrollTemplate"
+                    wire:loading.attr="disabled"
+                    wire:target="exportRegularPayrollTemplate"
+                    @disabled($rows->isEmpty())
+                    class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <span wire:loading.remove wire:target="exportRegularPayrollTemplate">Export Regular Payroll</span>
+                    <span wire:loading wire:target="exportRegularPayrollTemplate">Preparing Excel...</span>
+                </button>
+
+                <button
+                    type="button"
+                    wire:click="finalizePayroll"
+                    wire:loading.attr="disabled"
+                    wire:target="finalizePayroll"
+                    @disabled($rows->isEmpty())
+                    class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <span wire:loading.remove wire:target="finalizePayroll">Finalize Payroll Run</span>
+                    <span wire:loading wire:target="finalizePayroll">Saving Payroll Run...</span>
+                </button>
+            </div>
         </div>
 
         @error('finalize')
