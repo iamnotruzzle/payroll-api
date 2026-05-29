@@ -70,4 +70,9 @@ class PayrollPageController extends Controller
     {
         return view('payroll.history');
     }
+
+    public function userManual()
+    {
+        return view('payroll.user-manual');
+    }
 }

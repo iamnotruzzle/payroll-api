@@ -47,4 +47,5 @@ Route::middleware('auth')->group(function () {
     Route::get('/payroll/deduction-programs', [PayrollPageController::class, 'deductionPrograms'])->name('payroll.deduction-programs');
     Route::get('/payroll/holidays', [PayrollPageController::class, 'holidays'])->name('payroll.holidays');
     Route::get('/payroll/history', [PayrollPageController::class, 'history'])->name('payroll.history');
+    Route::get('/payroll/user-manual', [PayrollPageController::class, 'userManual'])->name('payroll.user-manual');
 });

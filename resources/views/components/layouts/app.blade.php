@@ -57,10 +57,11 @@
                 'key' => 'references',
                 'label' => 'References and Help',
                 'icon' => 'book-open',
-                'open' => request()->routeIs('schedule.employee-references', 'schedule.user-manual'),
+                'open' => request()->routeIs('schedule.employee-references', 'schedule.user-manual', 'payroll.user-manual'),
                 'items' => [
                     ['label' => 'Employee References', 'route' => 'schedule.employee-references', 'icon' => 'database', 'active' => request()->routeIs('schedule.employee-references')],
                     ['label' => 'User Manual', 'route' => 'schedule.user-manual', 'icon' => 'book-text', 'active' => request()->routeIs('schedule.user-manual')],
+                    ['label' => 'Payroll Operations Manual', 'route' => 'payroll.user-manual', 'icon' => 'wallet', 'active' => request()->routeIs('payroll.user-manual')],
                     ['label' => 'Employees API', 'href' => '/api/employees', 'icon' => 'braces', 'active' => false],
                 ],
             ],
