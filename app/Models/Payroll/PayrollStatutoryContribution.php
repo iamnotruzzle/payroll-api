@@ -2,6 +2,7 @@
 
 namespace App\Models\Payroll;
 
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Model;
 
 class PayrollStatutoryContribution extends Model
@@ -25,4 +26,9 @@ class PayrollStatutoryContribution extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public function brackets(): HasMany
+    {
+        return $this->hasMany(PayrollStatutoryContributionBracket::class, 'statutory_contribution_id');
+    }
 }

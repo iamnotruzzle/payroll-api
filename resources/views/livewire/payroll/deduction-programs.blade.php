@@ -15,13 +15,13 @@
             <div class="mt-4 space-y-3">
                 <div>
                     <label class="text-sm font-medium">Name</label>
-                    <input wire:model.live="name" type="text" placeholder="Program name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <input wire:model.blur="name" type="text" placeholder="Program name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     @error('name') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
                     <label class="text-sm font-medium">Computation</label>
-                    <select wire:model.live="computationType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <select wire:model.change="computationType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                         <option value="fixed">Fixed amount</option>
                         <option value="percentage">Percentage of basic salary</option>
                     </select>
@@ -29,7 +29,7 @@
 
                 <div>
                     <label class="text-sm font-medium">Value</label>
-                    <input wire:model.live="value" type="number" step="0.0001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <input wire:model.blur="value" type="number" step="0.0001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     <p class="mt-1 text-xs text-slate-500">For percentage, use 25 or 0.25 for 25%.</p>
                     @error('value') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
@@ -37,10 +37,10 @@
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="text-sm font-medium">Sort</label>
-                        <input wire:model.live="sortOrder" type="number" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <input wire:model.blur="sortOrder" type="number" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     </div>
                     <label class="flex items-end gap-2 pb-2 text-sm font-medium">
-                        <input wire:model.live="isActive" type="checkbox" class="rounded border-slate-300">
+                        <input wire:model.change="isActive" type="checkbox" class="rounded border-slate-300">
                         Active
                     </label>
                 </div>
@@ -78,26 +78,26 @@
                             @if ($editingId === $item->id)
                                 <tr wire:key="deduction-program-management-editing-{{ $item->id }}" class="bg-blue-50/70">
                                     <td class="px-4 py-3 align-top">
-                                        <input wire:model.live="name" type="text" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm">
+                                        <input wire:model.blur="name" type="text" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm">
                                         @error('name') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                                         <div class="mt-2 flex items-center gap-2 text-xs text-slate-600">
                                             <span>Sort</span>
-                                            <input wire:model.live="sortOrder" type="number" min="0" class="w-20 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs">
+                                            <input wire:model.blur="sortOrder" type="number" min="0" class="w-20 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs">
                                         </div>
                                     </td>
                                     <td class="px-4 py-3 align-top">
-                                        <select wire:model.live="computationType" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm">
+                                        <select wire:model.change="computationType" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm">
                                             <option value="fixed">Fixed amount</option>
                                             <option value="percentage">Percentage</option>
                                         </select>
                                     </td>
                                     <td class="px-4 py-3 align-top text-right">
-                                        <input wire:model.live="value" type="number" step="0.0001" min="0" class="w-28 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-right text-sm">
+                                        <input wire:model.blur="value" type="number" step="0.0001" min="0" class="w-28 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-right text-sm">
                                         @error('value') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                                     </td>
                                     <td class="px-4 py-3 align-top">
                                         <label class="inline-flex items-center gap-2 text-sm font-medium">
-                                            <input wire:model.live="isActive" type="checkbox" class="rounded border-slate-300">
+                                            <input wire:model.change="isActive" type="checkbox" class="rounded border-slate-300">
                                             Active
                                         </label>
                                     </td>

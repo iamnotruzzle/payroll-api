@@ -17,6 +17,10 @@ class PayrollAdditional extends Model
         'computation_type',
         'formula',
         'variable_name',
+        'include_in_net_pay',
+        'tax_treatment',
+        'annual_exempt_limit',
+        'supplemental_tax_rate',
         'sort_order',
         'is_active',
     ];
@@ -24,7 +28,10 @@ class PayrollAdditional extends Model
     protected $casts = [
         'is_percentage' => 'boolean',
         'is_active' => 'boolean',
+        'include_in_net_pay' => 'boolean',
         'value' => 'decimal:4',
+        'annual_exempt_limit' => 'decimal:2',
+        'supplemental_tax_rate' => 'decimal:4',
         'sort_order' => 'integer',
     ];
 }

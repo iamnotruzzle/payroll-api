@@ -90,6 +90,8 @@ class PayrollLoanImportService
         $headers = array_column($templateColumns, 'label');
         $sheet->fromArray([['Entity', null, null]], null, 'A1');
         $sheet->fromArray($headers, null, 'A4');
+        $entityCodes = app(PayrollLoanReferenceService::class)->entityCodes();
+        $sheet->setCellValue('B1', $entityCodes[0] ?? 'GSIS');
 
         $lastColumn = Coordinate::stringFromColumnIndex(count($templateColumns));
         $sheet->getStyle('A1:B1')->applyFromArray([
@@ -120,11 +122,10 @@ class PayrollLoanImportService
         $this->addLoanTypeReferenceSheet($spreadsheet);
 
         $entityValidation = $sheet->getCell('B1')->getDataValidation();
-        $entityCodes = app(PayrollLoanReferenceService::class)->entityCodes();
         $entityValidation->setType(DataValidation::TYPE_LIST)
             ->setErrorStyle(DataValidation::STYLE_STOP)
             ->setAllowBlank(false)
-            ->setShowDropDown(true)
+            ->setShowDropDown(false)
             ->setFormula1('"'.implode(',', $entityCodes).'"')
             ->setErrorTitle('Invalid entity')
             ->setError('Choose one of the supported entities.');
@@ -143,7 +144,7 @@ class PayrollLoanImportService
             $employeeValidation->setType(DataValidation::TYPE_LIST)
                 ->setErrorStyle(DataValidation::STYLE_STOP)
                 ->setAllowBlank(true)
-                ->setShowDropDown(true)
+                ->setShowDropDown(false)
                 ->setFormula1('=EmployeeNames')
                 ->setErrorTitle('Invalid employee')
                 ->setError('Choose an employee from the HRIS employee list.');
@@ -161,8 +162,8 @@ class PayrollLoanImportService
             $loanTypeValidation->setType(DataValidation::TYPE_LIST)
                 ->setErrorStyle(DataValidation::STYLE_STOP)
                 ->setAllowBlank(true)
-                ->setShowDropDown(true)
-                ->setFormula1('=INDIRECT("LoanTypes_"&SUBSTITUTE(SUBSTITUTE($B$1,"-","_")," ","_"))')
+                ->setShowDropDown(false)
+                ->setFormula1('=INDIRECT(IF($B$1="","LoanTypes_All","LoanTypes_"&SUBSTITUTE(SUBSTITUTE($B$1,"-","_")," ","_")))')
                 ->setErrorTitle('Invalid loan type')
                 ->setError('Choose a loan type supported by the selected entity.');
 
@@ -198,7 +199,7 @@ class PayrollLoanImportService
             ['Employee Search', 'No', 'Type the start of the employee lastname here to auto-fill Employee Name on the same row.'],
             ['Employee Name', 'Yes', 'Auto-fills from Employee Search, or choose manually from the full dropdown.'],
             ['Reference/Account No.', 'Yes', 'PN number, contract reference, application number, account reference, or deduction reference.'],
-            ['Deduction Type', 'No', 'Dropdown changes based on the entity selected in B1.'],
+            ['Deduction Type', 'No', 'Dropdown changes based on the entity selected in B1. B1 defaults to the first active entity.'],
             ['Monthly Amortization', 'Yes', 'Scheduled monthly amortization from the source billing.'],
             ['Amount Due', 'Yes', 'Deduction amount for the selected payroll month.'],
             ['Outstanding/Principal/Interest/Penalty', 'No', 'Optional audit fields retained from bank/entity files.'],
@@ -226,7 +227,14 @@ class PayrollLoanImportService
         $sheet->getProtection()->setSheet(true);
         $sheet->getProtection()->setPassword('mmmhmc');
         $maxRows = 1;
-        foreach ($reference->entityCodes() as $index => $entityCode) {
+        $entityCodes = $reference->entityCodes();
+        $allTypes = collect($entityCodes)
+            ->flatMap(fn (string $entityCode) => $reference->typeNamesForEntity($entityCode))
+            ->unique()
+            ->values()
+            ->all();
+
+        foreach ($entityCodes as $index => $entityCode) {
             $column = Coordinate::stringFromColumnIndex($index + 1);
             $types = $reference->typeNamesForEntity($entityCode);
             $sheet->setCellValue("{$column}1", $entityCode);
@@ -241,13 +249,25 @@ class PayrollLoanImportService
             }
         }
 
-        $lastColumn = Coordinate::stringFromColumnIndex(max(1, count($reference->entityCodes())));
+        $allTypesColumn = Coordinate::stringFromColumnIndex(count($entityCodes) + 1);
+        $sheet->setCellValue("{$allTypesColumn}1", 'ALL');
+        if ($allTypes) {
+            $sheet->fromArray(array_map(fn ($type) => [$type], $allTypes), null, "{$allTypesColumn}2");
+            $maxRows = max($maxRows, count($allTypes) + 1);
+            $spreadsheet->addNamedRange(new NamedRange(
+                'LoanTypes_All',
+                $sheet,
+                '$'.$allTypesColumn.'$2:$'.$allTypesColumn.'$'.(count($allTypes) + 1)
+            ));
+        }
+
+        $lastColumn = Coordinate::stringFromColumnIndex(max(1, count($entityCodes) + 1));
         $sheet->getStyle("A1:{$lastColumn}{$maxRows}")->getProtection()->setLocked(Protection::PROTECTION_PROTECTED);
         $sheet->getStyle("A1:{$lastColumn}1")->applyFromArray([
             'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF334155']],
         ]);
-        for ($columnIndex = 1; $columnIndex <= count($reference->entityCodes()); $columnIndex++) {
+        for ($columnIndex = 1; $columnIndex <= count($entityCodes) + 1; $columnIndex++) {
             $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($columnIndex))->setWidth(28);
         }
     }

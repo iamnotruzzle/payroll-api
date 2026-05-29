@@ -81,11 +81,46 @@
             </div>
         </div>
 
-        <div class="flex justify-end border-t border-slate-100 bg-slate-50 px-4 py-3">
+        @if ($showExistingGenerationNotice)
+            <div class="border-t border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950">
+                <div class="font-semibold">Existing payroll generation found</div>
+                <p class="mt-1 text-amber-900">
+                    Review the existing record before creating another payroll generation with this configuration.
+                </p>
+                <div class="mt-3 divide-y divide-amber-200 rounded-md border border-amber-200 bg-white">
+                    @foreach ($existingGenerations as $existing)
+                        <div class="flex flex-wrap items-start justify-between gap-2 px-3 py-2.5">
+                            <div>
+                                <div class="font-medium text-slate-900">{{ $existing['label'] }}</div>
+                                <div class="text-xs text-slate-600">{{ $existing['description'] }}</div>
+                            </div>
+                            <div class="text-right text-xs text-slate-600">
+                                <div>{{ $existing['date'] ?? 'Date unavailable' }}</div>
+                                @if ($existing['by'])
+                                    <div>By {{ $existing['by'] }}</div>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
+        <div class="flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-slate-50 px-4 py-3">
+            @if ($showExistingGenerationNotice)
+                <button type="button" wire:click="dismissExistingGenerationNotice" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    Review Configuration
+                </button>
+                <button type="button" wire:click="continueToPayrollGeneration" wire:loading.attr="disabled" wire:target="continueToPayrollGeneration" class="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-wait disabled:opacity-60">
+                    <span wire:loading.remove wire:target="continueToPayrollGeneration">Proceed Anyway</span>
+                    <span wire:loading wire:target="continueToPayrollGeneration">Opening...</span>
+                </button>
+            @else
             <button type="submit" wire:loading.attr="disabled" wire:target="proceed" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
                 <span wire:loading.remove wire:target="proceed">Proceed to Payroll Generation</span>
                 <span wire:loading wire:target="proceed">Preparing...</span>
             </button>
+            @endif
         </div>
     </form>
 </section>

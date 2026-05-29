@@ -3,7 +3,7 @@
     $loanColumnCount = collect($loanColumnGroups)->sum(fn ($columns) => count($columns));
     $deductionPrograms = collect($deductionPrograms ?? []);
     $deductionProgramCount = $deductionPrograms->count();
-    $reviewTableWidth = max(2100, 1980 + ($compensations->count() * 120) + ($deductionProgramCount * 150) + ($loanColumnCount * 120));
+    $reviewTableWidth = max(2700, 2580 + ($compensations->count() * 120) + ($deductionProgramCount * 150) + ($loanColumnCount * 120));
 @endphp
 
 <div class="overflow-x-auto">
@@ -13,7 +13,9 @@
                 <th colspan="3" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Employee Information</th>
                 <th colspan="3" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Pay Basis</th>
                 <th colspan="{{ 2 + $compensations->count() }}" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Earnings</th>
-                <th colspan="3" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Statutory Deductions</th>
+                <th colspan="2" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Compensation Adjustment</th>
+                <th colspan="3" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Employee Statutory Deductions</th>
+                <th colspan="3" class="border-b border-l-4 border-r-2 border-l-indigo-500 border-slate-300 bg-indigo-50 px-4 py-3 text-center text-indigo-700">Government Shares</th>
                 <th colspan="2" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Tax Calculation</th>
                 <th colspan="{{ max(1, $deductionProgramCount) + 1 }}" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Deduction Programs</th>
                 @foreach ($loanColumnGroups as $groupLabel => $columns)
@@ -33,9 +35,14 @@
                     <th class="px-4 py-3 text-right">{{ $item->name }}</th>
                 @endforeach
                 <th class="border-r-2 border-slate-300 px-4 py-3 text-right">Gross Pay</th>
+                <th class="px-4 py-3 text-right">Adjustment Total</th>
+                <th class="border-r-2 border-slate-300 px-4 py-3 text-right">Net Compensation</th>
                 <th class="px-4 py-3 text-right">Life &amp; Retirement</th>
                 <th class="px-4 py-3 text-right">PhilHealth</th>
                 <th class="border-r-2 border-slate-300 px-4 py-3 text-right">Pag-IBIG</th>
+                <th class="border-l-4 border-l-indigo-500 bg-indigo-50 px-4 py-3 text-right text-indigo-700">Govt. Life &amp; Retirement</th>
+                <th class="bg-indigo-50 px-4 py-3 text-right text-indigo-700">Govt. PhilHealth</th>
+                <th class="border-r-2 border-slate-300 bg-indigo-50 px-4 py-3 text-right text-indigo-700">Govt. Pag-IBIG</th>
                 <th class="px-4 py-3 text-right">Withholding Tax</th>
                 <th class="border-r-2 border-slate-300 px-4 py-3 text-right">Net After Tax</th>
                 @forelse ($deductionPrograms as $program)
@@ -73,9 +80,14 @@
                         <td class="px-4 py-3 text-right">{{ number_format($row['compensations'][$item->id]['amount'] ?? 0, 2) }}</td>
                     @endforeach
                     <td class="border-r-2 border-slate-200 px-4 py-3 text-right font-semibold">{{ number_format($row['gross'], 2) }}</td>
+                    <td class="px-4 py-3 text-right">{{ number_format($row['compensation_adjustments']['total'] ?? 0, 2) }}</td>
+                    <td class="border-r-2 border-slate-200 px-4 py-3 text-right font-semibold">{{ number_format($row['net_compensation'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['life_retirement'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['phic'], 2) }}</td>
                     <td class="border-r-2 border-slate-200 px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['mandatory_pagibig'], 2) }}</td>
+                    <td class="border-l-4 border-l-indigo-500 bg-indigo-50 px-4 py-3 text-right text-indigo-900">{{ number_format($row['statutory_government_shares']['government_life_retirement'] ?? 0, 2) }}</td>
+                    <td class="bg-indigo-50 px-4 py-3 text-right text-indigo-900">{{ number_format($row['statutory_government_shares']['government_phic'] ?? 0, 2) }}</td>
+                    <td class="border-r-2 border-slate-200 bg-indigo-50 px-4 py-3 text-right text-indigo-900">{{ number_format($row['statutory_government_shares']['government_pagibig'] ?? 0, 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($row['tax']['monthly_tax_due'] ?? 0, 2) }}</td>
                     <td class="border-r-2 border-slate-200 px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_tax'] ?? 0, 2) }}</td>
                     @php
@@ -103,7 +115,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ 19 + $compensations->count() + max(1, $deductionProgramCount) + $loanColumnCount }}" class="px-4 py-8 text-center text-slate-500">
+                    <td colspan="{{ 24 + $compensations->count() + max(1, $deductionProgramCount) + $loanColumnCount }}" class="px-4 py-8 text-center text-slate-500">
                         No active HRIS employees found for the selected department.
                     </td>
                 </tr>
@@ -118,9 +130,14 @@
                         <td class="px-4 py-3 text-right">{{ number_format($totals['compensations'][$item->id] ?? 0, 2) }}</td>
                     @endforeach
                     <td class="border-r-2 border-slate-300 px-4 py-3 text-right">{{ number_format($totals['gross'], 2) }}</td>
+                    <td class="px-4 py-3 text-right">{{ number_format($totals['compensation_adjustments']['total'], 2) }}</td>
+                    <td class="border-r-2 border-slate-300 px-4 py-3 text-right">{{ number_format($totals['net_compensation'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['statutory_deductions']['life_retirement'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['statutory_deductions']['phic'], 2) }}</td>
                     <td class="border-r-2 border-slate-300 px-4 py-3 text-right">{{ number_format($totals['statutory_deductions']['mandatory_pagibig'], 2) }}</td>
+                    <td class="border-l-4 border-l-indigo-500 bg-indigo-50 px-4 py-3 text-right text-indigo-900">{{ number_format($totals['statutory_government_shares']['government_life_retirement'] ?? 0, 2) }}</td>
+                    <td class="bg-indigo-50 px-4 py-3 text-right text-indigo-900">{{ number_format($totals['statutory_government_shares']['government_phic'] ?? 0, 2) }}</td>
+                    <td class="border-r-2 border-slate-300 bg-indigo-50 px-4 py-3 text-right text-indigo-900">{{ number_format($totals['statutory_government_shares']['government_pagibig'] ?? 0, 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['withholding_tax'], 2) }}</td>
                     <td class="border-r-2 border-slate-300 px-4 py-3 text-right">{{ number_format($totals['net_after_tax'], 2) }}</td>
                     @forelse ($deductionPrograms as $program)

@@ -115,6 +115,7 @@ class RegularPayrollTemplateExportService
             $tax = $row['tax'] ?? [];
             $loans = $row['loan_deductions']['columns'] ?? [];
             $programs = collect($row['program_deductions']['items'] ?? []);
+            $adjustments = $row['compensation_adjustments'] ?? [];
 
             $this->setCells($sheet, $excelRow, [
                 'A' => $index + 1,
@@ -139,10 +140,11 @@ class RegularPayrollTemplateExportService
                 'AC' => $this->compensationAmount($row, ['subsistence']),
                 'AD' => $this->compensationAmount($row, ['laundry']),
                 'AE' => $this->compensationAmount($row, ['pera', 'personal economic relief']),
-                'AG' => 0,
-                'AH' => 0,
-                'AI' => 0,
-                'AJ' => 0,
+                'AG' => $this->money($adjustments['basic_salary'] ?? 0),
+                'AH' => $this->money($adjustments['subsistence'] ?? 0),
+                'AI' => $this->money($adjustments['laundry'] ?? 0),
+                'AJ' => $this->money($adjustments['pera'] ?? 0),
+                'AK' => $adjustments['remarks'] ?? null,
                 'AL' => "=ROUND(SUM(AB{$excelRow}:AE{$excelRow})+SUM(AG{$excelRow}:AJ{$excelRow}),2)",
                 'AN' => $this->money($statutory['life_retirement'] ?? 0),
                 'AQ' => $this->money($statutory['phic'] ?? 0),
@@ -169,10 +171,10 @@ class RegularPayrollTemplateExportService
                 'EZ' => $this->money($row['thirtieth'] ?? 0),
                 'FE' => $this->money($row['basic_salary'] ?? 0),
                 'FF' => $this->hazardPercent($row),
-                'FG' => $this->compensationAmount($row, ['hazard']),
-                'FI' => $this->compensationAmount($row, ['hazard']),
+                'FG' => $this->hazardAmount($row),
+                'FI' => $this->hazardAmount($row),
                 'FK' => $this->money($tax['monthly_tax_due'] ?? 0),
-                'FM' => $this->compensationAmount($row, ['hazard']),
+                'FM' => $this->hazardAmount($row),
             ]);
 
             foreach (self::LOAN_AMOUNT_COLUMNS as $key => $column) {
@@ -256,8 +258,13 @@ class RegularPayrollTemplateExportService
             return null;
         }
 
-        $hazard = $this->compensationAmount($row, ['hazard']);
+        $hazard = $this->hazardAmount($row);
 
         return $hazard > 0 ? round($hazard / $basicSalary, 4) : null;
+    }
+
+    private function hazardAmount(array $row): float
+    {
+        return $this->money($row['tax']['hazard'] ?? 0);
     }
 }

@@ -58,7 +58,7 @@
             $reviewTableWidth = 2200;
 
             foreach ($columnGroups as $group) {
-                $reviewTableWidth += count($group) * 120;
+                $reviewTableWidth += count($group['columns'] ?? []) * 120;
             }
         @endphp
 
@@ -68,7 +68,10 @@
                     {{-- GROUP HEADERS --}}
                     <tr>
                         @foreach ($columnGroups as $group)
-                            <th colspan="{{ count($group['columns']) }}" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">
+                            @php
+                                $isGovernmentGroup = ($group['label'] ?? '') === 'Government Shares';
+                            @endphp
+                            <th colspan="{{ count($group['columns']) }}" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center {{ $isGovernmentGroup ? 'border-l-4 border-l-indigo-500 bg-indigo-50 text-indigo-700' : '' }}">
                                 {{ $group['label'] }}
                             </th>
                         @endforeach
@@ -76,8 +79,11 @@
                     {{-- COLUMN HEADERS --}}
                     <tr>
                         @foreach ($columnGroups as $group)
+                            @php
+                                $isGovernmentGroup = ($group['label'] ?? '') === 'Government Shares';
+                            @endphp
                             @foreach ($group['columns'] as $columnKey)
-                                <th class="px-4 py-3 text-right whitespace-nowrap">
+                                <th class="px-4 py-3 text-right whitespace-nowrap {{ $isGovernmentGroup ? 'bg-indigo-50 text-indigo-700' : '' }} {{ $isGovernmentGroup && $loop->first ? 'border-l-4 border-l-indigo-500' : '' }}">
                                     {{ $columns[$columnKey]['label'] ?? $columnKey }}
                                 </th>
                             @endforeach
@@ -92,6 +98,7 @@
                             $payBasis = $snapshot['pay_basis'] ?? [];
                             $earnings = $snapshot['earnings'] ?? [];
                             $statutory = $snapshot['statutory_deductions'] ?? [];
+                            $governmentShares = $snapshot['statutory_government_shares'] ?? [];
                             $tax = $snapshot['tax'] ?? [];
                             $programs = $snapshot['program_deductions'] ?? [];
                             $loans = $snapshot['loan_deductions'] ?? [];
@@ -99,8 +106,11 @@
                         @endphp
                         <tr class="hover:bg-slate-50">
                             @foreach ($columnGroups as $group)
+                                @php
+                                    $isGovernmentGroup = ($group['label'] ?? '') === 'Government Shares';
+                                @endphp
                                 @foreach ($group['columns'] as $columnKey)
-                                    <td class="px-4 py-3 text-right whitespace-nowrap">
+                                    <td class="px-4 py-3 text-right whitespace-nowrap {{ $isGovernmentGroup ? 'bg-indigo-50 text-indigo-900' : '' }} {{ $isGovernmentGroup && $loop->first ? 'border-l-4 border-l-indigo-500' : '' }}">
                                         {{-- EMPLOYEE INFORMATION --}}
                                         @if ($columnKey === 'emp_id')
                                             {{ $employee['emp_id'] ?? '-' }}
@@ -141,6 +151,13 @@
                                             {{ number_format($statutory['phic'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'mandatory_pagibig')
                                             {{ number_format($statutory['mandatory_pagibig'] ?? 0, 2) }}
+                                        {{-- GOVERNMENT SHARES --}}
+                                        @elseif ($columnKey === 'government_life_retirement')
+                                            {{ number_format($governmentShares['government_life_retirement'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'government_phic')
+                                            {{ number_format($governmentShares['government_phic'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'government_pagibig')
+                                            {{ number_format($governmentShares['government_pagibig'] ?? 0, 2) }}
                                         {{-- TAX CALCULATION --}}
                                         @elseif ($columnKey === 'entry_date')
                                             {{ $tax['entry_date'] ?? '-' }}
@@ -172,6 +189,10 @@
                                             {{ number_format($tax['annual_taxable_income'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'annual_tax_due')
                                             {{ number_format($tax['annual_tax_due'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'regular_monthly_tax_due')
+                                            {{ number_format($tax['regular_monthly_tax_due'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'supplemental_tax_due')
+                                            {{ number_format($tax['supplemental_tax_due'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'withholding_tax')
                                             {{ number_format($tax['monthly_tax_due'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'net_after_tax')

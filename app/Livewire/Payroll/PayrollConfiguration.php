@@ -5,6 +5,8 @@ namespace App\Livewire\Payroll;
 use App\Models\Hris\Department;
 use App\Models\Hris\Division;
 use App\Models\Hris\Employee;
+use App\Models\Payroll\PayrollBatch;
+use App\Models\Payroll\PayrollGenerationDraft;
 use App\Models\Payroll\PayrollType;
 use Carbon\CarbonImmutable;
 use Illuminate\Validation\Rule;
@@ -23,6 +25,12 @@ class PayrollConfiguration extends Component
     public int $workingDays = 22;
 
     public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
+
+    public bool $showExistingGenerationNotice = false;
+
+    public array $existingGenerations = [];
+
+    public ?string $noticedConfigurationKey = null;
 
     public function mount(): void
     {
@@ -60,11 +68,46 @@ class PayrollConfiguration extends Component
     public function updatedDivisionId(): void
     {
         $this->departmentId = null;
+        $this->dismissExistingGenerationNotice();
     }
 
     public function proceed()
     {
-        $data = $this->validate([
+        $data = $this->validatedConfiguration();
+        $this->existingGenerations = $this->existingGenerationsFor($data);
+
+        if ($this->existingGenerations !== []) {
+            $this->noticedConfigurationKey = $this->configurationKeyFor($data);
+            $this->showExistingGenerationNotice = true;
+
+            return null;
+        }
+
+        return $this->redirectToGeneration($data);
+    }
+
+    public function continueToPayrollGeneration()
+    {
+        $data = $this->validatedConfiguration();
+        if ($this->noticedConfigurationKey !== $this->configurationKeyFor($data)) {
+            return $this->proceed();
+        }
+
+        $this->dismissExistingGenerationNotice();
+
+        return $this->redirectToGeneration($data);
+    }
+
+    public function dismissExistingGenerationNotice(): void
+    {
+        $this->showExistingGenerationNotice = false;
+        $this->existingGenerations = [];
+        $this->noticedConfigurationKey = null;
+    }
+
+    private function validatedConfiguration(): array
+    {
+        return $this->validate([
             'divisionId' => ['required', 'integer'],
             'departmentId' => ['nullable', 'integer'],
             'payrollType' => ['required', Rule::exists('payroll.payroll_types', 'code')->where('is_active', true)],
@@ -72,7 +115,10 @@ class PayrollConfiguration extends Component
             'workingDays' => ['required', 'integer', 'min:1', 'max:31'],
             'employeeTypeFilter' => ['required', 'in:plantilla,cos,all'],
         ]);
+    }
 
+    private function redirectToGeneration(array $data)
+    {
         return redirect()->route(PayrollType::generationRouteFor($data['payrollType']), [
             'division_id' => $data['divisionId'],
             'department_id' => $data['departmentId'] ?: null,
@@ -81,6 +127,83 @@ class PayrollConfiguration extends Component
             'working_days' => $data['workingDays'],
             'employee_type' => $data['employeeTypeFilter'],
         ]);
+    }
+
+    private function existingGenerationsFor(array $data): array
+    {
+        $matches = [];
+        $configurationKey = $this->configurationKeyFor($data);
+
+        $draft = PayrollGenerationDraft::query()
+            ->where('configuration_key', $configurationKey)
+            ->first();
+
+        if ($draft) {
+            $matches[] = [
+                'type' => 'draft',
+                'label' => 'Saved draft',
+                'description' => 'This exact configuration has an unfinished payroll draft.',
+                'date' => $draft->saved_at?->format('M d, Y g:i A'),
+                'by' => $draft->saved_by,
+            ];
+        }
+
+        $batches = PayrollBatch::query()
+            ->where('division_id', (int) $data['divisionId'])
+            ->where('department_id', $data['departmentId'] ? (int) $data['departmentId'] : null)
+            ->where('payroll_period', (string) $data['period'])
+            ->where('payroll_type_code', (string) $data['payrollType'])
+            ->where('working_days', (int) $data['workingDays'])
+            ->where('employee_type', (string) $data['employeeTypeFilter'])
+            ->latest('snapshot_created_at')
+            ->limit(3)
+            ->get();
+
+        foreach ($batches as $batch) {
+            $matches[] = [
+                'type' => 'finalized',
+                'label' => 'Finalized payroll',
+                'description' => 'A payroll run with this exact configuration was already finalized.',
+                'date' => $batch->snapshot_created_at?->format('M d, Y g:i A'),
+                'by' => $batch->generated_by,
+            ];
+        }
+
+        if (! $data['departmentId'] || $batches->isNotEmpty()) {
+            return $matches;
+        }
+
+        $legacyBatch = PayrollBatch::query()
+            ->whereNull('division_id')
+            ->where('department_id', (int) $data['departmentId'])
+            ->where('payroll_period', (string) $data['period'])
+            ->whereNull('payroll_type_code')
+            ->latest('snapshot_created_at')
+            ->first();
+
+        if ($legacyBatch) {
+            $matches[] = [
+                'type' => 'legacy',
+                'label' => 'Possible earlier payroll',
+                'description' => 'An older payroll snapshot exists for this department and month; its complete configuration was not recorded.',
+                'date' => $legacyBatch->snapshot_created_at?->format('M d, Y g:i A'),
+                'by' => $legacyBatch->generated_by,
+            ];
+        }
+
+        return $matches;
+    }
+
+    private function configurationKeyFor(array $data): string
+    {
+        return PayrollGenerationDraft::configurationKey(
+            (int) $data['divisionId'],
+            $data['departmentId'] ? (int) $data['departmentId'] : null,
+            (string) $data['payrollType'],
+            (string) $data['period'],
+            (int) $data['workingDays'],
+            (string) $data['employeeTypeFilter'],
+        );
     }
 
     public function render()

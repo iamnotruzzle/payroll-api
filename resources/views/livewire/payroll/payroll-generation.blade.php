@@ -14,6 +14,16 @@
             </p>
         </div>
         <div class="flex flex-wrap gap-2">
+            <button
+                type="button"
+                wire:click="saveDraft"
+                wire:loading.attr="disabled"
+                wire:target="saveDraft"
+                class="rounded-md border border-[#696cff] bg-white px-4 py-2 text-sm font-medium text-[#5f61e6] hover:bg-[#f1f2ff] disabled:cursor-wait disabled:opacity-60"
+            >
+                <span wire:loading.remove wire:target="saveDraft">Save as Draft</span>
+                <span wire:loading wire:target="saveDraft">Saving Draft...</span>
+            </button>
             <a href="{{ route('payroll.generation.configuration', ['division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'employee_type' => $employeeTypeFilter]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                 Change Configuration
             </a>
@@ -25,6 +35,28 @@
             </a>
         </div>
     </div>
+
+    @error('draft')
+        <div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {{ $message }}
+        </div>
+    @enderror
+
+    @if (session('draft_success'))
+        <div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            <div class="font-semibold">{{ session('draft_success') }}</div>
+            @if ($draftSavedAt)
+                <div class="mt-1 text-emerald-800">Saved {{ $draftSavedAt }}.</div>
+            @endif
+        </div>
+    @elseif ($draftNotice)
+        <div class="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            <div class="font-semibold">{{ $draftNotice }}</div>
+            @if ($draftSavedAt)
+                <div class="mt-1">Last saved {{ $draftSavedAt }}.</div>
+            @endif
+        </div>
+    @endif
 
     <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <label class="text-sm font-medium">Employee Search</label>
@@ -206,36 +238,85 @@
             </div>
         </div>
     @elseif ($currentStep === 3)
-        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 class="font-semibold">Deductions and Adjustments</h3>
-            <p class="mt-1 text-sm text-slate-600">Editable leave/deduct days from Step 1 are applied before statutory and payroll split calculations.</p>
-            <div class="mt-4 overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-4 py-3">
+                <h3 class="font-semibold">Deductions and Adjustments</h3>
+                <p class="mt-1 text-sm text-slate-600">Compensation adjustments for the Regular payroll output.</p>
+            </div>
+
+            @error('adjustments')
+                <div class="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {{ $message }}
+                </div>
+            @enderror
+
+            <div class="overflow-x-auto">
+                <table class="min-w-[1460px] divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
                             <th rowspan="2" class="px-4 py-3 align-middle">Employee Name</th>
-                            <th colspan="2" class="border-b border-slate-200 px-4 py-3 text-center">Pay Adjustments</th>
-                            <th rowspan="2" class="px-4 py-3 text-right align-middle">Gross Pay</th>
+                            <th rowspan="2" class="px-4 py-3 text-right align-middle">Deduct Days</th>
+                            <th rowspan="2" class="px-4 py-3 text-right align-middle">Gross Compensation</th>
+                            <th colspan="5" class="border-b border-slate-200 px-4 py-3 text-center">Compensation Adjustment</th>
+                            <th rowspan="2" class="px-4 py-3 text-right align-middle">Net Compensation</th>
                         </tr>
                         <tr>
-                            <th class="px-4 py-3 text-right">Deduct Days</th>
-                            <th class="px-4 py-3 text-right">Other Adjustments</th>
+                            <th class="px-3 py-3 text-right">Basic Salary</th>
+                            <th class="px-3 py-3 text-right">Subsistence</th>
+                            <th class="px-3 py-3 text-right">Laundry</th>
+                            <th class="px-3 py-3 text-right">PERA</th>
+                            <th class="px-3 py-3">Remarks</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
-                            <tr>
-                                <td class="px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-4 py-3">
+                                    <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
+                                    <div class="text-xs text-slate-500">{{ $row['emp_id'] }}</div>
+                                </td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['deduction_days'], 3) }}</td>
-                                <td class="px-4 py-3 text-right">0.00</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($row['gross'], 2) }}</td>
+                                <td class="px-4 py-3 text-right font-medium">{{ number_format($row['gross'], 2) }}</td>
+                                @foreach (['basic_salary', 'subsistence', 'laundry', 'pera'] as $field)
+                                    <td class="px-3 py-2 text-right">
+                                        <input
+                                            wire:model.blur="compensationAdjustments.{{ $row['emp_id'] }}.{{ $field }}"
+                                            type="number"
+                                            step="0.01"
+                                            class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"
+                                        >
+                                    </td>
+                                @endforeach
+                                <td class="px-3 py-2">
+                                    <input
+                                        wire:model.blur="compensationAdjustments.{{ $row['emp_id'] }}.remarks"
+                                        type="text"
+                                        class="w-64 rounded-md border px-2 py-1.5 text-sm {{ $row['compensation_adjustments']['remarks_missing'] ? 'border-red-400 bg-red-50' : 'border-slate-300' }}"
+                                    >
+                                </td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_compensation'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="9" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
+                    @if ($rows->isNotEmpty())
+                        <tfoot class="bg-slate-50 font-semibold">
+                            <tr>
+                                <td class="px-4 py-3">Totals</td>
+                                <td></td>
+                                <td class="px-4 py-3 text-right">{{ number_format($totals['gross'], 2) }}</td>
+                                <td class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['basic_salary'], 2) }}</td>
+                                <td class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['subsistence'], 2) }}</td>
+                                <td class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['laundry'], 2) }}</td>
+                                <td class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['pera'], 2) }}</td>
+                                <td class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['total'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($totals['net_compensation'], 2) }}</td>
+                            </tr>
+                        </tfoot>
+                    @endif
                 </table>
             </div>
         </div>
@@ -249,13 +330,17 @@
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
                             <th rowspan="2" class="px-4 py-3 align-middle">Employee Name</th>
-                            <th colspan="3" class="border-b border-slate-200 px-4 py-3 text-center">Statutory Deductions</th>
+                            <th colspan="3" class="border-b border-slate-200 px-4 py-3 text-center">Employee Statutory Deductions</th>
+                            <th colspan="3" class="border-b border-l-4 border-l-indigo-500 border-slate-200 bg-indigo-50 px-4 py-3 text-center text-indigo-700">Government Shares</th>
                             <th rowspan="2" class="px-4 py-3 text-right align-middle">Net Pay</th>
                         </tr>
                         <tr>
                             <th class="px-4 py-3 text-right">Life &amp; Retirement</th>
                             <th class="px-4 py-3 text-right">PhilHealth</th>
                             <th class="px-4 py-3 text-right">Pag-IBIG</th>
+                            <th class="border-l-4 border-l-indigo-500 bg-indigo-50 px-4 py-3 text-right text-indigo-700">Govt. Life &amp; Retirement</th>
+                            <th class="bg-indigo-50 px-4 py-3 text-right text-indigo-700">Govt. PhilHealth</th>
+                            <th class="bg-indigo-50 px-4 py-3 text-right text-indigo-700">Govt. Pag-IBIG</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -265,11 +350,14 @@
                                 <td class="px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['life_retirement'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['phic'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['mandatory_pagibig'], 2) }}</td>
+                                <td class="border-l-4 border-l-indigo-500 bg-indigo-50 px-4 py-3 text-right text-indigo-900">{{ number_format($row['statutory_government_shares']['government_life_retirement'] ?? 0, 2) }}</td>
+                                <td class="bg-indigo-50 px-4 py-3 text-right text-indigo-900">{{ number_format($row['statutory_government_shares']['government_phic'] ?? 0, 2) }}</td>
+                                <td class="bg-indigo-50 px-4 py-3 text-right text-indigo-900">{{ number_format($row['statutory_government_shares']['government_pagibig'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_before_other_deductions'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="8" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -657,6 +745,8 @@
                             <th class="px-4 py-3 text-right">Total Deductions</th>
                             <th class="px-4 py-3 text-right">Taxable Income (Year)</th>
                             <th class="px-4 py-3 text-right">Tax Due (Year)</th>
+                            <th class="px-4 py-3 text-right">Regular Tax</th>
+                            <th class="px-4 py-3 text-right">Supplemental Tax</th>
                             <th class="px-4 py-3 text-right">Withholding Tax</th>
                             <th class="px-4 py-3 text-right">Net After Tax</th>
                         </tr>
@@ -683,12 +773,14 @@
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_mandatory_deductions'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_taxable_income'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_tax_due'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['regular_monthly_tax_due'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['supplemental_tax_due'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['monthly_tax_due'], 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_tax'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="18" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="20" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -710,6 +802,8 @@
                                 <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['annual_mandatory_deductions'] ?? 0), 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['annual_taxable_income'] ?? 0), 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['annual_tax_due'] ?? 0), 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['regular_monthly_tax_due'] ?? 0), 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['supplemental_tax_due'] ?? 0), 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($totals['withholding_tax'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($totals['net_after_tax'], 2) }}</td>
                             </tr>

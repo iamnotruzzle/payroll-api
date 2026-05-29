@@ -11,6 +11,8 @@ class PayrollStatutoryContributionBracket extends Model
 
     protected $fillable = [
         'statutory_contribution_id',
+        'effective_start',
+        'effective_end',
         'min_salary',
         'max_salary',
         'employee_rate',
@@ -21,6 +23,8 @@ class PayrollStatutoryContributionBracket extends Model
     ];
 
     protected $casts = [
+        'effective_start' => 'date',
+        'effective_end' => 'date',
         'min_salary' => 'decimal:2',
         'max_salary' => 'decimal:2',
         'employee_rate' => 'decimal:4',
