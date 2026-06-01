@@ -3,7 +3,9 @@
     $loanColumnCount = collect($loanColumnGroups)->sum(fn ($columns) => count($columns));
     $deductionPrograms = collect($deductionPrograms ?? []);
     $deductionProgramCount = $deductionPrograms->count();
-    $reviewTableWidth = max(2700, 2580 + ($compensations->count() * 120) + ($deductionProgramCount * 150) + ($loanColumnCount * 120));
+    $adjustmentTypes = collect($adjustmentTypes ?? []);
+    $adjustmentTypeCount = $adjustmentTypes->count();
+    $reviewTableWidth = max(2700, 2580 + ($compensations->count() * 120) + ($adjustmentTypeCount * 140) + ($deductionProgramCount * 150) + ($loanColumnCount * 120));
 @endphp
 
 <div class="overflow-x-auto">
@@ -13,7 +15,7 @@
                 <th colspan="3" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Employee Information</th>
                 <th colspan="3" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Pay Basis</th>
                 <th colspan="{{ 2 + $compensations->count() }}" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Earnings</th>
-                <th colspan="2" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Compensation Adjustment</th>
+                <th colspan="{{ 2 + $adjustmentTypeCount }}" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Compensation Adjustment</th>
                 <th colspan="3" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Employee Statutory Deductions</th>
                 <th colspan="3" class="border-b border-l-4 border-r-2 border-l-indigo-500 border-slate-300 bg-indigo-50 px-4 py-3 text-center text-indigo-700">Government Shares</th>
                 <th colspan="2" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Tax Calculation</th>
@@ -36,6 +38,9 @@
                 @endforeach
                 <th class="border-r-2 border-slate-300 px-4 py-3 text-right">Gross Pay</th>
                 <th class="px-4 py-3 text-right">Adjustment Total</th>
+                @foreach ($adjustmentTypes as $type)
+                    <th class="px-4 py-3 text-right">{{ $type->name }}</th>
+                @endforeach
                 <th class="border-r-2 border-slate-300 px-4 py-3 text-right">Net Compensation</th>
                 <th class="px-4 py-3 text-right">Life &amp; Retirement</th>
                 <th class="px-4 py-3 text-right">PhilHealth</th>
@@ -81,6 +86,9 @@
                     @endforeach
                     <td class="border-r-2 border-slate-200 px-4 py-3 text-right font-semibold">{{ number_format($row['gross'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($row['compensation_adjustments']['total'] ?? 0, 2) }}</td>
+                    @foreach ($adjustmentTypes as $type)
+                        <td class="px-4 py-3 text-right">{{ number_format($row['compensation_adjustments']['extra_items'][(string) $type->id]['signed_amount'] ?? 0, 2) }}</td>
+                    @endforeach
                     <td class="border-r-2 border-slate-200 px-4 py-3 text-right font-semibold">{{ number_format($row['net_compensation'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['life_retirement'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['phic'], 2) }}</td>
@@ -115,7 +123,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ 24 + $compensations->count() + max(1, $deductionProgramCount) + $loanColumnCount }}" class="px-4 py-8 text-center text-slate-500">
+                    <td colspan="{{ 24 + $compensations->count() + $adjustmentTypeCount + max(1, $deductionProgramCount) + $loanColumnCount }}" class="px-4 py-8 text-center text-slate-500">
                         No active HRIS employees found for the selected department.
                     </td>
                 </tr>
@@ -131,6 +139,9 @@
                     @endforeach
                     <td class="border-r-2 border-slate-300 px-4 py-3 text-right">{{ number_format($totals['gross'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['compensation_adjustments']['total'], 2) }}</td>
+                    @foreach ($adjustmentTypes as $type)
+                        <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['compensation_adjustments']['extra_items'][(string) $type->id]['signed_amount'] ?? 0), 2) }}</td>
+                    @endforeach
                     <td class="border-r-2 border-slate-300 px-4 py-3 text-right">{{ number_format($totals['net_compensation'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['statutory_deductions']['life_retirement'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['statutory_deductions']['phic'], 2) }}</td>

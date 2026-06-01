@@ -33,6 +33,9 @@
             <a href="{{ route('payroll.compensations') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                 Manage Compensations
             </a>
+            <a href="{{ route('payroll.adjustment-types') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                Manage Adjustment Types
+            </a>
         </div>
     </div>
 
@@ -238,7 +241,34 @@
             </div>
         </div>
     @elseif ($currentStep === 3)
-        <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div
+            class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+            x-data="{
+                open: false,
+                adjustmentTypes: @js($allAdjustmentTypes->map(fn ($type) => ['id' => (int) $type->id, 'name' => $type->name])->values()),
+                modal: { empId: '', employeeName: '', typeId: '', operator: 'ADD', amount: 0, existingIds: [] },
+                start(empId, employeeName, existingIds, item = null) {
+                    this.modal.empId = empId;
+                    this.modal.employeeName = employeeName;
+                    this.modal.existingIds = existingIds.map((id) => Number(id));
+                    this.modal.typeId = item ? String(item.typeId) : '';
+                    this.modal.operator = item ? item.operator : 'ADD';
+                    this.modal.amount = item ? item.amount : 0;
+                    this.open = true;
+                },
+                get availableTypes() {
+                    return this.adjustmentTypes.filter((type) => !this.modal.existingIds.includes(type.id) || type.id === Number(this.modal.typeId));
+                },
+                save() {
+                    if (!this.modal.typeId) {
+                        return;
+                    }
+
+                    this.open = false;
+                    $wire.saveEmployeeAdjustment(this.modal.empId, Number(this.modal.typeId), this.modal.operator, this.modal.amount);
+                },
+            }"
+        >
             <div class="border-b border-slate-200 px-4 py-3">
                 <h3 class="font-semibold">Deductions and Adjustments</h3>
                 <p class="mt-1 text-sm text-slate-600">Compensation adjustments for the Regular payroll output.</p>
@@ -251,13 +281,13 @@
             @enderror
 
             <div class="overflow-x-auto">
-                <table class="min-w-[1460px] divide-y divide-slate-200 text-sm">
+                <table class="divide-y divide-slate-200 text-sm" style="min-width: {{ 1320 + ($adjustmentTypes->count() * 140) }}px;">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
                             <th rowspan="2" class="px-4 py-3 align-middle">Employee Name</th>
                             <th rowspan="2" class="px-4 py-3 text-right align-middle">Deduct Days</th>
                             <th rowspan="2" class="px-4 py-3 text-right align-middle">Gross Compensation</th>
-                            <th colspan="5" class="border-b border-slate-200 px-4 py-3 text-center">Compensation Adjustment</th>
+                            <th colspan="{{ 5 + $adjustmentTypes->count() }}" class="border-b border-slate-200 px-4 py-3 text-center">Compensation Adjustment</th>
                             <th rowspan="2" class="px-4 py-3 text-right align-middle">Net Compensation</th>
                         </tr>
                         <tr>
@@ -265,20 +295,34 @@
                             <th class="px-3 py-3 text-right">Subsistence</th>
                             <th class="px-3 py-3 text-right">Laundry</th>
                             <th class="px-3 py-3 text-right">PERA</th>
+                            @foreach ($adjustmentTypes as $type)
+                                <th class="px-3 py-3 text-right">{{ $type->name }}</th>
+                            @endforeach
                             <th class="px-3 py-3">Remarks</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
+                            @php
+                                $employeeExtraItems = (array) ($compensationAdjustments[$row['emp_id']]['extra_items'] ?? []);
+                                $employeeAdjustmentTypeIds = collect(array_keys($employeeExtraItems))->map(fn ($id) => (int) $id)->all();
+                            @endphp
                             <tr class="hover:bg-slate-50">
-                                <td class="px-4 py-3">
-                                    <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
-                                    <div class="text-xs text-slate-500">{{ $row['emp_id'] }}</div>
+                                <td class="px-4 py-3 align-top">
+                                    <div class="flex min-w-[230px] items-start justify-between gap-3">
+                                        <div>
+                                            <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
+                                            <div class="text-xs text-slate-500">{{ $row['emp_id'] }}</div>
+                                        </div>
+                                        <button type="button" x-on:click="start(@js($row['emp_id']), @js($row['employee_name']), @js($employeeAdjustmentTypeIds))" class="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                            +
+                                        </button>
+                                    </div>
                                 </td>
-                                <td class="px-4 py-3 text-right">{{ number_format($row['deduction_days'], 3) }}</td>
-                                <td class="px-4 py-3 text-right font-medium">{{ number_format($row['gross'], 2) }}</td>
+                                <td class="px-4 py-3 text-right align-top">{{ number_format($row['deduction_days'], 3) }}</td>
+                                <td class="px-4 py-3 text-right align-top font-medium">{{ number_format($row['gross'], 2) }}</td>
                                 @foreach (['basic_salary', 'subsistence', 'laundry', 'pera'] as $field)
-                                    <td class="px-3 py-2 text-right">
+                                    <td class="px-3 py-2 text-right align-top">
                                         <input
                                             wire:model.blur="compensationAdjustments.{{ $row['emp_id'] }}.{{ $field }}"
                                             type="number"
@@ -287,18 +331,37 @@
                                         >
                                     </td>
                                 @endforeach
-                                <td class="px-3 py-2">
+                                @foreach ($adjustmentTypes as $type)
+                                    @php
+                                        $item = $row['compensation_adjustments']['extra_items'][(string) $type->id] ?? null;
+                                    @endphp
+                                    <td class="px-3 py-2 align-top">
+                                        @if ($item)
+                                            <div class="flex min-w-[130px] items-center justify-end gap-2">
+                                                <button type="button" x-on:click="start(@js($row['emp_id']), @js($row['employee_name']), @js($employeeAdjustmentTypeIds), { typeId: {{ $type->id }}, operator: @js($item['operator'] ?? 'ADD'), amount: @js($item['amount'] ?? 0) })" class="text-right text-xs font-semibold {{ ($item['operator'] ?? 'ADD') === 'LESS' ? 'text-red-700' : 'text-emerald-700' }} hover:underline">
+                                                    {{ ($item['operator'] ?? 'ADD') === 'LESS' ? '-' : '+' }}{{ number_format($item['amount'] ?? 0, 2) }}
+                                                </button>
+                                                <button type="button" wire:click="removeEmployeeAdjustmentType('{{ $row['emp_id'] }}', {{ $type->id }})" class="rounded border border-red-200 px-1.5 py-0.5 text-xs font-semibold text-red-600 hover:bg-red-50">
+                                                    x
+                                                </button>
+                                            </div>
+                                        @else
+                                            <span class="block min-w-[80px] text-center text-xs text-slate-400">-</span>
+                                        @endif
+                                    </td>
+                                @endforeach
+                                <td class="px-3 py-2 align-top">
                                     <input
                                         wire:model.blur="compensationAdjustments.{{ $row['emp_id'] }}.remarks"
                                         type="text"
                                         class="w-64 rounded-md border px-2 py-1.5 text-sm {{ $row['compensation_adjustments']['remarks_missing'] ? 'border-red-400 bg-red-50' : 'border-slate-300' }}"
                                     >
                                 </td>
-                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_compensation'], 2) }}</td>
+                                <td class="px-4 py-3 text-right align-top font-semibold">{{ number_format($row['net_compensation'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="{{ 9 + $adjustmentTypes->count() }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -312,13 +375,70 @@
                                 <td class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['subsistence'], 2) }}</td>
                                 <td class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['laundry'], 2) }}</td>
                                 <td class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['pera'], 2) }}</td>
-                                <td class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['total'], 2) }}</td>
+                                @foreach ($adjustmentTypes as $type)
+                                    <td class="px-3 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['compensation_adjustments']['extra_items'][(string) $type->id]['signed_amount'] ?? 0), 2) }}</td>
+                                @endforeach
+                                <td class="px-3 py-3 text-right">
+                                    <div>{{ number_format($totals['compensation_adjustments']['total'], 2) }}</div>
+                                    @if ($adjustmentTypes->isNotEmpty())
+                                        <div class="text-xs font-normal text-slate-500">Other {{ number_format($totals['compensation_adjustments']['extra_total'], 2) }}</div>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3 text-right">{{ number_format($totals['net_compensation'], 2) }}</td>
                             </tr>
                         </tfoot>
                     @endif
                 </table>
             </div>
+
+                <div x-cloak x-show="open" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm" style="height: 100dvh;">
+                    <div class="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-xl">
+                        <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+                            <div>
+                                <h3 class="font-semibold text-slate-900" x-text="modal.typeId ? 'Edit Adjustment' : 'Add Adjustment'"></h3>
+                                <p class="mt-1 text-sm text-slate-600" x-text="modal.employeeName"></p>
+                            </div>
+                            <button type="button" x-on:click="open = false" class="rounded-md px-2 py-1 text-xl leading-none text-slate-500 hover:bg-slate-100" aria-label="Close adjustment modal">
+                                &times;
+                            </button>
+                        </div>
+
+                        <div class="space-y-4 px-5 py-5">
+                            <div>
+                                <label class="text-xs font-semibold uppercase text-slate-500">Adjustment Type</label>
+                                <select x-model="modal.typeId" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" x-bind:disabled="Boolean(modal.typeId)">
+                                    <option value="">Select type</option>
+                                    <template x-for="type in availableTypes" x-bind:key="type.id">
+                                        <option x-bind:value="type.id" x-text="type.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-[120px_minmax(0,1fr)] gap-3">
+                                <div>
+                                    <label class="text-xs font-semibold uppercase text-slate-500">Operator</label>
+                                    <select x-model="modal.operator" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                        <option value="ADD">Add</option>
+                                        <option value="LESS">Less</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-semibold uppercase text-slate-500">Amount</label>
+                                    <input x-model="modal.amount" type="number" min="0" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-right text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+                            <button type="button" x-on:click="open = false" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                                Cancel
+                            </button>
+                            <button type="button" x-on:click="save()" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                                Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
         </div>
     @elseif ($currentStep === 4)
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -550,7 +670,110 @@
             </div>
         </div>
     @elseif ($currentStep === 6)
-        <div class="space-y-4">
+        @php
+            $loanEmployees = $rows->map(fn ($row) => [
+                'emp_id' => $row['emp_id'],
+                'name' => $row['employee_name'],
+            ])->values();
+            $loanTypeOptions = $loanTypes->map(fn ($type) => [
+                'id' => (string) $type->id,
+                'label' => ($type->entity?->name ?? $type->entity?->code).' - '.$type->name,
+            ])->values();
+            $recentLoanSuggestions = $this->recentLoanSuggestionsForModal($rows, $loanTypes);
+        @endphp
+        <div
+            class="space-y-4"
+            x-on:loan-deduction-saved.window="closeLoanModal()"
+            x-data="{
+                loanModalOpen: false,
+                savingLoan: false,
+                loanEmployees: @js($loanEmployees),
+                loanTypeOptions: @js($loanTypeOptions),
+                recentLoanSuggestions: @js($recentLoanSuggestions),
+                editingLoanItemId: null,
+                loanForm: {
+                    emp_id: '',
+                    loan_type_id: '',
+                    loan_account_no: '',
+                    monthly_amortization: '',
+                    amount_due: '',
+                    outstanding_balance: '',
+                    principal_due: '',
+                    interest_due: '',
+                    penalty_due: '',
+                    remarks: '',
+                },
+                openLoanModal(empId = '', loan = null) {
+                    this.editingLoanItemId = loan ? loan.id : null;
+                    this.loanForm = {
+                        emp_id: loan ? String(loan.emp_id || empId || '') : String(empId || ''),
+                        loan_type_id: loan ? String(loan.loan_type_id || '') : '',
+                        loan_account_no: loan ? String(loan.loan_account_no || '') : '',
+                        monthly_amortization: loan ? String(loan.monthly_amortization || '') : '',
+                        amount_due: loan ? String(loan.amount_due || '') : '',
+                        outstanding_balance: loan ? String(loan.outstanding_balance || '') : '',
+                        principal_due: loan ? String(loan.principal_due || '') : '',
+                        interest_due: loan ? String(loan.interest_due || '') : '',
+                        penalty_due: loan ? String(loan.penalty_due || '') : '',
+                        remarks: loan ? String(loan.remarks || '') : '',
+                    };
+                    this.loanModalOpen = true;
+                    this.applyRecentLoanSuggestion();
+                    this.syncLoanSelects();
+                },
+                closeLoanModal() {
+                    this.loanModalOpen = false;
+                    this.savingLoan = false;
+                },
+                clearLoanReferenceAndAmount() {
+                    this.loanForm.loan_account_no = '';
+                    this.loanForm.amount_due = '';
+                },
+                get selectedRecentLoanSuggestion() {
+                    return this.recentLoanSuggestions[`${this.loanForm.emp_id}|${this.loanForm.loan_type_id}`] || null;
+                },
+                applyRecentLoanSuggestion() {
+                    if (this.editingLoanItemId) {
+                        return;
+                    }
+
+                    const suggestion = this.selectedRecentLoanSuggestion;
+                    if (!suggestion) {
+                        return;
+                    }
+
+                    ['loan_account_no', 'monthly_amortization', 'amount_due', 'outstanding_balance', 'principal_due', 'interest_due', 'penalty_due'].forEach((field) => {
+                        if (this.loanForm[field] === '' && suggestion[field] !== null && suggestion[field] !== undefined) {
+                            this.loanForm[field] = String(suggestion[field]);
+                        }
+                    });
+                },
+                amountChangedFromRecent() {
+                    const suggestion = this.selectedRecentLoanSuggestion;
+
+                    return suggestion
+                        && this.loanForm.loan_account_no === String(suggestion.loan_account_no || '')
+                        && this.loanForm.amount_due !== ''
+                        && Number(this.loanForm.amount_due) !== Number(suggestion.amount_due || 0);
+                },
+                syncLoanSelects() {
+                    this.$nextTick(() => {
+                        if (window.jQuery && this.$refs.loanEmployee) {
+                            window.jQuery(this.$refs.loanEmployee).val(this.loanForm.emp_id).trigger('change.select2');
+                        }
+                        if (window.jQuery && this.$refs.loanType) {
+                            window.jQuery(this.$refs.loanType).val(this.loanForm.loan_type_id).trigger('change.select2');
+                        }
+                    });
+                },
+                saveLoan() {
+                    this.savingLoan = true;
+                    $wire.saveLoanDeductionFromModal(this.editingLoanItemId, this.loanForm)
+                        .then(() => { this.savingLoan = false; })
+                        .catch(() => { this.savingLoan = false; });
+                },
+            }"
+        >
             @if (session('loan_import_status'))
                 <div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
                     {{ session('loan_import_status') }}
@@ -559,10 +782,13 @@
 
             <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
                 <div>
-                    <h3 class="font-semibold">Imported Deductions</h3>
-                    <p class="text-sm text-slate-600">Validated loan and deduction imports for {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }} are matched to active employees.</p>
+                    <h3 class="font-semibold">Loan Deductions</h3>
+                    <p class="text-sm text-slate-600">Loan deductions for {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }} can be imported or entered manually.</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
+                    <button type="button" x-on:click="openLoanModal()" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+                        Add Employee Loan
+                    </button>
                     <a href="{{ route('payroll.loan-imports.template') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                         Export Template
                     </a>
@@ -575,8 +801,128 @@
                 </div>
             </div>
 
+            @error('loanDeductionForm')
+                <div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {{ $message }}
+                </div>
+            @enderror
+
+            <div x-cloak x-show="loanModalOpen" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm" style="display: none; height: 100dvh;">
+                    <div x-on:click.outside="closeLoanModal()" class="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-xl">
+                        <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+                            <div>
+                                <h3 class="font-semibold text-slate-900" x-text="editingLoanItemId ? 'Edit Loan Deduction' : 'Add Employee Loan'"></h3>
+                                <p class="mt-1 text-sm text-slate-600">Included in Loan Deductions for {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }}.</p>
+                            </div>
+                            <button type="button" x-on:click="closeLoanModal()" class="rounded-md px-2 py-1 text-xl leading-none text-slate-500 hover:bg-slate-100" aria-label="Close loan deduction modal">
+                                &times;
+                            </button>
+                        </div>
+
+                        <div class="grid gap-4 px-5 py-5 md:grid-cols-2">
+                            <div>
+                                <label class="text-xs font-semibold uppercase text-slate-500">Employee</label>
+                                <select x-ref="loanEmployee" x-model="loanForm.emp_id" x-on:change="$nextTick(() => applyRecentLoanSuggestion())" data-select2-searchable data-placeholder="Search employee" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                    <option value="">Select employee</option>
+                                    <template x-for="employee in loanEmployees" :key="employee.emp_id">
+                                        <option :value="employee.emp_id" x-text="`${employee.name} - ${employee.emp_id}`"></option>
+                                    </template>
+                                </select>
+                                @error('loanDeductionForm.emp_id')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            <div>
+                                <label class="text-xs font-semibold uppercase text-slate-500">Loan Type</label>
+                                <select x-ref="loanType" x-model="loanForm.loan_type_id" x-on:change="$nextTick(() => applyRecentLoanSuggestion())" data-select2-searchable data-placeholder="Search loan type" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                    <option value="">Select loan type</option>
+                                    <template x-for="loanType in loanTypeOptions" :key="loanType.id">
+                                        <option :value="loanType.id" x-text="loanType.label"></option>
+                                    </template>
+                                </select>
+                                @error('loanDeductionForm.loan_type_id')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            <div x-show="selectedRecentLoanSuggestion" class="md:col-span-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                                <span>Auto-filled from </span><span x-text="selectedRecentLoanSuggestion?.due_month"></span><span> for the same employee and loan type.</span>
+                                <div x-show="amountChangedFromRecent()" class="mt-1 font-semibold text-amber-800">
+                                    Same loan reference, but the amount differs from the previous <span x-text="Number(selectedRecentLoanSuggestion?.amount_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></span>.
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="text-xs font-semibold uppercase text-slate-500">Reference/Account No.</label>
+                                <div class="mt-1 flex gap-2">
+                                    <input x-model="loanForm.loan_account_no" type="text" class="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                    <button type="button" x-on:click="clearLoanReferenceAndAmount()" class="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Clear</button>
+                                </div>
+                                @error('loanDeductionForm.loan_account_no')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            <div>
+                                <label class="text-xs font-semibold uppercase text-slate-500">Monthly Amortization</label>
+                                <input x-model="loanForm.monthly_amortization" type="number" min="0" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-right text-sm">
+                                @error('loanDeductionForm.monthly_amortization')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            <div>
+                                <label class="text-xs font-semibold uppercase text-slate-500">Amount Due</label>
+                                <div class="mt-1 flex gap-2">
+                                    <input x-model="loanForm.amount_due" type="number" min="0" step="0.01" class="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-right text-sm">
+                                    <button type="button" x-on:click="clearLoanReferenceAndAmount()" class="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Clear</button>
+                                </div>
+                                @error('loanDeductionForm.amount_due')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            <div>
+                                <label class="text-xs font-semibold uppercase text-slate-500">Outstanding Balance</label>
+                                <input x-model="loanForm.outstanding_balance" type="number" min="0" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-right text-sm">
+                            </div>
+
+                            <div>
+                                <label class="text-xs font-semibold uppercase text-slate-500">Principal Due</label>
+                                <input x-model="loanForm.principal_due" type="number" min="0" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-right text-sm">
+                            </div>
+
+                            <div>
+                                <label class="text-xs font-semibold uppercase text-slate-500">Interest Due</label>
+                                <input x-model="loanForm.interest_due" type="number" min="0" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-right text-sm">
+                            </div>
+
+                            <div>
+                                <label class="text-xs font-semibold uppercase text-slate-500">Penalty Due</label>
+                                <input x-model="loanForm.penalty_due" type="number" min="0" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-right text-sm">
+                            </div>
+
+                            <div class="md:col-span-2">
+                                <label class="text-xs font-semibold uppercase text-slate-500">Remarks</label>
+                                <textarea x-model="loanForm.remarks" rows="3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+                            <button type="button" x-on:click="closeLoanModal()" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                                Cancel
+                            </button>
+                            <button type="button" x-on:click="saveLoan()" x-bind:disabled="savingLoan" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
+                                <span x-show="!savingLoan">Save Loan Deduction</span>
+                                <span x-show="savingLoan">Saving...</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
             @if ($showLoanImportModal)
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm">
+                <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm" style="height: 100dvh;">
                     <div class="flex max-h-[90vh] w-full max-w-6xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
                         <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
                             <div>
@@ -680,7 +1026,7 @@
                             <tr>
                                 <th class="sticky left-0 z-20 border-b border-r border-slate-300 bg-slate-100 px-3 py-2">Employee</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net After Programs</th>
-                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Imported Deductions</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Loan Deductions</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Final Net Pay</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2">Deduction Details</th>
                             </tr>
@@ -702,10 +1048,15 @@
                                             <div class="mb-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs">
                                                 <span class="font-semibold">{{ $loan['entity'] }}</span>
                                                 <span class="text-slate-500">· {{ $loan['loan_account_no'] }}</span>
-                                                <span class="float-right font-semibold">{{ number_format($loan['amount_due'], 2) }}</span>
+                                                <span class="float-right ml-2 font-semibold">{{ number_format($loan['amount_due'], 2) }}</span>
+                                                <button type="button" x-on:click="openLoanModal(@js($row['emp_id']), @js($loan))" class="ml-2 rounded border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">
+                                                    Edit
+                                                </button>
                                             </div>
                                         @empty
-                                            <span class="text-xs text-slate-500">No validated deduction import matched for this month.</span>
+                                            <button type="button" x-on:click="openLoanModal(@js($row['emp_id']))" class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                                Add loan deduction
+                                            </button>
                                         @endforelse
                                     </td>
                                 </tr>
@@ -880,6 +1231,7 @@
             @include('livewire.payroll.partials.payroll-review-table', [
                 'rows' => $rows,
                 'compensations' => $compensations,
+                'adjustmentTypes' => $adjustmentTypes,
                 'totals' => $totals,
                 'loanColumnGroups' => $loanColumnGroups,
                 'deductionPrograms' => $activeReviewDeductionPrograms,

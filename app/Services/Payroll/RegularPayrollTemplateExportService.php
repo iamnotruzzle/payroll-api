@@ -27,8 +27,8 @@ class RegularPayrollTemplateExportService
         'gsis_computer' => 'BP',
         'gsis_conso' => 'BU',
         'gsis_policy' => 'BZ',
-        'gsis_optional' => 'CE',
-        'gsis_housing' => 'CJ',
+        'gsis_uoli' => 'CE',
+        'gsis_optional' => 'CJ',
         'gsis_gfal' => 'CO',
         'gsis_gsel' => 'CT',
         'gsis_mpl' => 'CY',
@@ -39,8 +39,11 @@ class RegularPayrollTemplateExportService
         'dbp' => 'EF',
         'lbp' => 'EG',
         'ucpb' => 'EH',
+        'coco' => 'EI',
         'mmmh_coop' => 'EI',
-        'death_aid' => 'EK',
+        'other_loans' => 'EK',
+        'death_aid' => 'EL',
+        'ea_monthly_dues' => 'EM',
         'penalty_bac' => 'EL',
         'mmsu' => 'EM',
     ];
@@ -56,6 +59,7 @@ class RegularPayrollTemplateExportService
         $sheet->setTitle(self::TEMPLATE_SHEET);
 
         $this->prepareDataRows($sheet, $rows->count());
+        $this->applyCurrentReviewHeaders($sheet);
         $this->fillRows($sheet, $rows, $compensations, $deductionPrograms);
         $this->fillCertificationTotals($sheet, $rows->count());
 
@@ -112,6 +116,7 @@ class RegularPayrollTemplateExportService
             $excelRow = self::FIRST_DATA_ROW + $index;
             $leave = $row['leave_deduction'] ?? [];
             $statutory = $row['statutory_deductions'] ?? [];
+            $governmentShares = $row['statutory_government_shares'] ?? [];
             $tax = $row['tax'] ?? [];
             $loans = $row['loan_deductions']['columns'] ?? [];
             $programs = collect($row['program_deductions']['items'] ?? []);
@@ -147,8 +152,11 @@ class RegularPayrollTemplateExportService
                 'AK' => $adjustments['remarks'] ?? null,
                 'AL' => "=ROUND(SUM(AB{$excelRow}:AE{$excelRow})+SUM(AG{$excelRow}:AJ{$excelRow}),2)",
                 'AN' => $this->money($statutory['life_retirement'] ?? 0),
+                'AO' => $this->money($governmentShares['government_life_retirement'] ?? 0),
                 'AQ' => $this->money($statutory['phic'] ?? 0),
+                'AR' => $this->money($governmentShares['government_phic'] ?? 0),
                 'AS' => $this->money($statutory['mandatory_pagibig'] ?? 0),
+                'AT' => $this->money($governmentShares['government_pagibig'] ?? 0),
                 'AU' => $this->programAmount($programs, ['ea', 'employees association', 'monthly dues']),
                 'AW' => 0,
                 'AX' => 0,
@@ -177,12 +185,39 @@ class RegularPayrollTemplateExportService
                 'FM' => $this->hazardAmount($row),
             ]);
 
-            foreach (self::LOAN_AMOUNT_COLUMNS as $key => $column) {
-                $amount = $loans[$key] ?? 0;
-                if ((float) $amount !== 0.0) {
-                    $sheet->setCellValue("{$column}{$excelRow}", round((float) $amount, 2));
-                }
+            $this->setLoanAmountCells($sheet, $excelRow, $loans);
+        }
+    }
+
+    private function applyCurrentReviewHeaders(Worksheet $sheet): void
+    {
+        $labels = collect(app(PayrollLoanReferenceService::class)->columnGroups())
+            ->flatMap(fn (array $columns) => $columns)
+            ->all();
+
+        foreach ($labels as $key => $label) {
+            $column = self::LOAN_AMOUNT_COLUMNS[$key] ?? null;
+            if ($column !== null) {
+                $sheet->setCellValue("{$column}3", strtoupper((string) $label));
             }
+        }
+    }
+
+    private function setLoanAmountCells(Worksheet $sheet, int $row, array $loans): void
+    {
+        $amountsByColumn = [];
+
+        foreach (self::LOAN_AMOUNT_COLUMNS as $key => $column) {
+            $amount = $this->money($loans[$key] ?? 0);
+            if ($amount === 0.0) {
+                continue;
+            }
+
+            $amountsByColumn[$column] = round(($amountsByColumn[$column] ?? 0) + $amount, 2);
+        }
+
+        foreach ($amountsByColumn as $column => $amount) {
+            $sheet->setCellValue("{$column}{$row}", $amount);
         }
     }
 

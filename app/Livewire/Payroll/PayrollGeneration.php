@@ -7,6 +7,7 @@ use App\Models\Hris\Division;
 use App\Models\Hris\Employee;
 use App\Models\Hris\EmployeeLeave;
 use App\Models\Hris\SalaryGrade;
+use App\Models\Payroll\PayrollAdjustmentType;
 use App\Models\Payroll\PayrollAdditional;
 use App\Models\Payroll\PayrollAuditLog;
 use App\Models\Payroll\PayrollBatch;
@@ -20,6 +21,7 @@ use App\Models\Payroll\PayrollEmployeeSnapshot;
 use App\Models\Payroll\PayrollGenerationDraft;
 use App\Models\Payroll\PayrollLeaveCreditAdjustment;
 use App\Models\Payroll\PayrollLoanImportItem;
+use App\Models\Payroll\PayrollLoanType;
 use App\Models\Payroll\PayrollMraReport;
 use App\Models\Payroll\PayrollPeriod;
 use App\Models\Payroll\PayrollRun;
@@ -34,6 +36,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -53,6 +56,7 @@ class PayrollGeneration extends Component
 
     public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
 
+    #[Url(as: 'step', except: 1)]
     public int $currentStep = 1;
 
     public array $deductionDayOverrides = [];
@@ -60,6 +64,8 @@ class PayrollGeneration extends Component
     public array $leaveDeductionOverrides = [];
 
     public array $compensationAdjustments = [];
+
+    public array $selectedAdjustmentTypeIds = [];
 
     public array $deductionProgramSelections = [];
 
@@ -73,13 +79,32 @@ class PayrollGeneration extends Component
 
     public array $loanImportPreview = [];
 
+    public bool $showLoanDeductionModal = false;
+
+    public ?int $editingLoanItemId = null;
+
+    public array $loanDeductionForm = [
+        'emp_id' => '',
+        'loan_type_id' => '',
+        'loan_account_no' => '',
+        'monthly_amortization' => '',
+        'amount_due' => '',
+        'outstanding_balance' => '',
+        'principal_due' => '',
+        'interest_due' => '',
+        'penalty_due' => '',
+        'remarks' => '',
+    ];
+
+    public ?array $recentLoanSuggestion = null;
+
     public array $steps = [
         1 => 'MRA Validation',
         2 => 'Allowances Computation',
         3 => 'Deductions and Adjustments',
         4 => 'Statutory',
         5 => 'Deduction Programs',
-        6 => 'Imported Deductions',
+        6 => 'Loan Deductions',
         7 => 'Tax Calculation',
         8 => 'Review',
     ];
@@ -123,6 +148,7 @@ class PayrollGeneration extends Component
         $this->search = (string) request()->query('search', '');
         $this->loanColumnGroups = app(PayrollLoanReferenceService::class)->columnGroups();
         $this->restoreDraft();
+        $this->currentStep = max(1, min(count($this->steps), request()->integer('step') ?: $this->currentStep));
     }
 
     public function updatedDepartmentId(): void
@@ -176,6 +202,182 @@ class PayrollGeneration extends Component
         $this->showLoanImportModal = false;
         $this->resetLoanImportState();
     }
+
+    public function openLoanDeductionModal(string $empId = '', ?int $loanItemId = null): void
+    {
+        $this->resetLoanDeductionForm();
+        $this->editingLoanItemId = $loanItemId;
+
+        if ($loanItemId) {
+            $item = PayrollLoanImportItem::query()->find($loanItemId);
+            if (! $item) {
+                $this->addError('loanDeductionForm', 'Loan deduction not found.');
+
+                return;
+            }
+
+            $loanType = $this->loanTypeForItem($item);
+            $this->loanDeductionForm = [
+                'emp_id' => (string) $item->matched_emp_id,
+                'loan_type_id' => $loanType?->id ? (string) $loanType->id : '',
+                'loan_account_no' => (string) $item->loan_account_no,
+                'monthly_amortization' => (string) $item->monthly_amortization,
+                'amount_due' => (string) $item->amount_due,
+                'outstanding_balance' => (string) ($item->outstanding_balance ?? ''),
+                'principal_due' => (string) ($item->principal_due ?? ''),
+                'interest_due' => (string) ($item->interest_due ?? ''),
+                'penalty_due' => (string) ($item->penalty_due ?? ''),
+                'remarks' => (string) ($item->remarks ?? ''),
+            ];
+        } else {
+            $this->loanDeductionForm['emp_id'] = $empId;
+        }
+
+        $this->refreshRecentLoanSuggestion();
+        $this->resetValidation('loanDeductionForm');
+        $this->showLoanDeductionModal = true;
+    }
+
+    public function closeLoanDeductionModal(): void
+    {
+        $this->showLoanDeductionModal = false;
+        $this->resetLoanDeductionForm();
+        $this->resetValidation('loanDeductionForm');
+    }
+
+    public function saveLoanDeduction(): void
+    {
+        $data = $this->validate([
+            'loanDeductionForm.emp_id' => ['required', 'string'],
+            'loanDeductionForm.loan_type_id' => ['required', 'integer'],
+            'loanDeductionForm.loan_account_no' => ['required', 'string', 'max:120'],
+            'loanDeductionForm.monthly_amortization' => ['required', 'numeric', 'min:0'],
+            'loanDeductionForm.amount_due' => ['required', 'numeric', 'min:0'],
+            'loanDeductionForm.outstanding_balance' => ['nullable', 'numeric', 'min:0'],
+            'loanDeductionForm.principal_due' => ['nullable', 'numeric', 'min:0'],
+            'loanDeductionForm.interest_due' => ['nullable', 'numeric', 'min:0'],
+            'loanDeductionForm.penalty_due' => ['nullable', 'numeric', 'min:0'],
+            'loanDeductionForm.remarks' => ['nullable', 'string'],
+        ], [
+            'loanDeductionForm.emp_id.required' => 'Choose an employee.',
+            'loanDeductionForm.loan_type_id.required' => 'Choose a loan type.',
+            'loanDeductionForm.loan_account_no.required' => 'Enter the reference or account number.',
+            'loanDeductionForm.monthly_amortization.required' => 'Enter the monthly amortization.',
+            'loanDeductionForm.amount_due.required' => 'Enter the amount due.',
+        ])['loanDeductionForm'];
+
+        $employee = Employee::query()->where('emp_id', $data['emp_id'])->first();
+        $loanType = PayrollLoanType::query()->with('entity')->find((int) $data['loan_type_id']);
+
+        if (! $employee || ! $loanType) {
+            $this->addError('loanDeductionForm', 'Choose a valid employee and loan type.');
+
+            return;
+        }
+
+        $periodStart = $this->selectedPeriodStart();
+        $existingItem = $this->editingLoanItemId
+            ? PayrollLoanImportItem::query()->find($this->editingLoanItemId)
+            : null;
+        $import = $existingItem?->import ?: $this->manualLoanImportFor($periodStart);
+        $payload = [
+            'import_id' => $import->id,
+            'entity' => $loanType->entity?->name ?? $loanType->entity?->code ?? 'Manual',
+            'due_month' => $periodStart->toDateString(),
+            'employee_id' => $employee->emp_id,
+            'matched_emp_id' => $employee->emp_id,
+            'employee_name' => $employee->full_name,
+            'loan_account_no' => trim((string) $data['loan_account_no']),
+            'loan_type' => $loanType->name,
+            'monthly_amortization' => (float) $data['monthly_amortization'],
+            'amount_due' => (float) $data['amount_due'],
+            'outstanding_balance' => $this->nullableMoneyValue($data['outstanding_balance'] ?? null),
+            'principal_due' => $this->nullableMoneyValue($data['principal_due'] ?? null),
+            'interest_due' => $this->nullableMoneyValue($data['interest_due'] ?? null),
+            'penalty_due' => $this->nullableMoneyValue($data['penalty_due'] ?? null),
+            'remarks' => trim((string) ($data['remarks'] ?? '')) ?: null,
+            'validation_status' => 'valid',
+            'validation_errors' => null,
+        ];
+
+        if ($existingItem) {
+            $existingItem->update($payload);
+        } else {
+            $payload['row_number'] = ((int) PayrollLoanImportItem::query()->where('import_id', $import->id)->max('row_number')) + 1;
+            PayrollLoanImportItem::query()->create($payload);
+        }
+
+        $this->refreshLoanImportCounts($import->id);
+        $this->closeLoanDeductionModal();
+        session()->flash('loan_import_status', 'Loan deduction saved.');
+        $this->dispatch('loan-deduction-saved');
+    }
+
+    public function saveLoanDeductionFromModal(?int $editingLoanItemId, array $form): void
+    {
+        $this->editingLoanItemId = $editingLoanItemId;
+        $this->loanDeductionForm = array_merge($this->blankLoanDeductionForm(), array_intersect_key($form, $this->blankLoanDeductionForm()));
+
+        $this->saveLoanDeduction();
+    }
+
+    public function updatedLoanDeductionForm($value, string $key): void
+    {
+        if (in_array($key, ['emp_id', 'loan_type_id'], true)) {
+            $this->refreshRecentLoanSuggestion();
+        }
+    }
+
+    public function clearLoanReferenceAndAmount(): void
+    {
+        $this->loanDeductionForm['loan_account_no'] = '';
+        $this->loanDeductionForm['amount_due'] = '';
+    }
+
+    public function recentLoanSuggestionsForModal(Collection $rows, Collection $loanTypes): array
+    {
+        $empIds = $rows->pluck('emp_id')->filter()->values()->all();
+
+        if (empty($empIds) || $loanTypes->isEmpty()) {
+            return [];
+        }
+
+        $loanTypesByName = $loanTypes->keyBy(fn (PayrollLoanType $type) => strtolower($type->name));
+        $suggestions = [];
+
+        PayrollLoanImportItem::query()
+            ->where('validation_status', 'valid')
+            ->whereIn('matched_emp_id', $empIds)
+            ->whereDate('due_month', '<', $this->selectedPeriodStart()->toDateString())
+            ->orderByDesc('due_month')
+            ->orderByDesc('id')
+            ->get()
+            ->each(function (PayrollLoanImportItem $item) use (&$suggestions, $loanTypesByName) {
+                $loanType = $loanTypesByName->get(strtolower((string) $item->loan_type));
+                if (! $loanType) {
+                    return;
+                }
+
+                $key = $item->matched_emp_id.'|'.$loanType->id;
+                if (isset($suggestions[$key])) {
+                    return;
+                }
+
+                $suggestions[$key] = [
+                    'loan_account_no' => (string) $item->loan_account_no,
+                    'monthly_amortization' => (string) $item->monthly_amortization,
+                    'amount_due' => (string) $item->amount_due,
+                    'outstanding_balance' => $item->outstanding_balance !== null ? (string) $item->outstanding_balance : '',
+                    'principal_due' => $item->principal_due !== null ? (string) $item->principal_due : '',
+                    'interest_due' => $item->interest_due !== null ? (string) $item->interest_due : '',
+                    'penalty_due' => $item->penalty_due !== null ? (string) $item->penalty_due : '',
+                    'due_month' => $item->due_month?->format('M Y'),
+                ];
+            });
+
+        return $suggestions;
+    }
+
 
     public function previewLoanImport(): void
     {
@@ -245,6 +447,7 @@ class PayrollGeneration extends Component
                     'deduction_day_overrides' => $this->deductionDayOverrides,
                     'leave_deduction_overrides' => $this->leaveDeductionOverrides,
                     'compensation_adjustments' => $this->compensationAdjustments,
+                    'selected_adjustment_type_ids' => $this->selectedAdjustmentTypeIds,
                     'deduction_program_selections' => $this->deductionProgramSelections,
                 ],
                 'saved_by' => auth()->user()?->emp_id ?? 'web',
@@ -266,6 +469,107 @@ class PayrollGeneration extends Component
         $this->pendingLoanImportOriginalFilename = null;
         $this->loanImportPreview = [];
         $this->resetValidation('loanFile');
+    }
+
+    private function resetLoanDeductionForm(): void
+    {
+        $this->editingLoanItemId = null;
+        $this->recentLoanSuggestion = null;
+        $this->loanDeductionForm = $this->blankLoanDeductionForm();
+    }
+
+    private function blankLoanDeductionForm(): array
+    {
+        return [
+            'emp_id' => '',
+            'loan_type_id' => '',
+            'loan_account_no' => '',
+            'monthly_amortization' => '',
+            'amount_due' => '',
+            'outstanding_balance' => '',
+            'principal_due' => '',
+            'interest_due' => '',
+            'penalty_due' => '',
+            'remarks' => '',
+        ];
+    }
+
+    private function refreshRecentLoanSuggestion(): void
+    {
+        $this->recentLoanSuggestion = null;
+
+        if ($this->editingLoanItemId || empty($this->loanDeductionForm['emp_id']) || empty($this->loanDeductionForm['loan_type_id'])) {
+            return;
+        }
+
+        $loanType = PayrollLoanType::query()->find((int) $this->loanDeductionForm['loan_type_id']);
+        if (! $loanType) {
+            return;
+        }
+
+        $recent = PayrollLoanImportItem::query()
+            ->where('validation_status', 'valid')
+            ->where('matched_emp_id', $this->loanDeductionForm['emp_id'])
+            ->where('loan_type', $loanType->name)
+            ->whereDate('due_month', '<', $this->selectedPeriodStart()->toDateString())
+            ->orderByDesc('due_month')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $recent) {
+            return;
+        }
+
+        $this->recentLoanSuggestion = [
+            'loan_account_no' => (string) $recent->loan_account_no,
+            'monthly_amortization' => (float) $recent->monthly_amortization,
+            'amount_due' => (float) $recent->amount_due,
+            'outstanding_balance' => $recent->outstanding_balance !== null ? (float) $recent->outstanding_balance : null,
+            'principal_due' => $recent->principal_due !== null ? (float) $recent->principal_due : null,
+            'interest_due' => $recent->interest_due !== null ? (float) $recent->interest_due : null,
+            'penalty_due' => $recent->penalty_due !== null ? (float) $recent->penalty_due : null,
+            'due_month' => $recent->due_month?->format('M Y'),
+        ];
+
+        foreach (['loan_account_no', 'monthly_amortization', 'amount_due', 'outstanding_balance', 'principal_due', 'interest_due', 'penalty_due'] as $field) {
+            if (($this->loanDeductionForm[$field] ?? '') === '' && $this->recentLoanSuggestion[$field] !== null) {
+                $this->loanDeductionForm[$field] = (string) $this->recentLoanSuggestion[$field];
+            }
+        }
+    }
+
+    public function saveEmployeeAdjustment(string $empId, int $typeId, string $operator, mixed $amount): void
+    {
+        if (! is_numeric($amount) || (float) $amount < 0) {
+            $this->addError('adjustments', 'Enter a valid adjustment amount.');
+
+            return;
+        }
+
+        $type = $this->adjustmentTypes()->firstWhere('id', $typeId);
+        if (! $type) {
+            $this->addError('adjustments', 'Choose an active adjustment type.');
+
+            return;
+        }
+
+        $this->resetValidation('adjustments');
+        $this->compensationAdjustments[$empId]['extra_items'][(string) $type->id] = [
+            'operator' => strtoupper($operator) === 'LESS' ? 'LESS' : 'ADD',
+            'amount' => $this->moneyValue($amount),
+        ];
+        $this->selectedAdjustmentTypeIds = collect($this->selectedAdjustmentTypeIds)
+            ->push((int) $type->id)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function removeEmployeeAdjustmentType(string $empId, int $typeId): void
+    {
+        unset($this->compensationAdjustments[$empId]['extra_items'][(string) $typeId]);
+        $this->selectedAdjustmentTypeIds = $this->selectedAdjustmentTypeIdsFromAdjustments($this->compensationAdjustments);
     }
 
     public function exportRegularPayrollTemplate(RegularPayrollTemplateExportService $exporter)
@@ -300,6 +604,9 @@ class PayrollGeneration extends Component
     {
         $compensations = $this->compensations();
         $deductionPrograms = $this->deductionPrograms();
+        $allAdjustmentTypes = $this->adjustmentTypes();
+        $this->syncSelectedAdjustmentTypeIds($allAdjustmentTypes);
+        $adjustmentTypes = $this->selectedAdjustmentTypes($allAdjustmentTypes);
         $this->syncDeductionProgramSelections($deductionPrograms);
         $rows = $this->payrollRows($compensations, $deductionPrograms);
         $totals = $this->payrollTotals($rows, $compensations);
@@ -312,6 +619,9 @@ class PayrollGeneration extends Component
             'employeeTypeOptions' => Employee::employeeTypeOptions(),
             'compensations' => $compensations,
             'deductionPrograms' => $deductionPrograms,
+            'allAdjustmentTypes' => $allAdjustmentTypes,
+            'adjustmentTypes' => $adjustmentTypes,
+            'loanTypes' => PayrollLoanType::query()->with('entity')->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(),
             'rows' => $rows,
             'previousMraPeriod' => $previousMraPeriod,
             'previousMraReport' => $previousMraReport,
@@ -346,6 +656,9 @@ class PayrollGeneration extends Component
                 'subsistence' => $rows->sum('compensation_adjustments.subsistence'),
                 'laundry' => $rows->sum('compensation_adjustments.laundry'),
                 'pera' => $rows->sum('compensation_adjustments.pera'),
+                'extra_additions' => $rows->sum('compensation_adjustments.extra_additions'),
+                'extra_deductions' => $rows->sum('compensation_adjustments.extra_deductions'),
+                'extra_total' => $rows->sum('compensation_adjustments.extra_total'),
                 'total' => $rows->sum('compensation_adjustments.total'),
             ],
             'net_compensation' => $rows->sum('net_compensation'),
@@ -364,6 +677,8 @@ class PayrollGeneration extends Component
         if (! $this->divisionId && ! $this->departmentId) {
             return collect();
         }
+
+        $adjustmentTypes = $this->selectedAdjustmentTypes();
 
         $employees = Employee::query()
             ->with(['position', 'department.division'])
@@ -435,7 +750,7 @@ class PayrollGeneration extends Component
             : collect();
         $labelOptions = PayrollDtrLabelOption::query()->get()->keyBy('code');
 
-        return $employees->map(function (Employee $employee) use ($compensations, $deductionPrograms, $salaryMatrix, $leaves, $labels, $adjustments, $mraAdjustments, $labelOptions, $loanItems, $periodStart, $periodEnd) {
+        return $employees->map(function (Employee $employee) use ($compensations, $deductionPrograms, $adjustmentTypes, $salaryMatrix, $leaves, $labels, $adjustments, $mraAdjustments, $labelOptions, $loanItems, $periodStart, $periodEnd) {
             $salaryGrade = (int) ($employee->position?->salary_grade ?? 0);
             $step = max(1, min(8, (int) ($employee->step ?: 1)));
             $basicSalary = (float) ($salaryMatrix[$salaryGrade][$step] ?? 0);
@@ -505,7 +820,7 @@ class PayrollGeneration extends Component
             $statutoryDeductions = $statutoryContributions['employee'];
             $statutoryGovernmentShares = $statutoryContributions['employer'];
             $gross = $basicSalary + collect($computed)->sum('amount');
-            $compensationAdjustments = $this->compensationAdjustmentsFor($employee->emp_id);
+            $compensationAdjustments = $this->compensationAdjustmentsFor($employee->emp_id, $adjustmentTypes);
             $netCompensation = round($gross + $compensationAdjustments['total'], 2);
             $netBeforeOtherDeductions = $netCompensation - collect($statutoryDeductions)->sum();
             $computedHazardPay = $this->compensationAmountByName($computed, ['hazard'], 'computed_amount');
@@ -597,13 +912,27 @@ class PayrollGeneration extends Component
                 'loan_deductions' => [
                     'total' => $loanTotal,
                     'columns' => $loanColumns,
-                    'items' => $employeeLoanItems->map(fn (PayrollLoanImportItem $item) => [
-                        'entity' => $item->entity,
-                        'loan_account_no' => $item->loan_account_no,
-                        'loan_type' => $item->loan_type,
-                        'amount_due' => (float) $item->amount_due,
-                        'imported_at' => $item->import?->imported_at?->format('M d, Y'),
-                    ])->values()->all(),
+                    'items' => $employeeLoanItems->map(function (PayrollLoanImportItem $item) {
+                        $loanType = $this->loanTypeForItem($item);
+
+                        return [
+                            'id' => $item->id,
+                            'emp_id' => $item->matched_emp_id,
+                            'entity' => $item->entity,
+                            'loan_type_id' => $loanType?->id ? (string) $loanType->id : '',
+                            'loan_account_no' => $item->loan_account_no,
+                            'loan_type' => $item->loan_type,
+                            'monthly_amortization' => (string) $item->monthly_amortization,
+                            'amount_due' => (string) $item->amount_due,
+                            'outstanding_balance' => $item->outstanding_balance !== null ? (string) $item->outstanding_balance : '',
+                            'principal_due' => $item->principal_due !== null ? (string) $item->principal_due : '',
+                            'interest_due' => $item->interest_due !== null ? (string) $item->interest_due : '',
+                            'penalty_due' => $item->penalty_due !== null ? (string) $item->penalty_due : '',
+                            'remarks' => $item->remarks,
+                            'imported_at' => $item->import?->imported_at?->format('M d, Y'),
+                            'source' => $item->import?->original_filename === 'manual-loan-deductions' ? 'Manual' : 'Imported',
+                        ];
+                    })->values()->all(),
                     'by_entity' => $loanByEntity,
                 ],
                 'program_deductions' => [
@@ -627,6 +956,7 @@ class PayrollGeneration extends Component
         $this->deductionDayOverrides = [];
         $this->leaveDeductionOverrides = [];
         $this->compensationAdjustments = [];
+        $this->selectedAdjustmentTypeIds = [];
         $this->deductionProgramSelections = [];
         $this->finalizedRunId = null;
         $this->finalizedSummary = [];
@@ -650,6 +980,9 @@ class PayrollGeneration extends Component
         $this->deductionDayOverrides = (array) ($state['deduction_day_overrides'] ?? []);
         $this->leaveDeductionOverrides = (array) ($state['leave_deduction_overrides'] ?? []);
         $this->compensationAdjustments = (array) ($state['compensation_adjustments'] ?? []);
+        $this->selectedAdjustmentTypeIds = array_key_exists('selected_adjustment_type_ids', $state)
+            ? array_values((array) $state['selected_adjustment_type_ids'])
+            : $this->selectedAdjustmentTypeIdsFromAdjustments($this->compensationAdjustments);
         $this->deductionProgramSelections = (array) ($state['deduction_program_selections'] ?? []);
         $this->activeDraftId = $draft->id;
         $this->draftSavedAt = $draft->saved_at?->format('M d, Y g:i A');
@@ -767,6 +1100,46 @@ class PayrollGeneration extends Component
         return app(PayrollLoanReferenceService::class)->columnKeyFor($item);
     }
 
+    private function manualLoanImportFor(CarbonImmutable $periodStart): \App\Models\Payroll\PayrollLoanImport
+    {
+        return \App\Models\Payroll\PayrollLoanImport::query()->firstOrCreate(
+            [
+                'source_entity' => 'Manual Entry',
+                'billing_period' => $periodStart->toDateString(),
+                'original_filename' => 'manual-loan-deductions',
+            ],
+            [
+                'stored_path' => null,
+                'imported_by' => auth()->user()?->emp_id ?? 'web',
+                'imported_at' => now(),
+                'total_rows' => 0,
+                'valid_rows' => 0,
+                'invalid_rows' => 0,
+                'status' => 'validated',
+            ]
+        );
+    }
+
+    private function refreshLoanImportCounts(int $importId): void
+    {
+        $items = PayrollLoanImportItem::query()->where('import_id', $importId)->get();
+
+        \App\Models\Payroll\PayrollLoanImport::query()->whereKey($importId)->update([
+            'total_rows' => $items->count(),
+            'valid_rows' => $items->where('validation_status', 'valid')->count(),
+            'invalid_rows' => $items->where('validation_status', '!=', 'valid')->count(),
+        ]);
+    }
+
+    private function loanTypeForItem(PayrollLoanImportItem $item): ?PayrollLoanType
+    {
+        return PayrollLoanType::query()
+            ->where('name', $item->loan_type)
+            ->orWhere('review_column_label', $item->loan_type)
+            ->orWhere('review_column_key', $this->loanColumnKey($item))
+            ->first();
+    }
+
     private function selectedPeriodStart(): CarbonImmutable
     {
         return CarbonImmutable::createFromFormat('Y-m', $this->period)->startOfMonth();
@@ -870,8 +1243,9 @@ class PayrollGeneration extends Component
         return round(max(0, (float) $value), 3);
     }
 
-    private function compensationAdjustmentsFor(string $empId): array
+    private function compensationAdjustmentsFor(string $empId, ?Collection $adjustmentTypes = null): array
     {
+        $adjustmentTypes ??= $this->adjustmentTypes();
         $adjustments = [];
 
         foreach (['basic_salary', 'subsistence', 'laundry', 'pera'] as $field) {
@@ -881,15 +1255,73 @@ class PayrollGeneration extends Component
 
         $this->compensationAdjustments[$empId]['remarks'] ??= '';
         $adjustments['remarks'] = trim((string) $this->compensationAdjustments[$empId]['remarks']);
-        $adjustments['total'] = round(collect($adjustments)->only([
+
+        $this->compensationAdjustments[$empId]['extra_items'] ??= [];
+        $extraItems = [];
+        $extraAdditions = 0.0;
+        $extraDeductions = 0.0;
+
+        foreach ($adjustmentTypes as $type) {
+            $key = (string) $type->id;
+            if (! array_key_exists($key, $this->compensationAdjustments[$empId]['extra_items'])) {
+                continue;
+            }
+
+            $item = (array) ($this->compensationAdjustments[$empId]['extra_items'][$key] ?? []);
+            $this->compensationAdjustments[$empId]['extra_items'][$key]['operator'] ??= 'ADD';
+            $this->compensationAdjustments[$empId]['extra_items'][$key]['amount'] ??= 0;
+
+            $amount = $this->moneyValue($item['amount'] ?? 0);
+            $operator = strtoupper((string) ($item['operator'] ?? 'ADD')) === 'LESS' ? 'LESS' : 'ADD';
+            $typeName = $type->name;
+            $typeCode = $type->code;
+            $signedAmount = $operator === 'LESS' ? -$amount : $amount;
+
+            if ($operator === 'LESS') {
+                $extraDeductions += $amount;
+            } else {
+                $extraAdditions += $amount;
+            }
+
+            $extraItems[$key] = [
+                'key' => $key,
+                'type_id' => $type->id,
+                'type' => $typeName,
+                'code' => $typeCode,
+                'operator' => $operator,
+                'amount' => $amount,
+                'signed_amount' => $signedAmount,
+            ];
+        }
+
+        $fixedTotal = round(collect($adjustments)->only([
             'basic_salary',
             'subsistence',
             'laundry',
             'pera',
         ])->sum(), 2);
-        $adjustments['remarks_missing'] = $adjustments['total'] !== 0.0 && $adjustments['remarks'] === '';
+        $adjustments['extra_items'] = $extraItems;
+        $adjustments['extra_additions'] = round($extraAdditions, 2);
+        $adjustments['extra_deductions'] = round($extraDeductions, 2);
+        $adjustments['extra_total'] = round($extraAdditions - $extraDeductions, 2);
+        $adjustments['total'] = round($fixedTotal + $adjustments['extra_total'], 2);
+        $adjustments['remarks_missing'] = $fixedTotal !== 0.0 && $adjustments['remarks'] === '';
 
         return $adjustments;
+    }
+
+    private function moneyValue(mixed $value): float
+    {
+        return is_numeric($value) ? round(max(0, (float) $value), 2) : 0.0;
+    }
+
+    private function nullableMoneyValue(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_numeric($value) ? round(max(0, (float) $value), 2) : null;
     }
 
     private function signedMoneyValue(mixed $value): float
@@ -910,9 +1342,13 @@ class PayrollGeneration extends Component
         }
 
         $this->currentStep = 3;
-        $names = $missingRemarks->take(3)->implode(', ');
-        $suffix = $missingRemarks->count() > 3 ? ' and others' : '';
-        $this->addError('adjustments', "Enter adjustment remarks for {$names}{$suffix} before exporting or finalizing.");
+        if ($missingRemarks->isNotEmpty()) {
+            $names = $missingRemarks->take(3)->implode(', ');
+            $suffix = $missingRemarks->count() > 3 ? ' and others' : '';
+            $this->addError('adjustments', "Enter adjustment remarks for {$names}{$suffix} before exporting or finalizing.");
+
+            return false;
+        }
 
         return false;
     }
@@ -1072,6 +1508,56 @@ class PayrollGeneration extends Component
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
+    }
+
+    private function adjustmentTypes(): Collection
+    {
+        return PayrollAdjustmentType::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+    }
+
+    private function selectedAdjustmentTypes(?Collection $adjustmentTypes = null): Collection
+    {
+        $adjustmentTypes ??= $this->adjustmentTypes();
+        $selectedIds = collect($this->selectedAdjustmentTypeIds)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($selectedIds->isEmpty()) {
+            return collect();
+        }
+
+        return $adjustmentTypes
+            ->filter(fn (PayrollAdjustmentType $type) => $selectedIds->contains((int) $type->id))
+            ->values();
+    }
+
+    private function syncSelectedAdjustmentTypeIds(?Collection $adjustmentTypes = null): void
+    {
+        $adjustmentTypes ??= $this->adjustmentTypes();
+        $validIds = $adjustmentTypes->pluck('id')->map(fn ($id) => (int) $id);
+
+        $this->selectedAdjustmentTypeIds = collect($this->selectedAdjustmentTypeIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $validIds->contains($id))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function selectedAdjustmentTypeIdsFromAdjustments(array $compensationAdjustments): array
+    {
+        return collect($compensationAdjustments)
+            ->flatMap(fn ($adjustments) => (array) ($adjustments['extra_items'] ?? []))
+            ->map(fn ($item, $key) => (int) ($item['type_id'] ?? $key))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function salaryMatrix(): array
@@ -1307,8 +1793,18 @@ class PayrollGeneration extends Component
                 'status' => 1,
                 'generated_by' => $generatedBy,
                 'gross_pay' => $totals['net_compensation'],
-                'total_additions' => collect($totals['compensations'])->sum() + $totals['compensation_adjustments']['total'],
-                'total_deductions' => $totals['net_compensation'] - $totals['net_after_loan_deductions'],
+                'total_additions' => collect($totals['compensations'])->sum()
+                    + max(0, $totals['compensation_adjustments']['basic_salary'])
+                    + max(0, $totals['compensation_adjustments']['subsistence'])
+                    + max(0, $totals['compensation_adjustments']['laundry'])
+                    + max(0, $totals['compensation_adjustments']['pera'])
+                    + $totals['compensation_adjustments']['extra_additions'],
+                'total_deductions' => ($totals['net_compensation'] - $totals['net_after_loan_deductions'])
+                    + abs(min(0, $totals['compensation_adjustments']['basic_salary']))
+                    + abs(min(0, $totals['compensation_adjustments']['subsistence']))
+                    + abs(min(0, $totals['compensation_adjustments']['laundry']))
+                    + abs(min(0, $totals['compensation_adjustments']['pera']))
+                    + $totals['compensation_adjustments']['extra_deductions'],
                 'net_pay' => $totals['net_after_loan_deductions'],
             ]);
 
@@ -1445,11 +1941,27 @@ class PayrollGeneration extends Component
 
             $lines[] = [
                 'emp_id' => $row['emp_id'],
-                'line_group' => 'EARNING',
+                'line_group' => $amount < 0 ? 'DEDUCTION' : 'EARNING',
                 'code' => 'adjustment_'.$code,
                 'name' => $label.' Adjustment',
-                'amount' => $amount,
+                'amount' => abs($amount),
                 'remarks' => $row['compensation_adjustments']['remarks'],
+            ];
+        }
+
+        foreach (($row['compensation_adjustments']['extra_items'] ?? []) as $item) {
+            $amount = (float) ($item['amount'] ?? 0);
+            if ($amount <= 0) {
+                continue;
+            }
+
+            $lines[] = [
+                'emp_id' => $row['emp_id'],
+                'line_group' => ($item['operator'] ?? 'ADD') === 'LESS' ? 'DEDUCTION' : 'EARNING',
+                'code' => 'adjustment_extra_'.str($item['type'] ?: 'other')->slug('_')->limit(40, ''),
+                'name' => $item['type'] ?: 'Other Adjustment',
+                'amount' => $amount,
+                'remarks' => $row['compensation_adjustments']['remarks'] ?: null,
             ];
         }
 
@@ -1497,7 +2009,7 @@ class PayrollGeneration extends Component
                 'code' => $code,
                 'name' => $this->loanColumnLabel($code),
                 'amount' => $amount,
-                'remarks' => 'Imported deduction',
+                'remarks' => 'Loan deduction',
             ];
         }
 
@@ -1558,7 +2070,11 @@ class PayrollGeneration extends Component
             ['label' => 'Employee Information', 'columns' => ['emp_id', 'employee_name', 'position']],
             ['label' => 'Pay Basis', 'columns' => ['salary_grade', 'step', 'subsistence_deduct_days', 'pera_deduct_days', 'laundry_deduct_days', 'tev_deduct_days', 'deduction_days']],
             ['label' => 'Earnings', 'columns' => array_merge(['basic_salary'], $compensations->map(fn ($item) => 'compensation_'.$item->id)->all(), ['gross'])],
-            ['label' => 'Compensation Adjustments', 'columns' => ['adjustment_basic_salary', 'adjustment_subsistence', 'adjustment_laundry', 'adjustment_pera', 'adjustment_remarks', 'net_compensation']],
+            ['label' => 'Compensation Adjustments', 'columns' => array_merge(
+                ['adjustment_basic_salary', 'adjustment_subsistence', 'adjustment_laundry', 'adjustment_pera'],
+                $this->selectedAdjustmentTypes()->map(fn ($type) => 'adjustment_type_'.$type->id)->all(),
+                ['adjustment_remarks', 'net_compensation'],
+            )],
             ['label' => 'Statutory Deductions', 'columns' => ['life_retirement', 'phic', 'mandatory_pagibig']],
             ['label' => 'Government Shares', 'columns' => ['government_life_retirement', 'government_phic', 'government_pagibig']],
             ['label' => 'Tax Calculation', 'columns' => [
@@ -1644,6 +2160,10 @@ class PayrollGeneration extends Component
 
         foreach ($compensations as $item) {
             $columns['compensation_'.$item->id] = ['label' => $item->name, 'enabled' => true];
+        }
+
+        foreach ($this->selectedAdjustmentTypes() as $type) {
+            $columns['adjustment_type_'.$type->id] = ['label' => $type->name, 'enabled' => true];
         }
 
         foreach ($deductionPrograms as $program) {

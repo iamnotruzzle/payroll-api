@@ -35,6 +35,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/payroll/dtr', [PayrollPageController::class, 'dtr'])->name('payroll.dtr');
     Route::get('/payroll/dtr-encoding', [PayrollPageController::class, 'dtrEncoding'])->name('payroll.dtr-encoding');
+    Route::get('/payroll/dtr-correction-requests', [PayrollPageController::class, 'dtrCorrectionRequests'])->name('payroll.dtr-correction-requests');
+    Route::get('/payroll/dtr-correction-approvers', [PayrollPageController::class, 'dtrCorrectionApprovers'])->name('payroll.dtr-correction-approvers');
     Route::get('/payroll/mra', [PayrollPageController::class, 'mra'])->name('payroll.mra');
     Route::get('/payroll/generation/configuration', [PayrollPageController::class, 'generationConfiguration'])->name('payroll.generation.configuration');
     Route::get('/payroll/generation', [PayrollPageController::class, 'generation'])->name('payroll.generation');
@@ -44,6 +46,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/payroll/loan-imports/template', [PayrollLoanImportController::class, 'template'])->name('payroll.loan-imports.template');
     Route::get('/payroll/loan-references', [PayrollPageController::class, 'loanReferences'])->name('payroll.loan-references');
     Route::get('/payroll/compensations', [PayrollPageController::class, 'compensations'])->name('payroll.compensations');
+    Route::get('/payroll/adjustment-types', [PayrollPageController::class, 'adjustmentTypes'])->name('payroll.adjustment-types');
     Route::get('/payroll/deduction-programs', [PayrollPageController::class, 'deductionPrograms'])->name('payroll.deduction-programs');
     Route::get('/payroll/holidays', [PayrollPageController::class, 'holidays'])->name('payroll.holidays');
     Route::get('/payroll/history', [PayrollPageController::class, 'history'])->name('payroll.history');

@@ -219,6 +219,24 @@
                                                 $id = str_replace('compensation_', '', $columnKey);
                                             @endphp
                                             {{ number_format($earnings['compensations'][$id]['amount'] ?? 0, 2) }}
+                                        {{-- ADJUSTMENT COLUMNS --}}
+                                        @elseif ($columnKey === 'adjustment_basic_salary')
+                                            {{ number_format($earnings['adjustments']['basic_salary'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'adjustment_subsistence')
+                                            {{ number_format($earnings['adjustments']['subsistence'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'adjustment_laundry')
+                                            {{ number_format($earnings['adjustments']['laundry'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'adjustment_pera')
+                                            {{ number_format($earnings['adjustments']['pera'] ?? 0, 2) }}
+                                        @elseif (str_starts_with($columnKey, 'adjustment_type_'))
+                                            @php
+                                                $adjustmentTypeId = str_replace('adjustment_type_', '', $columnKey);
+                                            @endphp
+                                            {{ number_format($earnings['adjustments']['extra_items'][$adjustmentTypeId]['signed_amount'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'adjustment_remarks')
+                                            <div class="text-left">
+                                                {{ $earnings['adjustments']['remarks'] ?? '-' }}
+                                            </div>
                                         {{-- PROGRAM COLUMNS --}}
                                         @elseif (str_starts_with($columnKey, 'program_'))
                                             @php

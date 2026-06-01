@@ -10,7 +10,7 @@ window.jQuery = $;
 select2(window, $);
 
 const initPayrollEmployeePickers = () => {
-    document.querySelectorAll('select[data-select2-employee-picker]').forEach((select) => {
+    document.querySelectorAll('select[data-select2-employee-picker], select[data-select2-searchable]').forEach((select) => {
         const $select = $(select);
 
         if (!$.fn.select2) {
@@ -20,15 +20,19 @@ const initPayrollEmployeePickers = () => {
         const isMultiple = select.multiple;
 
         if ($select.data('select2')) {
-            $select.off('change.payrollSelect2');
+            $select.off('.payrollSelect2');
             $select.select2('destroy');
         }
 
         $select.select2({
             allowClear: !isMultiple,
             closeOnSelect: !isMultiple,
-            placeholder: select.dataset.placeholder || (isMultiple ? 'Select employees' : 'Select employee'),
+            placeholder: select.dataset.placeholder || (isMultiple ? 'Select employees' : 'Select option'),
             width: '100%',
+        });
+
+        $select.on('select2:select.payrollSelect2 select2:clear.payrollSelect2', () => {
+            select.dispatchEvent(new Event('change', { bubbles: true }));
         });
 
         $select.on('change.payrollSelect2', () => {

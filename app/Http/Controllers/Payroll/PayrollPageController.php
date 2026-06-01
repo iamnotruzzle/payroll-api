@@ -16,6 +16,16 @@ class PayrollPageController extends Controller
         return view('payroll.dtr-encoding');
     }
 
+    public function dtrCorrectionRequests()
+    {
+        return view('payroll.dtr-correction-requests');
+    }
+
+    public function dtrCorrectionApprovers()
+    {
+        return view('payroll.dtr-correction-approvers');
+    }
+
     public function mra()
     {
         return view('payroll.mra');
@@ -54,6 +64,11 @@ class PayrollPageController extends Controller
     public function compensations()
     {
         return view('payroll.compensations');
+    }
+
+    public function adjustmentTypes()
+    {
+        return view('payroll.adjustment-types');
     }
 
     public function deductionPrograms()

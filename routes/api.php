@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\DtrLabelOptionController;
+use App\Http\Controllers\Api\DtrCorrectionRequestController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\HolidayController;
 use App\Http\Controllers\Api\PayrollOperationsController;
@@ -115,6 +116,12 @@ Route::prefix('payroll')->group(function () {
 
     Route::get('/dtr-schedule-encodings', [PayrollOperationsController::class, 'dtrScheduleEncodings']);
     Route::post('/dtr-schedule-encodings/bulk', [PayrollOperationsController::class, 'saveDtrScheduleEncodings']);
+
+    Route::get('/dtr-correction-requests', [DtrCorrectionRequestController::class, 'index']);
+    Route::get('/dtr-correction-requests/approvers', [DtrCorrectionRequestController::class, 'approvers']);
+    Route::post('/dtr-correction-requests', [DtrCorrectionRequestController::class, 'store']);
+    Route::post('/dtr-correction-requests/{id}/approve', [DtrCorrectionRequestController::class, 'approve']);
+    Route::post('/dtr-correction-requests/{id}/reject', [DtrCorrectionRequestController::class, 'reject']);
 
     Route::get('/leave-credit-adjustments', [PayrollOperationsController::class, 'leaveCreditAdjustments']);
     Route::post('/leave-credit-adjustments/replace', [PayrollOperationsController::class, 'replaceLeaveCreditAdjustments']);
