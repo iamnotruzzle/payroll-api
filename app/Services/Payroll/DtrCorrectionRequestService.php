@@ -87,6 +87,7 @@ class DtrCorrectionRequestService
         $this->assertCorrectionPayload($data);
         $this->assertPeriodOpen($employee, $data['dtr_date']);
         $this->assertNoPendingRequest($employee->emp_id, $data['dtr_date']);
+        $previousDtr = $this->dtrSnapshotFor($employee->emp_id, $data['dtr_date']);
 
         return PayrollDtrCorrectionRequest::create([
             'emp_id' => $employee->emp_id,
@@ -105,10 +106,78 @@ class DtrCorrectionRequestService
             'requested_by_emp_id' => $requestedBy,
             'requested_at' => now(),
             'approver_emp_id' => $approver->emp_id,
+            'previous_dtr' => $previousDtr,
         ])->fresh(['employee', 'requestedBy', 'approver']);
     }
 
-    public function approve(PayrollDtrCorrectionRequest $request, string $approvedBy, ?string $remarks = null): PayrollDtrCorrectionRequest
+    public function update(PayrollDtrCorrectionRequest $request, string $updatedBy, array $data): PayrollDtrCorrectionRequest
+    {
+        $this->assertPending($request);
+
+        if (! in_array($updatedBy, [$request->emp_id, $request->approver_emp_id], true)) {
+            throw ValidationException::withMessages([
+                'updated_by_emp_id' => 'Only the requester or delegated approver can update this pending request.',
+            ]);
+        }
+
+        $employee = $this->employeeOrFail($request->emp_id);
+
+        if ($updatedBy === $request->approver_emp_id) {
+            $this->sameDepartmentApproverOrFail($employee, $updatedBy);
+        }
+
+        $payload = [
+            'request_type' => $data['request_type'] ?? $request->request_type,
+            'requested_time_in' => $data['requested_time_in'] ?? $request->requested_time_in,
+            'requested_time_out' => $data['requested_time_out'] ?? $request->requested_time_out,
+            'requested_timeout_nextday' => array_key_exists('requested_timeout_nextday', $data)
+                ? (bool) $data['requested_timeout_nextday']
+                : (bool) $request->requested_timeout_nextday,
+            'reason' => $data['reason'] ?? $request->reason,
+            'dtr_date' => $data['dtr_date'] ?? $request->dtr_date->toDateString(),
+        ];
+
+        $this->assertCorrectionPayload($payload);
+        $this->assertPeriodOpen($employee, $payload['dtr_date']);
+        $this->assertNoPendingRequest($employee->emp_id, $payload['dtr_date'], $request->id);
+
+        $request->forceFill([
+            'dtr_date' => $payload['dtr_date'],
+            'request_type' => $payload['request_type'],
+            'requested_time_in' => in_array($payload['request_type'], [PayrollDtrCorrectionRequest::TYPE_TIME_IN, PayrollDtrCorrectionRequest::TYPE_BOTH], true)
+                ? $payload['requested_time_in']
+                : null,
+            'requested_time_out' => in_array($payload['request_type'], [PayrollDtrCorrectionRequest::TYPE_TIME_OUT, PayrollDtrCorrectionRequest::TYPE_BOTH], true)
+                ? $payload['requested_time_out']
+                : null,
+            'requested_timeout_nextday' => in_array($payload['request_type'], [PayrollDtrCorrectionRequest::TYPE_TIME_OUT, PayrollDtrCorrectionRequest::TYPE_BOTH], true)
+                ? $payload['requested_timeout_nextday']
+                : false,
+            'reason' => $payload['reason'],
+            'previous_dtr' => $this->dtrSnapshotFor($employee->emp_id, $payload['dtr_date']),
+        ])->save();
+
+        return $request->fresh(['employee', 'requestedBy', 'approver']);
+    }
+
+    public function cancel(PayrollDtrCorrectionRequest $request, string $cancelledBy): PayrollDtrCorrectionRequest
+    {
+        $this->assertPending($request);
+
+        if ($request->emp_id !== $cancelledBy) {
+            throw ValidationException::withMessages([
+                'cancelled_by_emp_id' => 'Only the requester can cancel this DTR correction request.',
+            ]);
+        }
+
+        $request->forceFill([
+            'status' => PayrollDtrCorrectionRequest::STATUS_CANCELLED,
+        ])->save();
+
+        return $request->fresh(['employee', 'requestedBy', 'approver']);
+    }
+
+    public function approve(PayrollDtrCorrectionRequest $request, string $approvedBy, ?string $remarks = null, ?array $adjustments = null): PayrollDtrCorrectionRequest
     {
         $this->assertPending($request);
 
@@ -121,6 +190,10 @@ class DtrCorrectionRequestService
         $employee = $this->employeeOrFail($request->emp_id);
         $this->sameDepartmentApproverOrFail($employee, $approvedBy);
         $this->assertPeriodOpen($employee, $request->dtr_date->toDateString());
+
+        if ($adjustments) {
+            $request = $this->update($request, $approvedBy, $adjustments);
+        }
 
         DB::connection('payroll')->transaction(function () use ($request, $approvedBy, $remarks) {
             $dtr = $this->applyToDtr($request);
@@ -209,6 +282,16 @@ class DtrCorrectionRequestService
         ];
     }
 
+    private function dtrSnapshotFor(string $employeeId, string $date): ?array
+    {
+        $dtr = EmployeeDtr::query()
+            ->where('emp_id', $employeeId)
+            ->whereDate('dtr_date', $date)
+            ->first();
+
+        return $this->dtrSnapshot($dtr);
+    }
+
     private function employeeOrFail(string $employeeId): Employee
     {
         $employee = Employee::query()
@@ -276,13 +359,18 @@ class DtrCorrectionRequestService
         }
     }
 
-    private function assertNoPendingRequest(string $employeeId, string $date): void
+    private function assertNoPendingRequest(string $employeeId, string $date, ?int $exceptId = null): void
     {
-        $exists = PayrollDtrCorrectionRequest::query()
+        $query = PayrollDtrCorrectionRequest::query()
             ->where('emp_id', $employeeId)
             ->whereDate('dtr_date', $date)
-            ->where('status', PayrollDtrCorrectionRequest::STATUS_PENDING)
-            ->exists();
+            ->where('status', PayrollDtrCorrectionRequest::STATUS_PENDING);
+
+        if ($exceptId) {
+            $query->where('id', '!=', $exceptId);
+        }
+
+        $exists = $query->exists();
 
         if ($exists) {
             throw ValidationException::withMessages([

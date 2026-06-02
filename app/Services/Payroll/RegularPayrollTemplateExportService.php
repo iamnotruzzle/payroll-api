@@ -22,6 +22,17 @@ class RegularPayrollTemplateExportService
 
     private const LAST_DATA_COLUMN = 'FM';
 
+    private const HEADER_ROWS = [1, 2, 3, 4, 5, 6];
+
+    private const RESERVED_DATA_COLUMNS = [
+        'A', 'B', 'C', 'D', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+        'P', 'Q', 'T', 'U', 'V', 'AB', 'AC', 'AD', 'AE', 'AG', 'AH', 'AI',
+        'AJ', 'AK', 'AL', 'AN', 'AO', 'AQ', 'AR', 'AS', 'AT', 'AU', 'AW',
+        'AX', 'AY', 'AZ', 'BA', 'BB', 'BC', 'BD', 'BE', 'EK', 'EL', 'EM',
+        'EO', 'ET', 'EU', 'EV', 'EX', 'EY', 'EZ', 'FE', 'FF', 'FG', 'FI',
+        'FK', 'FM',
+    ];
+
     private const LOAN_AMOUNT_COLUMNS = [
         'gsis_emergency' => 'BK',
         'gsis_computer' => 'BP',
@@ -112,6 +123,8 @@ class RegularPayrollTemplateExportService
 
     private function fillRows(Worksheet $sheet, Collection $rows, Collection $compensations, Collection $deductionPrograms): void
     {
+        $dynamicAdjustmentColumns = $this->dynamicAdjustmentColumns($sheet);
+
         foreach ($rows->values() as $index => $row) {
             $excelRow = self::FIRST_DATA_ROW + $index;
             $leave = $row['leave_deduction'] ?? [];
@@ -186,6 +199,7 @@ class RegularPayrollTemplateExportService
             ]);
 
             $this->setLoanAmountCells($sheet, $excelRow, $loans);
+            $this->setDynamicAdjustmentCells($sheet, $excelRow, $adjustments, $dynamicAdjustmentColumns);
         }
     }
 
@@ -219,6 +233,70 @@ class RegularPayrollTemplateExportService
         foreach ($amountsByColumn as $column => $amount) {
             $sheet->setCellValue("{$column}{$row}", $amount);
         }
+    }
+
+    private function dynamicAdjustmentColumns(Worksheet $sheet): array
+    {
+        $reserved = array_fill_keys(array_merge(
+            self::RESERVED_DATA_COLUMNS,
+            array_values(self::LOAN_AMOUNT_COLUMNS),
+        ), true);
+        $columns = [];
+        $lastColumn = Coordinate::columnIndexFromString(self::LAST_DATA_COLUMN);
+
+        for ($columnIndex = 1; $columnIndex <= $lastColumn; $columnIndex++) {
+            $column = Coordinate::stringFromColumnIndex($columnIndex);
+            if (isset($reserved[$column])) {
+                continue;
+            }
+
+            foreach (self::HEADER_ROWS as $row) {
+                $label = $this->normalizeHeader($sheet->getCell("{$column}{$row}")->getValue());
+                if ($label === '') {
+                    continue;
+                }
+
+                $columns[$label][] = $column;
+            }
+        }
+
+        return $columns;
+    }
+
+    private function setDynamicAdjustmentCells(Worksheet $sheet, int $row, array $adjustments, array $columnsByHeader): void
+    {
+        foreach (($adjustments['extra_items'] ?? []) as $item) {
+            $amount = $this->money($item['signed_amount'] ?? 0);
+            if ($amount === 0.0) {
+                continue;
+            }
+
+            $columns = collect([
+                $item['type'] ?? null,
+                $item['code'] ?? null,
+                $item['key'] ?? null,
+                $item['type_id'] ?? null,
+            ])
+                ->map(fn ($value) => $this->normalizeHeader($value))
+                ->filter()
+                ->unique()
+                ->flatMap(fn (string $label) => $columnsByHeader[$label] ?? [])
+                ->unique()
+                ->all();
+
+            foreach ($columns as $column) {
+                $sheet->setCellValue("{$column}{$row}", $amount);
+            }
+        }
+    }
+
+    private function normalizeHeader(mixed $value): string
+    {
+        return str((string) $value)
+            ->lower()
+            ->replaceMatches('/[^a-z0-9]+/', ' ')
+            ->squish()
+            ->toString();
     }
 
     private function fillCertificationTotals(Worksheet $sheet, int $rowCount): void

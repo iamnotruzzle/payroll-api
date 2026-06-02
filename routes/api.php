@@ -120,6 +120,8 @@ Route::prefix('payroll')->group(function () {
     Route::get('/dtr-correction-requests', [DtrCorrectionRequestController::class, 'index']);
     Route::get('/dtr-correction-requests/approvers', [DtrCorrectionRequestController::class, 'approvers']);
     Route::post('/dtr-correction-requests', [DtrCorrectionRequestController::class, 'store']);
+    Route::put('/dtr-correction-requests/{id}', [DtrCorrectionRequestController::class, 'update']);
+    Route::post('/dtr-correction-requests/{id}/cancel', [DtrCorrectionRequestController::class, 'cancel']);
     Route::post('/dtr-correction-requests/{id}/approve', [DtrCorrectionRequestController::class, 'approve']);
     Route::post('/dtr-correction-requests/{id}/reject', [DtrCorrectionRequestController::class, 'reject']);
 

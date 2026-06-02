@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Services\Payroll\RegularPayrollTemplateExportService;
 use Illuminate\Support\Facades\Config;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
 
 class RegularPayrollTemplateExportServiceTest extends TestCase
@@ -45,6 +46,47 @@ class RegularPayrollTemplateExportServiceTest extends TestCase
             $this->assertSame(44.44, $sheet->getCell('EK7')->getValue());
         } finally {
             @unlink($path);
+        }
+    }
+
+    public function test_it_exports_dynamic_compensation_adjustments_when_template_has_matching_columns(): void
+    {
+        Config::set('database.connections.payroll', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+
+        $templatePath = $this->templateWithHeader('AF3', 'Special Pay Differential');
+        Config::set('payroll.regular_template_path', $templatePath);
+
+        $row = $this->payrollRow();
+        $row['compensation_adjustments']['extra_items'] = [
+            '99' => [
+                'key' => '99',
+                'type_id' => 99,
+                'type' => 'Special Pay Differential',
+                'code' => 'SPECIAL_PAY_DIFFERENTIAL',
+                'operator' => 'ADD',
+                'amount' => 321.45,
+                'signed_amount' => 321.45,
+            ],
+        ];
+
+        $path = app(RegularPayrollTemplateExportService::class)->export(
+            collect([$row]),
+            collect(),
+            collect(),
+            '2026-05',
+        );
+
+        try {
+            $sheet = IOFactory::load($path)->getSheetByName('Regular');
+
+            $this->assertSame(321.45, $sheet->getCell('AF7')->getValue());
+        } finally {
+            @unlink($path);
+            @unlink($templatePath);
         }
     }
 
@@ -115,5 +157,16 @@ class RegularPayrollTemplateExportServiceTest extends TestCase
             'fifteenth' => 21040.07,
             'thirtieth' => 21040.06,
         ];
+    }
+
+    private function templateWithHeader(string $cell, string $header): string
+    {
+        $spreadsheet = IOFactory::load(config('payroll.regular_template_path'));
+        $spreadsheet->getSheetByName('Regular')->setCellValue($cell, $header);
+
+        $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'regular_payroll_template_'.uniqid('', true).'.xlsx';
+        (new Xlsx($spreadsheet))->save($path);
+
+        return $path;
     }
 }

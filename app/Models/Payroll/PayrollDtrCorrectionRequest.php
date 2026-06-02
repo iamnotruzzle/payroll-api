@@ -21,6 +21,8 @@ class PayrollDtrCorrectionRequest extends Model
 
     public const STATUS_REJECTED = 'REJECTED';
 
+    public const STATUS_CANCELLED = 'CANCELLED';
+
     protected $connection = 'payroll';
 
     protected $table = 'payroll_dtr_correction_requests';
@@ -67,6 +69,8 @@ class PayrollDtrCorrectionRequest extends Model
 
     protected $appends = [
         'attachment_url',
+        'requested_dtr',
+        'final_dtr',
     ];
 
     public function getAttachmentUrlAttribute(): ?string
@@ -74,6 +78,46 @@ class PayrollDtrCorrectionRequest extends Model
         return $this->attachment_path
             ? Storage::disk('public')->url($this->attachment_path)
             : null;
+    }
+
+    public function getRequestedDtrAttribute(): array
+    {
+        $snapshot = $this->previous_dtr ?? [
+            'emp_id' => $this->emp_id,
+            'dtr_date' => $this->dtr_date?->toDateString(),
+            'timein_am' => null,
+            'timeout_am' => null,
+            'timein_pm' => null,
+            'timeout_pm' => null,
+            'timeout_nextday' => null,
+            'machine_id' => null,
+        ];
+
+        if (in_array($this->request_type, [self::TYPE_TIME_IN, self::TYPE_BOTH], true)) {
+            $snapshot['timein_am'] = $this->requested_time_in;
+        }
+
+        if (in_array($this->request_type, [self::TYPE_TIME_OUT, self::TYPE_BOTH], true)) {
+            $snapshot['timeout_pm'] = $this->requested_time_out;
+            $snapshot['timeout_nextday'] = $this->requested_timeout_nextday && $this->requested_time_out
+                ? $this->dtr_date?->copy()->setTimeFromTimeString($this->requested_time_out)->addDay()->toDateTimeString()
+                : null;
+        }
+
+        return $snapshot;
+    }
+
+    public function getFinalDtrAttribute(): ?array
+    {
+        if ($this->status === self::STATUS_APPROVED) {
+            return $this->applied_dtr;
+        }
+
+        if ($this->status === self::STATUS_PENDING) {
+            return $this->requested_dtr;
+        }
+
+        return null;
     }
 
     public function employee(): BelongsTo

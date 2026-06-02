@@ -78,14 +78,68 @@ class DtrCorrectionRequestController extends Controller
         $data = $request->validate([
             'approved_by_emp_id' => ['nullable', 'string'],
             'remarks' => ['nullable', 'string', 'max:2000'],
+            'request_type' => ['nullable', Rule::in([
+                PayrollDtrCorrectionRequest::TYPE_TIME_IN,
+                PayrollDtrCorrectionRequest::TYPE_TIME_OUT,
+                PayrollDtrCorrectionRequest::TYPE_BOTH,
+            ])],
+            'requested_time_in' => ['nullable', 'date_format:H:i'],
+            'requested_time_out' => ['nullable', 'date_format:H:i'],
+            'requested_timeout_nextday' => ['nullable', 'boolean'],
         ]);
 
         $correctionRequest = PayrollDtrCorrectionRequest::findOrFail($id);
+        $adjustments = collect($data)->only([
+            'request_type',
+            'requested_time_in',
+            'requested_time_out',
+            'requested_timeout_nextday',
+        ])->all();
 
         return response()->json($this->service->approve(
             $correctionRequest,
             $this->actorEmpId($request, 'approved_by_emp_id'),
-            $data['remarks'] ?? null
+            $data['remarks'] ?? null,
+            $adjustments ?: null
+        ));
+    }
+
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'updated_by_emp_id' => ['nullable', 'string'],
+            'dtr_date' => ['required', 'date'],
+            'request_type' => ['required', Rule::in([
+                PayrollDtrCorrectionRequest::TYPE_TIME_IN,
+                PayrollDtrCorrectionRequest::TYPE_TIME_OUT,
+                PayrollDtrCorrectionRequest::TYPE_BOTH,
+            ])],
+            'requested_time_in' => ['nullable', 'date_format:H:i'],
+            'requested_time_out' => ['nullable', 'date_format:H:i'],
+            'requested_timeout_nextday' => ['nullable', 'boolean'],
+            'reason' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $correctionRequest = PayrollDtrCorrectionRequest::findOrFail($id);
+
+        return response()->json($this->service->update(
+            $correctionRequest,
+            $this->actorEmpId($request, 'updated_by_emp_id'),
+            $data
+        ));
+    }
+
+    public function cancel(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'cancelled_by_emp_id' => ['nullable', 'string'],
+        ]);
+
+        $correctionRequest = PayrollDtrCorrectionRequest::findOrFail($id);
+
+        return response()->json($this->service->cancel(
+            $correctionRequest,
+            $this->actorEmpId($request, 'cancelled_by_emp_id')
         ));
     }
 
