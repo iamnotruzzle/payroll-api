@@ -174,6 +174,15 @@
             >
                 Save
             </button>
+            @if (filled($selectedEmpId))
+                <a
+                    href="{{ route('payroll.dtr-encoding.print', ['emp_id' => $selectedEmpId, 'month' => $monthFilter, 'year' => $yearFilter]) }}"
+                    target="_blank"
+                    class="inline-flex min-w-[96px] items-center justify-center rounded-md bg-blue-600/90 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-600"
+                >
+                    PDF View
+                </a>
+            @endif
             <div class="mx-1 hidden h-6 w-px bg-slate-300/70 sm:block"></div>
             <button
                 type="button"

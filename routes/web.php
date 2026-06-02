@@ -35,6 +35,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/payroll/dtr', [PayrollPageController::class, 'dtr'])->name('payroll.dtr');
     Route::get('/payroll/dtr-encoding', [PayrollPageController::class, 'dtrEncoding'])->name('payroll.dtr-encoding');
+    Route::get('/payroll/dtr-encoding/print', [PayrollPageController::class, 'dtrPrintable'])->name('payroll.dtr-encoding.print');
     Route::get('/payroll/dtr-correction-requests', [PayrollPageController::class, 'dtrCorrectionRequests'])->name('payroll.dtr-correction-requests');
     Route::get('/payroll/dtr-correction-approvers', [PayrollPageController::class, 'dtrCorrectionApprovers'])->name('payroll.dtr-correction-approvers');
     Route::get('/payroll/mra', [PayrollPageController::class, 'mra'])->name('payroll.mra');
