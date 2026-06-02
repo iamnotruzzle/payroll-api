@@ -49,6 +49,7 @@
                     'payroll.loan-imports',
                     'payroll.loan-references',
                     'payroll.deduction-programs',
+                    'payroll.statutory-contributions',
                     'payroll.compensations',
                     'payroll.adjustment-types'
                 ),
@@ -58,6 +59,7 @@
                     ['label' => 'Loan Due Imports', 'route' => 'payroll.loan-imports', 'icon' => 'upload', 'active' => request()->routeIs('payroll.loan-imports')],
                     ['label' => 'Loan References', 'route' => 'payroll.loan-references', 'icon' => 'files', 'active' => request()->routeIs('payroll.loan-references')],
                     ['label' => 'Deduction Programs', 'route' => 'payroll.deduction-programs', 'icon' => 'list-checks', 'active' => request()->routeIs('payroll.deduction-programs')],
+                    ['label' => 'Statutory Contributions', 'route' => 'payroll.statutory-contributions', 'icon' => 'wallet', 'active' => request()->routeIs('payroll.statutory-contributions')],
                     ['label' => 'Compensation Rules', 'route' => 'payroll.compensations', 'icon' => 'coins', 'active' => request()->routeIs('payroll.compensations')],
                     ['label' => 'Adjustment Types', 'route' => 'payroll.adjustment-types', 'icon' => 'sliders', 'active' => request()->routeIs('payroll.adjustment-types')],
                 ],

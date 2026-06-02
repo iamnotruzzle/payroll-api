@@ -70,7 +70,7 @@ class StatutoryContributionService
             ? $effectiveDate
             : Carbon::parse($effectiveDate ?: now());
 
-        $rules = $this->rulesForDate($date);
+        $rules = $this->rulesForDate($date, $monthlySalary);
         $employee = [
             'life_retirement' => 0.0,
             'phic' => 0.0,
@@ -115,7 +115,7 @@ class StatutoryContributionService
         ];
     }
 
-    private function rulesForDate(CarbonInterface $date): array
+    private function rulesForDate(CarbonInterface $date, float $monthlySalary): array
     {
         try {
             $rules = PayrollStatutoryContribution::query()
@@ -135,8 +135,8 @@ class StatutoryContributionService
                 ->where('is_active', true)
                 ->whereIn('code', array_keys(self::EMPLOYEE_LABELS))
                 ->get()
-                ->mapWithKeys(function (PayrollStatutoryContribution $contribution) {
-                    $bracket = $contribution->brackets->first();
+                ->mapWithKeys(function (PayrollStatutoryContribution $contribution) use ($monthlySalary) {
+                    $bracket = $this->matchingBracket($contribution, $monthlySalary);
                     if (! $bracket) {
                         return [];
                     }
@@ -160,6 +160,34 @@ class StatutoryContributionService
         } catch (Throwable) {
             return self::FALLBACK_RULES;
         }
+    }
+
+    private function matchingBracket(PayrollStatutoryContribution $contribution, float $monthlySalary): mixed
+    {
+        $salary = max(0, $monthlySalary);
+        $effectiveStart = $contribution->brackets->first()?->effective_start?->toDateString();
+        $brackets = $contribution->brackets
+            ->when($effectiveStart !== null, fn (Collection $brackets) => $brackets
+                ->filter(fn ($bracket) => $bracket->effective_start?->toDateString() === $effectiveStart));
+
+        $match = $brackets
+            ->first(function ($bracket) use ($salary) {
+                $min = (float) $bracket->min_salary;
+                $max = $bracket->max_salary !== null ? (float) $bracket->max_salary : null;
+
+                return $salary >= $min && ($max === null || $salary <= $max);
+            });
+
+        if ($match) {
+            return $match;
+        }
+
+        $lowestBracket = $brackets->sortBy('min_salary')->first();
+        if ($lowestBracket && $salary < (float) $lowestBracket->min_salary) {
+            return $lowestBracket;
+        }
+
+        return $brackets->sortByDesc('min_salary')->first();
     }
 
     private function mergeWithFallbacks(Collection $rules): array

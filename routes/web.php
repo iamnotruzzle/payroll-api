@@ -49,6 +49,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/payroll/compensations', [PayrollPageController::class, 'compensations'])->name('payroll.compensations');
     Route::get('/payroll/adjustment-types', [PayrollPageController::class, 'adjustmentTypes'])->name('payroll.adjustment-types');
     Route::get('/payroll/deduction-programs', [PayrollPageController::class, 'deductionPrograms'])->name('payroll.deduction-programs');
+    Route::get('/payroll/statutory-contributions', [PayrollPageController::class, 'statutoryContributions'])->name('payroll.statutory-contributions');
     Route::get('/payroll/holidays', [PayrollPageController::class, 'holidays'])->name('payroll.holidays');
     Route::get('/payroll/history', [PayrollPageController::class, 'history'])->name('payroll.history');
     Route::get('/payroll/user-manual', [PayrollPageController::class, 'userManual'])->name('payroll.user-manual');
