@@ -14,9 +14,21 @@
         $initial = strtoupper(substr((string) $employeeName, 0, 1));
         $navGroups = [
             [
+                'key' => 'administration',
+                'label' => 'Administration',
+                'icon' => 'shield-check',
+                'visible' => auth()->user()?->can('admin.users.view') || auth()->user()?->can('admin.roles.view'),
+                'open' => request()->routeIs('admin.user-accounts', 'admin.roles-permissions'),
+                'items' => [
+                    ['label' => 'User Accounts', 'route' => 'admin.user-accounts', 'icon' => 'users', 'active' => request()->routeIs('admin.user-accounts'), 'visible' => auth()->user()?->can('admin.users.view')],
+                    ['label' => 'Roles and Permissions', 'route' => 'admin.roles-permissions', 'icon' => 'shield-check', 'active' => request()->routeIs('admin.roles-permissions'), 'visible' => auth()->user()?->can('admin.roles.view')],
+                ],
+            ],
+            [
                 'key' => 'scheduling',
                 'label' => 'Scheduling',
                 'icon' => 'calendar-range',
+                'visible' => auth()->user()?->can('schedule.view'),
                 'open' => request()->routeIs('schedule.dashboard', 'schedule.shift-codes', 'schedule.employees', 'schedule.rotation-groups', 'schedule.staffing-requirements', 'schedule.templates', 'schedule.print-settings'),
                 'items' => [
                     ['label' => 'Schedule Dashboard', 'route' => 'schedule.dashboard', 'icon' => 'layout-dashboard', 'active' => request()->routeIs('schedule.dashboard')],
@@ -40,6 +52,7 @@
                 'key' => 'payroll',
                 'label' => 'Payroll Operations',
                 'icon' => 'wallet',
+                'visible' => auth()->user()?->can('payroll.view'),
                 'open' => request()->routeIs(
                     'payroll.generation',
                     'payroll.generation.configuration',
@@ -68,7 +81,10 @@
                 'key' => 'timekeeping',
                 'label' => 'Timekeeping',
                 'icon' => 'file-clock',
+                'visible' => auth()->user()?->can('timekeeping.view'),
                 'open' => request()->routeIs(
+                    'payroll.daily-attendance',
+                    'payroll.attendance-report',
                     'payroll.dtr',
                     'payroll.dtr-encoding',
                     'payroll.dtr-correction-requests',
@@ -77,6 +93,8 @@
                     'payroll.holidays'
                 ),
                 'items' => [
+                    ['label' => 'Daily Attendance', 'route' => 'payroll.daily-attendance', 'icon' => 'calendar-check', 'active' => request()->routeIs('payroll.daily-attendance')],
+                    ['label' => 'Attendance Report', 'route' => 'payroll.attendance-report', 'icon' => 'clipboard-list', 'active' => request()->routeIs('payroll.attendance-report')],
                     ['label' => 'DTR Encoding', 'route' => 'payroll.dtr-encoding', 'icon' => 'file-clock', 'active' => request()->routeIs('payroll.dtr', 'payroll.dtr-encoding')],
                     ['label' => 'DTR Corrections', 'route' => 'payroll.dtr-correction-requests', 'icon' => 'file-pen-line', 'active' => request()->routeIs('payroll.dtr-correction-requests')],
                     ['label' => 'DTR Approvers', 'route' => 'payroll.dtr-correction-approvers', 'icon' => 'user-check', 'active' => request()->routeIs('payroll.dtr-correction-approvers')],
@@ -88,6 +106,7 @@
                 'key' => 'references',
                 'label' => 'References and Help',
                 'icon' => 'book-open',
+                'visible' => auth()->user()?->can('references.view'),
                 'open' => request()->routeIs('schedule.employee-references', 'schedule.user-manual', 'payroll.user-manual'),
                 'items' => [
                     ['label' => 'Employee References', 'route' => 'schedule.employee-references', 'icon' => 'database', 'active' => request()->routeIs('schedule.employee-references')],
@@ -117,10 +136,12 @@
             'printer' => 'M6 9V2h12v7 M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2 M6 14h12v8H6z',
             'refresh-cw' => 'M21 12a9 9 0 0 1-15.5 6.3L3 16 M3 21v-5h5 M3 12A9 9 0 0 1 18.5 5.7L21 8 M21 3v5h-5',
             'sliders' => 'M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M2 14h4 M10 8h4 M18 16h4',
+            'shield-check' => 'M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3z M9 12l2 2 4-4',
             'table-properties' => 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M3 9h18 M9 9v12 M14 13h4 M14 17h4',
             'upload' => 'M12 3v12 M7 8l5-5 5 5 M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2',
             'user-check' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M16 11l2 2 4-4',
             'user-cog' => 'M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M2 21a8 8 0 0 1 12.2-6.8 M19 15v2 M19 21v.01 M22 18h-2 M18 18h-2 M21.1 15.9l-1.4 1.4 M18.3 20.7l-1.4 1.4 M21.1 22.1l-1.4-1.4 M18.3 17.3l-1.4-1.4',
+            'users' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-3.9 M16 3.1a4 4 0 0 1 0 7.8',
             'wallet' => 'M20 7V6a2 2 0 0 0-2-2H5a3 3 0 0 0 0 6h15v10H5a3 3 0 0 1-3-3V7 M16 14h.01',
             'history' => 'M3 12a9 9 0 1 0 9-9 M12 7v5l3 3',
         ];
@@ -152,6 +173,7 @@
                         ->all()) }"
                 >
                     @foreach ($navGroups as $group)
+                        @continue(! ($group['visible'] ?? true))
                         <div class="erp-nav-group">
                             <button
                                 type="button"
@@ -172,6 +194,7 @@
 
                             <div class="mt-1 space-y-0.5 pb-1" x-show="open.{{ $group['key'] }}">
                                 @foreach ($group['items'] as $item)
+                                    @continue(! ($item['visible'] ?? true))
                                     @if (isset($item['children']))
                                         <button
                                             type="button"
@@ -190,6 +213,7 @@
 
                                         <div class="space-y-0.5" x-show="open.{{ $item['key'] }}">
                                             @foreach ($item['children'] as $child)
+                                                @continue(! ($child['visible'] ?? true))
                                                 <a
                                                     class="erp-nav-link erp-nav-link-depth-2 {{ $child['active'] ? 'erp-nav-link-active' : '' }}"
                                                     href="{{ isset($child['route']) ? route($child['route']) : $child['href'] }}"

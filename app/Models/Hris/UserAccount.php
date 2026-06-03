@@ -4,12 +4,16 @@ namespace App\Models\Hris;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Spatie\Permission\Traits\HasRoles;
 
 class UserAccount extends Authenticatable
 {
+    use HasRoles;
+
     protected $connection = 'mysql';
     protected $table = 'tbl_useraccount';
     protected $primaryKey = 'userid';
+    protected string $guard_name = 'web';
     public $incrementing = true;
     protected $keyType = 'int';
 

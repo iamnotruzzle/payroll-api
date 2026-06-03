@@ -26,6 +26,16 @@ class PayrollPageController extends Controller
         return view('payroll.dtr-encoding');
     }
 
+    public function dailyAttendance()
+    {
+        return view('payroll.daily-attendance');
+    }
+
+    public function attendanceReport()
+    {
+        return view('payroll.attendance-report');
+    }
+
     public function dtrPrintable(Request $request)
     {
         $data = $request->validate([
