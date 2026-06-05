@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Hris\UserAccount;
+use App\Support\Rbac\LegacyHrisRoleMapper;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -11,10 +12,6 @@ use Spatie\Permission\PermissionRegistrar;
 class RBACSeeder extends Seeder
 {
     private const GUARD = 'web';
-
-    private const DEFAULT_SUPER_ADMIN_EMPLOYEE_IDS = [
-        '001783',
-    ];
 
     public function run(): void
     {
@@ -46,7 +43,12 @@ class RBACSeeder extends Seeder
 
     public static function groupedPermissions(): array
     {
-        return (new self())->permissions();
+        return (new self)->permissions();
+    }
+
+    public static function roleDefinitions(): array
+    {
+        return (new self)->roles();
     }
 
     private function permissions(): array
@@ -174,7 +176,7 @@ class RBACSeeder extends Seeder
     private function assignInitialAdminRoles(): void
     {
         UserAccount::query()
-            ->whereIn('emp_id', self::DEFAULT_SUPER_ADMIN_EMPLOYEE_IDS)
+            ->whereIn('emp_id', LegacyHrisRoleMapper::DEFAULT_SUPER_ADMIN_EMPLOYEE_IDS)
             ->get()
             ->each(fn (UserAccount $account) => $account->assignRole('super-admin'));
 

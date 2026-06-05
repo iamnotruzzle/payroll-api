@@ -10,6 +10,7 @@ use App\Models\Schedule\SchedulePrintSetting;
 use App\Models\Schedule\ScheduleSignatory;
 use App\Models\Schedule\ShiftCode;
 use Carbon\CarbonImmutable;
+use Database\Seeders\RBACSeeder;
 
 class SchedulePageController extends Controller
 {
@@ -51,6 +52,15 @@ class SchedulePageController extends Controller
     public function userManual()
     {
         return view('schedule.user-manual');
+    }
+
+    public function rolesPermissionsManual()
+    {
+        return view('references.roles-permissions-manual', [
+            'permissionGroups' => RBACSeeder::groupedPermissions(),
+            'roleDefinitions' => RBACSeeder::roleDefinitions(),
+            'permissionPages' => $this->permissionPages(),
+        ]);
     }
 
     public function printSettings()
@@ -100,8 +110,8 @@ class SchedulePageController extends Controller
             ->values();
 
         $legend = ShiftCode::where(function ($query) use ($schedule) {
-                $query->whereNull('department_id')->orWhere('department_id', $schedule->department_id);
-            })
+            $query->whereNull('department_id')->orWhere('department_id', $schedule->department_id);
+        })
             ->where('is_active', true)
             ->orderBy('code')
             ->get();
@@ -161,5 +171,52 @@ class SchedulePageController extends Controller
                     ? trim($carry.' '.$part)
                     : $carry.$part;
             }, '');
+    }
+
+    private function permissionPages(): array
+    {
+        return [
+            'admin.users.view' => [
+                ['label' => 'User Accounts', 'route' => 'admin.user-accounts'],
+            ],
+            'admin.roles.view' => [
+                ['label' => 'Roles and Permissions', 'route' => 'admin.roles-permissions'],
+            ],
+            'schedule.view' => [
+                ['label' => 'Schedule Dashboard', 'route' => 'schedule.dashboard'],
+                ['label' => 'Shift Codes', 'route' => 'schedule.shift-codes'],
+                ['label' => 'Employee Schedule Settings', 'route' => 'schedule.employees'],
+                ['label' => 'Rotation Groups', 'route' => 'schedule.rotation-groups'],
+                ['label' => 'Staffing Requirements', 'route' => 'schedule.staffing-requirements'],
+                ['label' => 'Schedule Templates', 'route' => 'schedule.templates'],
+                ['label' => 'Print and Export Settings', 'route' => 'schedule.print-settings'],
+            ],
+            'references.view' => [
+                ['label' => 'Employee References', 'route' => 'schedule.employee-references'],
+                ['label' => 'Schedule Management User Manual', 'route' => 'schedule.user-manual'],
+                ['label' => 'Payroll Operations Manual', 'route' => 'payroll.user-manual'],
+                ['label' => 'Roles and Permissions Manual', 'route' => 'references.roles-permissions-manual'],
+                ['label' => 'Employees API', 'href' => '/api/employees'],
+            ],
+            'timekeeping.view' => [
+                ['label' => 'Daily Attendance', 'route' => 'payroll.daily-attendance'],
+                ['label' => 'Attendance Report', 'route' => 'payroll.attendance-report'],
+                ['label' => 'DTR Encoding', 'route' => 'payroll.dtr-encoding'],
+                ['label' => 'DTR Corrections', 'route' => 'payroll.dtr-correction-requests'],
+                ['label' => 'DTR Approvers', 'route' => 'payroll.dtr-correction-approvers'],
+                ['label' => 'MRA', 'route' => 'payroll.mra'],
+                ['label' => 'Holidays', 'route' => 'payroll.holidays'],
+            ],
+            'payroll.view' => [
+                ['label' => 'Payroll Generation', 'route' => 'payroll.generation.configuration'],
+                ['label' => 'Payroll History', 'route' => 'payroll.history'],
+                ['label' => 'Loan Due Imports', 'route' => 'payroll.loan-imports'],
+                ['label' => 'Loan References', 'route' => 'payroll.loan-references'],
+                ['label' => 'Deduction Programs', 'route' => 'payroll.deduction-programs'],
+                ['label' => 'Statutory Contributions', 'route' => 'payroll.statutory-contributions'],
+                ['label' => 'Compensation Rules', 'route' => 'payroll.compensations'],
+                ['label' => 'Adjustment Types', 'route' => 'payroll.adjustment-types'],
+            ],
+        ];
     }
 }

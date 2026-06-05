@@ -165,12 +165,7 @@ class StatutoryContributionService
     private function matchingBracket(PayrollStatutoryContribution $contribution, float $monthlySalary): mixed
     {
         $salary = max(0, $monthlySalary);
-        $effectiveStart = $contribution->brackets->first()?->effective_start?->toDateString();
-        $brackets = $contribution->brackets
-            ->when($effectiveStart !== null, fn (Collection $brackets) => $brackets
-                ->filter(fn ($bracket) => $bracket->effective_start?->toDateString() === $effectiveStart));
-
-        $match = $brackets
+        $match = $contribution->brackets
             ->first(function ($bracket) use ($salary) {
                 $min = (float) $bracket->min_salary;
                 $max = $bracket->max_salary !== null ? (float) $bracket->max_salary : null;
@@ -181,6 +176,11 @@ class StatutoryContributionService
         if ($match) {
             return $match;
         }
+
+        $effectiveStart = $contribution->brackets->first()?->effective_start?->toDateString();
+        $brackets = $contribution->brackets
+            ->when($effectiveStart !== null, fn (Collection $brackets) => $brackets
+                ->filter(fn ($bracket) => $bracket->effective_start?->toDateString() === $effectiveStart));
 
         $lowestBracket = $brackets->sortBy('min_salary')->first();
         if ($lowestBracket && $salary < (float) $lowestBracket->min_salary) {

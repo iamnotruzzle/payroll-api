@@ -4,6 +4,7 @@ namespace App\Livewire\Payroll;
 
 use App\Models\Payroll\PayrollStatutoryContribution;
 use App\Models\Payroll\PayrollStatutoryContributionBracket;
+use App\Rules\Payroll\NoOverlappingStatutoryContributionBracket;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 
@@ -150,7 +151,7 @@ class StatutoryContributions extends Component
         $data = $this->validate([
             'effectiveStart' => ['nullable', 'date'],
             'effectiveEnd' => ['nullable', 'date', 'after_or_equal:effectiveStart'],
-            'minSalary' => ['required', 'numeric', 'min:0'],
+            'minSalary' => ['required', 'numeric', 'min:0', new NoOverlappingStatutoryContributionBracket],
             'maxSalary' => ['nullable', 'numeric', 'gte:minSalary'],
             'employeeRate' => ['required', 'numeric', 'min:0', 'max:1'],
             'employerRate' => ['required', 'numeric', 'min:0', 'max:1'],

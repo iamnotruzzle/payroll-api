@@ -81,10 +81,10 @@
     </section>
 
     @if ($drawerOpen)
-        <div class="fixed inset-0 z-50" role="dialog" aria-modal="true">
-            <button wire:click="closeDrawer" type="button" class="absolute inset-0 h-full w-full bg-slate-950/30" aria-label="Close role drawer"></button>
-            <aside class="absolute right-0 top-0 flex h-full w-full max-w-2xl flex-col bg-white shadow-xl">
-                <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div class="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true">
+            <button wire:click="closeDrawer" type="button" class="fixed inset-0 h-full w-full bg-slate-950/30" aria-label="Close role drawer"></button>
+            <aside class="absolute inset-y-0 right-0 flex h-dvh max-h-dvh w-full max-w-2xl flex-col overflow-hidden bg-white shadow-xl">
+                <div class="shrink-0 flex items-center justify-between border-b border-slate-200 px-5 py-4">
                     <div>
                         <h3 class="text-base font-semibold">{{ $editingId ? 'Edit Role' : 'Add Role' }}</h3>
                         <p class="text-xs text-slate-500">Use the accordions below to assign permissions.</p>
@@ -92,8 +92,8 @@
                     <button wire:click="closeDrawer" type="button" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Close</button>
                 </div>
 
-                <form wire:submit="saveRole" class="flex min-h-0 flex-1 flex-col">
-                    <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+                <form wire:submit="saveRole" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4">
                         <div class="grid gap-3 sm:grid-cols-2">
                             <label>
                                 <span class="text-xs font-semibold uppercase text-slate-500">Role Key</span>
@@ -148,7 +148,7 @@
                         </section>
                     </div>
 
-                    <div class="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-4">
+                    <div class="shrink-0 flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-4">
                         <button wire:click="closeDrawer" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
                         <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save Role</button>
                     </div>
@@ -158,20 +158,20 @@
     @endif
 
     @if ($permissionModalOpen)
-        <div class="fixed inset-0 z-50 grid place-items-center px-4" role="dialog" aria-modal="true">
-            <button wire:click="closePermissionModal" type="button" class="absolute inset-0 h-full w-full bg-slate-950/30" aria-label="Close permission modal"></button>
-            <form wire:submit="savePermission" class="relative w-full max-w-md rounded-md bg-white shadow-xl">
-                <div class="border-b border-slate-200 px-5 py-4">
+        <div class="fixed inset-0 z-50 grid place-items-center overflow-y-auto px-4 py-6" role="dialog" aria-modal="true">
+            <button wire:click="closePermissionModal" type="button" class="fixed inset-0 h-full w-full bg-slate-950/30" aria-label="Close permission modal"></button>
+            <form wire:submit="savePermission" class="relative flex max-h-[calc(100dvh-3rem)] w-full max-w-md flex-col overflow-hidden rounded-md bg-white shadow-xl">
+                <div class="shrink-0 border-b border-slate-200 px-5 py-4">
                     <h3 class="text-base font-semibold">Add Permission</h3>
                 </div>
-                <div class="space-y-3 px-5 py-4">
+                <div class="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-4">
                     <label class="block">
                         <span class="text-xs font-semibold uppercase text-slate-500">Permission Key</span>
                         <input wire:model="permissionName" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="module.action">
                         @error('permissionName') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
                     </label>
                 </div>
-                <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+                <div class="shrink-0 flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
                     <button wire:click="closePermissionModal" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
                     <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save Permission</button>
                 </div>

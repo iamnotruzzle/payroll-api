@@ -1,10 +1,11 @@
 <?php
 
-use App\Http\Controllers\Auth\WebLoginController;
 use App\Http\Controllers\Admin\AdminPageController;
+use App\Http\Controllers\Auth\WebLoginController;
 use App\Http\Controllers\Payroll\PayrollLoanImportController;
 use App\Http\Controllers\Payroll\PayrollPageController;
 use App\Http\Controllers\Schedule\SchedulePageController;
+use App\Http\Controllers\TimePunchController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -36,6 +37,9 @@ Route::get('/access-pending', fn () => view('auth.access-pending'))
     ->name('access.pending');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/time-punch', [TimePunchController::class, 'index'])->name('time-punch.index');
+    Route::post('/time-punch', [TimePunchController::class, 'store'])->name('time-punch.store');
+
     Route::middleware('permission:admin.users.view')->group(function () {
         Route::get('/admin/user-accounts', [AdminPageController::class, 'userAccounts'])->name('admin.user-accounts');
     });
@@ -58,6 +62,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:references.view')->group(function () {
         Route::get('/schedule/employee-references', [SchedulePageController::class, 'employeeReferences'])->name('schedule.employee-references');
         Route::get('/schedule/user-manual', [SchedulePageController::class, 'userManual'])->name('schedule.user-manual');
+        Route::get('/references/roles-permissions-manual', [SchedulePageController::class, 'rolesPermissionsManual'])->name('references.roles-permissions-manual');
         Route::get('/payroll/user-manual', [PayrollPageController::class, 'userManual'])->name('payroll.user-manual');
     });
 

@@ -89,10 +89,10 @@
     </div>
 
     @if ($drawerOpen)
-        <div class="fixed inset-0 z-50" role="dialog" aria-modal="true">
-            <button wire:click="closeDrawer" type="button" class="absolute inset-0 h-full w-full bg-slate-950/30" aria-label="Close user account drawer"></button>
-            <aside class="absolute right-0 top-0 flex h-full w-full max-w-6xl flex-col bg-white shadow-xl">
-                <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div class="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true">
+            <button wire:click="closeDrawer" type="button" class="fixed inset-0 h-full w-full bg-slate-950/30" aria-label="Close user account drawer"></button>
+            <aside class="absolute inset-y-0 right-0 flex h-dvh max-h-dvh w-full max-w-6xl flex-col overflow-hidden bg-white shadow-xl">
+                <div class="shrink-0 flex items-center justify-between border-b border-slate-200 px-5 py-4">
                     <div>
                         <h3 class="text-base font-semibold">{{ $editingId ? 'Edit Account' : 'Add Account' }}</h3>
                         <p class="text-xs text-slate-500">Update employee details, login credentials, and module access.</p>
@@ -100,8 +100,8 @@
                     <button wire:click="closeDrawer" type="button" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Close</button>
                 </div>
 
-                <form wire:submit="save" class="flex min-h-0 flex-1 flex-col">
-                    <div class="min-h-0 flex-1 overflow-y-auto bg-slate-50/70 px-5 py-4">
+                <form wire:submit="save" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50/70 px-5 py-4">
                         <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(460px,0.9fr)]">
                             <section class="rounded-md border border-slate-200 bg-white shadow-sm">
                                 <div class="border-b border-slate-200 px-4 py-3">
@@ -202,7 +202,7 @@
                         </div>
                     </div>
 
-                    <div class="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-4">
+                    <div class="shrink-0 flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-4">
                         <button wire:click="closeDrawer" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
                         <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save Account</button>
                     </div>
