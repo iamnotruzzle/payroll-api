@@ -14,7 +14,10 @@ class ScheduleConflictValidator
 {
     public function validate(MonthlySchedule $schedule): array
     {
-        $assignments = $schedule->assignments()->with('shiftCode')->orderBy('schedule_date')->get();
+        $assignments = $schedule->assignments()
+            ->with(['shiftCode', 'employee'])
+            ->orderBy('schedule_date')
+            ->get();
 
         return [
             ...$this->validateStaffing($schedule, $assignments),
@@ -61,7 +64,7 @@ class ScheduleConflictValidator
                 }
 
                 $rows = $assignments->filter(
-                    fn (ScheduleAssignment $assignment) => $assignment->shift_code_id === $requirement->shift_code_id
+                    fn(ScheduleAssignment $assignment) => $assignment->shift_code_id === $requirement->shift_code_id
                         && $assignment->schedule_date->toDateString() === $date->toDateString()
                 );
 
@@ -100,6 +103,8 @@ class ScheduleConflictValidator
             ->keyBy('employee_id');
 
         foreach ($assignments->groupBy('employee_id') as $employeeId => $rows) {
+            $employeeName = $this->employeeName($rows, $employeeId);
+
             $limit = $settings->get($employeeId)?->max_consecutive_duty_days ?? 5;
             $streak = 0;
             $streakStart = null;
@@ -114,7 +119,14 @@ class ScheduleConflictValidator
                 }
 
                 if ($streak > $limit) {
-                    $conflicts[] = $this->consecutiveDutyConflict($employeeId, $limit, $streak, $streakStart, $lastDutyDate);
+                    $conflicts[] = $this->consecutiveDutyConflict(
+                        $employeeName,
+                        $employeeId,
+                        $limit,
+                        $streak,
+                        $streakStart,
+                        $lastDutyDate
+                    );
                 }
 
                 $streak = 0;
@@ -123,7 +135,14 @@ class ScheduleConflictValidator
             }
 
             if ($streak > $limit) {
-                $conflicts[] = $this->consecutiveDutyConflict($employeeId, $limit, $streak, $streakStart, $lastDutyDate);
+                $conflicts[] = $this->consecutiveDutyConflict(
+                    $employeeName,
+                    $employeeId,
+                    $limit,
+                    $streak,
+                    $streakStart,
+                    $lastDutyDate
+                );
             }
         }
 
@@ -135,6 +154,7 @@ class ScheduleConflictValidator
         $conflicts = [];
 
         foreach ($assignments->groupBy('employee_id') as $employeeId => $rows) {
+            $employeeName = $this->employeeName($rows, $employeeId);
             $previous = null;
 
             foreach ($rows->sortBy('schedule_date') as $assignment) {
@@ -148,7 +168,7 @@ class ScheduleConflictValidator
                         'type' => 'quick_turnaround',
                         'employee_id' => $employeeId,
                         'date' => $assignment->schedule_date->toDateString(),
-                        'message' => "{$employeeId} has quick turnaround from {$previous->schedule_date->toDateString()} {$previous->shiftCode?->code} to {$assignment->schedule_date->toDateString()} {$assignment->shiftCode?->code} (minimum 8 hours rest).",
+                        'message' => "{$employeeName} has quick turnaround from {$previous->schedule_date->toDateString()} {$previous->shiftCode?->code} to {$assignment->schedule_date->toDateString()} {$assignment->shiftCode?->code} (minimum 8 hours rest).",
                     ];
                 }
 
@@ -179,13 +199,16 @@ class ScheduleConflictValidator
             ->keyBy('employee_id');
 
         foreach ($assignments->groupBy('employee_id') as $employeeId => $rows) {
+            $employeeName = $this->employeeName($rows, $employeeId);
+
             $limit = $settings->get($employeeId)?->max_night_shifts_per_month ?? 7;
-            $nights = $rows->filter(fn ($assignment) => (bool) $assignment->shiftCode?->is_night_shift)->count();
+            $nights = $rows->filter(fn($assignment) => (bool) $assignment->shiftCode?->is_night_shift)->count();
+
             if ($nights > $limit) {
                 $conflicts[] = [
                     'type' => 'night_shift_cap',
                     'employee_id' => $employeeId,
-                    'message' => "{$employeeId} has {$nights} night shifts this month (limit {$limit}).",
+                    'message' => "{$employeeName} has {$nights} night shifts this month (limit {$limit}).",
                 ];
             }
         }
@@ -196,52 +219,61 @@ class ScheduleConflictValidator
     private function validateWorkHours(MonthlySchedule $schedule, Collection $assignments): array
     {
         $conflicts = [];
+
         $scheduleMonthStart = CarbonImmutable::create($schedule->year, $schedule->month, 1);
         $scheduleMonthEnd = $scheduleMonthStart->endOfMonth();
         $monthStart = $scheduleMonthStart->startOfWeek(CarbonInterface::MONDAY);
         $monthEnd = $scheduleMonthEnd->endOfWeek(CarbonInterface::SUNDAY);
-        $workAssignments = $assignments->filter(fn ($assignment) => (bool) $assignment->shiftCode?->is_work_shift);
+
+        $workAssignments = $assignments->filter(
+            fn($assignment) => (bool) $assignment->shiftCode?->is_work_shift
+        );
 
         foreach ($workAssignments->groupBy('employee_id') as $employeeId => $rows) {
+            $employeeName = $this->employeeName($rows, $employeeId);
+
             $weeklyHours = [];
             $weekStart = $monthStart;
 
             while ($weekStart <= $monthEnd) {
                 $weekEnd = $weekStart->endOfWeek(CarbonInterface::SUNDAY);
-                $hours = $rows
-                    ->filter(fn ($assignment) => $assignment->schedule_date->betweenIncluded($weekStart, $weekEnd))
-                    ->sum(fn ($assignment) => (float) ($assignment->shiftCode?->work_hours ?? 0));
 
-                $isFullWeekInsideScheduleMonth = $weekStart->gte($scheduleMonthStart) && $weekEnd->lte($scheduleMonthEnd);
+                $hours = $rows
+                    ->filter(fn($assignment) => $assignment->schedule_date->betweenIncluded($weekStart, $weekEnd))
+                    ->sum(fn($assignment) => (float) ($assignment->shiftCode?->work_hours ?? 0));
+
+                $isFullWeekInsideScheduleMonth =
+                    $weekStart->gte($scheduleMonthStart)
+                    && $weekEnd->lte($scheduleMonthEnd);
 
                 if ($isFullWeekInsideScheduleMonth) {
                     $weeklyHours[$weekStart->toDateString()] = $hours;
                 }
 
                 $hasTwelveHourShift = $rows
-                    ->filter(fn ($assignment) => $assignment->schedule_date->betweenIncluded($weekStart, $weekEnd))
-                    ->contains(fn ($assignment) => (float) ($assignment->shiftCode?->work_hours ?? 0) >= 12);
-                $isAllowedTwelveHourWeek = $hasTwelveHourShift && $hours >= 36 && $hours <= 48;
+                    ->filter(fn($assignment) => $assignment->schedule_date->betweenIncluded($weekStart, $weekEnd))
+                    ->contains(fn($assignment) => (float) ($assignment->shiftCode?->work_hours ?? 0) >= 12);
+
+                $isAllowedTwelveHourWeek =
+                    $hasTwelveHourShift
+                    && $hours >= 36
+                    && $hours <= 48;
 
                 if ($isFullWeekInsideScheduleMonth && $hours > 0 && $hours < 40 && ! $isAllowedTwelveHourWeek) {
                     $conflicts[] = [
                         'type' => 'minimum_weekly_hours',
                         'employee_id' => $employeeId,
                         'week_start' => $weekStart->toDateString(),
-                        'message' => "{$employeeId} has only {$hours} scheduled work hour(s) for the week of {$weekStart->toDateString()} (minimum 40).",
+                        'message' => "{$employeeName} has only {$hours} scheduled work hour(s) for the week of {$weekStart->toDateString()} (minimum 40).",
                     ];
                 }
 
-                if (
-                    $isFullWeekInsideScheduleMonth
-                    && $hours > 48
-                    && ! $isAllowedTwelveHourWeek
-                ) {
+                if ($isFullWeekInsideScheduleMonth && $hours > 48 && ! $isAllowedTwelveHourWeek) {
                     $conflicts[] = [
                         'type' => 'maximum_weekly_hours',
                         'employee_id' => $employeeId,
                         'week_start' => $weekStart->toDateString(),
-                        'message' => "{$employeeId} has {$hours} scheduled work hour(s) for the week of {$weekStart->toDateString()} (maximum 48).",
+                        'message' => "{$employeeName} has {$hours} scheduled work hour(s) for the week of {$weekStart->toDateString()} (maximum 48).",
                     ];
                 }
 
@@ -249,14 +281,16 @@ class ScheduleConflictValidator
             }
 
             $weekKeys = array_keys($weeklyHours);
+
             for ($i = 0; $i < count($weekKeys) - 1; $i++) {
                 $hours = $weeklyHours[$weekKeys[$i]] + $weeklyHours[$weekKeys[$i + 1]];
+
                 if ($hours > 0 && $hours < 80) {
                     $conflicts[] = [
                         'type' => 'minimum_biweekly_hours',
                         'employee_id' => $employeeId,
                         'period_start' => $weekKeys[$i],
-                        'message' => "{$employeeId} has only {$hours} scheduled work hour(s) for the two-week period starting {$weekKeys[$i]} (minimum 80).",
+                        'message' => "{$employeeName} has only {$hours} scheduled work hour(s) for the two-week period starting {$weekKeys[$i]} (minimum 80).",
                     ];
                 }
 
@@ -265,13 +299,29 @@ class ScheduleConflictValidator
                         'type' => 'maximum_biweekly_hours',
                         'employee_id' => $employeeId,
                         'period_start' => $weekKeys[$i],
-                        'message' => "{$employeeId} has {$hours} scheduled work hour(s) for the two-week period starting {$weekKeys[$i]} (maximum 96).",
+                        'message' => "{$employeeName} has {$hours} scheduled work hour(s) for the two-week period starting {$weekKeys[$i]} (maximum 96).",
                     ];
                 }
             }
         }
 
         return $conflicts;
+    }
+
+    private function employeeName(Collection $rows, string $employeeId): string
+    {
+        $employee = $rows->first()?->employee;
+
+        if (! $employee) {
+            return $employeeId;
+        }
+
+        return sprintf(
+            '%s, %s (%s)',
+            $employee->lastname,
+            $employee->firstname,
+            $employeeId
+        );
     }
 
     private function hasSafeTurnaround(ScheduleAssignment $previous, ScheduleAssignment $next): bool
@@ -283,13 +333,13 @@ class ScheduleConflictValidator
             return true;
         }
 
-        $previousEnd = CarbonImmutable::parse($previous->schedule_date->toDateString().' '.$previousShift->end_time)
+        $previousEnd = CarbonImmutable::parse($previous->schedule_date->toDateString() . ' ' . $previousShift->end_time)
             ->addDays((int) $previousShift->end_day_offset);
         if ((int) $previousShift->end_day_offset === 0 && $previousShift->end_time <= $previousShift->start_time) {
             $previousEnd = $previousEnd->addDay();
         }
 
-        $nextStart = CarbonImmutable::parse($next->schedule_date->toDateString().' '.$nextShift->start_time);
+        $nextStart = CarbonImmutable::parse($next->schedule_date->toDateString() . ' ' . $nextShift->start_time);
 
         return $previousEnd->diffInMinutes($nextStart, false) >= 480;
     }
