@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -6,8 +6,22 @@
 @source '../**/*.js';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans:
+        "Instrument Sans", ui-sans-serif, system-ui, sans-serif,
+        "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+        "Noto Color Emoji";
+}
+
+/* Chrome, Edge, Safari */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Firefox */
+input[type="number"] {
+    -moz-appearance: textfield;
 }
 
 @layer base {
@@ -17,7 +31,7 @@
 
     body {
         font-size: 14px;
-        font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+        font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     }
 
     ::selection {
@@ -29,7 +43,7 @@
     button,
     select,
     summary,
-    [role='button'],
+    [role="button"],
     [wire\:click] {
         cursor: pointer;
     }
@@ -39,18 +53,18 @@
         cursor: text;
     }
 
-    input[type='button'],
-    input[type='checkbox'],
-    input[type='color'],
-    input[type='file'],
-    input[type='radio'],
-    input[type='range'],
-    input[type='reset'],
-    input[type='submit'],
-    input[type='date'],
-    input[type='month'],
-    input[type='time'],
-    input[type='search']::-webkit-search-cancel-button {
+    input[type="button"],
+    input[type="checkbox"],
+    input[type="color"],
+    input[type="file"],
+    input[type="radio"],
+    input[type="range"],
+    input[type="reset"],
+    input[type="submit"],
+    input[type="date"],
+    input[type="month"],
+    input[type="time"],
+    input[type="search"]::-webkit-search-cancel-button {
         cursor: pointer;
     }
 
@@ -58,7 +72,7 @@
     select:disabled,
     textarea:disabled,
     input:disabled,
-    [aria-disabled='true'] {
+    [aria-disabled="true"] {
         cursor: not-allowed;
     }
 }
@@ -99,7 +113,10 @@
     font-size: 0.8125rem;
     font-weight: 500;
     line-height: 1.2;
-    transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+    transition:
+        background-color 140ms ease,
+        color 140ms ease,
+        box-shadow 140ms ease;
 }
 
 .erp-nav-link-depth-1 {
@@ -215,15 +232,18 @@
     border-color: var(--erp-line-strong) !important;
     border-radius: 0.375rem !important;
     outline: none;
-    transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+    transition:
+        border-color 140ms ease,
+        box-shadow 140ms ease,
+        background-color 140ms ease;
 }
 
-.erp-content input:not([class*='bg-']),
-.erp-content select:not([class*='bg-']),
-.erp-content textarea:not([class*='bg-']),
-.erp-body input:not([class*='bg-']),
-.erp-body select:not([class*='bg-']),
-.erp-body textarea:not([class*='bg-']) {
+.erp-content input:not([class*="bg-"]),
+.erp-content select:not([class*="bg-"]),
+.erp-content textarea:not([class*="bg-"]),
+.erp-body input:not([class*="bg-"]),
+.erp-body select:not([class*="bg-"]),
+.erp-body textarea:not([class*="bg-"]) {
     background-color: #ffffff;
 }
 
@@ -259,31 +279,31 @@
     min-height: 2rem;
 }
 
-.erp-content button[class*='bg-blue'],
-.erp-content a[class*='bg-blue'],
-.erp-content button[class*='bg-slate-900'],
-.erp-content button[class*='bg-slate-800'] {
+.erp-content button[class*="bg-blue"],
+.erp-content a[class*="bg-blue"],
+.erp-content button[class*="bg-slate-900"],
+.erp-content button[class*="bg-slate-800"] {
     background-color: var(--erp-primary) !important;
     color: #ffffff !important;
     box-shadow: 0 0.125rem 0.375rem rgba(105, 108, 255, 0.24);
 }
 
-.erp-content button[class*='bg-blue']:hover,
-.erp-content a[class*='bg-blue']:hover,
-.erp-content button[class*='bg-slate-900']:hover,
-.erp-content button[class*='bg-slate-800']:hover {
+.erp-content button[class*="bg-blue"]:hover,
+.erp-content a[class*="bg-blue"]:hover,
+.erp-content button[class*="bg-slate-900"]:hover,
+.erp-content button[class*="bg-slate-800"]:hover {
     background-color: var(--erp-primary-hover) !important;
 }
 
-.erp-content [class*='rounded-lg'][class*='border'][class*='bg-white'],
-.erp-content form[class*='rounded-lg'][class*='border'][class*='bg-white'],
-.erp-content aside[class*='rounded-lg'][class*='border'][class*='bg-white'] {
+.erp-content [class*="rounded-lg"][class*="border"][class*="bg-white"],
+.erp-content form[class*="rounded-lg"][class*="border"][class*="bg-white"],
+.erp-content aside[class*="rounded-lg"][class*="border"][class*="bg-white"] {
     border-color: var(--erp-line) !important;
     border-radius: 0.5rem !important;
     box-shadow: 0 0.125rem 0.5rem rgba(67, 89, 113, 0.06) !important;
 }
 
-.erp-content [class*='p-4'][class*='bg-white'] {
+.erp-content [class*="p-4"][class*="bg-white"] {
     padding: 0.875rem !important;
 }
 
@@ -296,7 +316,7 @@
 }
 
 .erp-content thead,
-.erp-content thead[class*='bg-slate'] {
+.erp-content thead[class*="bg-slate"] {
     background: #f6f7fb !important;
 }
 
@@ -313,14 +333,14 @@
     border-color: #e7e9f2 !important;
 }
 
-.erp-content th[class*='px-4'],
-.erp-content td[class*='px-4'] {
+.erp-content th[class*="px-4"],
+.erp-content td[class*="px-4"] {
     padding-left: 0.75rem !important;
     padding-right: 0.75rem !important;
 }
 
-.erp-content th[class*='py-3'],
-.erp-content td[class*='py-3'] {
+.erp-content th[class*="py-3"],
+.erp-content td[class*="py-3"] {
     padding-top: 0.55rem !important;
     padding-bottom: 0.55rem !important;
 }
@@ -445,30 +465,48 @@
     border-radius: 0.375rem;
 }
 
-.erp-content .select2-container--default .select2-selection--single .select2-selection__rendered {
+.erp-content
+    .select2-container--default
+    .select2-selection--single
+    .select2-selection__rendered {
     line-height: 2.5rem;
     padding-left: 0.75rem;
     padding-right: 2rem;
     color: #0f172a;
 }
 
-.erp-content .select2-container--default .select2-selection--single .select2-selection__placeholder {
+.erp-content
+    .select2-container--default
+    .select2-selection--single
+    .select2-selection__placeholder {
     color: #64748b;
 }
 
-.erp-content .select2-container--default .select2-selection--single .select2-selection__arrow {
+.erp-content
+    .select2-container--default
+    .select2-selection--single
+    .select2-selection__arrow {
     height: 2.5rem;
     right: 0.5rem;
 }
 
-.erp-content .select2-container--default.select2-container--focus .select2-selection--multiple,
-.erp-content .select2-container--default.select2-container--focus .select2-selection--single,
-.erp-content .select2-container--default.select2-container--open .select2-selection--single {
+.erp-content
+    .select2-container--default.select2-container--focus
+    .select2-selection--multiple,
+.erp-content
+    .select2-container--default.select2-container--focus
+    .select2-selection--single,
+.erp-content
+    .select2-container--default.select2-container--open
+    .select2-selection--single {
     border-color: var(--erp-primary);
     box-shadow: 0 0 0 3px rgba(105, 108, 255, 0.12);
 }
 
-.erp-content .select2-container--default .select2-selection--multiple .select2-selection__choice {
+.erp-content
+    .select2-container--default
+    .select2-selection--multiple
+    .select2-selection__choice {
     margin-top: 0.25rem;
     border-color: rgba(105, 108, 255, 0.22);
     border-radius: 999px;
@@ -476,7 +514,10 @@
     color: var(--erp-primary);
 }
 
-.erp-content .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+.erp-content
+    .select2-container--default
+    .select2-selection--multiple
+    .select2-selection__choice__remove {
     border-right-color: rgba(105, 108, 255, 0.22);
     color: var(--erp-primary);
 }
@@ -492,7 +533,8 @@
     padding: 0.45rem 0.65rem;
 }
 
-.select2-container--default .select2-results__option--highlighted[aria-selected] {
+.select2-container--default
+    .select2-results__option--highlighted[aria-selected] {
     background: var(--erp-primary);
 }
 
