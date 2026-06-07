@@ -23,11 +23,38 @@ class DailyAttendance extends Component
     #[Url(as: 'q', except: '')]
     public string $search = '';
 
+    #[Url(as: 'status', except: '')]
+    public string $statusFilter = '';
+
+    private const STATUS_FILTERS = [
+        'scheduled' => 'Scheduled',
+        'present' => 'Present',
+        'incomplete' => 'Incomplete',
+        'absent' => 'Absent',
+        'holiday' => 'Holiday',
+        'leave' => 'Leave',
+        'off' => 'Off',
+    ];
+
     public function mount(): void
     {
         if ($this->date === '') {
             $this->date = CarbonImmutable::today()->toDateString();
         }
+    }
+
+    public function setStatusFilter(string $status): void
+    {
+        if ($status !== '' && ! array_key_exists($status, self::STATUS_FILTERS)) {
+            return;
+        }
+
+        $this->statusFilter = $this->statusFilter === $status ? '' : $status;
+    }
+
+    public function clearStatusFilter(): void
+    {
+        $this->statusFilter = '';
     }
 
     public function render()
@@ -41,7 +68,7 @@ class DailyAttendance extends Component
         $useCalendarFallback = $assignments->isEmpty() && $settings->isEmpty();
 
         $dtrDates = $assignments->pluck('schedule_date')
-            ->map(fn ($date) => $date->toDateString())
+            ->map(fn($date) => $date->toDateString())
             ->push($this->date)
             ->unique()
             ->all();
@@ -49,7 +76,7 @@ class DailyAttendance extends Component
             ->whereIn('emp_id', $employeeIds)
             ->whereIn('dtr_date', $dtrDates)
             ->get()
-            ->keyBy(fn (EmployeeDtr $dtr) => $this->key($dtr->emp_id, $dtr->dtr_date->toDateString()));
+            ->keyBy(fn(EmployeeDtr $dtr) => $this->key($dtr->emp_id, $dtr->dtr_date->toDateString()));
 
         $rows = $assignments->map(function (ScheduleAssignment $assignment) use ($dtrs, $leaves) {
             $date = $assignment->schedule_date->toDateString();
@@ -62,8 +89,9 @@ class DailyAttendance extends Component
                 'dtr' => $dtr,
                 'shift' => $assignment->shiftCode,
                 'duty_date' => $date,
-                'span' => $leave && ! $dtr ? $date.' - '.$leave['name'] : $this->shiftSpanLabel($assignment),
+                'span' => $leave && ! $dtr ? $date . ' - ' . $leave['name'] : $this->shiftSpanLabel($assignment),
                 'status' => $status,
+                'scheduled' => (bool) $assignment->shiftCode?->is_work_shift,
                 'first_in' => $this->timeIn($dtr),
                 'last_out' => $this->timeOut($dtr),
                 'worked_minutes' => $this->workedMinutes($dtr),
@@ -72,8 +100,8 @@ class DailyAttendance extends Component
 
         $assignedEmployeeIds = $assignments->pluck('employee_id')->unique();
         $regularRows = $employees
-            ->reject(fn (Employee $employee) => $assignedEmployeeIds->contains($employee->emp_id))
-            ->filter(fn (Employee $employee) => $useCalendarFallback || $this->shouldShowRegularEmployee($employee, $settings, $holiday))
+            ->reject(fn(Employee $employee) => $assignedEmployeeIds->contains($employee->emp_id))
+            ->filter(fn(Employee $employee) => $useCalendarFallback || $this->shouldShowRegularEmployee($employee, $settings, $holiday))
             ->map(function (Employee $employee) use ($dtrs, $holiday, $leaves, $useCalendarFallback) {
                 $dtr = $dtrs->get($this->key($employee->emp_id, $this->date));
                 $leave = $leaves->get($this->key($employee->emp_id, $this->date));
@@ -82,6 +110,7 @@ class DailyAttendance extends Component
                     $holiday && ! $dtr && ! $useCalendarFallback => 'Holiday',
                     default => $this->status($dtr),
                 };
+                $scheduled = $status !== 'Holiday' && ($useCalendarFallback || CarbonImmutable::parse($this->date)->isWeekday());
 
                 return [
                     'employee' => $employee,
@@ -89,38 +118,80 @@ class DailyAttendance extends Component
                     'shift' => null,
                     'duty_date' => $this->date,
                     'span' => $leave && ! $dtr
-                        ? CarbonImmutable::parse($this->date)->format('M d').' - '.$leave['name']
+                        ? CarbonImmutable::parse($this->date)->format('M d') . ' - ' . $leave['name']
                         : ($holiday && ! $useCalendarFallback
-                        ? CarbonImmutable::parse($this->date)->format('M d').' - '.$holiday->name
-                        : CarbonImmutable::parse($this->date)->format('M d').($useCalendarFallback ? '' : ' Regular Mon-Fri')),
+                            ? CarbonImmutable::parse($this->date)->format('M d') . ' - ' . $holiday->name
+                            : CarbonImmutable::parse($this->date)->format('M d') . ($useCalendarFallback ? '' : ' Regular Mon-Fri')),
                     'status' => $status,
+                    'scheduled' => $scheduled,
                     'first_in' => $this->timeIn($dtr),
                     'last_out' => $this->timeOut($dtr),
                     'worked_minutes' => $this->workedMinutes($dtr),
                 ];
             });
 
-        $rows = $rows->concat($regularRows);
-
-        $rows = $rows->sortBy([
-            fn (array $row) => $row['employee']?->lastname ?? '',
-            fn (array $row) => $row['duty_date'],
-        ])->values();
+        $allRows = $rows->concat($regularRows)
+            ->sortBy([
+                fn(array $row) => $row['employee']?->lastname ?? '',
+                fn(array $row) => $row['duty_date'],
+            ])
+            ->values();
+        $rows = $this->filteredRows($allRows)->values();
 
         return view('livewire.payroll.daily-attendance', [
             'department' => auth()->user()?->employee?->department,
             'employeeTypeOptions' => Employee::employeeTypeOptions(),
             'rows' => $rows,
-            'summary' => [
-                'employees' => $rows->pluck('employee.emp_id')->unique()->count(),
-                'present' => $rows->where('status', 'Present')->count(),
-                'incomplete' => $rows->where('status', 'Incomplete')->count(),
-                'absent' => $rows->where('status', 'Absent')->count(),
-                'holiday' => $rows->where('status', 'Holiday')->count(),
-                'leave' => $rows->where('status', 'Leave')->count(),
-                'off' => $rows->where('status', 'Off')->count(),
-            ],
+            'summary' => $this->summaryFromRows($allRows),
+            'statusFilter' => $this->normalizedStatusFilter(),
+            'statusFilterOptions' => self::STATUS_FILTERS,
+            'activeStatusFilterLabel' => $this->activeStatusFilterLabel(),
+            'filteredEmployeeCount' => $rows->pluck('employee.emp_id')->unique()->count(),
+            'totalEmployeeCount' => $allRows->pluck('employee.emp_id')->unique()->count(),
         ]);
+    }
+
+    private function summaryFromRows($rows): array
+    {
+        return [
+            'employees' => $rows->pluck('employee.emp_id')->unique()->count(),
+            'scheduled' => $rows->where('scheduled', true)->count(),
+            'present' => $rows->where('status', 'Present')->count(),
+            'incomplete' => $rows->where('status', 'Incomplete')->count(),
+            'absent' => $rows->where('status', 'Absent')->count(),
+            'holiday' => $rows->where('status', 'Holiday')->count(),
+            'leave' => $rows->where('status', 'Leave')->count(),
+            'off' => $rows->where('status', 'Off')->count(),
+        ];
+    }
+
+    private function filteredRows($rows)
+    {
+        $status = $this->normalizedStatusFilter();
+
+        if ($status === '') {
+            return $rows;
+        }
+
+        if ($status === 'scheduled') {
+            return $rows->filter(fn(array $row) => (bool) ($row['scheduled'] ?? false));
+        }
+
+        return $rows->filter(fn(array $row) => strtolower((string) ($row['status'] ?? '')) === $status);
+    }
+
+    private function activeStatusFilterLabel(): string
+    {
+        $status = $this->normalizedStatusFilter();
+
+        return $status === '' ? 'All Employees' : self::STATUS_FILTERS[$status];
+    }
+
+    private function normalizedStatusFilter(): string
+    {
+        return array_key_exists($this->statusFilter, self::STATUS_FILTERS)
+            ? $this->statusFilter
+            : '';
     }
 
     private function employees()
@@ -162,7 +233,7 @@ class DailyAttendance extends Component
 
         $time = $dtr->timein_am ?: $dtr->timein_pm;
 
-        return $time ? CarbonImmutable::parse($dtr->dtr_date->toDateString().' '.$time) : null;
+        return $time ? CarbonImmutable::parse($dtr->dtr_date->toDateString() . ' ' . $time) : null;
     }
 
     private function timeOut(?EmployeeDtr $dtr): ?CarbonImmutable
@@ -180,7 +251,7 @@ class DailyAttendance extends Component
             return null;
         }
 
-        $output = CarbonImmutable::parse($dtr->dtr_date->toDateString().' '.$time);
+        $output = CarbonImmutable::parse($dtr->dtr_date->toDateString() . ' ' . $time);
         $input = $this->timeIn($dtr);
 
         return $input && $output->lessThan($input) ? $output->addDay() : $output;
@@ -209,7 +280,7 @@ class DailyAttendance extends Component
 
     public function key(string $employeeId, string $date): string
     {
-        return $employeeId.'|'.$date;
+        return $employeeId . '|' . $date;
     }
 
     private function dailyAssignments(array $employeeIds)
@@ -221,7 +292,7 @@ class DailyAttendance extends Component
             ->whereIn('employee_id', $employeeIds)
             ->whereBetween('schedule_date', [$date->subDays(3)->toDateString(), $date->toDateString()])
             ->get()
-            ->filter(fn (ScheduleAssignment $assignment) => $this->assignmentTouchesDate($assignment, $date))
+            ->filter(fn(ScheduleAssignment $assignment) => $this->assignmentTouchesDate($assignment, $date))
             ->values();
     }
 
@@ -327,8 +398,8 @@ class DailyAttendance extends Component
             return [$date->startOfDay(), $date->endOfDay()];
         }
 
-        $start = CarbonImmutable::parse($assignment->schedule_date->toDateString().' '.($shift?->start_time ?: '00:00:00'));
-        $end = CarbonImmutable::parse($assignment->schedule_date->toDateString().' '.($shift?->end_time ?: '23:59:59'))
+        $start = CarbonImmutable::parse($assignment->schedule_date->toDateString() . ' ' . ($shift?->start_time ?: '00:00:00'));
+        $end = CarbonImmutable::parse($assignment->schedule_date->toDateString() . ' ' . ($shift?->end_time ?: '23:59:59'))
             ->addDays((int) ($shift?->end_day_offset ?? 0));
 
         if ($end->lessThanOrEqualTo($start)) {
@@ -341,14 +412,14 @@ class DailyAttendance extends Component
     private function shiftSpanLabel(ScheduleAssignment $assignment): string
     {
         if (! $assignment->shiftCode?->is_work_shift || ! $assignment->shiftCode?->start_time || ! $assignment->shiftCode?->end_time) {
-            return CarbonImmutable::parse($assignment->schedule_date)->format('M d').' - '.($assignment->shiftCode?->name ?? 'Off Duty');
+            return CarbonImmutable::parse($assignment->schedule_date)->format('M d') . ' - ' . ($assignment->shiftCode?->name ?? 'Off Duty');
         }
 
         [$start, $end] = $this->assignmentSpan($assignment);
 
         return $start->isSameDay($end)
-            ? $start->format('M d, h:i A').' - '.$end->format('h:i A')
-            : $start->format('M d, h:i A').' - '.$end->format('M d, h:i A');
+            ? $start->format('M d, h:i A') . ' - ' . $end->format('h:i A')
+            : $start->format('M d, h:i A') . ' - ' . $end->format('M d, h:i A');
     }
 
     private function departmentId(): ?int
