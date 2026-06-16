@@ -356,6 +356,7 @@ class DailyAttendance extends Component
             ->whereNotNull('end_date')
             ->whereDate('start_date', '<=', $to)
             ->whereDate('end_date', '>=', $from)
+            ->whereDoesntHave('logs', fn ($query) => $query->whereIn('action', [2, 3]))
             ->get()
             ->each(function (EmployeeLeave $leave) use ($from, $to, $dates) {
                 $start = CarbonImmutable::parse($leave->start_date);

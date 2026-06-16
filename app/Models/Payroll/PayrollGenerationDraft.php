@@ -17,6 +17,8 @@ class PayrollGenerationDraft extends Model
         'payroll_type_code',
         'payroll_period',
         'working_days',
+        'gsis_days',
+        'included_leave_type_ids',
         'employee_type',
         'current_step',
         'state_json',
@@ -28,6 +30,8 @@ class PayrollGenerationDraft extends Model
         'division_id' => 'integer',
         'department_id' => 'integer',
         'working_days' => 'integer',
+        'gsis_days' => 'integer',
+        'included_leave_type_ids' => 'array',
         'current_step' => 'integer',
         'state_json' => 'array',
         'saved_at' => 'datetime',
@@ -39,8 +43,17 @@ class PayrollGenerationDraft extends Model
         string $payrollTypeCode,
         string $period,
         int $workingDays,
-        string $employeeType
+        string $employeeType,
+        int $gsisDays = 30,
+        array $includedLeaveTypeIds = []
     ): string {
+        $includedLeaveTypeIds = collect($includedLeaveTypeIds)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->sort()
+            ->values()
+            ->implode(',');
+
         return hash('sha256', implode('|', [
             $divisionId ?: 0,
             $departmentId ?: 0,
@@ -48,6 +61,8 @@ class PayrollGenerationDraft extends Model
             $period,
             $workingDays,
             $employeeType,
+            $gsisDays,
+            $includedLeaveTypeIds,
         ]));
     }
 }

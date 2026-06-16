@@ -144,20 +144,29 @@
                                             <span class="font-semibold">
                                                 {{ number_format($totals['gross'] ?? 0, 2) }}
                                             </span>
-                                        {{-- STATUTORY --}}
+                                        {{-- MANDATORY DEDUCTIONS --}}
                                         @elseif ($columnKey === 'life_retirement')
                                             {{ number_format($statutory['life_retirement'] ?? 0, 2) }}
-                                        @elseif ($columnKey === 'phic')
-                                            {{ number_format($statutory['phic'] ?? 0, 2) }}
-                                        @elseif ($columnKey === 'mandatory_pagibig')
-                                            {{ number_format($statutory['mandatory_pagibig'] ?? 0, 2) }}
-                                        {{-- GOVERNMENT SHARES --}}
                                         @elseif ($columnKey === 'government_life_retirement')
                                             {{ number_format($governmentShares['government_life_retirement'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'ec')
+                                            {{ number_format($governmentShares['ec'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'phic')
+                                            {{ number_format($statutory['phic'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'government_phic')
                                             {{ number_format($governmentShares['government_phic'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'mandatory_pagibig')
+                                            {{ number_format($statutory['mandatory_pagibig'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'hdmf_ps_2_ms')
+                                            {{ number_format($statutory['hdmf_ps_2_ms'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'government_pagibig')
                                             {{ number_format($governmentShares['government_pagibig'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'ea_deduction')
+                                            {{ number_format($statutory['ea_deduction'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'mandatory_deduction_adjustment')
+                                            {{ number_format($totals['mandatory_deduction_adjustment'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'total_mandatory_deductions')
+                                            {{ number_format($totals['total_mandatory_deductions'] ?? 0, 2) }}
                                         {{-- TAX CALCULATION --}}
                                         @elseif ($columnKey === 'entry_date')
                                             {{ $tax['entry_date'] ?? '-' }}

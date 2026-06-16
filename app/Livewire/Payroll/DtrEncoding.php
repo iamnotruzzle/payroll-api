@@ -540,7 +540,8 @@ class DtrEncoding extends Component
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
             ->whereDate('start_date', '<=', $this->to)
-            ->whereDate('end_date', '>=', $this->from);
+            ->whereDate('end_date', '>=', $this->from)
+            ->whereDoesntHave('logs', fn ($query) => $query->whereIn('action', [2, 3]));
 
         foreach ($query->get() as $leave) {
             $leaveLabel = $this->leaveLabelFor($leave);

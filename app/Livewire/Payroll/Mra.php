@@ -165,6 +165,7 @@ class Mra extends Component
             ->whereNotNull('end_date')
             ->whereDate('start_date', '<=', $this->to)
             ->whereDate('end_date', '>=', $this->from)
+            ->whereDoesntHave('logs', fn ($query) => $query->whereIn('action', [2, 3]))
             ->get()
             ->groupBy('emp_id');
         $labels = PayrollDtrLabel::query()->whereIn('emp_id', $empIds)->whereBetween('dtr_date', [$this->from, $this->to])->get()->groupBy('emp_id');

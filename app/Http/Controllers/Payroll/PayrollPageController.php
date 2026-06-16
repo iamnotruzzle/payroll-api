@@ -267,6 +267,7 @@ class PayrollPageController extends Controller
             ->whereNotNull('end_date')
             ->whereDate('start_date', '<=', $to->toDateString())
             ->whereDate('end_date', '>=', $from->toDateString())
+            ->whereDoesntHave('logs', fn ($query) => $query->whereIn('action', [2, 3]))
             ->get();
 
         foreach ($leaves as $leave) {

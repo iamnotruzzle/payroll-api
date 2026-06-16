@@ -1,7 +1,7 @@
 <section class="space-y-4">
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
-            <h2 class="text-xl font-semibold">Statutory Contributions</h2>
+            <h2 class="text-xl font-semibold">Mandatory Deductions</h2>
             <p class="text-sm text-slate-600">Manage government contribution rules, effective periods, salary ranges, rates, and caps.</p>
         </div>
         <button wire:click="createContribution" type="button" class="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600">
@@ -36,7 +36,7 @@
                         </div>
                     </div>
                 @empty
-                    <div class="px-4 py-8 text-center text-sm text-slate-500">No statutory contributions yet.</div>
+                    <div class="px-4 py-8 text-center text-sm text-slate-500">No mandatory deductions yet.</div>
                 @endforelse
             </div>
         </div>
@@ -83,10 +83,12 @@
                                 </td>
                                 <td class="px-4 py-3 text-right">
                                     <div>{{ number_format((float) $bracket->employee_rate * 100, 2) }}%</div>
+                                    <div class="text-xs text-slate-500">Fixed {{ $bracket->employee_fixed_amount !== null ? number_format((float) $bracket->employee_fixed_amount, 2) : 'None' }}</div>
                                     <div class="text-xs text-slate-500">Cap {{ $bracket->employee_cap !== null ? number_format((float) $bracket->employee_cap, 2) : 'None' }}</div>
                                 </td>
                                 <td class="px-4 py-3 text-right">
                                     <div>{{ number_format((float) $bracket->employer_rate * 100, 2) }}%</div>
+                                    <div class="text-xs text-slate-500">Fixed {{ $bracket->employer_fixed_amount !== null ? number_format((float) $bracket->employer_fixed_amount, 2) : 'None' }}</div>
                                     <div class="text-xs text-slate-500">Cap {{ $bracket->employer_cap !== null ? number_format((float) $bracket->employer_cap, 2) : 'None' }}</div>
                                 </td>
                                 <td class="max-w-[280px] px-4 py-3 text-xs text-slate-600">{{ $bracket->remarks ?: '-' }}</td>
@@ -221,6 +223,18 @@
                             <input wire:model.blur="employerRate" type="number" step="0.0001" min="0" max="1" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             <p class="mt-1 text-xs text-slate-500">Use 0.12 for 12%.</p>
                             @error('employerRate') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label class="text-sm font-medium">Employee Fixed Amount</label>
+                            <input wire:model.blur="employeeFixedAmount" type="number" step="0.01" min="0" placeholder="No fixed amount" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            @error('employeeFixedAmount') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label class="text-sm font-medium">Government Fixed Amount</label>
+                            <input wire:model.blur="employerFixedAmount" type="number" step="0.01" min="0" placeholder="No fixed amount" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            @error('employerFixedAmount') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
 
                         <div>

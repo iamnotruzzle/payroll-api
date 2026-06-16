@@ -26,12 +26,15 @@ class StatutoryContributionServiceTest extends TestCase
         $this->assertSame(1800.0, $result['employee']['life_retirement']);
         $this->assertSame(500.0, $result['employee']['phic']);
         $this->assertSame(200.0, $result['employee']['mandatory_pagibig']);
-        $this->assertSame(2500.0, $result['employee_total']);
+        $this->assertSame(0.0, $result['employee']['hdmf_ps_2_ms']);
+        $this->assertSame(50.0, $result['employee']['ea_deduction']);
+        $this->assertSame(2550.0, $result['employee_total']);
 
         $this->assertSame(2400.0, $result['employer']['government_life_retirement']);
+        $this->assertSame(100.0, $result['employer']['ec']);
         $this->assertSame(500.0, $result['employer']['government_phic']);
         $this->assertSame(200.0, $result['employer']['government_pagibig']);
-        $this->assertSame(3100.0, $result['employer_total']);
+        $this->assertSame(3200.0, $result['employer_total']);
     }
 
     public function test_it_does_not_apply_salary_floor_to_zero_salary(): void
@@ -218,6 +221,8 @@ class StatutoryContributionServiceTest extends TestCase
             $table->decimal('max_salary', 14, 2)->nullable();
             $table->decimal('employee_rate', 8, 4)->default(0);
             $table->decimal('employer_rate', 8, 4)->default(0);
+            $table->decimal('employee_fixed_amount', 14, 2)->nullable();
+            $table->decimal('employer_fixed_amount', 14, 2)->nullable();
             $table->decimal('employee_cap', 14, 2)->nullable();
             $table->decimal('employer_cap', 14, 2)->nullable();
             $table->text('remarks')->nullable();

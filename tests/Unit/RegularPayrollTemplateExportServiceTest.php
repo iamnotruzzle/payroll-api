@@ -29,8 +29,12 @@ class RegularPayrollTemplateExportServiceTest extends TestCase
             $sheet = IOFactory::load($path)->getSheetByName('Regular');
 
             $this->assertSame(6000.44, $sheet->getCell('AO7')->getValue());
+            $this->assertSame(100.0, $sheet->getCell('AP7')->getValue());
             $this->assertSame(1000.55, $sheet->getCell('AR7')->getValue());
-            $this->assertSame(200.66, $sheet->getCell('AT7')->getValue());
+            $this->assertSame(25.0, $sheet->getCell('AT7')->getValue());
+            $this->assertSame(200.66, $sheet->getCell('AU7')->getValue());
+            $this->assertSame(50.0, $sheet->getCell('AV7')->getValue());
+            $this->assertSame(0, $sheet->getCell('AW7')->getValue());
             $this->assertSame(1234.56, $sheet->getCell('EV7')->getValue());
             $this->assertSame(42080.13, $sheet->getCell('EX7')->getValue());
             $this->assertSame(21040.07, $sheet->getCell('EY7')->getValue());
@@ -124,12 +128,32 @@ class RegularPayrollTemplateExportServiceTest extends TestCase
                 'life_retirement' => 4500.11,
                 'phic' => 1000.22,
                 'mandatory_pagibig' => 200.33,
+                'hdmf_ps_2_ms' => 25.0,
+                'ea_deduction' => 50.0,
             ],
             'statutory_government_shares' => [
                 'government_life_retirement' => 6000.44,
+                'ec' => 100.0,
                 'government_phic' => 1000.55,
                 'government_pagibig' => 200.66,
             ],
+            'mandatory_deduction_adjustments' => [
+                'items' => [
+                    'life_retirement' => 10,
+                    'government_life_retirement' => 20,
+                    'ec' => 0,
+                    'phic' => 0,
+                    'government_phic' => 0,
+                    'mandatory_pagibig' => 0,
+                    'hdmf_ps_2_ms' => 0,
+                    'government_pagibig' => 0,
+                    'ea_deduction' => 2.34,
+                ],
+                'employee_total' => 12.34,
+                'government_total' => 20,
+            ],
+            'mandatory_deduction_adjustment' => 12.34,
+            'total_mandatory_deductions' => 5763.0,
             'tax' => [
                 'monthly_mandatory_deductions' => 5700.66,
                 'monthly_net_income' => 44399.34,

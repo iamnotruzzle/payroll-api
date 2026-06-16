@@ -17,6 +17,8 @@ class PayrollBatch extends Model
         'payroll_type',
         'payroll_type_code',
         'working_days',
+        'gsis_days',
+        'included_leave_type_ids',
         'employee_type',
         'generated_by',
         'snapshot_created_at',
@@ -27,6 +29,8 @@ class PayrollBatch extends Model
         'division_id' => 'integer',
         'department_id' => 'integer',
         'working_days' => 'integer',
+        'gsis_days' => 'integer',
+        'included_leave_type_ids' => 'array',
         'snapshot_created_at' => 'datetime',
     ];
 

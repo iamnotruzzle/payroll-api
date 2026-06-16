@@ -5,7 +5,37 @@
     $scopeLabel = $selectedDepartment?->department ?? ($selectedDivision?->division ? $selectedDivision->division . ' Division' : 'Selected division');
 @endphp
 
-<section class="space-y-4 pb-24">
+<section
+    class="space-y-4 pb-24"
+    x-data="{
+        stepDirty: false,
+        formSteps: [1, 3, 4, 5],
+        markStepDirty(currentStep, event) {
+            if (!this.formSteps.includes(currentStep) || event.target?.type === 'search') {
+                return;
+            }
+
+            this.stepDirty = true;
+        },
+        saveStep() {
+            return $wire.saveStepChanges().then(() => {
+                this.stepDirty = false;
+            });
+        },
+        leaveStep(currentStep, targetStep) {
+            if (currentStep === targetStep) {
+                return;
+            }
+
+            if (this.stepDirty) {
+                alert('You have unsaved changes on this step. Please click Save Step before leaving.');
+                return;
+            }
+
+            $wire.goToStep(targetStep);
+        },
+    }"
+>
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-xl font-semibold">Payroll Generation</h2>
@@ -16,15 +46,15 @@
         <div class="flex flex-wrap gap-2">
             <button
                 type="button"
-                wire:click="saveDraft"
+                x-on:click="saveStep()"
                 wire:loading.attr="disabled"
-                wire:target="saveDraft"
+                wire:target="saveStepChanges"
                 class="rounded-md border border-[#696cff] bg-white px-4 py-2 text-sm font-medium text-[#5f61e6] hover:bg-[#f1f2ff] disabled:cursor-wait disabled:opacity-60"
             >
-                <span wire:loading.remove wire:target="saveDraft">Save as Draft</span>
-                <span wire:loading wire:target="saveDraft">Saving Draft...</span>
+                <span wire:loading.remove wire:target="saveStepChanges">Save as Draft</span>
+                <span wire:loading wire:target="saveStepChanges">Saving Draft...</span>
             </button>
-            <a href="{{ route('payroll.generation.configuration', ['division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'employee_type' => $employeeTypeFilter]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+            <a href="{{ route('payroll.generation.configuration', ['division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'gsis_days' => $gsisDays, 'leave_type_ids' => $selectedLeaveTypeIds === [] ? 'none' : implode(',', $selectedLeaveTypeIds), 'employee_type' => $employeeTypeFilter]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                 Change Configuration
             </a>
             <a href="{{ route('payroll.deduction-programs') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
@@ -71,7 +101,7 @@
             @foreach ($steps as $number => $label)
                 <button
                     type="button"
-                    wire:click="goToStep({{ $number }})"
+                    x-on:click="leaveStep({{ $currentStep }}, {{ $number }})"
                     wire:loading.attr="disabled"
                     wire:target="{{ $payrollLoadingTargets }}"
                     class="rounded-md border px-3 py-2 text-left text-sm transition {{ $currentStep === $number ? 'border-[#5f61e6] bg-[#5f61e6] font-semibold text-white shadow-sm shadow-[#696cff]/25' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' }}"
@@ -121,7 +151,31 @@
         </div>
     </div>
 
-    <div wire:loading.class="hidden" wire:target="{{ $payrollLoadingTargets }}">
+    <div
+        wire:loading.class="hidden"
+        wire:target="{{ $payrollLoadingTargets }}"
+        x-on:input="markStepDirty({{ $currentStep }}, $event)"
+        x-on:change="markStepDirty({{ $currentStep }}, $event)"
+    >
+    @if (in_array($currentStep, [1, 3, 4, 5], true))
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            <div>
+                <div class="font-semibold">Step changes</div>
+                <div x-show="stepDirty">Unsaved edits are waiting on this step.</div>
+                <div x-show="!stepDirty">This step has no unsaved edits.</div>
+            </div>
+            <button
+                type="button"
+                x-on:click="saveStep()"
+                wire:loading.attr="disabled"
+                wire:target="saveStepChanges"
+                class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
+            >
+                <span wire:loading.remove wire:target="saveStepChanges">Save Step</span>
+                <span wire:loading wire:target="saveStepChanges">Saving...</span>
+            </button>
+        </div>
+    @endif
     @if ($currentStep === 1)
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-4 py-3">
@@ -140,13 +194,17 @@
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th colspan="2" class="border-b border-slate-200 px-4 py-3 text-center">Employee Information</th>
+                            <th colspan="3" class="border-b border-slate-200 px-4 py-3 text-center">Employee Information</th>
+                            <th colspan="2" class="border-b border-slate-200 px-4 py-3 text-center">Pay Basis</th>
                             <th colspan="6" class="border-b border-slate-200 px-4 py-3 text-center">Leave Basis</th>
-                            <th class="border-b border-slate-200 px-4 py-3 text-center">Payroll Input</th>
+                            <th colspan="2" class="border-b border-slate-200 px-4 py-3 text-center">Payroll Input</th>
                         </tr>
                         <tr>
                             <th class="px-4 py-3">Employee No.</th>
                             <th class="px-4 py-3">Employee Name</th>
+                            <th class="px-4 py-3">Position</th>
+                            <th class="px-4 py-3 text-right">Salary Grade</th>
+                            <th class="px-4 py-3 text-right">Step</th>
                             <th class="px-4 py-3">Leave Period</th>
                             <th class="px-4 py-3 text-right">Subsistence</th>
                             <th class="px-4 py-3 text-right">PERA</th>
@@ -154,6 +212,7 @@
                             <th class="px-4 py-3 text-right">TEV</th>
                             <th class="px-4 py-3 text-right">Prior MRA Days</th>
                             <th class="px-4 py-3 text-right">Deduct Days for Payroll</th>
+                            <th class="px-4 py-3 text-right">Gross Basic Salary</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -162,25 +221,58 @@
                                 <td class="px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
                                 <td class="px-4 py-3">
                                     <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
-                                    <div class="text-xs text-slate-500">{{ $row['department'] }}</div>
+                                    <div class="text-xs text-slate-500">{{ $row['position'] ?? '-' }}</div>
                                 </td>
-                                <td class="px-4 py-3">{{ implode(', ', $row['leave_deduction']['periods'] ?? []) ?: '-' }}</td>
+                                <td class="px-4 py-3">{{ $row['position'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">
-                                    <input wire:model.blur="leaveDeductionOverrides.{{ $row['emp_id'] }}.subsistence_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
-                                </td>
-                                <td class="px-4 py-3 text-right">
-                                    <input wire:model.blur="leaveDeductionOverrides.{{ $row['emp_id'] }}.pera_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                    <input wire:model="payBasisOverrides.{{ $row['emp_id'] }}.salary_grade" type="number" min="0" step="1" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <input wire:model.blur="leaveDeductionOverrides.{{ $row['emp_id'] }}.laundry_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                    <input wire:model="payBasisOverrides.{{ $row['emp_id'] }}.step" type="number" min="1" max="8" step="1" class="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="min-w-[340px] space-y-2">
+                                        @forelse (($row['leave_deduction']['items'] ?? []) as $leaveItem)
+                                            @php
+                                                $leaveId = (string) $leaveItem['id'];
+                                            @endphp
+                                            <div class="rounded-md border border-slate-200 bg-white p-2 {{ $leaveItem['excluded'] ? 'opacity-60' : '' }}">
+                                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                                    <div>
+                                                        <div class="text-xs font-semibold text-slate-700">{{ $leaveItem['leave_type'] }}</div>
+                                                        <div class="text-[11px] text-slate-500">HRIS: {{ $leaveItem['original_period'] }}</div>
+                                                    </div>
+                                                    <label class="flex items-center gap-1 text-xs text-slate-600">
+                                                        <input wire:model="leaveDateOverrides.{{ $leaveId }}.excluded" type="checkbox" class="rounded border-slate-300 text-red-600 focus:ring-red-500">
+                                                        Exclude
+                                                    </label>
+                                                </div>
+                                                <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                                                    <input wire:model="leaveDateOverrides.{{ $leaveId }}.start_date" type="date" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+                                                    <input wire:model="leaveDateOverrides.{{ $leaveId }}.end_date" type="date" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+                                                </div>
+                                            </div>
+                                        @empty
+                                            <span class="text-slate-400">-</span>
+                                        @endforelse
+                                    </div>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <input wire:model.blur="leaveDeductionOverrides.{{ $row['emp_id'] }}.tev_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                    <input wire:model="leaveDeductionOverrides.{{ $row['emp_id'] }}.subsistence_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <input wire:model="leaveDeductionOverrides.{{ $row['emp_id'] }}.pera_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <input wire:model="leaveDeductionOverrides.{{ $row['emp_id'] }}.laundry_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <input wire:model="leaveDeductionOverrides.{{ $row['emp_id'] }}.tev_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
                                 </td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['mra_adjustment_days'] ?? 0, 3) }}</td>
                                 <td class="px-4 py-3 text-right">
                                     <input
-                                        wire:model.blur="deductionDayOverrides.{{ $row['emp_id'] }}"
+                                        wire:model="deductionDayOverrides.{{ $row['emp_id'] }}"
                                         type="number"
                                         min="0"
                                         max="31"
@@ -189,10 +281,11 @@
                                         class="w-28 rounded-md border border-slate-300 px-3 py-2 text-right text-sm"
                                     >
                                 </td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['basic_salary'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="13" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -202,13 +295,14 @@
     @elseif ($currentStep === 2)
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-4 py-3">
-                <h3 class="font-semibold">Allowances Computation</h3>
+                <h3 class="font-semibold">Compensation</h3>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
                             <th rowspan="2" class="px-4 py-3 align-middle">Employee Name</th>
+                            <th rowspan="2" class="px-4 py-3 text-right align-middle">Basic Salary</th>
                             <th colspan="{{ max(1, $compensations->count()) }}" class="border-b border-slate-200 px-4 py-3 text-center">Additional Earnings</th>
                             <th rowspan="2" class="px-4 py-3 text-right align-middle">Gross Pay</th>
                         </tr>
@@ -224,6 +318,7 @@
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50">
                                 <td class="px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['basic_salary'], 2) }}</td>
                                 @forelse ($compensations as $item)
                                     <td class="px-4 py-3 text-right">{{ number_format($row['compensations'][$item->id]['amount'] ?? 0, 2) }}</td>
                                 @empty
@@ -233,7 +328,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ 2 + max(1, $compensations->count()) }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="{{ 3 + max(1, $compensations->count()) }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -324,7 +419,7 @@
                                 @foreach (['basic_salary', 'subsistence', 'laundry', 'pera'] as $field)
                                     <td class="px-3 py-2 text-right align-top">
                                         <input
-                                            wire:model.blur="compensationAdjustments.{{ $row['emp_id'] }}.{{ $field }}"
+                                            wire:model="compensationAdjustments.{{ $row['emp_id'] }}.{{ $field }}"
                                             type="number"
                                             step="0.01"
                                             class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"
@@ -352,7 +447,7 @@
                                 @endforeach
                                 <td class="px-3 py-2 align-top">
                                     <input
-                                        wire:model.blur="compensationAdjustments.{{ $row['emp_id'] }}.remarks"
+                                        wire:model="compensationAdjustments.{{ $row['emp_id'] }}.remarks"
                                         type="text"
                                         class="w-64 rounded-md border px-2 py-1.5 text-sm {{ $row['compensation_adjustments']['remarks_missing'] ? 'border-red-400 bg-red-50' : 'border-slate-300' }}"
                                     >
@@ -443,41 +538,63 @@
     @elseif ($currentStep === 4)
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-4 py-3">
-                <h3 class="font-semibold">Statutory</h3>
+                <h3 class="font-semibold">Mandatory Deductions</h3>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th rowspan="2" class="px-4 py-3 align-middle">Employee Name</th>
-                            <th colspan="3" class="border-b border-slate-200 px-4 py-3 text-center">Employee Statutory Deductions</th>
-                            <th colspan="3" class="border-b border-l-4 border-l-indigo-500 border-slate-200 bg-indigo-50 px-4 py-3 text-center text-indigo-700">Government Shares</th>
-                            <th rowspan="2" class="px-4 py-3 text-right align-middle">Net Pay</th>
-                        </tr>
-                        <tr>
-                            <th class="px-4 py-3 text-right">Life &amp; Retirement</th>
-                            <th class="px-4 py-3 text-right">PhilHealth</th>
-                            <th class="px-4 py-3 text-right">Pag-IBIG</th>
-                            <th class="border-l-4 border-l-indigo-500 bg-indigo-50 px-4 py-3 text-right text-indigo-700">Govt. Life &amp; Retirement</th>
-                            <th class="bg-indigo-50 px-4 py-3 text-right text-indigo-700">Govt. PhilHealth</th>
-                            <th class="bg-indigo-50 px-4 py-3 text-right text-indigo-700">Govt. Pag-IBIG</th>
+                            <th class="px-4 py-3">Employee Name</th>
+                            <th class="px-4 py-3 text-right">GSIS (PS)</th>
+                            <th class="px-4 py-3 text-right">GSIS (GS)</th>
+                            <th class="px-4 py-3 text-right">EC</th>
+                            <th class="px-4 py-3 text-right">PHIC (PS)</th>
+                            <th class="px-4 py-3 text-right">PHIC (GS)</th>
+                            <th class="px-4 py-3 text-right">HDMF (PS) 1</th>
+                            <th class="px-4 py-3 text-right">HDMF (PS) 2 MS</th>
+                            <th class="px-4 py-3 text-right">HDMF (GS)</th>
+                            <th class="px-4 py-3 text-right">EA Deduction</th>
+                            <th class="px-4 py-3 text-right">Total Mandatory Deductions</th>
+                            <th class="px-4 py-3 text-right">Net Pay</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50">
                                 <td class="px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['life_retirement'], 2) }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['phic'], 2) }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['mandatory_pagibig'], 2) }}</td>
-                                <td class="border-l-4 border-l-indigo-500 bg-indigo-50 px-4 py-3 text-right text-indigo-900">{{ number_format($row['statutory_government_shares']['government_life_retirement'] ?? 0, 2) }}</td>
-                                <td class="bg-indigo-50 px-4 py-3 text-right text-indigo-900">{{ number_format($row['statutory_government_shares']['government_phic'] ?? 0, 2) }}</td>
-                                <td class="bg-indigo-50 px-4 py-3 text-right text-indigo-900">{{ number_format($row['statutory_government_shares']['government_pagibig'] ?? 0, 2) }}</td>
+                                @foreach ([
+                                    ['key' => 'life_retirement', 'source' => 'statutory_deductions'],
+                                    ['key' => 'government_life_retirement', 'source' => 'statutory_government_shares'],
+                                    ['key' => 'ec', 'source' => 'statutory_government_shares'],
+                                    ['key' => 'phic', 'source' => 'statutory_deductions'],
+                                    ['key' => 'government_phic', 'source' => 'statutory_government_shares'],
+                                    ['key' => 'mandatory_pagibig', 'source' => 'statutory_deductions'],
+                                    ['key' => 'hdmf_ps_2_ms', 'source' => 'statutory_deductions'],
+                                    ['key' => 'government_pagibig', 'source' => 'statutory_government_shares'],
+                                    ['key' => 'ea_deduction', 'source' => 'statutory_deductions'],
+                                ] as $deductionColumn)
+                                    @php
+                                        $deductionKey = $deductionColumn['key'];
+                                        $source = $deductionColumn['source'];
+                                        $baseSource = $source === 'statutory_deductions' ? 'base_statutory_deductions' : 'base_statutory_government_shares';
+                                    @endphp
+                                    <td class="px-4 py-3 text-right">
+                                        <div class="font-medium">{{ number_format($row[$source][$deductionKey] ?? 0, 2) }}</div>
+                                        <input
+                                            wire:model="mandatoryDeductionAdjustments.{{ $row['emp_id'] }}.{{ $deductionKey }}"
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="{{ number_format($row[$baseSource][$deductionKey] ?? 0, 2) }}"
+                                            class="mt-1 w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-xs"
+                                        >
+                                    </td>
+                                @endforeach
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['total_mandatory_deductions'], 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_before_other_deductions'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="12" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -534,7 +651,7 @@
                                         {{ number_format((float) $program->value, 4) }}
                                     </td>
                                     <td class="border-b border-r border-slate-200 px-3 py-2">
-                                        <select wire:model.live="deductionProgramSelections.{{ $program->id }}.mode" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+                                        <select wire:model="deductionProgramSelections.{{ $program->id }}.mode" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
                                             <option value="all">All employees</option>
                                             <option value="include">Specific employees only</option>
                                             <option value="exclude">All except specific employees</option>
@@ -562,7 +679,7 @@
                                         @endif
                                     </td>
                                     <td class="border-b border-r border-slate-200 px-3 py-2">
-                                        <select wire:model.live="deductionProgramSelections.{{ $program->id }}.amount_mode" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+                                        <select wire:model="deductionProgramSelections.{{ $program->id }}.amount_mode" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
                                             <option value="program">Use program value</option>
                                             <option value="employee">Employee-specific</option>
                                         </select>
@@ -628,7 +745,7 @@
                                     <tr class="hover:bg-slate-50">
                                         <td class="sticky left-0 border-b border-r border-slate-200 bg-inherit px-3 py-2">
                                             <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
-                                            <div class="text-xs text-slate-500">{{ $row['emp_id'] }} &middot; {{ $row['department'] }}</div>
+                                            <div class="text-xs text-slate-500">{{ $row['emp_id'] }} &middot; {{ $row['position'] ?? '-' }}</div>
                                         </td>
                                         <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ number_format($row['net_before_other_deductions'], 2) }}</td>
                                         @foreach ($activeDeductionPrograms as $program)
@@ -639,7 +756,7 @@
                                             <td class="border-b border-r border-slate-200 px-3 py-2 text-right">
                                                 @if ($programItem && (($programSelection['amount_mode'] ?? 'program') === 'employee'))
                                                     <input
-                                                        wire:model.blur="deductionProgramSelections.{{ $program->id }}.employee_amounts.{{ $row['emp_id'] }}"
+                                                        wire:model="deductionProgramSelections.{{ $program->id }}.employee_amounts.{{ $row['emp_id'] }}"
                                                         type="number"
                                                         min="0"
                                                         step="0.01"
@@ -684,9 +801,12 @@
         <div
             class="space-y-4"
             x-on:loan-deduction-saved.window="closeLoanModal()"
+            x-on:loan-deduction-batch-saved.window="closeLoanModal()"
             x-data="{
                 loanModalOpen: false,
                 savingLoan: false,
+                loanBatch: [],
+                batchError: '',
                 loanEmployees: @js($loanEmployees),
                 loanTypeOptions: @js($loanTypeOptions),
                 recentLoanSuggestions: @js($recentLoanSuggestions),
@@ -703,20 +823,38 @@
                     penalty_due: '',
                     remarks: '',
                 },
+                blankLoanForm(empId = '') {
+                    return {
+                        emp_id: String(empId || ''),
+                        loan_type_id: '',
+                        loan_account_no: '',
+                        monthly_amortization: '',
+                        amount_due: '',
+                        outstanding_balance: '',
+                        principal_due: '',
+                        interest_due: '',
+                        penalty_due: '',
+                        remarks: '',
+                    };
+                },
                 openLoanModal(empId = '', loan = null) {
                     this.editingLoanItemId = loan ? loan.id : null;
-                    this.loanForm = {
-                        emp_id: loan ? String(loan.emp_id || empId || '') : String(empId || ''),
-                        loan_type_id: loan ? String(loan.loan_type_id || '') : '',
-                        loan_account_no: loan ? String(loan.loan_account_no || '') : '',
-                        monthly_amortization: loan ? String(loan.monthly_amortization || '') : '',
-                        amount_due: loan ? String(loan.amount_due || '') : '',
-                        outstanding_balance: loan ? String(loan.outstanding_balance || '') : '',
-                        principal_due: loan ? String(loan.principal_due || '') : '',
-                        interest_due: loan ? String(loan.interest_due || '') : '',
-                        penalty_due: loan ? String(loan.penalty_due || '') : '',
-                        remarks: loan ? String(loan.remarks || '') : '',
-                    };
+                    this.batchError = '';
+                    this.loanBatch = [];
+                    this.loanForm = loan
+                        ? {
+                            emp_id: String(loan.emp_id || empId || ''),
+                            loan_type_id: String(loan.loan_type_id || ''),
+                            loan_account_no: String(loan.loan_account_no || ''),
+                            monthly_amortization: String(loan.monthly_amortization || ''),
+                            amount_due: String(loan.amount_due || ''),
+                            outstanding_balance: String(loan.outstanding_balance || ''),
+                            principal_due: String(loan.principal_due || ''),
+                            interest_due: String(loan.interest_due || ''),
+                            penalty_due: String(loan.penalty_due || ''),
+                            remarks: String(loan.remarks || ''),
+                        }
+                        : this.blankLoanForm(empId);
                     this.loanModalOpen = true;
                     this.applyRecentLoanSuggestion();
                     this.syncLoanSelects();
@@ -724,10 +862,17 @@
                 closeLoanModal() {
                     this.loanModalOpen = false;
                     this.savingLoan = false;
+                    this.batchError = '';
+                    this.loanBatch = [];
                 },
                 clearLoanReferenceAndAmount() {
                     this.loanForm.loan_account_no = '';
                     this.loanForm.amount_due = '';
+                },
+                resetLoanForm(keepEmployee = true) {
+                    const empId = keepEmployee ? this.loanForm.emp_id : '';
+                    this.loanForm = this.blankLoanForm(empId);
+                    this.syncLoanSelects();
                 },
                 get selectedRecentLoanSuggestion() {
                     return this.recentLoanSuggestions[`${this.loanForm.emp_id}|${this.loanForm.loan_type_id}`] || null;
@@ -756,6 +901,38 @@
                         && this.loanForm.amount_due !== ''
                         && Number(this.loanForm.amount_due) !== Number(suggestion.amount_due || 0);
                 },
+                loanEmployeeName(empId) {
+                    return this.loanEmployees.find((employee) => employee.emp_id === empId)?.name || empId || '-';
+                },
+                loanTypeLabel(loanTypeId) {
+                    return this.loanTypeOptions.find((loanType) => loanType.id === String(loanTypeId))?.label || '-';
+                },
+                addLoanToBatch() {
+                    this.batchError = '';
+                    if (!this.loanForm.emp_id || !this.loanForm.loan_type_id || this.loanForm.amount_due === '') {
+                        this.batchError = 'Choose an employee, choose a loan type, and enter the amount due.';
+                        return;
+                    }
+
+                    this.loanBatch.push({
+                        ...this.loanForm,
+                        client_id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                    });
+                    this.resetLoanForm(true);
+                },
+                editBatchLoan(index) {
+                    const item = this.loanBatch[index];
+                    if (!item) {
+                        return;
+                    }
+
+                    this.loanForm = { ...item };
+                    this.loanBatch.splice(index, 1);
+                    this.syncLoanSelects();
+                },
+                removeBatchLoan(index) {
+                    this.loanBatch.splice(index, 1);
+                },
                 syncLoanSelects() {
                     this.$nextTick(() => {
                         if (window.jQuery && this.$refs.loanEmployee) {
@@ -769,6 +946,18 @@
                 saveLoan() {
                     this.savingLoan = true;
                     $wire.saveLoanDeductionFromModal(this.editingLoanItemId, this.loanForm)
+                        .then(() => { this.savingLoan = false; })
+                        .catch(() => { this.savingLoan = false; });
+                },
+                saveLoanBatch() {
+                    this.batchError = '';
+                    if (this.loanBatch.length === 0) {
+                        this.batchError = 'Add at least one loan deduction to the batch.';
+                        return;
+                    }
+
+                    this.savingLoan = true;
+                    $wire.saveLoanDeductionsBatch(this.loanBatch)
                         .then(() => { this.savingLoan = false; })
                         .catch(() => { this.savingLoan = false; });
                 },
@@ -808,10 +997,10 @@
             @enderror
 
             <div x-cloak x-show="loanModalOpen" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm" style="display: none; height: 100dvh;">
-                    <div x-on:click.outside="closeLoanModal()" class="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-xl">
+                    <div x-on:click.outside="closeLoanModal()" class="flex max-h-[92vh] w-full max-w-7xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
                         <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
                             <div>
-                                <h3 class="font-semibold text-slate-900" x-text="editingLoanItemId ? 'Edit Loan Deduction' : 'Add Employee Loan'"></h3>
+                                <h3 class="font-semibold text-slate-900" x-text="editingLoanItemId ? 'Edit Loan Deduction' : 'Batch Add Employee Loans'"></h3>
                                 <p class="mt-1 text-sm text-slate-600">Included in Loan Deductions for {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }}.</p>
                             </div>
                             <button type="button" x-on:click="closeLoanModal()" class="rounded-md px-2 py-1 text-xl leading-none text-slate-500 hover:bg-slate-100" aria-label="Close loan deduction modal">
@@ -819,7 +1008,11 @@
                             </button>
                         </div>
 
-                        <div class="grid gap-4 px-5 py-5 md:grid-cols-2">
+                        <div class="grid min-h-0 gap-5 overflow-y-auto px-5 py-5 xl:grid-cols-[minmax(420px,0.85fr)_minmax(520px,1.15fr)]">
+                            <div class="grid content-start gap-4 md:grid-cols-2">
+                            <div class="md:col-span-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700" x-show="!editingLoanItemId">
+                                Fill the form, add it to the batch, then save all staged deductions once.
+                            </div>
                             <div>
                                 <label class="text-xs font-semibold uppercase text-slate-500">Employee</label>
                                 <select x-ref="loanEmployee" x-model="loanForm.emp_id" x-on:change="$nextTick(() => applyRecentLoanSuggestion())" data-select2-searchable data-placeholder="Search employee" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
@@ -854,7 +1047,7 @@
                             </div>
 
                             <div>
-                                <label class="text-xs font-semibold uppercase text-slate-500">Reference/Account No.</label>
+                                <label class="text-xs font-semibold uppercase text-slate-500">Reference/Account No. <span class="font-normal normal-case text-slate-400">Optional</span></label>
                                 <div class="mt-1 flex gap-2">
                                     <input x-model="loanForm.loan_account_no" type="text" class="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm">
                                     <button type="button" x-on:click="clearLoanReferenceAndAmount()" class="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Clear</button>
@@ -865,7 +1058,7 @@
                             </div>
 
                             <div>
-                                <label class="text-xs font-semibold uppercase text-slate-500">Monthly Amortization</label>
+                                <label class="text-xs font-semibold uppercase text-slate-500">Monthly Amortization <span class="font-normal normal-case text-slate-400">Optional</span></label>
                                 <input x-model="loanForm.monthly_amortization" type="number" min="0" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-right text-sm">
                                 @error('loanDeductionForm.monthly_amortization')
                                     <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
@@ -889,8 +1082,11 @@
                             </div>
 
                             <div>
-                                <label class="text-xs font-semibold uppercase text-slate-500">Principal Due</label>
+                                <label class="text-xs font-semibold uppercase text-slate-500">Principal Due <span class="font-normal normal-case text-slate-400">Optional</span></label>
                                 <input x-model="loanForm.principal_due" type="number" min="0" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-right text-sm">
+                                @error('loanDeductionForm.principal_due')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
                             </div>
 
                             <div>
@@ -907,14 +1103,68 @@
                                 <label class="text-xs font-semibold uppercase text-slate-500">Remarks</label>
                                 <textarea x-model="loanForm.remarks" rows="3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
                             </div>
+                            <div class="md:col-span-2 flex justify-end gap-2">
+                                <button type="button" x-on:click="resetLoanForm(true)" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                                    Clear Form
+                                </button>
+                                <button type="button" x-show="!editingLoanItemId" x-on:click="addLoanToBatch()" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+                                    Add to Batch
+                                </button>
+                            </div>
+                            <div x-show="batchError" class="md:col-span-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" x-text="batchError"></div>
+                            </div>
+
+                            <div class="min-h-[360px] overflow-hidden rounded-lg border border-slate-200">
+                                <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                                    <h4 class="font-semibold text-slate-900">Batch Loans</h4>
+                                    <span class="text-sm text-slate-600"><span x-text="loanBatch.length"></span> staged</span>
+                                </div>
+                                <div class="max-h-[520px] overflow-auto">
+                                    <table class="min-w-[820px] divide-y divide-slate-200 text-sm">
+                                        <thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500">
+                                            <tr>
+                                                <th class="px-3 py-2">Employee</th>
+                                                <th class="px-3 py-2">Loan Type</th>
+                                                <th class="px-3 py-2 text-right">Amount Due</th>
+                                                <th class="px-3 py-2 text-right">Principal</th>
+                                                <th class="px-3 py-2 text-right">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100">
+                                            <template x-for="(loan, index) in loanBatch" :key="loan.client_id">
+                                                <tr>
+                                                    <td class="px-3 py-2">
+                                                        <div class="font-medium text-slate-900" x-text="loanEmployeeName(loan.emp_id)"></div>
+                                                        <div class="text-xs text-slate-500" x-text="loan.emp_id"></div>
+                                                    </td>
+                                                    <td class="px-3 py-2" x-text="loanTypeLabel(loan.loan_type_id)"></td>
+                                                    <td class="px-3 py-2 text-right font-semibold" x-text="Number(loan.amount_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></td>
+                                                    <td class="px-3 py-2 text-right" x-text="loan.principal_due === '' ? '-' : Number(loan.principal_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></td>
+                                                    <td class="px-3 py-2 text-right">
+                                                        <button type="button" x-on:click="editBatchLoan(index)" class="rounded border border-slate-300 px-2 py-1 text-xs font-semibold hover:bg-slate-50">Edit</button>
+                                                        <button type="button" x-on:click="removeBatchLoan(index)" class="rounded border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                            <tr x-show="loanBatch.length === 0">
+                                                <td colspan="5" class="px-3 py-10 text-center text-slate-500">No loan deductions staged yet.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
                             <button type="button" x-on:click="closeLoanModal()" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                                 Cancel
                             </button>
-                            <button type="button" x-on:click="saveLoan()" x-bind:disabled="savingLoan" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
+                            <button type="button" x-show="editingLoanItemId" x-on:click="saveLoan()" x-bind:disabled="savingLoan" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
                                 <span x-show="!savingLoan">Save Loan Deduction</span>
+                                <span x-show="savingLoan">Saving...</span>
+                            </button>
+                            <button type="button" x-show="!editingLoanItemId" x-on:click="saveLoanBatch()" x-bind:disabled="savingLoan || loanBatch.length === 0" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                                <span x-show="!savingLoan">Save Batch</span>
                                 <span x-show="savingLoan">Saving...</span>
                             </button>
                         </div>
@@ -1036,7 +1286,7 @@
                                 <tr class="hover:bg-slate-50">
                                     <td class="sticky left-0 border-b border-r border-slate-200 bg-inherit px-3 py-2">
                                         <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
-                                        <div class="text-xs text-slate-500">{{ $row['emp_id'] }} · {{ $row['department'] }}</div>
+                                        <div class="text-xs text-slate-500">{{ $row['emp_id'] }} · {{ $row['position'] ?? '-' }}</div>
                                     </td>
                                     <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ number_format($row['net_after_program_deductions'], 2) }}</td>
                                     <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold {{ ($row['loan_deductions']['total'] ?? 0) > 0 ? 'text-blue-700' : 'text-slate-500' }}">
@@ -1107,7 +1357,7 @@
                             <tr class="hover:bg-slate-50">
                                 <td class="px-4 py-3">
                                     <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
-                                    <div class="text-xs text-slate-500">{{ $row['emp_id'] }} Â· {{ $row['department'] }}</div>
+                                    <div class="text-xs text-slate-500">{{ $row['emp_id'] }} Â· {{ $row['position'] ?? '-' }}</div>
                                 </td>
                                 <td class="px-4 py-3">{{ $row['tax']['entry_date'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">{{ $row['tax']['salary_grade'] ?? '-' }}</td>
@@ -1143,7 +1393,7 @@
                                 <td class="px-4 py-3 text-right">{{ number_format($totals['basic_salary'], 2) }}</td>
                                 <td></td>
                                 <td></td>
-                                <td class="px-4 py-3 text-right">{{ number_format(collect($totals['statutory_deductions'])->sum(), 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($totals['total_mandatory_deductions'], 2) }}</td>
                                 <td></td>
                                 <td></td>
                                 <td></td>
@@ -1245,7 +1495,7 @@
         <div class="pointer-events-auto flex items-center gap-3 rounded-lg border border-white/50 bg-white/70 px-3 py-2 shadow-lg shadow-slate-900/10 backdrop-blur-md">
             <button
                 type="button"
-                wire:click="previousStep"
+                x-on:click="leaveStep({{ $currentStep }}, {{ $currentStep - 1 }})"
                 wire:loading.attr="disabled"
                 wire:target="{{ $payrollLoadingTargets }}"
                 @disabled($currentStep === 1)
@@ -1256,7 +1506,7 @@
             <div class="min-w-20 text-center text-sm text-slate-700">Step {{ $currentStep }} of {{ count($steps) }}</div>
             <button
                 type="button"
-                wire:click="nextStep"
+                x-on:click="leaveStep({{ $currentStep }}, {{ $currentStep + 1 }})"
                 wire:loading.attr="disabled"
                 wire:target="{{ $payrollLoadingTargets }}"
                 @disabled($currentStep === count($steps))

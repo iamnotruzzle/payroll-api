@@ -4,6 +4,7 @@ namespace App\Models\Hris;
 
 use App\Casts\SafeDate;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class EmployeeLeave extends Model
 {
@@ -39,6 +40,11 @@ class EmployeeLeave extends Model
     public function leaveType()
     {
         return $this->belongsTo(LeaveType::class, 'leave_type', 'leave_type_id');
+    }
+
+    public function logs(): HasMany
+    {
+        return $this->hasMany(EmployeeLeaveLog::class, 'leave_id', 'leave_id');
     }
 
     public function getLeaveTypeNameAttribute()

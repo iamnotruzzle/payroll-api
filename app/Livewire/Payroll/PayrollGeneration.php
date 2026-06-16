@@ -6,6 +6,8 @@ use App\Models\Hris\Department;
 use App\Models\Hris\Division;
 use App\Models\Hris\Employee;
 use App\Models\Hris\EmployeeLeave;
+use App\Models\Hris\LeaveType;
+use App\Models\Hris\Position;
 use App\Models\Hris\SalaryGrade;
 use App\Models\Payroll\PayrollAdjustmentType;
 use App\Models\Payroll\PayrollAdditional;
@@ -44,6 +46,25 @@ class PayrollGeneration extends Component
 {
     use WithFileUploads;
 
+    private const DEFAULT_UNCHECKED_LEAVE_TYPE_IDS = [4, 14, 15, 16, 20, 22];
+
+    private const EXCLUDED_LEAVE_LOG_ACTIONS = [2, 3];
+
+    private const EMPLOYEE_MANDATORY_DEDUCTION_KEYS = [
+        'life_retirement',
+        'phic',
+        'mandatory_pagibig',
+        'hdmf_ps_2_ms',
+        'ea_deduction',
+    ];
+
+    private const GOVERNMENT_MANDATORY_DEDUCTION_KEYS = [
+        'government_life_retirement',
+        'ec',
+        'government_phic',
+        'government_pagibig',
+    ];
+
     public ?int $divisionId = null;
 
     public ?int $departmentId = null;
@@ -51,6 +72,10 @@ class PayrollGeneration extends Component
     public string $period;
 
     public int $workingDays = 22;
+
+    public int $gsisDays = 30;
+
+    public array $selectedLeaveTypeIds = [];
 
     public string $search = '';
 
@@ -63,7 +88,13 @@ class PayrollGeneration extends Component
 
     public array $leaveDeductionOverrides = [];
 
+    public array $leaveDateOverrides = [];
+
+    public array $payBasisOverrides = [];
+
     public array $compensationAdjustments = [];
+
+    public array $mandatoryDeductionAdjustments = [];
 
     public array $selectedAdjustmentTypeIds = [];
 
@@ -100,9 +131,9 @@ class PayrollGeneration extends Component
 
     public array $steps = [
         1 => 'MRA Validation',
-        2 => 'Allowances Computation',
+        2 => 'Compensation',
         3 => 'Deductions and Adjustments',
-        4 => 'Statutory',
+        4 => 'Mandatory Deductions',
         5 => 'Deduction Programs',
         6 => 'Loan Deductions',
         7 => 'Tax Calculation',
@@ -140,6 +171,10 @@ class PayrollGeneration extends Component
 
         $this->period = request()->query('period', CarbonImmutable::today()->format('Y-m'));
         $this->workingDays = max(1, min(31, request()->integer('working_days') ?: $this->workingDays));
+        $this->gsisDays = max(0, min(31, request()->integer('gsis_days') ?: $this->gsisDays));
+        $this->selectedLeaveTypeIds = $this->hasExplicitLeaveTypeSelection(request()->query('leave_type_ids'))
+            ? $this->parseSelectedLeaveTypeIds(request()->query('leave_type_ids', []))
+            : $this->defaultSelectedLeaveTypeIds();
 
         $employeeType = request()->query('employee_type', Employee::EMPLOYEE_TYPE_PLANTILLA);
         $this->employeeTypeFilter = array_key_exists($employeeType, Employee::employeeTypeOptions())
@@ -164,6 +199,21 @@ class PayrollGeneration extends Component
     public function updatedEmployeeTypeFilter(): void
     {
         $this->resetGenerationState();
+    }
+
+    public function updatedLeaveDateOverrides(mixed $value, string $key): void
+    {
+        $leaveId = (int) str($key)->before('.')->toString();
+        if ($leaveId <= 0) {
+            return;
+        }
+
+        $empId = EmployeeLeave::query()->whereKey($leaveId)->value('emp_id');
+        if (! $empId) {
+            return;
+        }
+
+        unset($this->leaveDeductionOverrides[$empId], $this->deductionDayOverrides[$empId]);
     }
 
     public function goToStep(int $step): void
@@ -247,11 +297,17 @@ class PayrollGeneration extends Component
 
     public function saveLoanDeduction(): void
     {
+        foreach (['monthly_amortization', 'outstanding_balance', 'principal_due', 'interest_due', 'penalty_due'] as $field) {
+            if (($this->loanDeductionForm[$field] ?? null) === '') {
+                $this->loanDeductionForm[$field] = null;
+            }
+        }
+
         $data = $this->validate([
             'loanDeductionForm.emp_id' => ['required', 'string'],
             'loanDeductionForm.loan_type_id' => ['required', 'integer'],
-            'loanDeductionForm.loan_account_no' => ['required', 'string', 'max:120'],
-            'loanDeductionForm.monthly_amortization' => ['required', 'numeric', 'min:0'],
+            'loanDeductionForm.loan_account_no' => ['nullable', 'string', 'max:120'],
+            'loanDeductionForm.monthly_amortization' => ['nullable', 'numeric', 'min:0'],
             'loanDeductionForm.amount_due' => ['required', 'numeric', 'min:0'],
             'loanDeductionForm.outstanding_balance' => ['nullable', 'numeric', 'min:0'],
             'loanDeductionForm.principal_due' => ['nullable', 'numeric', 'min:0'],
@@ -261,8 +317,6 @@ class PayrollGeneration extends Component
         ], [
             'loanDeductionForm.emp_id.required' => 'Choose an employee.',
             'loanDeductionForm.loan_type_id.required' => 'Choose a loan type.',
-            'loanDeductionForm.loan_account_no.required' => 'Enter the reference or account number.',
-            'loanDeductionForm.monthly_amortization.required' => 'Enter the monthly amortization.',
             'loanDeductionForm.amount_due.required' => 'Enter the amount due.',
         ])['loanDeductionForm'];
 
@@ -276,6 +330,10 @@ class PayrollGeneration extends Component
         }
 
         $periodStart = $this->selectedPeriodStart();
+        $amountDue = $this->moneyValue($data['amount_due']);
+        $monthlyAmortization = $data['monthly_amortization'] === null || $data['monthly_amortization'] === ''
+            ? $amountDue
+            : $this->moneyValue($data['monthly_amortization']);
         $existingItem = $this->editingLoanItemId
             ? PayrollLoanImportItem::query()->find($this->editingLoanItemId)
             : null;
@@ -286,11 +344,11 @@ class PayrollGeneration extends Component
             'due_month' => $periodStart->toDateString(),
             'employee_id' => $employee->emp_id,
             'matched_emp_id' => $employee->emp_id,
-            'employee_name' => $employee->full_name,
-            'loan_account_no' => trim((string) $data['loan_account_no']),
+            'employee_name' => $this->formatPayrollEmployeeName($employee),
+            'loan_account_no' => trim((string) ($data['loan_account_no'] ?? '')),
             'loan_type' => $loanType->name,
-            'monthly_amortization' => (float) $data['monthly_amortization'],
-            'amount_due' => (float) $data['amount_due'],
+            'monthly_amortization' => $monthlyAmortization,
+            'amount_due' => $amountDue,
             'outstanding_balance' => $this->nullableMoneyValue($data['outstanding_balance'] ?? null),
             'principal_due' => $this->nullableMoneyValue($data['principal_due'] ?? null),
             'interest_due' => $this->nullableMoneyValue($data['interest_due'] ?? null),
@@ -313,6 +371,93 @@ class PayrollGeneration extends Component
         $this->dispatch('loan-deduction-saved');
     }
 
+    public function saveLoanDeductionsBatch(array $forms): void
+    {
+        if ($forms === []) {
+            $this->addError('loanDeductionForm', 'Add at least one loan deduction before saving the batch.');
+
+            return;
+        }
+
+        $periodStart = $this->selectedPeriodStart();
+        $import = $this->manualLoanImportFor($periodStart);
+        $nextRowNumber = ((int) PayrollLoanImportItem::query()->where('import_id', $import->id)->max('row_number')) + 1;
+        $preparedRows = [];
+        $saved = 0;
+
+        foreach (array_values($forms) as $index => $form) {
+            $validator = validator($this->normalizeManualLoanForm((array) $form), [
+                'emp_id' => ['required', 'string'],
+                'loan_type_id' => ['required', 'integer'],
+                'loan_account_no' => ['nullable', 'string', 'max:120'],
+                'monthly_amortization' => ['nullable', 'numeric', 'min:0'],
+                'amount_due' => ['required', 'numeric', 'min:0'],
+                'outstanding_balance' => ['nullable', 'numeric', 'min:0'],
+                'principal_due' => ['nullable', 'numeric', 'min:0'],
+                'interest_due' => ['nullable', 'numeric', 'min:0'],
+                'penalty_due' => ['nullable', 'numeric', 'min:0'],
+                'remarks' => ['nullable', 'string'],
+            ], [
+                'emp_id.required' => 'Choose an employee for row '.($index + 1).'.',
+                'loan_type_id.required' => 'Choose a loan type for row '.($index + 1).'.',
+                'amount_due.required' => 'Enter the amount due for row '.($index + 1).'.',
+            ]);
+
+            if ($validator->fails()) {
+                $this->addError('loanDeductionForm', $validator->errors()->first());
+
+                return;
+            }
+
+            $data = $validator->validated();
+
+            $employee = Employee::query()->where('emp_id', $data['emp_id'])->first();
+            $loanType = PayrollLoanType::query()->with('entity')->find((int) $data['loan_type_id']);
+            if (! $employee || ! $loanType) {
+                $this->addError('loanDeductionForm', 'Choose a valid employee and loan type for row '.($index + 1).'.');
+
+                return;
+            }
+
+            $amountDue = $this->moneyValue($data['amount_due']);
+            $monthlyAmortization = $data['monthly_amortization'] === null || $data['monthly_amortization'] === ''
+                ? $amountDue
+                : $this->moneyValue($data['monthly_amortization']);
+
+            $preparedRows[] = [
+                'import_id' => $import->id,
+                'entity' => $loanType->entity?->name ?? $loanType->entity?->code ?? 'Manual',
+                'due_month' => $periodStart->toDateString(),
+                'employee_id' => $employee->emp_id,
+                'matched_emp_id' => $employee->emp_id,
+                'employee_name' => $this->formatPayrollEmployeeName($employee),
+                'loan_account_no' => trim((string) ($data['loan_account_no'] ?? '')),
+                'loan_type' => $loanType->name,
+                'monthly_amortization' => $monthlyAmortization,
+                'amount_due' => $amountDue,
+                'outstanding_balance' => $this->nullableMoneyValue($data['outstanding_balance'] ?? null),
+                'principal_due' => $this->nullableMoneyValue($data['principal_due'] ?? null),
+                'interest_due' => $this->nullableMoneyValue($data['interest_due'] ?? null),
+                'penalty_due' => $this->nullableMoneyValue($data['penalty_due'] ?? null),
+                'remarks' => trim((string) ($data['remarks'] ?? '')) ?: null,
+                'validation_status' => 'valid',
+                'validation_errors' => null,
+            ];
+        }
+
+        DB::connection('payroll')->transaction(function () use ($preparedRows, &$nextRowNumber, &$saved) {
+            foreach ($preparedRows as $row) {
+                $row['row_number'] = $nextRowNumber++;
+                PayrollLoanImportItem::query()->create($row);
+                $saved++;
+            }
+        });
+
+        $this->refreshLoanImportCounts($import->id);
+        session()->flash('loan_import_status', "Saved {$saved} loan deduction(s).");
+        $this->dispatch('loan-deduction-batch-saved');
+    }
+
     public function saveLoanDeductionFromModal(?int $editingLoanItemId, array $form): void
     {
         $this->editingLoanItemId = $editingLoanItemId;
@@ -326,6 +471,18 @@ class PayrollGeneration extends Component
         if (in_array($key, ['emp_id', 'loan_type_id'], true)) {
             $this->refreshRecentLoanSuggestion();
         }
+    }
+
+    private function normalizeManualLoanForm(array $form): array
+    {
+        $form = array_merge($this->blankLoanDeductionForm(), array_intersect_key($form, $this->blankLoanDeductionForm()));
+        foreach (['monthly_amortization', 'outstanding_balance', 'principal_due', 'interest_due', 'penalty_due'] as $field) {
+            if (($form[$field] ?? null) === '') {
+                $form[$field] = null;
+            }
+        }
+
+        return $form;
     }
 
     public function clearLoanReferenceAndAmount(): void
@@ -441,12 +598,17 @@ class PayrollGeneration extends Component
                 'payroll_type_code' => PayrollType::CODE_GENERAL,
                 'payroll_period' => $this->period,
                 'working_days' => $this->workingDays,
+                'gsis_days' => $this->gsisDays,
+                'included_leave_type_ids' => $this->selectedLeaveTypeIds,
                 'employee_type' => $this->employeeTypeFilter,
                 'current_step' => $this->currentStep,
                 'state_json' => [
                     'deduction_day_overrides' => $this->deductionDayOverrides,
                     'leave_deduction_overrides' => $this->leaveDeductionOverrides,
+                    'leave_date_overrides' => $this->leaveDateOverrides,
+                    'pay_basis_overrides' => $this->payBasisOverrides,
                     'compensation_adjustments' => $this->compensationAdjustments,
+                    'mandatory_deduction_adjustments' => $this->mandatoryDeductionAdjustments,
                     'selected_adjustment_type_ids' => $this->selectedAdjustmentTypeIds,
                     'deduction_program_selections' => $this->deductionProgramSelections,
                 ],
@@ -460,6 +622,11 @@ class PayrollGeneration extends Component
         $this->draftNotice = null;
 
         session()->flash('draft_success', 'Payroll draft saved. Reopening this same configuration will resume these entries.');
+    }
+
+    public function saveStepChanges(): void
+    {
+        $this->saveDraft();
     }
 
     private function resetLoanImportState(): void
@@ -640,12 +807,17 @@ class PayrollGeneration extends Component
                 'life_retirement' => $rows->sum('statutory_deductions.life_retirement'),
                 'phic' => $rows->sum('statutory_deductions.phic'),
                 'mandatory_pagibig' => $rows->sum('statutory_deductions.mandatory_pagibig'),
+                'hdmf_ps_2_ms' => $rows->sum('statutory_deductions.hdmf_ps_2_ms'),
+                'ea_deduction' => $rows->sum('statutory_deductions.ea_deduction'),
             ],
             'statutory_government_shares' => [
                 'government_life_retirement' => $rows->sum('statutory_government_shares.government_life_retirement'),
+                'ec' => $rows->sum('statutory_government_shares.ec'),
                 'government_phic' => $rows->sum('statutory_government_shares.government_phic'),
                 'government_pagibig' => $rows->sum('statutory_government_shares.government_pagibig'),
             ],
+            'mandatory_deduction_adjustments' => $this->mandatoryDeductionAdjustmentTotals($rows),
+            'total_mandatory_deductions' => $rows->sum('total_mandatory_deductions'),
             'withholding_tax' => $rows->sum('tax.monthly_tax_due'),
             'loan_columns' => collect(array_keys($this->blankLoanColumns()))
                 ->mapWithKeys(fn (string $key) => [$key => $rows->sum(fn ($row) => $row['loan_deductions']['columns'][$key] ?? 0)])
@@ -706,6 +878,8 @@ class PayrollGeneration extends Component
         $periodEnd = $periodStart->endOfMonth();
         $previousMraPeriod = $this->previousMraPeriod();
         $previousMraReport = $this->previousMraReport($previousMraPeriod);
+        $leavePeriodStart = $previousMraPeriod['start'];
+        $leavePeriodEnd = $previousMraPeriod['end'];
         $empIds = $employees->pluck('emp_id')->all();
         $loanItems = PayrollLoanImportItem::query()
             ->with('import')
@@ -722,14 +896,23 @@ class PayrollGeneration extends Component
             ]))
             ->groupBy('matched_emp_id');
         $leaveQuery = EmployeeLeave::query()
+            ->with('leaveType')
             ->whereIn('emp_id', $empIds)
             ->where('status', 0)
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
-            ->whereDate('start_date', '<=', $periodEnd->toDateString())
-            ->whereDate('end_date', '>=', $periodStart->toDateString());
+            ->whereDate('start_date', '<=', $leavePeriodEnd->toDateString())
+            ->whereDate('end_date', '>=', $leavePeriodStart->toDateString())
+            ->whereDoesntHave('logs', fn ($query) => $query->whereIn('action', self::EXCLUDED_LEAVE_LOG_ACTIONS));
+
+        if ($this->selectedLeaveTypeIds === []) {
+            $leaveQuery->whereRaw('1 = 0');
+        } else {
+            $leaveQuery->whereIn('leave_type', $this->selectedLeaveTypeIds);
+        }
 
         $leaves = $leaveQuery->get()->groupBy('emp_id');
+        $excludedLeaveDates = $this->excludedLeaveDates($empIds, $periodStart, $periodEnd);
         $labels = PayrollDtrLabel::query()
             ->whereIn('emp_id', $empIds)
             ->whereBetween('dtr_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
@@ -750,20 +933,22 @@ class PayrollGeneration extends Component
             : collect();
         $labelOptions = PayrollDtrLabelOption::query()->get()->keyBy('code');
 
-        return $employees->map(function (Employee $employee) use ($compensations, $deductionPrograms, $adjustmentTypes, $salaryMatrix, $leaves, $labels, $adjustments, $mraAdjustments, $labelOptions, $loanItems, $periodStart, $periodEnd) {
-            $salaryGrade = (int) ($employee->position?->salary_grade ?? 0);
-            $step = max(1, min(8, (int) ($employee->step ?: 1)));
+        return $employees->map(function (Employee $employee) use ($compensations, $deductionPrograms, $adjustmentTypes, $salaryMatrix, $leaves, $excludedLeaveDates, $labels, $adjustments, $mraAdjustments, $labelOptions, $loanItems, $periodStart, $periodEnd, $leavePeriodStart, $leavePeriodEnd) {
+            $payBasis = $this->editablePayBasisFor($employee);
+            $salaryGrade = $payBasis['salary_grade'];
+            $step = $payBasis['step'];
             $basicSalary = (float) ($salaryMatrix[$salaryGrade][$step] ?? 0);
             $leaveDeduction = $this->leaveDeductionDetails(
                 $leaves->get($employee->emp_id, collect()),
-                $periodStart,
-                $periodEnd,
+                $leavePeriodStart,
+                $leavePeriodEnd,
             );
             $leaveDeduction = $this->editableLeaveDeductionFor($employee->emp_id, $leaveDeduction);
             $fallbackDeductionDays = $this->deductionDays(
                 $labels->get($employee->emp_id, collect()),
                 $adjustments->get($employee->emp_id, collect()),
                 $labelOptions,
+                $excludedLeaveDates->get($employee->emp_id, collect()),
             );
             $mraAdjustment = $mraAdjustments->get($employee->emp_id);
             $mraDeductionDays = (float) ($mraAdjustment?->adjustment_days ?? $fallbackDeductionDays);
@@ -776,6 +961,7 @@ class PayrollGeneration extends Component
                 'step' => $step,
                 'hazard_rate' => $this->hazardRate($salaryGrade),
                 'working_days' => max(1, $this->workingDays),
+                'gsis_days' => max(0, $this->gsisDays),
                 'leave_days' => $deductionDays,
                 'subsistence_deduct_days' => $leaveDeduction['subsistence_days'],
                 'pera_deduct_days' => $leaveDeduction['pera_days'],
@@ -817,12 +1003,25 @@ class PayrollGeneration extends Component
             }
 
             $statutoryContributions = $this->statutoryContributions($basicSalary);
-            $statutoryDeductions = $statutoryContributions['employee'];
-            $statutoryGovernmentShares = $statutoryContributions['employer'];
+            $baseStatutoryDeductions = $statutoryContributions['employee'];
+            $baseStatutoryGovernmentShares = $statutoryContributions['employer'];
+            $mandatoryDeductionAdjustmentDetails = $this->mandatoryDeductionAdjustmentsFor($employee->emp_id);
+            $statutoryDeductions = $this->adjustMandatoryDeductionValues(
+                $baseStatutoryDeductions,
+                $mandatoryDeductionAdjustmentDetails['items'],
+                self::EMPLOYEE_MANDATORY_DEDUCTION_KEYS,
+            );
+            $statutoryGovernmentShares = $this->adjustMandatoryDeductionValues(
+                $baseStatutoryGovernmentShares,
+                $mandatoryDeductionAdjustmentDetails['items'],
+                self::GOVERNMENT_MANDATORY_DEDUCTION_KEYS,
+            );
             $gross = $basicSalary + collect($computed)->sum('amount');
             $compensationAdjustments = $this->compensationAdjustmentsFor($employee->emp_id, $adjustmentTypes);
             $netCompensation = round($gross + $compensationAdjustments['total'], 2);
-            $netBeforeOtherDeductions = $netCompensation - collect($statutoryDeductions)->sum();
+            $baseMandatoryDeductions = round(collect($baseStatutoryDeductions)->sum(), 2);
+            $totalMandatoryDeductions = round(collect($statutoryDeductions)->sum(), 2);
+            $netBeforeOtherDeductions = round($netCompensation - $totalMandatoryDeductions, 2);
             $computedHazardPay = $this->compensationAmountByName($computed, ['hazard'], 'computed_amount');
             $hazardForTaxDisplay = $computedHazardPay ?: $taxableHazardPay;
             $regularTaxableCompensation = collect($computed)->sum('taxable_amount');
@@ -831,7 +1030,7 @@ class PayrollGeneration extends Component
             $netMonths = max(0, PayrollTaxService::ANNUALIZED_MONTHS - $leaveWithoutPayMonths);
             $tax = $this->taxCalculation(
                 $basicSalary + $regularTaxableCompensation + $compensationAdjustments['total'],
-                collect($statutoryDeductions)->sum(),
+                $totalMandatoryDeductions,
                 $netMonths,
                 [
                     'entry_date' => $employee->date_hired?->format('Y-m-d'),
@@ -881,7 +1080,7 @@ class PayrollGeneration extends Component
                 'middle_name' => $employee->middlename,
                 'last_name' => $employee->lastname,
                 'extension' => $employee->extension,
-                'employee_name' => $employee->full_name,
+                'employee_name' => $this->formatPayrollEmployeeName($employee),
                 'department' => $employee->department?->department,
                 'division' => $employee->department?->division?->division,
                 'department_id' => $employee->department_id,
@@ -892,6 +1091,8 @@ class PayrollGeneration extends Component
                 'fund_type' => null,
                 'position_id' => $employee->position_id,
                 'position' => $employee->position?->position_title,
+                'hris_salary_grade' => (int) ($employee->position?->salary_grade ?? 0) ?: null,
+                'hris_step' => max(1, min(8, (int) ($employee->step ?: 1))),
                 'salary_grade' => $salaryGrade ?: null,
                 'step' => $step,
                 'sg_step' => $salaryGrade ? 'SG '.$salaryGrade.' / Step '.$step : '-',
@@ -905,8 +1106,14 @@ class PayrollGeneration extends Component
                 'compensations' => $computed,
                 'compensation_adjustments' => $compensationAdjustments,
                 'net_compensation' => $netCompensation,
+                'base_statutory_deductions' => $baseStatutoryDeductions,
+                'base_statutory_government_shares' => $baseStatutoryGovernmentShares,
                 'statutory_deductions' => $statutoryDeductions,
                 'statutory_government_shares' => $statutoryGovernmentShares,
+                'base_mandatory_deductions' => $baseMandatoryDeductions,
+                'mandatory_deduction_adjustments' => $mandatoryDeductionAdjustmentDetails,
+                'mandatory_deduction_adjustment' => $mandatoryDeductionAdjustmentDetails['employee_total'],
+                'total_mandatory_deductions' => $totalMandatoryDeductions,
                 'statutory_contribution_details' => $statutoryContributions['details'],
                 'tax' => $tax,
                 'loan_deductions' => [
@@ -955,7 +1162,10 @@ class PayrollGeneration extends Component
         $this->currentStep = 1;
         $this->deductionDayOverrides = [];
         $this->leaveDeductionOverrides = [];
+        $this->leaveDateOverrides = [];
+        $this->payBasisOverrides = [];
         $this->compensationAdjustments = [];
+        $this->mandatoryDeductionAdjustments = [];
         $this->selectedAdjustmentTypeIds = [];
         $this->deductionProgramSelections = [];
         $this->finalizedRunId = null;
@@ -979,7 +1189,10 @@ class PayrollGeneration extends Component
         $this->currentStep = max(1, min(count($this->steps), (int) $draft->current_step));
         $this->deductionDayOverrides = (array) ($state['deduction_day_overrides'] ?? []);
         $this->leaveDeductionOverrides = (array) ($state['leave_deduction_overrides'] ?? []);
+        $this->leaveDateOverrides = (array) ($state['leave_date_overrides'] ?? []);
+        $this->payBasisOverrides = (array) ($state['pay_basis_overrides'] ?? []);
         $this->compensationAdjustments = (array) ($state['compensation_adjustments'] ?? []);
+        $this->mandatoryDeductionAdjustments = (array) ($state['mandatory_deduction_adjustments'] ?? []);
         $this->selectedAdjustmentTypeIds = array_key_exists('selected_adjustment_type_ids', $state)
             ? array_values((array) $state['selected_adjustment_type_ids'])
             : $this->selectedAdjustmentTypeIdsFromAdjustments($this->compensationAdjustments);
@@ -998,6 +1211,8 @@ class PayrollGeneration extends Component
             $this->period,
             $this->workingDays,
             $this->employeeTypeFilter,
+            $this->gsisDays,
+            $this->selectedLeaveTypeIds,
         );
     }
 
@@ -1020,6 +1235,9 @@ class PayrollGeneration extends Component
             || str_contains($name, 'gsis')
             || str_contains($name, 'philhealth')
             || str_contains($name, 'phic')
+            || $name === 'ea'
+            || str_contains($name, 'ea deduction')
+            || str_contains($name, 'employees association')
             || str_contains($name, 'withholding tax');
     }
 
@@ -1180,25 +1398,66 @@ class PayrollGeneration extends Component
         return round(max(0, (float) $override), 3);
     }
 
+    private function editablePayBasisFor(Employee $employee): array
+    {
+        $empId = $employee->emp_id;
+        $defaultSalaryGrade = (int) ($employee->position?->salary_grade ?? 0);
+        $defaultStep = max(1, min(8, (int) ($employee->step ?: 1)));
+
+        $this->payBasisOverrides[$empId]['salary_grade'] ??= $defaultSalaryGrade ?: '';
+        $this->payBasisOverrides[$empId]['step'] ??= $defaultStep;
+
+        return [
+            'salary_grade' => $this->salaryGradeValue($this->payBasisOverrides[$empId]['salary_grade'], $defaultSalaryGrade),
+            'step' => $this->stepValue($this->payBasisOverrides[$empId]['step'], $defaultStep),
+        ];
+    }
+
+    private function salaryGradeValue(mixed $value, int $default): int
+    {
+        if ($value === null || $value === '' || ! is_numeric($value)) {
+            return max(0, $default);
+        }
+
+        return max(0, (int) $value);
+    }
+
+    private function stepValue(mixed $value, int $default): int
+    {
+        if ($value === null || $value === '' || ! is_numeric($value)) {
+            return max(1, min(8, $default));
+        }
+
+        return max(1, min(8, (int) $value));
+    }
+
     private function leaveDeductionDetails(Collection $leaves, CarbonImmutable $periodStart, CarbonImmutable $periodEnd): array
     {
         $calendarDates = [];
         $workingDates = [];
         $periods = [];
+        $items = [];
 
         foreach ($leaves as $leave) {
             if (! $leave->start_date || ! $leave->end_date) {
                 continue;
             }
 
-            $start = CarbonImmutable::parse($leave->start_date)->max($periodStart);
-            $end = CarbonImmutable::parse($leave->end_date)->min($periodEnd);
+            $item = $this->editableLeaveDateFor($leave, $periodStart, $periodEnd);
+            $items[] = $item;
+
+            if ($item['excluded']) {
+                continue;
+            }
+
+            $start = CarbonImmutable::parse($item['start_date']);
+            $end = CarbonImmutable::parse($item['end_date']);
 
             if ($start->greaterThan($end)) {
                 continue;
             }
 
-            $periods[] = $this->formatLeavePeriod($start, $end);
+            $periods[] = $item['period'];
 
             for ($date = $start; $date->lessThanOrEqualTo($end); $date = $date->addDay()) {
                 $key = $date->toDateString();
@@ -1211,6 +1470,7 @@ class PayrollGeneration extends Component
         }
 
         return [
+            'items' => $items,
             'periods' => array_values(array_unique($periods)),
             'calendar_days' => count($calendarDates),
             'working_days' => count($workingDates),
@@ -1219,6 +1479,49 @@ class PayrollGeneration extends Component
             'laundry_days' => count($workingDates),
             'tev_days' => 0,
         ];
+    }
+
+    private function editableLeaveDateFor(EmployeeLeave $leave, CarbonImmutable $periodStart, CarbonImmutable $periodEnd): array
+    {
+        $key = (string) $leave->leave_id;
+        $defaultStart = CarbonImmutable::parse($leave->start_date)->max($periodStart);
+        $defaultEnd = CarbonImmutable::parse($leave->end_date)->min($periodEnd);
+        $this->leaveDateOverrides[$key]['start_date'] ??= $defaultStart->toDateString();
+        $this->leaveDateOverrides[$key]['end_date'] ??= $defaultEnd->toDateString();
+        $this->leaveDateOverrides[$key]['excluded'] ??= false;
+
+        $start = $this->leaveDateValue($this->leaveDateOverrides[$key]['start_date'] ?? null, $defaultStart)
+            ->max($periodStart)
+            ->min($periodEnd);
+        $end = $this->leaveDateValue($this->leaveDateOverrides[$key]['end_date'] ?? null, $defaultEnd)
+            ->max($periodStart)
+            ->min($periodEnd);
+
+        if ($end->lessThan($start)) {
+            $end = $start;
+        }
+
+        $this->leaveDateOverrides[$key]['start_date'] = $start->toDateString();
+        $this->leaveDateOverrides[$key]['end_date'] = $end->toDateString();
+
+        return [
+            'id' => $leave->leave_id,
+            'leave_type' => $leave->leave_type_name ?: $leave->leaveType?->leave_name ?: 'Leave',
+            'original_period' => $this->formatLeavePeriod($defaultStart, $defaultEnd),
+            'start_date' => $start->toDateString(),
+            'end_date' => $end->toDateString(),
+            'period' => $this->formatLeavePeriod($start, $end),
+            'excluded' => filter_var($this->leaveDateOverrides[$key]['excluded'] ?? false, FILTER_VALIDATE_BOOL),
+        ];
+    }
+
+    private function leaveDateValue(mixed $value, CarbonImmutable $default): CarbonImmutable
+    {
+        try {
+            return $value ? CarbonImmutable::parse($value) : $default;
+        } catch (\Throwable) {
+            return $default;
+        }
     }
 
     private function editableLeaveDeductionFor(string $empId, array $defaults): array
@@ -1310,6 +1613,52 @@ class PayrollGeneration extends Component
         return $adjustments;
     }
 
+    private function mandatoryDeductionAdjustmentsFor(string $empId): array
+    {
+        if (! isset($this->mandatoryDeductionAdjustments[$empId]) || ! is_array($this->mandatoryDeductionAdjustments[$empId])) {
+            $legacyValue = $this->mandatoryDeductionAdjustments[$empId] ?? 0;
+            $this->mandatoryDeductionAdjustments[$empId] = array_fill_keys($this->mandatoryDeductionKeys(), 0);
+            $this->mandatoryDeductionAdjustments[$empId]['ea_deduction'] = $this->signedMoneyValue($legacyValue);
+        }
+
+        $items = [];
+        foreach ($this->mandatoryDeductionKeys() as $key) {
+            $this->mandatoryDeductionAdjustments[$empId][$key] ??= 0;
+            $items[$key] = $this->signedMoneyValue($this->mandatoryDeductionAdjustments[$empId][$key]);
+        }
+
+        return [
+            'items' => $items,
+            'employee_total' => round(collect(self::EMPLOYEE_MANDATORY_DEDUCTION_KEYS)->sum(fn (string $key) => $items[$key] ?? 0), 2),
+            'government_total' => round(collect(self::GOVERNMENT_MANDATORY_DEDUCTION_KEYS)->sum(fn (string $key) => $items[$key] ?? 0), 2),
+        ];
+    }
+
+    private function mandatoryDeductionAdjustmentTotals(Collection $rows): array
+    {
+        return collect($this->mandatoryDeductionKeys())
+            ->mapWithKeys(fn (string $key) => [$key => $rows->sum(fn (array $row) => $row['mandatory_deduction_adjustments']['items'][$key] ?? 0)])
+            ->merge([
+                'employee_total' => $rows->sum('mandatory_deduction_adjustments.employee_total'),
+                'government_total' => $rows->sum('mandatory_deduction_adjustments.government_total'),
+            ])
+            ->all();
+    }
+
+    private function adjustMandatoryDeductionValues(array $values, array $adjustments, array $keys): array
+    {
+        foreach ($keys as $key) {
+            $values[$key] = round(max(0, (float) ($values[$key] ?? 0) + (float) ($adjustments[$key] ?? 0)), 2);
+        }
+
+        return $values;
+    }
+
+    private function mandatoryDeductionKeys(): array
+    {
+        return array_merge(self::EMPLOYEE_MANDATORY_DEDUCTION_KEYS, self::GOVERNMENT_MANDATORY_DEDUCTION_KEYS);
+    }
+
     private function moneyValue(mixed $value): float
     {
         return is_numeric($value) ? round(max(0, (float) $value), 2) : 0.0;
@@ -1366,12 +1715,16 @@ class PayrollGeneration extends Component
         return $start->format('M j').' - '.$end->format('M j');
     }
 
-    private function deductionDays(Collection $labels, Collection $adjustments, Collection $labelOptions): float
+    private function deductionDays(Collection $labels, Collection $adjustments, Collection $labelOptions, Collection $excludedDates): float
     {
         $leaveDays = $labels
-            ->filter(function (PayrollDtrLabel $label) use ($labelOptions) {
+            ->filter(function (PayrollDtrLabel $label) use ($labelOptions, $excludedDates) {
                 $code = strtoupper((string) $label->label);
                 $name = strtoupper((string) ($labelOptions->get($label->label)?->name ?? $label->label));
+
+                if ($excludedDates->contains($label->dtr_date->toDateString())) {
+                    return false;
+                }
 
                 return str_contains($name, 'LEAVE')
                     || in_array($code, ['VL', 'SL', 'FL', 'SPL', 'LWOP', 'LEAVE_WITHOUT_PAY'], true);
@@ -1385,10 +1738,98 @@ class PayrollGeneration extends Component
 
     private function statutoryContributions(float $basicSalary): array
     {
-        return app(StatutoryContributionService::class)->calculate(
+        $contributions = app(StatutoryContributionService::class)->calculate(
             $basicSalary,
             $this->selectedPeriodStart(),
         );
+
+        $gsisBaseSalary = round($basicSalary * (max(0, min(30, $this->gsisDays)) / 30), 2);
+        $gsisContributions = app(StatutoryContributionService::class)->calculate(
+            $gsisBaseSalary,
+            $this->selectedPeriodStart(),
+        );
+
+        $contributions['employee']['life_retirement'] = $gsisContributions['employee']['life_retirement'] ?? 0.0;
+        $contributions['employer']['government_life_retirement'] = $gsisContributions['employer']['government_life_retirement'] ?? 0.0;
+        $contributions['details']['gsis_life_retirement'] = $gsisContributions['details']['gsis_life_retirement'] ?? ($contributions['details']['gsis_life_retirement'] ?? []);
+        $contributions['employee_total'] = round(array_sum($contributions['employee']), 2);
+        $contributions['employer_total'] = round(array_sum($contributions['employer']), 2);
+
+        return $contributions;
+    }
+
+    private function excludedLeaveDates(array $empIds, CarbonImmutable $periodStart, CarbonImmutable $periodEnd): Collection
+    {
+        return EmployeeLeave::query()
+            ->whereIn('emp_id', $empIds)
+            ->whereNotNull('start_date')
+            ->whereNotNull('end_date')
+            ->whereDate('start_date', '<=', $periodEnd->toDateString())
+            ->whereDate('end_date', '>=', $periodStart->toDateString())
+            ->whereHas('logs', fn ($query) => $query->whereIn('action', self::EXCLUDED_LEAVE_LOG_ACTIONS))
+            ->get()
+            ->flatMap(function (EmployeeLeave $leave) use ($periodStart, $periodEnd) {
+                $dates = [];
+                $start = CarbonImmutable::parse($leave->start_date)->max($periodStart);
+                $end = CarbonImmutable::parse($leave->end_date)->min($periodEnd);
+
+                for ($date = $start; $date->lessThanOrEqualTo($end); $date = $date->addDay()) {
+                    $dates[] = [
+                        'emp_id' => $leave->emp_id,
+                        'date' => $date->toDateString(),
+                    ];
+                }
+
+                return $dates;
+            })
+            ->groupBy('emp_id')
+            ->map(fn (Collection $items) => $items->pluck('date')->unique()->values());
+    }
+
+    private function parseSelectedLeaveTypeIds(mixed $value): array
+    {
+        if ($value === 'none') {
+            return [];
+        }
+
+        $values = is_array($value) ? $value : explode(',', (string) $value);
+
+        return $this->normalizedLeaveTypeIds($values);
+    }
+
+    private function hasExplicitLeaveTypeSelection(mixed $value): bool
+    {
+        return $value === 'none' || (is_string($value) && trim($value) !== '') || (is_array($value) && $value !== []);
+    }
+
+    private function normalizedLeaveTypeIds(array $values): array
+    {
+        $validLeaveTypeIds = $this->validLeaveTypeIds();
+
+        return collect($values)
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => in_array($id, $validLeaveTypeIds, true))
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function defaultSelectedLeaveTypeIds(): array
+    {
+        return collect($this->validLeaveTypeIds())
+            ->reject(fn (int $id) => in_array($id, self::DEFAULT_UNCHECKED_LEAVE_TYPE_IDS, true))
+            ->values()
+            ->all();
+    }
+
+    private function validLeaveTypeIds(): array
+    {
+        return LeaveType::query()
+            ->pluck('leave_type_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     private function taxCalculation(float $monthlyGrossIncome, float $monthlyMandatoryDeductions, float $netMonths, array $context = []): array
@@ -1507,7 +1948,25 @@ class PayrollGeneration extends Component
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->sortBy(fn (PayrollAdditional $item) => [
+                $this->compensationDisplayRank($item),
+                (int) ($item->sort_order ?? 0),
+                (string) $item->name,
+            ])
+            ->values();
+    }
+
+    private function compensationDisplayRank(PayrollAdditional $item): int
+    {
+        $name = str($item->name)->lower()->toString();
+
+        return match (true) {
+            str_contains($name, 'subsistence') => 10,
+            str_contains($name, 'laundry') => 20,
+            str_contains($name, 'pera') || str_contains($name, 'personal economic relief') => 30,
+            default => 100,
+        };
     }
 
     private function adjustmentTypes(): Collection
@@ -1558,6 +2017,23 @@ class PayrollGeneration extends Component
             ->unique()
             ->values()
             ->all();
+    }
+
+    private function formatPayrollEmployeeName(Employee $employee): string
+    {
+        $lastName = trim(implode(' ', array_filter([
+            $employee->lastname,
+            $employee->extension,
+            $employee->suffix,
+        ])));
+        $firstName = trim((string) $employee->firstname);
+        $middleInitial = $employee->middlename
+            ? mb_strtoupper(mb_substr(trim((string) $employee->middlename), 0, 1)).'.'
+            : null;
+
+        $givenName = trim(implode(' ', array_filter([$firstName, $middleInitial])));
+
+        return trim($lastName.', '.$givenName, ' ,');
     }
 
     private function salaryMatrix(): array
@@ -1815,6 +2291,8 @@ class PayrollGeneration extends Component
                 'payroll_type' => $payrollType->name,
                 'payroll_type_code' => $payrollType->code,
                 'working_days' => $this->workingDays,
+                'gsis_days' => $this->gsisDays,
+                'included_leave_type_ids' => $this->selectedLeaveTypeIds,
                 'employee_type' => $this->employeeTypeFilter,
                 'generated_by' => $generatedBy,
                 'snapshot_created_at' => now(),
@@ -1877,6 +2355,8 @@ class PayrollGeneration extends Component
                 ]);
             }
 
+            $this->syncHrisPayBasis($rows);
+
             PayrollAuditLog::create([
                 'payroll_generate_id' => $run->id,
                 'action' => 'payroll.finalized',
@@ -1904,6 +2384,32 @@ class PayrollGeneration extends Component
         ];
 
         session()->flash('success', "Payroll run #{$run->id} finalized and saved.");
+    }
+
+    private function syncHrisPayBasis(Collection $rows): void
+    {
+        foreach ($rows as $row) {
+            $step = $this->stepValue($row['step'] ?? null, (int) ($row['hris_step'] ?? 1));
+            Employee::query()
+                ->where('emp_id', $row['emp_id'])
+                ->where(function ($query) use ($step) {
+                    $query->whereNull('step')->orWhere('step', '!=', $step);
+                })
+                ->update(['step' => $step]);
+
+            $positionId = $row['position_id'] ?? null;
+            $salaryGrade = $this->salaryGradeValue($row['salary_grade'] ?? null, (int) ($row['hris_salary_grade'] ?? 0));
+            if (! $positionId || $salaryGrade <= 0) {
+                continue;
+            }
+
+            Position::query()
+                ->where('position_id', $positionId)
+                ->where(function ($query) use ($salaryGrade) {
+                    $query->whereNull('salary_grade')->orWhere('salary_grade', '!=', $salaryGrade);
+                })
+                ->update(['salary_grade' => $salaryGrade]);
+        }
     }
 
     private function payrollLinesForRow(array $row): array
@@ -1972,7 +2478,7 @@ class PayrollGeneration extends Component
                 'code' => $code,
                 'name' => str($code)->replace('_', ' ')->title()->toString(),
                 'amount' => $amount,
-                'remarks' => 'Statutory deduction',
+                'remarks' => 'Mandatory deduction',
             ];
         }
 
@@ -2034,6 +2540,8 @@ class PayrollGeneration extends Component
                 'step' => $row['step'],
                 'deduction_days' => $row['deduction_days'],
                 'working_days' => $this->workingDays,
+                'gsis_days' => $this->gsisDays,
+                'included_leave_type_ids' => $this->selectedLeaveTypeIds,
                 'leave_deduction' => $row['leave_deduction'] ?? [],
             ],
             'earnings' => [
@@ -2045,6 +2553,7 @@ class PayrollGeneration extends Component
             ],
             'statutory_deductions' => $row['statutory_deductions'],
             'statutory_government_shares' => $row['statutory_government_shares'],
+            'mandatory_deduction_adjustments' => $row['mandatory_deduction_adjustments'],
             'statutory_contribution_details' => $row['statutory_contribution_details'],
             'tax' => $row['tax'],
             'program_deductions' => $row['program_deductions'],
@@ -2052,6 +2561,9 @@ class PayrollGeneration extends Component
             'totals' => [
                 'gross' => $row['gross'],
                 'net_compensation' => $row['net_compensation'],
+                'base_mandatory_deductions' => $row['base_mandatory_deductions'],
+                'mandatory_deduction_adjustment' => $row['mandatory_deduction_adjustment'],
+                'total_mandatory_deductions' => $row['total_mandatory_deductions'],
                 'net_before_other_deductions' => $row['net_before_other_deductions'],
                 'net_after_tax' => $row['net_after_tax'],
                 'net_after_program_deductions' => $row['net_after_program_deductions'],
@@ -2075,8 +2587,7 @@ class PayrollGeneration extends Component
                 $this->selectedAdjustmentTypes()->map(fn ($type) => 'adjustment_type_'.$type->id)->all(),
                 ['adjustment_remarks', 'net_compensation'],
             )],
-            ['label' => 'Statutory Deductions', 'columns' => ['life_retirement', 'phic', 'mandatory_pagibig']],
-            ['label' => 'Government Shares', 'columns' => ['government_life_retirement', 'government_phic', 'government_pagibig']],
+            ['label' => 'Mandatory Deductions', 'columns' => ['life_retirement', 'government_life_retirement', 'ec', 'phic', 'government_phic', 'mandatory_pagibig', 'hdmf_ps_2_ms', 'government_pagibig', 'ea_deduction', 'total_mandatory_deductions']],
             ['label' => 'Tax Calculation', 'columns' => [
                 'entry_date',
                 'tax_salary_grade',
@@ -2125,12 +2636,16 @@ class PayrollGeneration extends Component
             'adjustment_pera' => ['label' => 'PERA Adjustment', 'enabled' => true],
             'adjustment_remarks' => ['label' => 'Adjustment Remarks', 'enabled' => true],
             'net_compensation' => ['label' => 'Net Compensation', 'enabled' => true],
-            'life_retirement' => ['label' => 'Life & Retirement', 'enabled' => true],
-            'phic' => ['label' => 'PhilHealth', 'enabled' => true],
-            'mandatory_pagibig' => ['label' => 'Pag-IBIG', 'enabled' => true],
-            'government_life_retirement' => ['label' => 'Govt. Life & Retirement', 'enabled' => true],
-            'government_phic' => ['label' => 'Govt. PhilHealth', 'enabled' => true],
-            'government_pagibig' => ['label' => 'Govt. Pag-IBIG', 'enabled' => true],
+            'life_retirement' => ['label' => 'GSIS (PS)', 'enabled' => true],
+            'government_life_retirement' => ['label' => 'GSIS (GS)', 'enabled' => true],
+            'ec' => ['label' => 'EC', 'enabled' => true],
+            'phic' => ['label' => 'PHIC (PS)', 'enabled' => true],
+            'government_phic' => ['label' => 'PHIC (GS)', 'enabled' => true],
+            'mandatory_pagibig' => ['label' => 'HDMF (PS) 1', 'enabled' => true],
+            'hdmf_ps_2_ms' => ['label' => 'HDMF (PS) 2 MS', 'enabled' => true],
+            'government_pagibig' => ['label' => 'HDMF (GS)', 'enabled' => true],
+            'ea_deduction' => ['label' => 'EA Deduction', 'enabled' => true],
+            'total_mandatory_deductions' => ['label' => 'Total Mandatory Deductions', 'enabled' => true],
             'annual_taxable_income' => ['label' => 'Taxable Income (Year)', 'enabled' => true],
             'annual_tax_due' => ['label' => 'Tax Due (Year)', 'enabled' => true],
             'regular_monthly_tax_due' => ['label' => 'Regular Tax', 'enabled' => true],

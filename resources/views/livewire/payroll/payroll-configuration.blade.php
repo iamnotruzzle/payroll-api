@@ -73,10 +73,38 @@
                     </div>
 
                     <div>
-                        <label class="text-sm font-medium">Working Days</label>
+                        <label class="text-sm font-medium">No of Day Paid</label>
                         <input wire:model="workingDays" type="number" min="1" max="31" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                         @error('workingDays') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
+
+                    <div>
+                        <label class="text-sm font-medium">GSIS No. of Days</label>
+                        <input wire:model="gsisDays" type="number" min="0" max="31" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        @error('gsisDays') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+
+                <div class="rounded-md border border-slate-200 p-3">
+                    <div class="text-sm font-medium">Inclusive Leave Types</div>
+                    <p class="mt-1 text-xs text-slate-500">Checked leave types are included in this payroll run.</p>
+                    <div class="mt-2 space-y-2">
+                        @foreach ($leaveTypes as $leaveType)
+                            <label class="flex items-start gap-2 text-sm text-slate-700">
+                                <input
+                                    wire:model="selectedLeaveTypeIds"
+                                    type="checkbox"
+                                    value="{{ $leaveType->leave_type_id }}"
+                                    class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                >
+                                <span class="mt-2">
+                                    <span class="font-medium">{{ $leaveType->leave_name }}</span>
+                                </span>
+                            </label>
+                        @endforeach
+                    </div>
+                    @error('selectedLeaveTypeIds') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                    @error('selectedLeaveTypeIds.*') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
             </div>
         </div>

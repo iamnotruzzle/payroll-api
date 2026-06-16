@@ -152,7 +152,7 @@ class HazardPayrollGeneration extends Component
 
                 return [
                     'emp_id' => $employee->emp_id,
-                    'employee_name' => $employee->full_name,
+                    'employee_name' => $this->formatPayrollEmployeeName($employee),
                     'department' => $employee->department?->department,
                     'position' => $employee->position?->position_title,
                     'salary_grade' => $salaryGrade ?: null,
@@ -185,6 +185,23 @@ class HazardPayrollGeneration extends Component
         }
 
         return $matrix;
+    }
+
+    private function formatPayrollEmployeeName(Employee $employee): string
+    {
+        $lastName = trim(implode(' ', array_filter([
+            $employee->lastname,
+            $employee->extension,
+            $employee->suffix,
+        ])));
+        $firstName = trim((string) $employee->firstname);
+        $middleInitial = $employee->middlename
+            ? mb_strtoupper(mb_substr(trim((string) $employee->middlename), 0, 1)).'.'
+            : null;
+
+        $givenName = trim(implode(' ', array_filter([$firstName, $middleInitial])));
+
+        return trim($lastName.', '.$givenName, ' ,');
     }
 
     private function hazardRate(int $salaryGrade): float

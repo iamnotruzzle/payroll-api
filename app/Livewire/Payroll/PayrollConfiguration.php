@@ -5,6 +5,7 @@ namespace App\Livewire\Payroll;
 use App\Models\Hris\Department;
 use App\Models\Hris\Division;
 use App\Models\Hris\Employee;
+use App\Models\Hris\LeaveType;
 use App\Models\Payroll\PayrollBatch;
 use App\Models\Payroll\PayrollGenerationDraft;
 use App\Models\Payroll\PayrollType;
@@ -14,6 +15,8 @@ use Livewire\Component;
 
 class PayrollConfiguration extends Component
 {
+    private const DEFAULT_UNCHECKED_LEAVE_TYPE_IDS = [4, 14, 15, 16, 20, 22];
+
     public ?int $divisionId = null;
 
     public ?int $departmentId = null;
@@ -23,6 +26,10 @@ class PayrollConfiguration extends Component
     public string $period;
 
     public int $workingDays = 22;
+
+    public int $gsisDays = 30;
+
+    public array $selectedLeaveTypeIds = [];
 
     public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
 
@@ -58,6 +65,10 @@ class PayrollConfiguration extends Component
 
         $this->period = request()->query('period', CarbonImmutable::today()->format('Y-m'));
         $this->workingDays = max(1, min(31, request()->integer('working_days') ?: 22));
+        $this->gsisDays = max(0, min(31, request()->integer('gsis_days') ?: 30));
+        $this->selectedLeaveTypeIds = $this->hasExplicitLeaveTypeSelection(request()->query('leave_type_ids'))
+            ? $this->parseSelectedLeaveTypeIds(request()->query('leave_type_ids', []))
+            : $this->defaultSelectedLeaveTypeIds();
 
         $employeeType = request()->query('employee_type', Employee::EMPLOYEE_TYPE_PLANTILLA);
         $this->employeeTypeFilter = array_key_exists($employeeType, Employee::employeeTypeOptions())
@@ -113,6 +124,9 @@ class PayrollConfiguration extends Component
             'payrollType' => ['required', Rule::exists('payroll.payroll_types', 'code')->where('is_active', true)],
             'period' => ['required', 'date_format:Y-m'],
             'workingDays' => ['required', 'integer', 'min:1', 'max:31'],
+            'gsisDays' => ['required', 'integer', 'min:0', 'max:31'],
+            'selectedLeaveTypeIds' => ['array'],
+            'selectedLeaveTypeIds.*' => ['integer', 'exists:mysql.tbl_leave_type,leave_type_id'],
             'employeeTypeFilter' => ['required', 'in:plantilla,cos,all'],
         ]);
     }
@@ -125,6 +139,8 @@ class PayrollConfiguration extends Component
             'payroll_type' => $data['payrollType'],
             'period' => $data['period'],
             'working_days' => $data['workingDays'],
+            'gsis_days' => $data['gsisDays'],
+            'leave_type_ids' => $this->leaveTypeIdsQueryValue($data['selectedLeaveTypeIds'] ?? []),
             'employee_type' => $data['employeeTypeFilter'],
         ]);
     }
@@ -148,6 +164,7 @@ class PayrollConfiguration extends Component
             ];
         }
 
+        $selectedLeaveTypeIds = $this->normalizedLeaveTypeIds($data['selectedLeaveTypeIds'] ?? []);
         $batches = PayrollBatch::query()
             ->where('division_id', (int) $data['divisionId'])
             ->where('department_id', $data['departmentId'] ? (int) $data['departmentId'] : null)
@@ -155,6 +172,13 @@ class PayrollConfiguration extends Component
             ->where('payroll_type_code', (string) $data['payrollType'])
             ->where('working_days', (int) $data['workingDays'])
             ->where('employee_type', (string) $data['employeeTypeFilter'])
+            ->where('gsis_days', (int) $data['gsisDays'])
+            ->whereJsonLength('included_leave_type_ids', count($selectedLeaveTypeIds))
+            ->where(function ($query) use ($selectedLeaveTypeIds) {
+                foreach ($selectedLeaveTypeIds as $leaveTypeId) {
+                    $query->whereJsonContains('included_leave_type_ids', $leaveTypeId);
+                }
+            })
             ->latest('snapshot_created_at')
             ->limit(3)
             ->get();
@@ -203,7 +227,62 @@ class PayrollConfiguration extends Component
             (string) $data['period'],
             (int) $data['workingDays'],
             (string) $data['employeeTypeFilter'],
+            (int) $data['gsisDays'],
+            $this->normalizedLeaveTypeIds($data['selectedLeaveTypeIds'] ?? []),
         );
+    }
+
+    private function parseSelectedLeaveTypeIds(mixed $value): array
+    {
+        if ($value === 'none') {
+            return [];
+        }
+
+        $values = is_array($value) ? $value : explode(',', (string) $value);
+
+        return $this->normalizedLeaveTypeIds($values);
+    }
+
+    private function hasExplicitLeaveTypeSelection(mixed $value): bool
+    {
+        return $value === 'none' || (is_string($value) && trim($value) !== '') || (is_array($value) && $value !== []);
+    }
+
+    private function leaveTypeIdsQueryValue(array $values): string
+    {
+        $ids = $this->normalizedLeaveTypeIds($values);
+
+        return $ids === [] ? 'none' : implode(',', $ids);
+    }
+
+    private function normalizedLeaveTypeIds(array $values): array
+    {
+        $validLeaveTypeIds = $this->validLeaveTypeIds();
+
+        return collect($values)
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => in_array($id, $validLeaveTypeIds, true))
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function defaultSelectedLeaveTypeIds(): array
+    {
+        return collect($this->validLeaveTypeIds())
+            ->reject(fn (int $id) => in_array($id, self::DEFAULT_UNCHECKED_LEAVE_TYPE_IDS, true))
+            ->values()
+            ->all();
+    }
+
+    private function validLeaveTypeIds(): array
+    {
+        return LeaveType::query()
+            ->pluck('leave_type_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     public function render()
@@ -220,6 +299,10 @@ class PayrollConfiguration extends Component
                 ->orderBy('department')
                 ->get(),
             'employeeTypeOptions' => Employee::employeeTypeOptions(),
+            'leaveTypes' => LeaveType::query()
+                ->orderBy('leave_name')
+                ->orderBy('leave_type_id')
+                ->get(),
         ]);
     }
 }

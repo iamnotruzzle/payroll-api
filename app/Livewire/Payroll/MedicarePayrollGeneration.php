@@ -96,7 +96,7 @@ class MedicarePayrollGeneration extends Component
 
         return $query->get()->map(fn (Employee $employee) => [
             'emp_id' => $employee->emp_id,
-            'employee_name' => $employee->full_name,
+            'employee_name' => $this->formatPayrollEmployeeName($employee),
             'position' => $employee->position?->position_title,
             'department' => $employee->department?->department,
             'division' => $employee->department?->division?->division,
@@ -120,6 +120,23 @@ class MedicarePayrollGeneration extends Component
         }
 
         return 'All Departments';
+    }
+
+    private function formatPayrollEmployeeName(Employee $employee): string
+    {
+        $lastName = trim(implode(' ', array_filter([
+            $employee->lastname,
+            $employee->extension,
+            $employee->suffix,
+        ])));
+        $firstName = trim((string) $employee->firstname);
+        $middleInitial = $employee->middlename
+            ? mb_strtoupper(mb_substr(trim((string) $employee->middlename), 0, 1)).'.'
+            : null;
+
+        $givenName = trim(implode(' ', array_filter([$firstName, $middleInitial])));
+
+        return trim($lastName.', '.$givenName, ' ,');
     }
 
     public function configurationRoute(): string

@@ -44,6 +44,10 @@ class StatutoryContributions extends Component
 
     public float $employerRate = 0;
 
+    public ?float $employeeFixedAmount = null;
+
+    public ?float $employerFixedAmount = null;
+
     public ?float $employeeCap = null;
 
     public ?float $employerCap = null;
@@ -109,7 +113,7 @@ class StatutoryContributions extends Component
         $this->selectedContributionId = $contribution->id;
         $this->resetContributionForm();
         $this->showContributionModal = false;
-        session()->flash('status', 'Statutory contribution saved.');
+        session()->flash('status', 'Mandatory deduction saved.');
     }
 
     public function editContribution(int $id): void
@@ -139,7 +143,7 @@ class StatutoryContributions extends Component
         $this->resetContributionForm();
         $this->resetBracketForm();
         $this->showContributionModal = false;
-        session()->flash('status', 'Statutory contribution deleted.');
+        session()->flash('status', 'Mandatory deduction deleted.');
     }
 
     public function saveBracket(): void
@@ -155,6 +159,8 @@ class StatutoryContributions extends Component
             'maxSalary' => ['nullable', 'numeric', 'gte:minSalary'],
             'employeeRate' => ['required', 'numeric', 'min:0', 'max:1'],
             'employerRate' => ['required', 'numeric', 'min:0', 'max:1'],
+            'employeeFixedAmount' => ['nullable', 'numeric', 'min:0'],
+            'employerFixedAmount' => ['nullable', 'numeric', 'min:0'],
             'employeeCap' => ['nullable', 'numeric', 'min:0'],
             'employerCap' => ['nullable', 'numeric', 'min:0'],
             'bracketRemarks' => ['nullable', 'string', 'max:2000'],
@@ -172,6 +178,8 @@ class StatutoryContributions extends Component
             'max_salary' => $data['maxSalary'],
             'employee_rate' => $data['employeeRate'],
             'employer_rate' => $data['employerRate'],
+            'employee_fixed_amount' => $data['employeeFixedAmount'],
+            'employer_fixed_amount' => $data['employerFixedAmount'],
             'employee_cap' => $data['employeeCap'],
             'employer_cap' => $data['employerCap'],
             'remarks' => $data['bracketRemarks'],
@@ -196,6 +204,8 @@ class StatutoryContributions extends Component
         $this->maxSalary = $bracket->max_salary !== null ? (float) $bracket->max_salary : null;
         $this->employeeRate = (float) $bracket->employee_rate;
         $this->employerRate = (float) $bracket->employer_rate;
+        $this->employeeFixedAmount = $bracket->employee_fixed_amount !== null ? (float) $bracket->employee_fixed_amount : null;
+        $this->employerFixedAmount = $bracket->employer_fixed_amount !== null ? (float) $bracket->employer_fixed_amount : null;
         $this->employeeCap = $bracket->employee_cap !== null ? (float) $bracket->employee_cap : null;
         $this->employerCap = $bracket->employer_cap !== null ? (float) $bracket->employer_cap : null;
         $this->bracketRemarks = $bracket->remarks;
@@ -246,6 +256,8 @@ class StatutoryContributions extends Component
         $this->maxSalary = null;
         $this->employeeRate = 0;
         $this->employerRate = 0;
+        $this->employeeFixedAmount = null;
+        $this->employerFixedAmount = null;
         $this->employeeCap = null;
         $this->employerCap = null;
         $this->bracketRemarks = null;

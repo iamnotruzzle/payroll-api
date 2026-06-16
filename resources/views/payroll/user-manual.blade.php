@@ -110,7 +110,7 @@
                             ['Monthly regular payroll', 'Payroll staff complete DTR encoding, finalize MRA, review regular payroll steps, export the template if needed, and finalize the payroll run.'],
                             ['Missing DTR records', 'Blank weekdays are labeled first. Once labels are complete, schedules can be encoded and tardiness or undertime can be computed.'],
                             ['Loan due processing', 'A loan due file is exported, filled in, imported, validated, and then included as imported deductions during payroll generation.'],
-                            ['Payroll audit review', 'After finalization, Payroll History provides payroll snapshots for checking earnings, statutory deductions, tax, other deductions, and final net pay.'],
+                            ['Payroll audit review', 'After finalization, Payroll History provides payroll snapshots for checking earnings, mandatory deductions, tax, other deductions, and final net pay.'],
                         ] as [$title, $description])
                             <article class="rounded-lg border border-slate-200 bg-slate-50 p-4">
                                 <h4 class="text-sm font-semibold text-slate-950">{{ $title }}</h4>
@@ -133,7 +133,7 @@
                             ['Prepare loan due imports', 'Open Loan Due Imports, export the template, encode due month, employee, reference or account number, amortization, amount due, and balance, then import the completed file.'],
                             ['Resolve invalid loan rows', 'Use the Validation Grid to identify missing employees, invalid references, wrong periods, or invalid amounts. Correct the source file and re-import until the file is ready.'],
                             ['Choose payroll configuration', 'Open Payroll Generation, select payroll type, employee type, division, optional department, payroll month, and working days, then proceed to generation.'],
-                            ['Review payroll generation steps', 'Move through MRA validation, allowances, adjustments, statutory deductions, deduction programs, imported deductions, tax calculation, and final review.'],
+                            ['Review payroll generation steps', 'Move through MRA validation, compensation, adjustments, mandatory deductions, deduction programs, imported deductions, tax calculation, and final review.'],
                             ['Save drafts while reviewing', 'Use Save as Draft when payroll review is not yet complete. The draft keeps overrides, compensation adjustments, and deduction program selections for the same configuration.'],
                             ['Finalize and verify history', 'From the Review step, export the regular payroll template if needed, then finalize the payroll run. Open Payroll History to view the saved snapshot.'],
                         ] as [$title, $description])
@@ -157,9 +157,9 @@
                     <div class="mt-4 grid gap-4 md:grid-cols-2">
                         @foreach ([
                             ['MRA Validation', 'Confirms prior finalized MRA adjustments and deduction days used as payroll input.'],
-                            ['Allowances Computation', 'Displays configured earnings and gross pay based on employee payroll data and compensation rules.'],
+                            ['Compensation', 'Displays configured earnings and gross pay based on employee payroll data and compensation rules.'],
                             ['Deductions and Adjustments', 'Allows manual compensation adjustments with remarks before net compensation is computed.'],
-                            ['Statutory', 'Reviews employee and government shares for mandatory deductions such as life retirement, PhilHealth, and Pag-IBIG.'],
+                            ['Mandatory Deductions', 'Reviews GSIS, EC, PHIC, HDMF, and EA deduction amounts.'],
                             ['Deduction Programs', 'Applies configured deduction programs that should reduce employee net pay.'],
                             ['Imported Deductions', 'Displays validated imported loan and other deduction rows matched to the payroll month.'],
                             ['Tax Calculation', 'Reviews annualized taxable income, tax due, regular tax, supplemental tax, and withholding tax.'],

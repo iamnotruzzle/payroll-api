@@ -14,7 +14,7 @@ class StatutoryContributionService
         'gsis_life_retirement' => [
             'employee_label' => 'life_retirement',
             'employer_label' => 'government_life_retirement',
-            'name' => 'GSIS Life and Retirement',
+            'name' => 'GSIS',
             'effective_start' => '2016-04-19',
             'effective_end' => null,
             'min_salary' => 0,
@@ -27,7 +27,7 @@ class StatutoryContributionService
         'philhealth' => [
             'employee_label' => 'phic',
             'employer_label' => 'government_phic',
-            'name' => 'PhilHealth',
+            'name' => 'PHIC',
             'effective_start' => '2025-01-01',
             'effective_end' => null,
             'min_salary' => 10000,
@@ -40,7 +40,7 @@ class StatutoryContributionService
         'pagibig' => [
             'employee_label' => 'mandatory_pagibig',
             'employer_label' => 'government_pagibig',
-            'name' => 'Pag-IBIG',
+            'name' => 'HDMF',
             'effective_start' => '2024-02-01',
             'effective_end' => null,
             'min_salary' => 0,
@@ -50,18 +50,52 @@ class StatutoryContributionService
             'employee_cap' => 200,
             'employer_cap' => 200,
         ],
+        'ec' => [
+            'employee_label' => null,
+            'employer_label' => 'ec',
+            'name' => 'EC',
+            'effective_start' => '2016-04-19',
+            'effective_end' => null,
+            'min_salary' => 0,
+            'max_salary' => null,
+            'employee_rate' => 0,
+            'employer_rate' => 0,
+            'employee_fixed_amount' => null,
+            'employer_fixed_amount' => 100,
+            'employee_cap' => null,
+            'employer_cap' => null,
+        ],
+        'ea_deduction' => [
+            'employee_label' => 'ea_deduction',
+            'employer_label' => null,
+            'name' => 'EA Deduction',
+            'effective_start' => '2016-04-19',
+            'effective_end' => null,
+            'min_salary' => 0,
+            'max_salary' => null,
+            'employee_rate' => 0,
+            'employer_rate' => 0,
+            'employee_fixed_amount' => 50,
+            'employer_fixed_amount' => null,
+            'employee_cap' => null,
+            'employer_cap' => null,
+        ],
     ];
 
     private const EMPLOYEE_LABELS = [
         'gsis_life_retirement' => 'life_retirement',
         'philhealth' => 'phic',
         'pagibig' => 'mandatory_pagibig',
+        'ec' => null,
+        'ea_deduction' => 'ea_deduction',
     ];
 
     private const EMPLOYER_LABELS = [
         'gsis_life_retirement' => 'government_life_retirement',
         'philhealth' => 'government_phic',
         'pagibig' => 'government_pagibig',
+        'ec' => 'ec',
+        'ea_deduction' => null,
     ];
 
     public function calculate(float $monthlySalary, CarbonInterface|string|null $effectiveDate = null): array
@@ -75,23 +109,36 @@ class StatutoryContributionService
             'life_retirement' => 0.0,
             'phic' => 0.0,
             'mandatory_pagibig' => 0.0,
+            'hdmf_ps_2_ms' => 0.0,
+            'ea_deduction' => 0.0,
         ];
         $employer = [
             'government_life_retirement' => 0.0,
+            'ec' => 0.0,
             'government_phic' => 0.0,
             'government_pagibig' => 0.0,
         ];
         $details = [];
 
         foreach ($rules as $code => $rule) {
-            $employeeKey = self::EMPLOYEE_LABELS[$code] ?? $rule['employee_label'] ?? $code;
-            $employerKey = self::EMPLOYER_LABELS[$code] ?? $rule['employer_label'] ?? 'government_'.$code;
+            $employeeKey = array_key_exists($code, self::EMPLOYEE_LABELS)
+                ? self::EMPLOYEE_LABELS[$code]
+                : ($rule['employee_label'] ?? $code);
+            $employerKey = array_key_exists($code, self::EMPLOYER_LABELS)
+                ? self::EMPLOYER_LABELS[$code]
+                : ($rule['employer_label'] ?? 'government_'.$code);
             $base = $this->contributionBase($monthlySalary, $rule);
-            $employeeAmount = $this->contributionAmount($base, (float) $rule['employee_rate'], $rule['employee_cap'] ?? null);
-            $employerAmount = $this->contributionAmount($base, (float) $rule['employer_rate'], $rule['employer_cap'] ?? null);
+            $employeeAmount = $this->contributionAmount($base, (float) $rule['employee_rate'], $rule['employee_cap'] ?? null, $rule['employee_fixed_amount'] ?? null);
+            $employerAmount = $this->contributionAmount($base, (float) $rule['employer_rate'], $rule['employer_cap'] ?? null, $rule['employer_fixed_amount'] ?? null);
 
-            $employee[$employeeKey] = $employeeAmount;
-            $employer[$employerKey] = $employerAmount;
+            if ($employeeKey !== null) {
+                $employee[$employeeKey] = $employeeAmount;
+            }
+
+            if ($employerKey !== null) {
+                $employer[$employerKey] = $employerAmount;
+            }
+
             $details[$code] = [
                 'name' => $rule['name'] ?? str($code)->replace('_', ' ')->title()->toString(),
                 'base' => $base,
@@ -99,6 +146,8 @@ class StatutoryContributionService
                 'employer_amount' => $employerAmount,
                 'employee_rate' => (float) $rule['employee_rate'],
                 'employer_rate' => (float) $rule['employer_rate'],
+                'employee_fixed_amount' => isset($rule['employee_fixed_amount']) ? (float) $rule['employee_fixed_amount'] : null,
+                'employer_fixed_amount' => isset($rule['employer_fixed_amount']) ? (float) $rule['employer_fixed_amount'] : null,
                 'employee_cap' => isset($rule['employee_cap']) ? (float) $rule['employee_cap'] : null,
                 'employer_cap' => isset($rule['employer_cap']) ? (float) $rule['employer_cap'] : null,
                 'effective_start' => $rule['effective_start'] ?? null,
@@ -133,7 +182,7 @@ class StatutoryContributionService
                         ->orderByDesc('min_salary');
                 }])
                 ->where('is_active', true)
-                ->whereIn('code', array_keys(self::EMPLOYEE_LABELS))
+                ->whereIn('code', array_keys(self::FALLBACK_RULES))
                 ->get()
                 ->mapWithKeys(function (PayrollStatutoryContribution $contribution) use ($monthlySalary) {
                     $bracket = $this->matchingBracket($contribution, $monthlySalary);
@@ -150,6 +199,8 @@ class StatutoryContributionService
                             'max_salary' => $bracket->max_salary !== null ? (float) $bracket->max_salary : null,
                             'employee_rate' => (float) $bracket->employee_rate,
                             'employer_rate' => (float) $bracket->employer_rate,
+                            'employee_fixed_amount' => $bracket->employee_fixed_amount !== null ? (float) $bracket->employee_fixed_amount : null,
+                            'employer_fixed_amount' => $bracket->employer_fixed_amount !== null ? (float) $bracket->employer_fixed_amount : null,
                             'employee_cap' => $bracket->employee_cap !== null ? (float) $bracket->employee_cap : null,
                             'employer_cap' => $bracket->employer_cap !== null ? (float) $bracket->employer_cap : null,
                         ],
@@ -218,8 +269,16 @@ class StatutoryContributionService
         return round($base, 2);
     }
 
-    private function contributionAmount(float $base, float $rate, mixed $cap): float
+    private function contributionAmount(float $base, float $rate, mixed $cap, mixed $fixedAmount = null): float
     {
+        if ($base <= 0) {
+            return 0.0;
+        }
+
+        if ($fixedAmount !== null && $fixedAmount !== '') {
+            return round(max(0, (float) $fixedAmount), 2);
+        }
+
         $amount = round($base * $rate, 2);
         $cap = $cap !== null && $cap !== '' ? (float) $cap : null;
 

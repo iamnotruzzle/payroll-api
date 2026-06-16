@@ -555,6 +555,7 @@ class PayrollOperationsController extends Controller
                 ->whereNotNull('end_date')
                 ->whereDate('start_date', '<=', $data['to'])
                 ->whereDate('end_date', '>=', $data['from'])
+                ->whereDoesntHave('logs', fn ($query) => $query->whereIn('action', [2, 3]))
                 ->get(),
             'labels' => PayrollDtrLabel::query()
                 ->whereIn('emp_id', $empIds)
@@ -620,6 +621,7 @@ class PayrollOperationsController extends Controller
             ->whereNotNull('end_date')
             ->whereDate('start_date', '<=', $data['to'])
             ->whereDate('end_date', '>=', $data['from'])
+            ->whereDoesntHave('logs', fn ($query) => $query->whereIn('action', [2, 3]))
             ->get();
         $leaveNames = LeaveType::query()
             ->whereIn('leave_type_id', $leaves->pluck('leave_type')->filter()->unique()->all())

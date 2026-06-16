@@ -213,7 +213,7 @@ class SchedulePageController extends Controller
                 ['label' => 'Loan Due Imports', 'route' => 'payroll.loan-imports'],
                 ['label' => 'Loan References', 'route' => 'payroll.loan-references'],
                 ['label' => 'Deduction Programs', 'route' => 'payroll.deduction-programs'],
-                ['label' => 'Statutory Contributions', 'route' => 'payroll.statutory-contributions'],
+                ['label' => 'Mandatory Deductions', 'route' => 'payroll.statutory-contributions'],
                 ['label' => 'Compensation Rules', 'route' => 'payroll.compensations'],
                 ['label' => 'Adjustment Types', 'route' => 'payroll.adjustment-types'],
             ],
