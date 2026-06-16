@@ -243,7 +243,7 @@ class DtrCorrectionRequestService
         $values = [
             'emp_id' => $request->emp_id,
             'dtr_date' => $date,
-            'machine_id' => $dtr?->machine_id ?: 'TIMEKEEPING_CORRECTION',
+            'machine_id' => $dtr?->machine_id ?: '105',
         ];
 
         if (in_array($request->request_type, [PayrollDtrCorrectionRequest::TYPE_TIME_IN, PayrollDtrCorrectionRequest::TYPE_BOTH], true)) {

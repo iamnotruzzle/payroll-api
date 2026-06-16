@@ -166,7 +166,7 @@ return [
     */
 
     'migrations' => [
-        'table' => 'migrations',
+        'table' => 'payroll_migrations',
         'update_date_on_publish' => true,
     ],
 
