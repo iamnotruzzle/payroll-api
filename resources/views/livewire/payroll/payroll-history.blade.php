@@ -178,8 +178,14 @@
                                             {{ number_format($tax['subsistence'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'tax_hazard')
                                             {{ number_format($tax['hazard'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'tax_gross_compensation')
+                                            {{ number_format($totals['net_compensation'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'tax_deductions')
                                             {{ number_format($tax['monthly_mandatory_deductions'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'tax_other_deductions')
+                                            {{ number_format(($programs['total'] ?? 0) + ($loans['total'] ?? 0), 2) }}
+                                        @elseif ($columnKey === 'tax_refunds')
+                                            {{ number_format(0, 2) }}
                                         @elseif ($columnKey === 'tax_monthly_net_income')
                                             {{ number_format($tax['monthly_net_income'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'tax_adjustment')
@@ -187,7 +193,7 @@
                                         @elseif ($columnKey === 'tax_total_months')
                                             {{ number_format($tax['total_months'] ?? 12, 2) }}
                                         @elseif ($columnKey === 'tax_leave_without_pay_months')
-                                            {{ number_format($tax['leave_without_pay_months'] ?? 0, 2) }}
+                                            {{ number_format($tax['annualization_leave_without_pay_months'] ?? $tax['leave_without_pay_months'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'tax_net_months')
                                             {{ number_format($tax['months'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'tax_total_gross_income')
@@ -201,7 +207,11 @@
                                         @elseif ($columnKey === 'regular_monthly_tax_due')
                                             {{ number_format($tax['regular_monthly_tax_due'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'supplemental_tax_due')
-                                            {{ number_format($tax['supplemental_tax_due'] ?? 0, 2) }}
+                                            {{ number_format(($tax['gross_withholding_tax_adjustment'] ?? 0) + ($tax['supplemental_tax_due'] ?? 0), 2) }}
+                                        @elseif ($columnKey === 'withholding_tax_gross')
+                                            {{ number_format($tax['withholding_tax_gross'] ?? $tax['monthly_tax_due'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'withholding_tax_adjustment')
+                                            {{ number_format($tax['withholding_tax_adjustment'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'withholding_tax')
                                             {{ number_format($tax['monthly_tax_due'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'net_after_tax')

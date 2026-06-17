@@ -9,7 +9,7 @@
     class="space-y-4 pb-24"
     x-data="{
         stepDirty: false,
-        formSteps: [1, 3, 4, 5],
+        formSteps: [1, 3, 4, 5, 7],
         markStepDirty(currentStep, event) {
             if (!this.formSteps.includes(currentStep) || event.target?.type === 'search') {
                 return;
@@ -157,7 +157,7 @@
         x-on:input="markStepDirty({{ $currentStep }}, $event)"
         x-on:change="markStepDirty({{ $currentStep }}, $event)"
     >
-    @if (in_array($currentStep, [1, 3, 4, 5], true))
+    @if (in_array($currentStep, [1, 3, 4, 5, 7], true))
         <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
             <div>
                 <div class="font-semibold">Step changes</div>
@@ -1324,32 +1324,60 @@
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-4 py-3">
                 <h3 class="font-semibold">Tax Calculation</h3>
-                <p class="text-sm text-slate-600">Annualized taxable income and monthly withholding tax before final review.</p>
+                <p class="text-sm text-slate-600">Annualization IV:KA with GB:GF withholding tax outputs.</p>
             </div>
-            <div class="overflow-x-auto">
-                <table class="min-w-[1980px] divide-y divide-slate-200 text-sm">
+            <div class="flex flex-wrap items-end gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                <div class="min-w-72">
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Actual Payroll Workbook</label>
+                    <input wire:model="taxAnnualizationFile" type="file" accept=".xlsx,.xls,.xlsm" class="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+                    @error('taxAnnualizationFile')
+                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+                <button
+                    type="button"
+                    wire:click="importTaxAnnualizationLookup"
+                    wire:loading.attr="disabled"
+                    wire:target="importTaxAnnualizationLookup,taxAnnualizationFile"
+                    class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60"
+                >
+                    <span wire:loading.remove wire:target="importTaxAnnualizationLookup,taxAnnualizationFile">Import Annualization Lookup</span>
+                    <span wire:loading wire:target="importTaxAnnualizationLookup,taxAnnualizationFile">Importing...</span>
+                </button>
+                @if ($taxAnnualizationImportMessage)
+                    <p class="text-sm text-slate-700">{{ $taxAnnualizationImportMessage }}</p>
+                @endif
+            </div>
+            <div class="hidden overflow-x-auto">
+                <table class="min-w-[2480px] divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
                             <th class="px-4 py-3">Employee</th>
                             <th class="px-4 py-3">Entry Date</th>
                             <th class="px-4 py-3 text-right">SG</th>
                             <th class="px-4 py-3 text-right">Salary</th>
-                            <th class="px-4 py-3 text-right">Subsistence</th>
-                            <th class="px-4 py-3 text-right">Hazard</th>
-                            <th class="px-4 py-3 text-right">Deductions</th>
-                            <th class="px-4 py-3 text-right">Net Monthly Income</th>
-                            <th class="px-4 py-3 text-right">Tax Adjustment</th>
-                            <th class="px-4 py-3 text-right">Total Months</th>
-                            <th class="px-4 py-3 text-right">Leave W/O Pay (Months)</th>
-                            <th class="px-4 py-3 text-right">Net, Months</th>
-                            <th class="px-4 py-3 text-right">Total Gross Income</th>
-                            <th class="px-4 py-3 text-right">Total Deductions</th>
-                            <th class="px-4 py-3 text-right">Taxable Income (Year)</th>
-                            <th class="px-4 py-3 text-right">Tax Due (Year)</th>
-                            <th class="px-4 py-3 text-right">Regular Tax</th>
-                            <th class="px-4 py-3 text-right">Supplemental Tax</th>
-                            <th class="px-4 py-3 text-right">Withholding Tax</th>
-                            <th class="px-4 py-3 text-right">Net After Tax</th>
+                            <th class="px-4 py-3 text-right">SUBSISTENCE</th>
+                            <th class="px-4 py-3 text-right">HAZARD</th>
+                            <th class="px-4 py-3 text-right">GROSS COMPENSATION</th>
+                            <th class="px-4 py-3 text-right">TOTAL MANDATORY DEDCUTIONS</th>
+                            <th class="px-4 py-3 text-right">TOTAL OTHER DEDUCTIONS</th>
+                            <th class="px-4 py-3 text-right">REFUNDS</th>
+                            <th class="px-4 py-3 text-right">NET PAY BEFORE OTHER DEDUCTIONS</th>
+                            <th class="px-4 py-3 text-right">ADJUSTMENT</th>
+                            <th class="px-4 py-3 text-right">TOTAL MONTHS</th>
+                            <th class="px-4 py-3 text-right">MONTH DEDUCTION (LWOP & UNAUTH)</th>
+                            <th class="px-4 py-3 text-right">NET, MONTHS</th>
+                            <th class="px-4 py-3 text-right">TOTAL GROSS INCOME</th>
+                            <th class="px-4 py-3 text-right">TOTAL DEDUCTIONS</th>
+                            <th class="px-4 py-3 text-right">TAXABLE INCOME (YEAR)</th>
+                            <th class="px-4 py-3 text-right">TOTAL TAX DUE</th>
+                            <th class="px-4 py-3 text-right">TAX</th>
+                            <th class="px-4 py-3 text-right">TAX ADJ</th>
+                            <th class="px-4 py-3 text-right">WITHHOLDING TAX (GROSS)</th>
+                            <th class="px-4 py-3 text-right">WITHHOLDING TAX (ADJUSTMENT)</th>
+                            <th class="px-4 py-3 text-right">NET PAY</th>
+                            <th class="px-4 py-3 text-right">GE 15th</th>
+                            <th class="px-4 py-3 text-right">GF 30th</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -1364,24 +1392,30 @@
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['salary'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['subsistence'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['hazard'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['net_compensation'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['monthly_mandatory_deductions'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format(($row['program_deductions']['total'] ?? 0) + ($row['loan_deductions']['total'] ?? 0), 2) }}</td>
+                                <td class="px-4 py-3 text-right">0.00</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['monthly_net_income'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['tax_adjustment'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_months'] ?? 12, 2) }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['leave_without_pay_months'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annualization_leave_without_pay_months'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['months'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_gross_income'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_mandatory_deductions'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_taxable_income'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_tax_due'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['regular_monthly_tax_due'] ?? 0, 2) }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['supplemental_tax_due'] ?? 0, 2) }}</td>
-                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['monthly_tax_due'], 2) }}</td>
-                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_tax'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format(($row['tax']['gross_withholding_tax_adjustment'] ?? 0) + ($row['tax']['supplemental_tax_due'] ?? 0), 2) }}</td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['withholding_tax_gross'] ?? $row['tax']['monthly_tax_due'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['withholding_tax_adjustment'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_loan_deductions'], 2) }}</td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['fifteenth'], 2) }}</td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['thirtieth'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="20" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="26" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -1393,7 +1427,10 @@
                                 <td class="px-4 py-3 text-right">{{ number_format($totals['basic_salary'], 2) }}</td>
                                 <td></td>
                                 <td></td>
+                                <td class="px-4 py-3 text-right">{{ number_format($totals['net_compensation'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($totals['total_mandatory_deductions'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format(($totals['program_deductions'] ?? 0) + ($totals['loan_deductions'] ?? 0), 2) }}</td>
+                                <td class="px-4 py-3 text-right">0.00</td>
                                 <td></td>
                                 <td></td>
                                 <td></td>
@@ -1404,12 +1441,119 @@
                                 <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['annual_taxable_income'] ?? 0), 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['annual_tax_due'] ?? 0), 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['regular_monthly_tax_due'] ?? 0), 2) }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['supplemental_tax_due'] ?? 0), 2) }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($totals['withholding_tax'], 2) }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($totals['net_after_tax'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => ($row['tax']['gross_withholding_tax_adjustment'] ?? 0) + ($row['tax']['supplemental_tax_due'] ?? 0)), 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['withholding_tax_gross'] ?? $row['tax']['monthly_tax_due'] ?? 0), 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['tax']['withholding_tax_adjustment'] ?? 0), 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($totals['net_after_loan_deductions'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($totals['fifteenth'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($totals['thirtieth'], 2) }}</td>
                             </tr>
                         </tfoot>
                     @endif
+                </table>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-[5520px] divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                        <tr>
+                            <th class="px-4 py-2" colspan="3"></th>
+                            <th class="px-4 py-2 text-center" colspan="30">ANNUALIZATION</th>
+                            <th class="px-4 py-2 text-center" colspan="6">GB:GF</th>
+                        </tr>
+                        <tr>
+                            <th class="px-4 py-3">Employee</th>
+                            <th class="px-4 py-3">Position</th>
+                            <th class="px-4 py-3 text-right">SG</th>
+                            <th class="px-4 py-3">APPOINTMENT DATE</th>
+                            <th class="px-4 py-3">EXPECTED RETIRE/RESIGN DATE</th>
+                            <th class="px-4 py-3 text-right">FUTURE MONTHS</th>
+                            <th class="px-4 py-3 text-right">MONTH DEDUCTION (LWOP & UNAUTH)</th>
+                            <th class="px-4 py-3 text-right">MONTH DEDUCTION (FOR HAZ & SUBS))</th>
+                            <th class="px-4 py-3 text-right">BASIC (PREV)</th>
+                            <th class="px-4 py-3 text-right">BASIC (CURR)</th>
+                            <th class="px-4 py-3 text-right">BASIC (FUT)</th>
+                            <th class="px-4 py-3 text-right">TOTAL BASIC</th>
+                            <th class="px-4 py-3 text-right">HAZARD (PREV)</th>
+                            <th class="px-4 py-3 text-right">HAZARD (CURR)</th>
+                            <th class="px-4 py-3 text-right">HAZARD (FUT)</th>
+                            <th class="px-4 py-3 text-right">TOTAL HAZARD</th>
+                            <th class="px-4 py-3 text-right">SUBS (PREV)</th>
+                            <th class="px-4 py-3 text-right">SUBS (CURR)</th>
+                            <th class="px-4 py-3 text-right">SUBS (FUT)</th>
+                            <th class="px-4 py-3 text-right">TOTAL SUBS</th>
+                            <th class="px-4 py-3 text-right">MAN DED (PREV)</th>
+                            <th class="px-4 py-3 text-right">MAN DED (CURR)</th>
+                            <th class="px-4 py-3 text-right">MAN DED (FUT)</th>
+                            <th class="px-4 py-3 text-right">TOTAL MAN DED</th>
+                            <th class="px-4 py-3 text-right">TAXABLE INCOME</th>
+                            <th class="px-4 py-3 text-right">TAXABLE INCOME (YEAR)</th>
+                            <th class="px-4 py-3 text-right">TOTAL TAX DUE</th>
+                            <th class="px-4 py-3 text-right">TAX WITHHELD (PREV)</th>
+                            <th class="px-4 py-3 text-right">TAX WITHHELD (CURR)</th>
+                            <th class="px-4 py-3 text-right">TAX WITHHELD (FUT)</th>
+                            <th class="px-4 py-3 text-right">TOTAL TAX WITHHELD</th>
+                            <th class="px-4 py-3 text-right">(UNDER)/OVER WITHHELD</th>
+                            <th class="px-4 py-3 text-right">MONTHLY TAX DUE</th>
+                            <th class="px-4 py-3 text-right">TAX ADJ</th>
+                            <th class="px-4 py-3 text-right">WITHHOLDING TAX (GROSS)</th>
+                            <th class="px-4 py-3 text-right">WITHHOLDING TAX (ADJUSTMENT)</th>
+                            <th class="px-4 py-3 text-right">NET PAY</th>
+                            <th class="px-4 py-3 text-right">15TH</th>
+                            <th class="px-4 py-3 text-right">30TH</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @forelse ($rows as $row)
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-4 py-3">
+                                    <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
+                                    <div class="text-xs text-slate-500">{{ $row['emp_id'] }}</div>
+                                </td>
+                                <td class="px-4 py-3">{{ $row['position'] ?? '-' }}</td>
+                                <td class="px-4 py-3 text-right">{{ $row['tax']['salary_grade'] ?? '-' }}</td>
+                                <td class="px-4 py-3">{{ $row['tax']['entry_date'] ?? '-' }}</td>
+                                <td class="px-4 py-3">-</td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.future_months" type="number" step="0.0001" placeholder="{{ number_format($row['tax']['future_months'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.annualization_leave_without_pay_months" type="number" step="0.0001" placeholder="{{ number_format($row['tax']['annualization_leave_without_pay_months'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.hazard_subsistence_deduction_months" type="number" step="0.0001" placeholder="{{ number_format($row['tax']['hazard_subsistence_deduction_months'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_basic" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_basic'] ?? 0, 2, '.', '') }}" class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_basic'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_basic'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_basic'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_hazard" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_hazard'] ?? 0, 2, '.', '') }}" class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_hazard'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_hazard'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_hazard'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_subsistence" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_subsistence'] ?? 0, 2, '.', '') }}" class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_subsistence'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_subsistence'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_subsistence'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_mandatory_deductions" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_mandatory_deductions'] ?? 0, 2, '.', '') }}" class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_mandatory_deductions'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_mandatory_deductions'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_mandatory_deductions'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_monthly_taxable_income'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_taxable_income'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_tax_due'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_tax_withheld" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_tax_withheld'] ?? 0, 2, '.', '') }}" class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_tax_withheld'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_tax_withheld'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_tax_withheld'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['under_over_withheld'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['monthly_annualized_tax_due'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right"><input wire:model.live.debounce.500ms="taxAnnualizationOverrides.{{ $row['emp_id'] }}.gross_withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['gross_withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['withholding_tax_gross'] ?? $row['tax']['monthly_tax_due'], 2) }}</td>
+                                <td class="px-4 py-3 text-right"><input wire:model.live.debounce.500ms="taxAnnualizationOverrides.{{ $row['emp_id'] }}.withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_loan_deductions'], 2) }}</td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['fifteenth'], 2) }}</td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['thirtieth'], 2) }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="39" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
                 </table>
             </div>
         </div>

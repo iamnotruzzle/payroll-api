@@ -41,6 +41,8 @@ use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
 
 class PayrollGeneration extends Component
 {
@@ -95,6 +97,12 @@ class PayrollGeneration extends Component
     public array $compensationAdjustments = [];
 
     public array $mandatoryDeductionAdjustments = [];
+
+    public array $taxAnnualizationOverrides = [];
+
+    public $taxAnnualizationFile;
+
+    public ?string $taxAnnualizationImportMessage = null;
 
     public array $selectedAdjustmentTypeIds = [];
 
@@ -580,6 +588,89 @@ class PayrollGeneration extends Component
         );
     }
 
+    public function importTaxAnnualizationLookup(): void
+    {
+        $data = $this->validate([
+            'taxAnnualizationFile' => ['required', 'file', 'mimes:xlsx,xls,xlsm', 'max:20480'],
+        ]);
+
+        $file = $data['taxAnnualizationFile'];
+        $path = $file->getRealPath();
+        $columns = [
+            'IG' => 'gross_withholding_tax_adjustment',
+            'GC' => 'withholding_tax_adjustment',
+            'IX' => 'future_months',
+            'IY' => 'annualization_leave_without_pay_months',
+            'IZ' => 'hazard_subsistence_deduction_months',
+            'JA' => 'previous_basic',
+            'JF' => 'previous_hazard',
+            'JJ' => 'previous_subsistence',
+            'JN' => 'previous_mandatory_deductions',
+            'JO' => 'current_mandatory_deductions',
+            'JU' => 'previous_tax_withheld',
+        ];
+        $readColumns = ['B', ...array_keys($columns)];
+        $reader = IOFactory::createReaderForFile($path);
+        $reader->setReadDataOnly(true);
+        $reader->setReadFilter(new class($readColumns) implements IReadFilter {
+            public function __construct(private array $columns) {}
+
+            public function readCell(string $columnAddress, int $row, string $worksheetName = ''): bool
+            {
+                return $row <= 4 || in_array($columnAddress, $this->columns, true);
+            }
+        });
+
+        $imported = 0;
+        foreach (['hopss_finance-done', 'SUMMARY SALARY (2)', 'SUMMARY SALARY'] as $sheetName) {
+            try {
+                $reader->setLoadSheetsOnly([$sheetName]);
+                $spreadsheet = $reader->load($path);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheetImported = 0;
+            for ($row = 5; $row <= $sheet->getHighestDataRow(); $row++) {
+                $empId = $this->normalizeImportedEmpId($this->spreadsheetCellValue($sheet, "B{$row}"));
+                if ($empId === '') {
+                    continue;
+                }
+
+                $values = [];
+                foreach ($columns as $column => $key) {
+                    $value = $this->spreadsheetCellValue($sheet, "{$column}{$row}");
+                    if ($value === null || $value === '' || ! is_numeric($value)) {
+                        continue;
+                    }
+
+                    $values[$key] = round((float) $value, 4);
+                }
+
+                if ($values === []) {
+                    continue;
+                }
+
+                $this->taxAnnualizationOverrides[$empId] = [
+                    ...($this->taxAnnualizationOverrides[$empId] ?? []),
+                    ...$values,
+                ];
+                $sheetImported++;
+            }
+
+            if ($sheetImported > 0) {
+                $imported = $sheetImported;
+                break;
+            }
+        }
+
+        $this->taxAnnualizationFile = null;
+        $this->taxAnnualizationImportMessage = $imported > 0
+            ? "Imported annualization lookup values for {$imported} employee(s). Click Save Step to keep them in the draft."
+            : 'No annualization lookup rows were found in the selected workbook.';
+    }
+
     public function saveDraft(): void
     {
         if (! $this->divisionId && ! $this->departmentId) {
@@ -609,6 +700,7 @@ class PayrollGeneration extends Component
                     'pay_basis_overrides' => $this->payBasisOverrides,
                     'compensation_adjustments' => $this->compensationAdjustments,
                     'mandatory_deduction_adjustments' => $this->mandatoryDeductionAdjustments,
+                    'tax_annualization_overrides' => $this->taxAnnualizationOverrides,
                     'selected_adjustment_type_ids' => $this->selectedAdjustmentTypeIds,
                     'deduction_program_selections' => $this->deductionProgramSelections,
                 ],
@@ -895,6 +987,7 @@ class PayrollGeneration extends Component
                 strtoupper($item->loan_account_no),
             ]))
             ->groupBy('matched_emp_id');
+        $previousTaxAnnualization = $this->previousTaxAnnualizationByEmployee($empIds, $periodStart);
         $leaveQuery = EmployeeLeave::query()
             ->with('leaveType')
             ->whereIn('emp_id', $empIds)
@@ -933,7 +1026,7 @@ class PayrollGeneration extends Component
             : collect();
         $labelOptions = PayrollDtrLabelOption::query()->get()->keyBy('code');
 
-        return $employees->map(function (Employee $employee) use ($compensations, $deductionPrograms, $adjustmentTypes, $salaryMatrix, $leaves, $excludedLeaveDates, $labels, $adjustments, $mraAdjustments, $labelOptions, $loanItems, $periodStart, $periodEnd, $leavePeriodStart, $leavePeriodEnd) {
+        return $employees->map(function (Employee $employee) use ($compensations, $deductionPrograms, $adjustmentTypes, $salaryMatrix, $leaves, $excludedLeaveDates, $labels, $adjustments, $mraAdjustments, $labelOptions, $loanItems, $previousTaxAnnualization, $periodStart, $periodEnd, $leavePeriodStart, $leavePeriodEnd) {
             $payBasis = $this->editablePayBasisFor($employee);
             $salaryGrade = $payBasis['salary_grade'];
             $step = $payBasis['step'];
@@ -1028,6 +1121,64 @@ class PayrollGeneration extends Component
             $supplementalTaxDue = collect($computed)->sum('supplemental_tax_due');
             $leaveWithoutPayMonths = $this->leaveWithoutPayMonths($deductionDays);
             $netMonths = max(0, PayrollTaxService::ANNUALIZED_MONTHS - $leaveWithoutPayMonths);
+            $taxSubsistence = $this->compensationAmountByName($computed, ['subsistence']);
+            $monthlyWithholdingTaxableIncome = round(
+                $basicSalary
+                + $taxSubsistence
+                - (
+                    (float) ($statutoryDeductions['life_retirement'] ?? 0)
+                    + (float) ($statutoryDeductions['phic'] ?? 0)
+                    + (float) ($statutoryDeductions['mandatory_pagibig'] ?? 0)
+                    + (float) ($statutoryDeductions['ea_deduction'] ?? 0)
+                ),
+                2
+            );
+            $currentTaxMandatoryDeductions = round(
+                (float) ($statutoryDeductions['life_retirement'] ?? 0)
+                + (float) ($statutoryDeductions['phic'] ?? 0)
+                + (float) ($statutoryDeductions['mandatory_pagibig'] ?? 0)
+                + (float) ($statutoryDeductions['ea_deduction'] ?? 0),
+                2
+            );
+            $currentTaxMandatoryDeductions = $this->taxAnnualizationOverrideValue($employee->emp_id, 'current_mandatory_deductions', $currentTaxMandatoryDeductions);
+            $monthlyWithholdingTaxableIncome = round($basicSalary + $taxSubsistence - $currentTaxMandatoryDeductions, 2);
+            $previousAnnualization = $previousTaxAnnualization[$employee->emp_id] ?? [];
+            $fallbackPreviousMonths = max(0, $periodStart->month - 1);
+            $fallbackPreviousBasic = round($basicSalary * $fallbackPreviousMonths, 2);
+            $fallbackPreviousHazard = round($hazardForTaxDisplay * $fallbackPreviousMonths, 2);
+            $fallbackPreviousSubsistence = round($taxSubsistence * $fallbackPreviousMonths, 2);
+            $fallbackPreviousMandatoryDeductions = round($currentTaxMandatoryDeductions * $fallbackPreviousMonths, 2);
+            $taxService = app(PayrollTaxService::class);
+            $fallbackPreviousBasicTax = $taxService->monthlyWithholdingTaxDue($monthlyWithholdingTaxableIncome);
+            $fallbackPreviousHazardTax = round(max(
+                0,
+                $taxService->monthlyWithholdingTaxDue($monthlyWithholdingTaxableIncome + $hazardForTaxDisplay) - $fallbackPreviousBasicTax
+            ), 2);
+            $fallbackPreviousTaxWithheld = round(
+                $fallbackPreviousMonths > 0 && (
+                    $fallbackPreviousBasic
+                    + $fallbackPreviousHazard
+                    + $fallbackPreviousSubsistence
+                    - $fallbackPreviousMandatoryDeductions
+                ) > 250000
+                    ? ($fallbackPreviousBasicTax + PayrollTaxService::MONTHLY_WITHHOLDING_TAX_ADJUSTMENT + $fallbackPreviousHazardTax) * $fallbackPreviousMonths
+                    : 0,
+                2
+            );
+            $previousBasic = $this->taxAnnualizationOverrideValue($employee->emp_id, 'previous_basic', $previousAnnualization['basic'] ?? $fallbackPreviousBasic);
+            $previousHazard = $this->taxAnnualizationOverrideValue($employee->emp_id, 'previous_hazard', $previousAnnualization['hazard'] ?? $fallbackPreviousHazard);
+            $previousSubsistence = $this->taxAnnualizationOverrideValue($employee->emp_id, 'previous_subsistence', $previousAnnualization['subsistence'] ?? $fallbackPreviousSubsistence);
+            $previousMandatoryDeductions = $this->taxAnnualizationOverrideValue($employee->emp_id, 'previous_mandatory_deductions', $previousAnnualization['mandatory_deductions'] ?? $fallbackPreviousMandatoryDeductions);
+            $previousTaxWithheld = $this->taxAnnualizationOverrideValue($employee->emp_id, 'previous_tax_withheld', $previousAnnualization['tax_withheld'] ?? $fallbackPreviousTaxWithheld);
+            $futureMonths = $this->taxAnnualizationOverrideValue($employee->emp_id, 'future_months', $this->futureMonthsForTax($employee->date_hired, $periodStart));
+            $annualizationLeaveWithoutPayMonths = $this->taxAnnualizationOverrideValue($employee->emp_id, 'annualization_leave_without_pay_months', 0);
+            $hazardSubsistenceDeductionMonths = $this->taxAnnualizationOverrideValue($employee->emp_id, 'hazard_subsistence_deduction_months', 0);
+            $grossWithholdingTaxAdjustment = $this->taxAnnualizationOverrideValue(
+                $employee->emp_id,
+                'gross_withholding_tax_adjustment',
+                PayrollTaxService::MONTHLY_WITHHOLDING_TAX_ADJUSTMENT
+            );
+            $withholdingTaxAdjustment = $this->taxAnnualizationOverrideValue($employee->emp_id, 'withholding_tax_adjustment', 0);
             $tax = $this->taxCalculation(
                 $basicSalary + $regularTaxableCompensation + $compensationAdjustments['total'],
                 $totalMandatoryDeductions,
@@ -1036,13 +1187,25 @@ class PayrollGeneration extends Component
                     'entry_date' => $employee->date_hired?->format('Y-m-d'),
                     'salary_grade' => $salaryGrade ?: null,
                     'salary' => $basicSalary,
-                    'subsistence' => $this->compensationAmountByName($computed, ['subsistence']),
+                    'subsistence' => $taxSubsistence,
                     'hazard' => $hazardForTaxDisplay,
                     'hazard_rate' => $this->hazardRate($salaryGrade),
                     'hazard_leave_days' => $hazardLeaveDays,
                     'hazard_eligible' => $taxableHazardPay > 0,
                     'hazard_disqualification_days' => 10,
                     'taxable_compensations' => $regularTaxableCompensation,
+                    'monthly_withholding_taxable_income' => $monthlyWithholdingTaxableIncome,
+                    'current_tax_mandatory_deductions' => $currentTaxMandatoryDeductions,
+                    'previous_basic' => $previousBasic,
+                    'previous_hazard' => $previousHazard,
+                    'previous_subsistence' => $previousSubsistence,
+                    'previous_mandatory_deductions' => $previousMandatoryDeductions,
+                    'previous_tax_withheld' => $previousTaxWithheld,
+                    'future_months' => $futureMonths,
+                    'annualization_leave_without_pay_months' => $annualizationLeaveWithoutPayMonths,
+                    'hazard_subsistence_deduction_months' => $hazardSubsistenceDeductionMonths,
+                    'gross_withholding_tax_adjustment' => $grossWithholdingTaxAdjustment,
+                    'withholding_tax_adjustment' => $withholdingTaxAdjustment,
                     'supplemental_tax_due' => $supplementalTaxDue,
                     'tax_adjustment' => $compensationAdjustments['total'],
                     'total_months' => PayrollTaxService::ANNUALIZED_MONTHS,
@@ -1166,6 +1329,7 @@ class PayrollGeneration extends Component
         $this->payBasisOverrides = [];
         $this->compensationAdjustments = [];
         $this->mandatoryDeductionAdjustments = [];
+        $this->taxAnnualizationOverrides = [];
         $this->selectedAdjustmentTypeIds = [];
         $this->deductionProgramSelections = [];
         $this->finalizedRunId = null;
@@ -1193,6 +1357,7 @@ class PayrollGeneration extends Component
         $this->payBasisOverrides = (array) ($state['pay_basis_overrides'] ?? []);
         $this->compensationAdjustments = (array) ($state['compensation_adjustments'] ?? []);
         $this->mandatoryDeductionAdjustments = (array) ($state['mandatory_deduction_adjustments'] ?? []);
+        $this->taxAnnualizationOverrides = (array) ($state['tax_annualization_overrides'] ?? []);
         $this->selectedAdjustmentTypeIds = array_key_exists('selected_adjustment_type_ids', $state)
             ? array_values((array) $state['selected_adjustment_type_ids'])
             : $this->selectedAdjustmentTypeIdsFromAdjustments($this->compensationAdjustments);
@@ -1834,18 +1999,148 @@ class PayrollGeneration extends Component
 
     private function taxCalculation(float $monthlyGrossIncome, float $monthlyMandatoryDeductions, float $netMonths, array $context = []): array
     {
-        $calculation = app(PayrollTaxService::class)->calculation($monthlyGrossIncome, $monthlyMandatoryDeductions, $netMonths);
-        $supplementalTaxDue = round((float) ($context['supplemental_tax_due'] ?? 0), 2);
-        $regularMonthlyTaxDue = (float) ($calculation['monthly_tax_due'] ?? 0);
+        $taxService = app(PayrollTaxService::class);
+        $calculation = $taxService->calculation($monthlyGrossIncome, $monthlyMandatoryDeductions, $netMonths);
+        $annualization = $taxService->annualization([
+            'current_basic' => $context['salary'] ?? $monthlyGrossIncome,
+            'current_hazard' => $context['hazard'] ?? 0,
+            'current_subsistence' => $context['subsistence'] ?? 0,
+            'current_mandatory_deductions' => $context['current_tax_mandatory_deductions'] ?? $monthlyMandatoryDeductions,
+            'previous_basic' => $context['previous_basic'] ?? 0,
+            'previous_hazard' => $context['previous_hazard'] ?? 0,
+            'previous_subsistence' => $context['previous_subsistence'] ?? 0,
+            'previous_mandatory_deductions' => $context['previous_mandatory_deductions'] ?? 0,
+            'previous_tax_withheld' => $context['previous_tax_withheld'] ?? 0,
+            'future_months' => $context['future_months'] ?? 0,
+            'leave_without_pay_months' => $context['annualization_leave_without_pay_months'] ?? 0,
+            'hazard_subsistence_deduction_months' => $context['hazard_subsistence_deduction_months'] ?? 0,
+            'hazard_rate' => $context['hazard_rate'] ?? 0,
+            'gross_withholding_tax_adjustment' => $context['gross_withholding_tax_adjustment'] ?? PayrollTaxService::MONTHLY_WITHHOLDING_TAX_ADJUSTMENT,
+            'supplemental_tax_due' => $context['supplemental_tax_due'] ?? 0,
+            'withholding_tax_adjustment' => $context['withholding_tax_adjustment'] ?? 0,
+        ]);
 
         return [
             ...$context,
             ...$calculation,
+            ...$annualization,
             'monthly_net_income' => round($monthlyGrossIncome - $monthlyMandatoryDeductions, 2),
-            'regular_monthly_tax_due' => $regularMonthlyTaxDue,
-            'supplemental_tax_due' => $supplementalTaxDue,
-            'monthly_tax_due' => round($regularMonthlyTaxDue + $supplementalTaxDue, 2),
         ];
+    }
+
+    private function previousTaxAnnualizationByEmployee(array $empIds, CarbonImmutable $periodStart): array
+    {
+        if ($empIds === []) {
+            return [];
+        }
+
+        return PayrollBatchRecord::query()
+            ->with('batch')
+            ->whereIn('emp_id', $empIds)
+            ->whereHas('batch', function ($query) use ($periodStart) {
+                $query
+                    ->where('payroll_type_code', PayrollType::CODE_GENERAL)
+                    ->where('payroll_period', '>=', $periodStart->format('Y-01'))
+                    ->where('payroll_period', '<', $periodStart->format('Y-m'));
+            })
+            ->get()
+            ->groupBy('emp_id')
+            ->map(function (Collection $records) {
+                return $records->reduce(function (array $carry, PayrollBatchRecord $record) {
+                    $snapshot = $record->snapshot_json ?? [];
+                    $tax = $snapshot['tax'] ?? [];
+                    $earnings = $snapshot['earnings'] ?? [];
+                    $carry['basic'] += (float) ($tax['current_basic'] ?? $earnings['basic_salary'] ?? $tax['salary'] ?? 0);
+                    $carry['hazard'] += (float) ($tax['current_hazard'] ?? $tax['hazard'] ?? 0);
+                    $carry['subsistence'] += (float) ($tax['current_subsistence'] ?? $tax['subsistence'] ?? 0);
+                    $carry['mandatory_deductions'] += (float) ($tax['current_mandatory_deductions'] ?? $tax['monthly_mandatory_deductions'] ?? 0);
+                    $carry['tax_withheld'] += (float) (
+                        $tax['current_tax_withheld']
+                        ?? (($tax['monthly_tax_due'] ?? 0) + ($tax['current_hazard_tax_due'] ?? 0))
+                    );
+
+                    return $carry;
+                }, [
+                    'basic' => 0.0,
+                    'hazard' => 0.0,
+                    'subsistence' => 0.0,
+                    'mandatory_deductions' => 0.0,
+                    'tax_withheld' => 0.0,
+                ]);
+            })
+            ->all();
+    }
+
+    private function taxAnnualizationOverrideValue(string $empId, string $key, float $default): float
+    {
+        $value = $this->taxAnnualizationOverrides[$empId][$key] ?? null;
+
+        if ($value === null || $value === '') {
+            return round($default, 2);
+        }
+
+        return round((float) $value, 2);
+    }
+
+    private function spreadsheetCellValue($sheet, string $coordinate): mixed
+    {
+        $cell = $sheet->getCell($coordinate);
+        if ($cell->isFormula()) {
+            $cachedValue = $cell->getOldCalculatedValue();
+            if ($cachedValue !== null && $cachedValue !== '') {
+                return $cachedValue;
+            }
+        }
+
+        try {
+            return $cell->getCalculatedValue();
+        } catch (\Throwable) {
+            return $cell->getValue();
+        }
+    }
+
+    private function normalizeImportedEmpId(mixed $value): string
+    {
+        $text = trim((string) $value);
+        if ($text === '') {
+            return '';
+        }
+
+        if (is_numeric($text)) {
+            return str_pad((string) (int) $text, 6, '0', STR_PAD_LEFT);
+        }
+
+        return $text;
+    }
+
+    private function futureMonthsForTax(mixed $appointmentDate, CarbonImmutable $periodStart): float
+    {
+        if ($periodStart->month >= 12) {
+            return 0.0;
+        }
+
+        $futureStart = $periodStart->addMonthNoOverflow()->startOfMonth();
+        $futureEnd = $periodStart->endOfYear();
+
+        if ($appointmentDate) {
+            $appointment = CarbonImmutable::parse($appointmentDate)->startOfDay();
+            if ($appointment->greaterThan($futureEnd)) {
+                return 0.0;
+            }
+
+            if ($appointment->greaterThan($futureStart)) {
+                $futureStart = $appointment;
+            }
+        }
+
+        $weekdays = 0;
+        for ($date = $futureStart; $date->lessThanOrEqualTo($futureEnd); $date = $date->addDay()) {
+            if ($date->isWeekday()) {
+                $weekdays++;
+            }
+        }
+
+        return round(min(12 - $periodStart->month, max(0, $weekdays / 22)), 4);
     }
 
     private function leaveWithoutPayMonths(float $deductionDays): float
@@ -2594,7 +2889,10 @@ class PayrollGeneration extends Component
                 'tax_salary',
                 'tax_subsistence',
                 'tax_hazard',
+                'tax_gross_compensation',
                 'tax_deductions',
+                'tax_other_deductions',
+                'tax_refunds',
                 'tax_monthly_net_income',
                 'tax_adjustment',
                 'tax_total_months',
@@ -2606,12 +2904,16 @@ class PayrollGeneration extends Component
                 'annual_tax_due',
                 'regular_monthly_tax_due',
                 'supplemental_tax_due',
+                'withholding_tax_gross',
+                'withholding_tax_adjustment',
                 'withholding_tax',
-                'net_after_tax',
+                'net_after_loan_deductions',
+                'fifteenth',
+                'thirtieth',
             ]],
             ['label' => 'Deduction Programs', 'columns' => array_merge($deductionPrograms->map(fn ($program) => 'program_'.$program->id)->all(), ['program_total'])],
             ...collect($this->loanColumnGroups)->map(fn (array $columns, string $label) => ['label' => $label, 'columns' => array_keys($columns)])->values()->all(),
-            ['label' => 'Net Pay Distribution', 'columns' => ['net_before_other_deductions', 'loan_total', 'net_after_loan_deductions', 'fifteenth', 'thirtieth']],
+            ['label' => 'Net Pay Distribution', 'columns' => ['net_before_other_deductions', 'loan_total']],
         ];
     }
 
@@ -2649,7 +2951,7 @@ class PayrollGeneration extends Component
             'annual_taxable_income' => ['label' => 'Taxable Income (Year)', 'enabled' => true],
             'annual_tax_due' => ['label' => 'Tax Due (Year)', 'enabled' => true],
             'regular_monthly_tax_due' => ['label' => 'Regular Tax', 'enabled' => true],
-            'supplemental_tax_due' => ['label' => 'Supplemental Tax', 'enabled' => true],
+            'supplemental_tax_due' => ['label' => 'Tax Adj', 'enabled' => true],
             'withholding_tax' => ['label' => 'Withholding Tax', 'enabled' => true],
             'net_after_tax' => ['label' => 'Net After Tax', 'enabled' => true],
             'entry_date' => ['label' => 'Entry Date', 'enabled' => true],
@@ -2657,20 +2959,25 @@ class PayrollGeneration extends Component
             'tax_salary' => ['label' => 'Salary', 'enabled' => true],
             'tax_subsistence' => ['label' => 'Subsistence', 'enabled' => true],
             'tax_hazard' => ['label' => 'Hazard', 'enabled' => true],
-            'tax_deductions' => ['label' => 'Deductions', 'enabled' => true],
+            'tax_gross_compensation' => ['label' => 'Gross Compensation', 'enabled' => true],
+            'tax_deductions' => ['label' => 'Mandatory Deductions', 'enabled' => true],
+            'tax_other_deductions' => ['label' => 'Other Deductions', 'enabled' => true],
+            'tax_refunds' => ['label' => 'Refunds', 'enabled' => true],
             'tax_monthly_net_income' => ['label' => 'Net Monthly Income', 'enabled' => true],
-            'tax_adjustment' => ['label' => 'Tax Adjustment', 'enabled' => true],
+            'tax_adjustment' => ['label' => 'Comp. Adjustment', 'enabled' => true],
             'tax_total_months' => ['label' => 'Total Months', 'enabled' => true],
             'tax_leave_without_pay_months' => ['label' => 'Leave W/O Pay (Months)', 'enabled' => true],
             'tax_net_months' => ['label' => 'Net, Months', 'enabled' => true],
             'tax_total_gross_income' => ['label' => 'Total Gross Income', 'enabled' => true],
             'tax_total_deductions' => ['label' => 'Total Deductions', 'enabled' => true],
+            'withholding_tax_gross' => ['label' => 'GB Withholding Tax (Gross)', 'enabled' => true],
+            'withholding_tax_adjustment' => ['label' => 'GC Withholding Tax (Adjustment)', 'enabled' => true],
             'program_total' => ['label' => 'Program Total', 'enabled' => true],
             'net_before_other_deductions' => ['label' => 'Net Before Other Deductions', 'enabled' => true],
             'loan_total' => ['label' => 'Total Other Deductions', 'enabled' => true],
-            'net_after_loan_deductions' => ['label' => 'Final Net Pay', 'enabled' => true],
-            'fifteenth' => ['label' => '15th Payroll', 'enabled' => true],
-            'thirtieth' => ['label' => '30th Payroll', 'enabled' => true],
+            'net_after_loan_deductions' => ['label' => 'GD Net Pay', 'enabled' => true],
+            'fifteenth' => ['label' => 'GE 15th', 'enabled' => true],
+            'thirtieth' => ['label' => 'GF 30th', 'enabled' => true],
         ];
 
         foreach ($compensations as $item) {

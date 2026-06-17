@@ -37,6 +37,21 @@ class StatutoryContributionServiceTest extends TestCase
         $this->assertSame(3200.0, $result['employer_total']);
     }
 
+    public function test_philhealth_uses_excel_rounddown_to_cents(): void
+    {
+        Config::set('database.connections.payroll', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+
+        $result = app(StatutoryContributionService::class)->calculate(31705, '2026-06-01');
+
+        $this->assertSame(792.62, $result['employee']['phic']);
+        $this->assertSame(792.62, $result['employer']['government_phic']);
+        $this->assertSame(3896.07, $result['employee_total']);
+    }
+
     public function test_it_does_not_apply_salary_floor_to_zero_salary(): void
     {
         Config::set('database.connections.payroll', [

@@ -128,8 +128,8 @@ class StatutoryContributionService
                 ? self::EMPLOYER_LABELS[$code]
                 : ($rule['employer_label'] ?? 'government_'.$code);
             $base = $this->contributionBase($monthlySalary, $rule);
-            $employeeAmount = $this->contributionAmount($base, (float) $rule['employee_rate'], $rule['employee_cap'] ?? null, $rule['employee_fixed_amount'] ?? null);
-            $employerAmount = $this->contributionAmount($base, (float) $rule['employer_rate'], $rule['employer_cap'] ?? null, $rule['employer_fixed_amount'] ?? null);
+            $employeeAmount = $this->contributionAmount($base, (float) $rule['employee_rate'], $rule['employee_cap'] ?? null, $rule['employee_fixed_amount'] ?? null, $code);
+            $employerAmount = $this->contributionAmount($base, (float) $rule['employer_rate'], $rule['employer_cap'] ?? null, $rule['employer_fixed_amount'] ?? null, $code);
 
             if ($employeeKey !== null) {
                 $employee[$employeeKey] = $employeeAmount;
@@ -269,7 +269,7 @@ class StatutoryContributionService
         return round($base, 2);
     }
 
-    private function contributionAmount(float $base, float $rate, mixed $cap, mixed $fixedAmount = null): float
+    private function contributionAmount(float $base, float $rate, mixed $cap, mixed $fixedAmount = null, ?string $code = null): float
     {
         if ($base <= 0) {
             return 0.0;
@@ -279,11 +279,15 @@ class StatutoryContributionService
             return round(max(0, (float) $fixedAmount), 2);
         }
 
-        $amount = round($base * $rate, 2);
+        $amount = $base * $rate;
         $cap = $cap !== null && $cap !== '' ? (float) $cap : null;
 
         if ($cap !== null && $cap > 0) {
             $amount = min($amount, $cap);
+        }
+
+        if ($code === 'philhealth') {
+            return floor(max(0, $amount) * 100) / 100;
         }
 
         return round(max(0, $amount), 2);
