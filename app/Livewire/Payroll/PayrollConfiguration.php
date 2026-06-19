@@ -21,6 +21,10 @@ class PayrollConfiguration extends Component
 
     public ?int $departmentId = null;
 
+    public array $selectedDivisionIds = [];
+
+    public array $selectedDepartmentIds = [];
+
     public string $payrollType = PayrollType::CODE_GENERAL;
 
     public string $period;
@@ -46,8 +50,12 @@ class PayrollConfiguration extends Component
             ? Department::query()->where('department_id', $userDepartmentId)->value('division_id')
             : null;
 
-        $this->divisionId = request()->integer('division_id') ?: $userDivisionId;
-        $this->departmentId = request()->integer('department_id') ?: null;
+        $this->selectedDivisionIds = $this->parseIdList(request()->query('division_ids', request()->query('division_id')));
+        if ($this->selectedDivisionIds === [] && $userDivisionId) {
+            $this->selectedDivisionIds = [(int) $userDivisionId];
+        }
+        $this->selectedDepartmentIds = $this->parseIdList(request()->query('department_ids', request()->query('department_id')));
+        $this->syncLegacyScopeIds();
         $requestedPayrollType = (string) request()->query('payroll_type', PayrollType::CODE_GENERAL);
         $this->payrollType = PayrollType::query()
             ->where('code', $requestedPayrollType)
@@ -56,11 +64,14 @@ class PayrollConfiguration extends Component
                 ? $requestedPayrollType
                 : PayrollType::CODE_GENERAL;
 
-        if ($this->departmentId && $this->divisionId && ! Department::query()
-            ->where('department_id', $this->departmentId)
-            ->where('division_id', $this->divisionId)
-            ->exists()) {
-            $this->departmentId = null;
+        if ($this->selectedDepartmentIds !== [] && $this->selectedDivisionIds !== []) {
+            $this->selectedDepartmentIds = Department::query()
+                ->whereIn('department_id', $this->selectedDepartmentIds)
+                ->whereIn('division_id', $this->selectedDivisionIds)
+                ->pluck('department_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $this->syncLegacyScopeIds();
         }
 
         $this->period = request()->query('period', CarbonImmutable::today()->format('Y-m'));
@@ -74,12 +85,6 @@ class PayrollConfiguration extends Component
         $this->employeeTypeFilter = array_key_exists($employeeType, Employee::employeeTypeOptions())
             ? $employeeType
             : Employee::EMPLOYEE_TYPE_PLANTILLA;
-    }
-
-    public function updatedDivisionId(): void
-    {
-        $this->departmentId = null;
-        $this->dismissExistingGenerationNotice();
     }
 
     public function proceed()
@@ -118,9 +123,11 @@ class PayrollConfiguration extends Component
 
     private function validatedConfiguration(): array
     {
-        return $this->validate([
-            'divisionId' => ['required', 'integer'],
-            'departmentId' => ['nullable', 'integer'],
+        $data = $this->validate([
+            'selectedDivisionIds' => ['required', 'array', 'min:1'],
+            'selectedDivisionIds.*' => ['integer', 'exists:mysql.tbl_division,division_id'],
+            'selectedDepartmentIds' => ['array'],
+            'selectedDepartmentIds.*' => ['integer', 'exists:mysql.tbl_department,department_id'],
             'payrollType' => ['required', Rule::exists('payroll.payroll_types', 'code')->where('is_active', true)],
             'period' => ['required', 'date_format:Y-m'],
             'workingDays' => ['required', 'integer', 'min:1', 'max:31'],
@@ -129,13 +136,37 @@ class PayrollConfiguration extends Component
             'selectedLeaveTypeIds.*' => ['integer', 'exists:mysql.tbl_leave_type,leave_type_id'],
             'employeeTypeFilter' => ['required', 'in:plantilla,cos,all'],
         ]);
+
+        $data['selectedDivisionIds'] = $this->normalizedIds($data['selectedDivisionIds'] ?? []);
+        $data['selectedDepartmentIds'] = $this->normalizedIds($data['selectedDepartmentIds'] ?? []);
+        $data['selectedLeaveTypeIds'] = $this->normalizedLeaveTypeIds($data['selectedLeaveTypeIds'] ?? []);
+
+        if ($data['selectedDepartmentIds'] !== []) {
+            $departmentDivisionIds = Department::query()
+                ->whereIn('department_id', $data['selectedDepartmentIds'])
+                ->pluck('division_id')
+                ->all();
+            $data['selectedDivisionIds'] = $this->normalizedIds([
+                ...$data['selectedDivisionIds'],
+                ...$departmentDivisionIds,
+            ]);
+        }
+
+        $this->selectedDivisionIds = $data['selectedDivisionIds'];
+        $this->selectedDepartmentIds = $data['selectedDepartmentIds'];
+        $this->selectedLeaveTypeIds = $data['selectedLeaveTypeIds'];
+        $this->syncLegacyScopeIds();
+
+        return $data;
     }
 
     private function redirectToGeneration(array $data)
     {
         return redirect()->route(PayrollType::generationRouteFor($data['payrollType']), [
-            'division_id' => $data['divisionId'],
-            'department_id' => $data['departmentId'] ?: null,
+            'division_ids' => implode(',', $data['selectedDivisionIds']),
+            'department_ids' => implode(',', $data['selectedDepartmentIds'] ?? []),
+            'division_id' => $data['selectedDivisionIds'][0] ?? null,
+            'department_id' => $data['selectedDepartmentIds'][0] ?? null,
             'payroll_type' => $data['payrollType'],
             'period' => $data['period'],
             'working_days' => $data['workingDays'],
@@ -166,8 +197,12 @@ class PayrollConfiguration extends Component
 
         $selectedLeaveTypeIds = $this->normalizedLeaveTypeIds($data['selectedLeaveTypeIds'] ?? []);
         $batches = PayrollBatch::query()
-            ->where('division_id', (int) $data['divisionId'])
-            ->where('department_id', $data['departmentId'] ? (int) $data['departmentId'] : null)
+            ->whereIn('division_id', $data['selectedDivisionIds'])
+            ->when(
+                ($data['selectedDepartmentIds'] ?? []) !== [],
+                fn ($query) => $query->whereIn('department_id', $data['selectedDepartmentIds']),
+                fn ($query) => $query->whereNull('department_id'),
+            )
             ->where('payroll_period', (string) $data['period'])
             ->where('payroll_type_code', (string) $data['payrollType'])
             ->where('working_days', (int) $data['workingDays'])
@@ -193,13 +228,13 @@ class PayrollConfiguration extends Component
             ];
         }
 
-        if (! $data['departmentId'] || $batches->isNotEmpty()) {
+        if (($data['selectedDepartmentIds'] ?? []) === [] || count($data['selectedDepartmentIds']) !== 1 || $batches->isNotEmpty()) {
             return $matches;
         }
 
         $legacyBatch = PayrollBatch::query()
             ->whereNull('division_id')
-            ->where('department_id', (int) $data['departmentId'])
+            ->where('department_id', (int) $data['selectedDepartmentIds'][0])
             ->where('payroll_period', (string) $data['period'])
             ->whereNull('payroll_type_code')
             ->latest('snapshot_created_at')
@@ -220,9 +255,9 @@ class PayrollConfiguration extends Component
 
     private function configurationKeyFor(array $data): string
     {
-        return PayrollGenerationDraft::configurationKey(
-            (int) $data['divisionId'],
-            $data['departmentId'] ? (int) $data['departmentId'] : null,
+        return PayrollGenerationDraft::configurationKeyForScope(
+            $this->normalizedIds($data['selectedDivisionIds'] ?? []),
+            $this->normalizedIds($data['selectedDepartmentIds'] ?? []),
             (string) $data['payrollType'],
             (string) $data['period'],
             (int) $data['workingDays'],
@@ -241,6 +276,35 @@ class PayrollConfiguration extends Component
         $values = is_array($value) ? $value : explode(',', (string) $value);
 
         return $this->normalizedLeaveTypeIds($values);
+    }
+
+    private function parseIdList(mixed $value): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        return $this->normalizedIds(is_array($value) ? $value : explode(',', (string) $value));
+    }
+
+    private function normalizedIds(array $values): array
+    {
+        return collect($values)
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function syncLegacyScopeIds(): void
+    {
+        $this->selectedDivisionIds = $this->normalizedIds($this->selectedDivisionIds);
+        $this->selectedDepartmentIds = $this->normalizedIds($this->selectedDepartmentIds);
+        $this->divisionId = $this->selectedDivisionIds[0] ?? null;
+        $this->departmentId = $this->selectedDepartmentIds[0] ?? null;
     }
 
     private function hasExplicitLeaveTypeSelection(mixed $value): bool
@@ -295,7 +359,6 @@ class PayrollConfiguration extends Component
                 ->orderBy('name')
                 ->get(),
             'departments' => Department::query()
-                ->when($this->divisionId, fn ($query) => $query->where('division_id', $this->divisionId))
                 ->orderBy('department')
                 ->get(),
             'employeeTypeOptions' => Employee::employeeTypeOptions(),

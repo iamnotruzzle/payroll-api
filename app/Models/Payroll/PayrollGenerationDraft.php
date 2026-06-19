@@ -47,6 +47,42 @@ class PayrollGenerationDraft extends Model
         int $gsisDays = 30,
         array $includedLeaveTypeIds = []
     ): string {
+        return self::configurationKeyForScope(
+            $divisionId ? [$divisionId] : [],
+            $departmentId ? [$departmentId] : [],
+            $payrollTypeCode,
+            $period,
+            $workingDays,
+            $employeeType,
+            $gsisDays,
+            $includedLeaveTypeIds,
+        );
+    }
+
+    public static function configurationKeyForScope(
+        array $divisionIds,
+        array $departmentIds,
+        string $payrollTypeCode,
+        string $period,
+        int $workingDays,
+        string $employeeType,
+        int $gsisDays = 30,
+        array $includedLeaveTypeIds = []
+    ): string {
+        $divisionIds = collect($divisionIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->implode(',');
+        $departmentIds = collect($departmentIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->implode(',');
         $includedLeaveTypeIds = collect($includedLeaveTypeIds)
             ->map(fn ($id) => (int) $id)
             ->unique()
@@ -55,8 +91,8 @@ class PayrollGenerationDraft extends Model
             ->implode(',');
 
         return hash('sha256', implode('|', [
-            $divisionId ?: 0,
-            $departmentId ?: 0,
+            $divisionIds ?: '0',
+            $departmentIds ?: '0',
             $payrollTypeCode,
             $period,
             $workingDays,

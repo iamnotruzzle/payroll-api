@@ -21,15 +21,42 @@
                 <tr>
                     <th class="px-3 py-2">Payroll Period</th>
                     <th class="px-3 py-2">Payroll Type</th>
+                    <th class="px-3 py-2">Generation Configuration</th>
                     <th class="px-3 py-2">Generated</th>
                     <th class="px-3 py-2 text-right">Action</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
                 @forelse ($batches as $batch)
+                    @php
+                        $configuration = $batchConfigurations[$batch->id] ?? null;
+                    @endphp
                     <tr>
                         <td class="px-3 py-2 font-medium">{{ $batch->payroll_period }}</td>
                         <td class="px-3 py-2">{{ $batch->payroll_type }}</td>
+                        <td class="px-3 py-2">
+                            @if ($configuration)
+                                <div class="space-y-1 text-xs text-slate-600">
+                                    <div>
+                                        <span class="font-medium text-slate-700">Working:</span>
+                                        {{ $configuration['working_days'] === null ? 'Not recorded' : $configuration['working_days'].' days' }}
+                                        <span class="mx-1 text-slate-300">|</span>
+                                        <span class="font-medium text-slate-700">GSIS:</span>
+                                        {{ $configuration['gsis_days'] === null ? 'Not recorded' : $configuration['gsis_days'].' days' }}
+                                    </div>
+                                    <div>
+                                        <span class="font-medium text-slate-700">Employee:</span>
+                                        {{ $configuration['employee_type'] }}
+                                    </div>
+                                    <div>
+                                        <span class="font-medium text-slate-700">Leaves:</span>
+                                        {{ implode(', ', $configuration['leave_types']) }}
+                                    </div>
+                                </div>
+                            @else
+                                <span class="text-xs text-slate-500">Not recorded</span>
+                            @endif
+                        </td>
                         <td class="px-3 py-2">{{ $batch->snapshot_created_at?->format('M d, Y h:i A') }}</td>
                         <td class="px-3 py-2 text-right">
                             <button wire:click="selectBatch({{ $batch->id }})" class="rounded-md border border-slate-300 px-3 py-1.5 hover:bg-slate-50">
@@ -39,7 +66,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="4" class="px-3 py-8 text-center text-slate-500">No payroll snapshots found.</td>
+                        <td colspan="5" class="px-3 py-8 text-center text-slate-500">No payroll snapshots found.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -61,6 +88,44 @@
                 $reviewTableWidth += count($group['columns'] ?? []) * 120;
             }
         @endphp
+
+        @if ($selectedBatch && $selectedBatchConfiguration)
+            <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <h3 class="text-base font-semibold text-slate-900">Selected Payroll Snapshot</h3>
+                        <p class="mt-1 text-sm text-slate-600">
+                            {{ $selectedBatch->payroll_period }} | {{ $selectedBatch->payroll_type }}
+                            @if ($selectedBatchConfiguration['payroll_type_code'])
+                                ({{ $selectedBatchConfiguration['payroll_type_code'] }})
+                            @endif
+                        </p>
+                    </div>
+                    <div class="text-sm text-slate-600">
+                        Generated {{ $selectedBatch->snapshot_created_at?->format('M d, Y h:i A') }}
+                    </div>
+                </div>
+
+                <dl class="mt-4 grid gap-3 text-sm md:grid-cols-4">
+                    <div>
+                        <dt class="text-xs font-medium uppercase text-slate-500">Working Days</dt>
+                        <dd class="mt-1 text-slate-900">{{ $selectedBatchConfiguration['working_days'] ?? 'Not recorded' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium uppercase text-slate-500">GSIS Days</dt>
+                        <dd class="mt-1 text-slate-900">{{ $selectedBatchConfiguration['gsis_days'] ?? 'Not recorded' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium uppercase text-slate-500">Employee Type</dt>
+                        <dd class="mt-1 text-slate-900">{{ $selectedBatchConfiguration['employee_type'] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium uppercase text-slate-500">Included Leave Types</dt>
+                        <dd class="mt-1 text-slate-900">{{ implode(', ', $selectedBatchConfiguration['leave_types']) }}</dd>
+                    </div>
+                </dl>
+            </div>
+        @endif
 
         <div class="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
             <table class="divide-y divide-slate-200 text-sm" style="min-width: {{ $reviewTableWidth }}px;">
@@ -220,7 +285,7 @@
                                         @elseif ($columnKey === 'net_before_other_deductions')
                                             {{ number_format($totals['net_before_other_deductions'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'loan_total')
-                                            {{ number_format($loans['total'] ?? 0, 2) }}
+                                            {{ number_format($totals['total_other_deductions'] ?? (($programs['total'] ?? 0) + ($loans['total'] ?? 0)), 2) }}
                                         @elseif ($columnKey === 'net_after_loan_deductions')
                                             <span class="font-semibold">
                                                 {{ number_format($totals['net_after_loan_deductions'] ?? 0, 2) }}

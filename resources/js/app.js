@@ -39,12 +39,13 @@ const initPayrollEmployeePickers = () => {
             const componentRoot = select.closest('[wire\\:id]');
             const componentId = componentRoot?.getAttribute('wire:id');
             const model = select.dataset.model;
+            const deferRequest = select.dataset.deferRequest === 'true';
 
             if (!componentId || !model || !window.Livewire?.find) {
                 return;
             }
 
-            window.Livewire.find(componentId).set(model, isMultiple ? ($select.val() || []) : ($select.val() || null));
+            window.Livewire.find(componentId).set(model, isMultiple ? ($select.val() || []) : ($select.val() || null), !deferRequest);
         });
     });
 };

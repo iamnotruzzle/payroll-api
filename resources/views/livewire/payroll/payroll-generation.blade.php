@@ -1,8 +1,14 @@
 @php
     $payrollLoadingTargets = 'search,goToStep,nextStep,previousStep';
-    $selectedDepartment = $departments->firstWhere('department_id', $departmentId);
-    $selectedDivision = $divisions->firstWhere('division_id', $divisionId);
-    $scopeLabel = $selectedDepartment?->department ?? ($selectedDivision?->division ? $selectedDivision->division . ' Division' : 'Selected division');
+    $selectedDepartments = $departments->whereIn('department_id', $selectedDepartmentIds ?? []);
+    $selectedDivisions = $divisions->whereIn('division_id', $selectedDivisionIds ?? []);
+    $scopeLabel = $selectedDepartments->count() === 1
+        ? $selectedDepartments->first()->department
+        : ($selectedDepartments->count() > 1
+            ? $selectedDepartments->count() . ' Departments'
+            : ($selectedDivisions->count() === 1
+                ? $selectedDivisions->first()->division . ' Division'
+                : max(1, $selectedDivisions->count()) . ' Divisions'));
 @endphp
 
 <section
@@ -54,7 +60,7 @@
                 <span wire:loading.remove wire:target="saveStepChanges">Save as Draft</span>
                 <span wire:loading wire:target="saveStepChanges">Saving Draft...</span>
             </button>
-            <a href="{{ route('payroll.generation.configuration', ['division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'gsis_days' => $gsisDays, 'leave_type_ids' => $selectedLeaveTypeIds === [] ? 'none' : implode(',', $selectedLeaveTypeIds), 'employee_type' => $employeeTypeFilter]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+            <a href="{{ route('payroll.generation.configuration', ['division_ids' => implode(',', $selectedDivisionIds ?? []), 'department_ids' => implode(',', $selectedDepartmentIds ?? []), 'division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'gsis_days' => $gsisDays, 'leave_type_ids' => $selectedLeaveTypeIds === [] ? 'none' : implode(',', $selectedLeaveTypeIds), 'employee_type' => $employeeTypeFilter]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                 Change Configuration
             </a>
             <a href="{{ route('payroll.deduction-programs') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">

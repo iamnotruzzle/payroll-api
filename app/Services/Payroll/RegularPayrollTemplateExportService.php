@@ -134,6 +134,8 @@ class RegularPayrollTemplateExportService
             $loans = $row['loan_deductions']['columns'] ?? [];
             $programs = collect($row['program_deductions']['items'] ?? []);
             $adjustments = $row['compensation_adjustments'] ?? [];
+            $totalOtherDeductions = $row['total_other_deductions']
+                ?? (($row['program_deductions']['total'] ?? 0) + ($row['loan_deductions']['total'] ?? 0));
 
             $this->setCells($sheet, $excelRow, [
                 'A' => $index + 1,
@@ -185,7 +187,7 @@ class RegularPayrollTemplateExportService
                 'EK' => $this->programAmount($programs, ['death aid']),
                 'EL' => $this->programAmount($programs, ['penalty bac', 'bac']),
                 'EM' => $this->programAmount($programs, ['mmsu']),
-                'EO' => "=ROUND(SUM(BK{$excelRow},BP{$excelRow},BU{$excelRow},BZ{$excelRow},CE{$excelRow},CJ{$excelRow},CO{$excelRow},CT{$excelRow},CY{$excelRow},DD{$excelRow})+SUM(DJ{$excelRow}+DO{$excelRow}+DT{$excelRow}+DY{$excelRow}+ED{$excelRow})+SUM(EF{$excelRow},EG{$excelRow},EH{$excelRow},EI{$excelRow})+SUM(EK{$excelRow},EL{$excelRow},EM{$excelRow}),2)",
+                'EO' => $this->money($totalOtherDeductions),
                 'ET' => $this->money($tax['monthly_mandatory_deductions'] ?? 0),
                 'EU' => $this->money($tax['monthly_net_income'] ?? 0),
                 'EV' => $this->money($tax['monthly_tax_due'] ?? 0),

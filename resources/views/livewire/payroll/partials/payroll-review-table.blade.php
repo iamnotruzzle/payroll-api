@@ -65,7 +65,7 @@
                     @endforeach
                 @endforeach
                 <th class="px-4 py-3 text-right">Net Before Other Deductions</th>
-                <th class="px-4 py-3 text-right">Total Other Deductions</th>
+                <th class="px-4 py-3 text-right">TOTAL OTHER DEDUCTIONS</th>
                 <th class="px-4 py-3 text-right">Final Net Pay</th>
                 <th class="px-4 py-3 text-right">15th Payroll</th>
                 <th class="px-4 py-3 text-right">30th Payroll</th>
@@ -123,7 +123,7 @@
                         @endforeach
                     @endforeach
                     <td class="px-4 py-3 text-right">{{ number_format($row['net_before_other_deductions'], 2) }}</td>
-                    <td class="px-4 py-3 text-right">{{ number_format($row['loan_deductions']['total'] ?? 0, 2) }}</td>
+                    <td class="px-4 py-3 text-right">{{ number_format($row['total_other_deductions'] ?? (($row['program_deductions']['total'] ?? 0) + ($row['loan_deductions']['total'] ?? 0)), 2) }}</td>
                     <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_loan_deductions'], 2) }}</td>
                     <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['fifteenth'], 2) }}</td>
                     <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['thirtieth'], 2) }}</td>
@@ -176,7 +176,7 @@
                         @endforeach
                     @endforeach
                     <td class="px-4 py-3 text-right">{{ number_format($totals['net_before_other_deductions'], 2) }}</td>
-                    <td class="px-4 py-3 text-right">{{ number_format($totals['loan_deductions'], 2) }}</td>
+                    <td class="px-4 py-3 text-right">{{ number_format($totals['total_other_deductions'] ?? (($totals['program_deductions'] ?? 0) + ($totals['loan_deductions'] ?? 0)), 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['net_after_loan_deductions'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['fifteenth'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['thirtieth'], 2) }}</td>

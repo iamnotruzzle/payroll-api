@@ -16,7 +16,7 @@
                 <div class="grid gap-3 md:grid-cols-2">
                     <div>
                         <label class="text-sm font-medium">Payroll Type</label>
-                        <select wire:model="payrollType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <select wire:model="payrollType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
                             @foreach ($payrollTypes as $type)
                                 <option value="{{ $type->code }}">{{ $type->name }}</option>
                             @endforeach
@@ -26,7 +26,7 @@
 
                     <div>
                         <label class="text-sm font-medium">Employee Type</label>
-                        <select wire:model="employeeTypeFilter" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <select wire:model="employeeTypeFilter" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
                             @foreach ($employeeTypeOptions as $value => $label)
                                 <option value="{{ $value }}">{{ $label }}</option>
                             @endforeach
@@ -38,24 +38,39 @@
                 <div class="grid gap-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                     <div>
                         <label class="text-sm font-medium">Division</label>
-                        <select wire:model.live="divisionId" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            <option value="">Choose division</option>
+                        <select
+                            data-select2-searchable
+                            data-model="selectedDivisionIds"
+                            data-defer-request="true"
+                            data-placeholder="Search and select divisions"
+                            multiple
+                            class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm"
+                        >
                             @foreach ($divisions as $division)
-                                <option value="{{ $division->division_id }}">{{ $division->division }}</option>
+                                <option value="{{ $division->division_id }}" @selected(in_array((int) $division->division_id, $selectedDivisionIds, true))>{{ $division->division }}</option>
                             @endforeach
                         </select>
-                        @error('divisionId') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        @error('selectedDivisionIds') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        @error('selectedDivisionIds.*') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
 
                     <div>
                         <label class="text-sm font-medium">Department <span class="font-normal text-slate-500">(Optional)</span></label>
-                        <select wire:model="departmentId" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            <option value="">All departments in division</option>
+                        <select
+                            data-select2-searchable
+                            data-model="selectedDepartmentIds"
+                            data-defer-request="true"
+                            data-placeholder="Search and select departments"
+                            multiple
+                            class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm"
+                        >
                             @foreach ($departments as $department)
-                                <option value="{{ $department->department_id }}">{{ $department->department }}</option>
+                                <option value="{{ $department->department_id }}" @selected(in_array((int) $department->department_id, $selectedDepartmentIds, true))>{{ $department->department }}</option>
                             @endforeach
                         </select>
-                        @error('departmentId') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        <p class="mt-1 text-xs text-slate-500">Leave empty to include all departments in the selected division(s).</p>
+                        @error('selectedDepartmentIds') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        @error('selectedDepartmentIds.*') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
                 </div>
             </div>
@@ -65,7 +80,7 @@
                     <h3 class="text-sm font-semibold uppercase text-slate-500">Run Details</h3>
                 </div>
 
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                <div class="grid gap-3 md:grid-cols-3">
                     <div>
                         <label class="text-sm font-medium">Payroll Month</label>
                         <input wire:model="period" type="month" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
@@ -88,18 +103,16 @@
                 <div class="rounded-md border border-slate-200 p-3">
                     <div class="text-sm font-medium">Inclusive Leave Types</div>
                     <p class="mt-1 text-xs text-slate-500">Checked leave types are included in this payroll run.</p>
-                    <div class="mt-2 space-y-2">
+                    <div class="mt-2 grid gap-x-3 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
                         @foreach ($leaveTypes as $leaveType)
-                            <label class="flex items-start gap-2 text-sm text-slate-700">
+                            <label class="flex min-h-7 items-center gap-2 text-xs text-slate-700">
                                 <input
                                     wire:model="selectedLeaveTypeIds"
                                     type="checkbox"
                                     value="{{ $leaveType->leave_type_id }}"
-                                    class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                    class="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                 >
-                                <span class="mt-2">
-                                    <span class="font-medium">{{ $leaveType->leave_name }}</span>
-                                </span>
+                                <span class="leading-tight">{{ $leaveType->leave_name }}</span>
                             </label>
                         @endforeach
                     </div>

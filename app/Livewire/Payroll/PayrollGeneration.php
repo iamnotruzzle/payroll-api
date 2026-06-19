@@ -71,6 +71,10 @@ class PayrollGeneration extends Component
 
     public ?int $departmentId = null;
 
+    public array $selectedDivisionIds = [];
+
+    public array $selectedDepartmentIds = [];
+
     public string $period;
 
     public int $workingDays = 22;
@@ -167,14 +171,21 @@ class PayrollGeneration extends Component
             ? Department::query()->where('department_id', $userDepartmentId)->value('division_id')
             : null;
 
-        $this->divisionId = request()->integer('division_id') ?: $userDivisionId;
-        $this->departmentId = request()->integer('department_id') ?: null;
+        $this->selectedDivisionIds = $this->parseIdList(request()->query('division_ids', request()->query('division_id')));
+        if ($this->selectedDivisionIds === [] && $userDivisionId) {
+            $this->selectedDivisionIds = [(int) $userDivisionId];
+        }
+        $this->selectedDepartmentIds = $this->parseIdList(request()->query('department_ids', request()->query('department_id')));
+        $this->syncLegacyScopeIds();
 
-        if ($this->departmentId && $this->divisionId && ! Department::query()
-            ->where('department_id', $this->departmentId)
-            ->where('division_id', $this->divisionId)
-            ->exists()) {
-            $this->departmentId = null;
+        if ($this->selectedDepartmentIds !== [] && $this->selectedDivisionIds !== []) {
+            $this->selectedDepartmentIds = Department::query()
+                ->whereIn('department_id', $this->selectedDepartmentIds)
+                ->whereIn('division_id', $this->selectedDivisionIds)
+                ->pluck('department_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $this->syncLegacyScopeIds();
         }
 
         $this->period = request()->query('period', CarbonImmutable::today()->format('Y-m'));
@@ -673,7 +684,7 @@ class PayrollGeneration extends Component
 
     public function saveDraft(): void
     {
-        if (! $this->divisionId && ! $this->departmentId) {
+        if ($this->selectedDivisionIds === [] && $this->selectedDepartmentIds === []) {
             $this->addError('draft', 'Choose a division before saving this payroll draft.');
 
             return;
@@ -694,6 +705,8 @@ class PayrollGeneration extends Component
                 'employee_type' => $this->employeeTypeFilter,
                 'current_step' => $this->currentStep,
                 'state_json' => [
+                    'selected_division_ids' => $this->selectedDivisionIds,
+                    'selected_department_ids' => $this->selectedDepartmentIds,
                     'deduction_day_overrides' => $this->deductionDayOverrides,
                     'leave_deduction_overrides' => $this->leaveDeductionOverrides,
                     'leave_date_overrides' => $this->leaveDateOverrides,
@@ -833,7 +846,7 @@ class PayrollGeneration extends Component
 
     public function exportRegularPayrollTemplate(RegularPayrollTemplateExportService $exporter)
     {
-        if (! $this->divisionId && ! $this->departmentId) {
+        if ($this->selectedDivisionIds === [] && $this->selectedDepartmentIds === []) {
             $this->addError('finalize', 'Choose a division before exporting payroll.');
 
             return null;
@@ -927,6 +940,7 @@ class PayrollGeneration extends Component
             ],
             'net_compensation' => $rows->sum('net_compensation'),
             'net_before_other_deductions' => $rows->sum('net_before_other_deductions'),
+            'total_other_deductions' => $rows->sum('total_other_deductions'),
             'net_after_tax' => $rows->sum('net_after_tax'),
             'program_deductions' => $rows->sum('program_deductions.total'),
             'loan_deductions' => $rows->sum('loan_deductions.total'),
@@ -938,7 +952,7 @@ class PayrollGeneration extends Component
 
     private function payrollRows(Collection $compensations, Collection $deductionPrograms): Collection
     {
-        if (! $this->divisionId && ! $this->departmentId) {
+        if ($this->selectedDivisionIds === [] && $this->selectedDepartmentIds === []) {
             return collect();
         }
 
@@ -946,11 +960,7 @@ class PayrollGeneration extends Component
 
         $employees = Employee::query()
             ->with(['position', 'department.division'])
-            ->when(
-                $this->departmentId,
-                fn ($query) => $query->where('department_id', $this->departmentId),
-                fn ($query) => $query->whereHas('department', fn ($departmentQuery) => $departmentQuery->where('division_id', $this->divisionId))
-            )
+            ->when(true, fn ($query) => $this->applyEmployeeScope($query))
             ->where('is_active', 'Y')
             ->employeeType($this->employeeTypeFilter)
             ->when(trim($this->search) !== '', function ($query) {
@@ -1217,6 +1227,7 @@ class PayrollGeneration extends Component
             $programDeductionTotal = round(collect($programDeductionItems)->sum('amount'), 2);
             $employeeLoanItems = $loanItems->get($employee->emp_id, collect());
             $loanTotal = round($employeeLoanItems->sum('amount_due'), 2);
+            $totalOtherDeductions = round($programDeductionTotal + $loanTotal, 2);
             $loanColumns = $this->blankLoanColumns();
             foreach ($employeeLoanItems as $loanItem) {
                 $key = $this->loanColumnKey($loanItem);
@@ -1311,6 +1322,7 @@ class PayrollGeneration extends Component
                 ],
                 'gross' => $gross,
                 'net_before_other_deductions' => $netBeforeOtherDeductions,
+                'total_other_deductions' => $totalOtherDeductions,
                 'net_after_tax' => $netAfterTax,
                 'net_after_program_deductions' => $netAfterProgramDeductions,
                 'net_after_loan_deductions' => $netAfterLoanDeductions,
@@ -1351,6 +1363,9 @@ class PayrollGeneration extends Component
 
         $state = $draft->state_json ?? [];
         $this->currentStep = max(1, min(count($this->steps), (int) $draft->current_step));
+        $this->selectedDivisionIds = $this->normalizedIds($state['selected_division_ids'] ?? $this->selectedDivisionIds);
+        $this->selectedDepartmentIds = $this->normalizedIds($state['selected_department_ids'] ?? $this->selectedDepartmentIds);
+        $this->syncLegacyScopeIds();
         $this->deductionDayOverrides = (array) ($state['deduction_day_overrides'] ?? []);
         $this->leaveDeductionOverrides = (array) ($state['leave_deduction_overrides'] ?? []);
         $this->leaveDateOverrides = (array) ($state['leave_date_overrides'] ?? []);
@@ -1369,9 +1384,9 @@ class PayrollGeneration extends Component
 
     private function draftConfigurationKey(): string
     {
-        return PayrollGenerationDraft::configurationKey(
-            $this->divisionId,
-            $this->departmentId,
+        return PayrollGenerationDraft::configurationKeyForScope(
+            $this->selectedDivisionIds,
+            $this->selectedDepartmentIds,
             PayrollType::CODE_GENERAL,
             $this->period,
             $this->workingDays,
@@ -1540,12 +1555,12 @@ class PayrollGeneration extends Component
 
     private function previousMraReport(array $period): ?PayrollMraReport
     {
-        if (! $this->departmentId) {
+        if (count($this->selectedDepartmentIds) !== 1) {
             return null;
         }
 
         return PayrollMraReport::query()
-            ->where('department_id', $this->departmentId)
+            ->where('department_id', $this->selectedDepartmentIds[0])
             ->whereDate('period_start', $period['start']->toDateString())
             ->whereDate('period_end', $period['end']->toDateString())
             ->latest('generated_at')
@@ -1965,6 +1980,70 @@ class PayrollGeneration extends Component
     private function hasExplicitLeaveTypeSelection(mixed $value): bool
     {
         return $value === 'none' || (is_string($value) && trim($value) !== '') || (is_array($value) && $value !== []);
+    }
+
+    private function parseIdList(mixed $value): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        return $this->normalizedIds(is_array($value) ? $value : explode(',', (string) $value));
+    }
+
+    private function normalizedIds(array $values): array
+    {
+        return collect($values)
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function syncLegacyScopeIds(): void
+    {
+        $this->selectedDivisionIds = $this->normalizedIds($this->selectedDivisionIds);
+        $this->selectedDepartmentIds = $this->normalizedIds($this->selectedDepartmentIds);
+        $this->divisionId = $this->selectedDivisionIds[0] ?? null;
+        $this->departmentId = $this->selectedDepartmentIds[0] ?? null;
+    }
+
+    private function applyEmployeeScope($query)
+    {
+        if ($this->selectedDepartmentIds !== []) {
+            return $query->whereIn('department_id', $this->selectedDepartmentIds);
+        }
+
+        return $query->whereHas(
+            'department',
+            fn ($departmentQuery) => $departmentQuery->whereIn('division_id', $this->selectedDivisionIds)
+        );
+    }
+
+    private function scopeName(): string
+    {
+        if (count($this->selectedDepartmentIds) === 1) {
+            return Department::query()
+                ->where('department_id', $this->selectedDepartmentIds[0])
+                ->value('department') ?: 'Selected Department';
+        }
+
+        if (count($this->selectedDepartmentIds) > 1) {
+            return count($this->selectedDepartmentIds).' Departments';
+        }
+
+        if (count($this->selectedDivisionIds) === 1) {
+            $division = Division::query()
+                ->where('division_id', $this->selectedDivisionIds[0])
+                ->value('division');
+
+            return $division ? "{$division} Division" : 'Selected Division';
+        }
+
+        return count($this->selectedDivisionIds).' Divisions';
     }
 
     private function normalizedLeaveTypeIds(array $values): array
@@ -2498,7 +2577,7 @@ class PayrollGeneration extends Component
 
     public function finalizePayroll(): void
     {
-        if (! $this->divisionId && ! $this->departmentId) {
+        if ($this->selectedDivisionIds === [] && $this->selectedDepartmentIds === []) {
             $this->addError('finalize', 'Choose a division before finalizing payroll.');
 
             return;
@@ -2529,13 +2608,7 @@ class PayrollGeneration extends Component
         ) {
             $periodStart = $this->selectedPeriodStart();
             $periodEnd = $periodStart->endOfMonth();
-            $departmentName = Department::query()
-                ->where('department_id', $this->departmentId)
-                ->value('department');
-            $divisionName = Division::query()
-                ->where('division_id', $this->divisionId)
-                ->value('division');
-            $scopeName = $departmentName ?: $divisionName;
+            $scopeName = $this->scopeName();
             $generatedBy = auth()->user()?->emp_id ?? 'web';
             $payrollType = PayrollType::query()->firstOrCreate(
                 ['code' => PayrollType::CODE_GENERAL],
@@ -2638,7 +2711,7 @@ class PayrollGeneration extends Component
                 PayrollBatchRecord::create([
                     'payroll_batch_id' => $batch->id,
                     'emp_id' => $row['emp_id'],
-                    'department_id' => $this->departmentId,
+                    'department_id' => $row['department_id'],
 
                     'gross' => $row['net_compensation'],
                     'net' => $row['net_after_loan_deductions'],
@@ -2860,6 +2933,7 @@ class PayrollGeneration extends Component
                 'mandatory_deduction_adjustment' => $row['mandatory_deduction_adjustment'],
                 'total_mandatory_deductions' => $row['total_mandatory_deductions'],
                 'net_before_other_deductions' => $row['net_before_other_deductions'],
+                'total_other_deductions' => $row['total_other_deductions'],
                 'net_after_tax' => $row['net_after_tax'],
                 'net_after_program_deductions' => $row['net_after_program_deductions'],
                 'net_after_loan_deductions' => $row['net_after_loan_deductions'],
@@ -2974,7 +3048,7 @@ class PayrollGeneration extends Component
             'withholding_tax_adjustment' => ['label' => 'GC Withholding Tax (Adjustment)', 'enabled' => true],
             'program_total' => ['label' => 'Program Total', 'enabled' => true],
             'net_before_other_deductions' => ['label' => 'Net Before Other Deductions', 'enabled' => true],
-            'loan_total' => ['label' => 'Total Other Deductions', 'enabled' => true],
+            'loan_total' => ['label' => 'TOTAL OTHER DEDUCTIONS', 'enabled' => true],
             'net_after_loan_deductions' => ['label' => 'GD Net Pay', 'enabled' => true],
             'fifteenth' => ['label' => 'GE 15th', 'enabled' => true],
             'thirtieth' => ['label' => 'GF 30th', 'enabled' => true],
