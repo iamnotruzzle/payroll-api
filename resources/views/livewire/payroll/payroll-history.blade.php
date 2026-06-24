@@ -4,80 +4,205 @@
         <p class="text-sm text-slate-600">Payroll snapshot records.</p>
     </div>
 
-    <div class="grid gap-3 md:grid-cols-4">
-        <div>
-            <label class="text-sm font-medium">Date From</label>
-            <input type="date" wire:model.live="dateFrom" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+    <div class="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-5">
+        <div class="md:col-span-2">
+            <label class="text-sm font-medium">Search</label>
+            <input type="search" wire:model.live.debounce.300ms="search" placeholder="Period, type, or user" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
         </div>
         <div>
-            <label class="text-sm font-medium">Date To</label>
-            <input type="date" wire:model.live="dateTo" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <label class="text-sm font-medium">Payroll Period</label>
+            <input type="month" wire:model.live="period" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+        </div>
+        <div>
+            <label class="text-sm font-medium">Payroll Type</label>
+            <select wire:model.live="payrollTypeFilter" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <option value="">All types</option>
+                @foreach ($payrollTypeOptions as $code => $label)
+                    <option value="{{ $code }}">{{ $label }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div>
+            <label class="text-sm font-medium">Employee Type</label>
+            <select wire:model.live="employeeTypeFilter" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <option value="">All employees</option>
+                @foreach ($employeeTypeOptions as $code => $label)
+                    <option value="{{ $code }}">{{ $label }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="flex items-end md:col-start-5">
+            <button type="button" wire:click="clearFilters" class="h-9 whitespace-nowrap rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Clear Filters
+            </button>
         </div>
     </div>
 
-    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <table class="min-w-full divide-y divide-slate-200 text-sm">
-            <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                <tr>
-                    <th class="px-3 py-2">Payroll Period</th>
-                    <th class="px-3 py-2">Payroll Type</th>
-                    <th class="px-3 py-2">Generation Configuration</th>
-                    <th class="px-3 py-2">Generated</th>
-                    <th class="px-3 py-2 text-right">Action</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-                @forelse ($batches as $batch)
-                    @php
-                        $configuration = $batchConfigurations[$batch->id] ?? null;
-                    @endphp
+    <div class="flex border-b border-slate-200">
+        <button
+            type="button"
+            wire:click="showTab('finalized')"
+            class="border-b-2 px-4 py-2 text-sm font-medium {{ $activeTab === 'finalized' ? 'border-[#696cff] text-[#5f61e6]' : 'border-transparent text-slate-500 hover:text-slate-700' }}"
+        >
+            Finalized Snapshots
+        </button>
+        <button
+            type="button"
+            wire:click="showTab('drafts')"
+            class="border-b-2 px-4 py-2 text-sm font-medium {{ $activeTab === 'drafts' ? 'border-[#696cff] text-[#5f61e6]' : 'border-transparent text-slate-500 hover:text-slate-700' }}"
+        >
+            Saved Drafts
+        </button>
+    </div>
+
+    @if ($activeTab === 'finalized')
+        <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                     <tr>
-                        <td class="px-3 py-2 font-medium">{{ $batch->payroll_period }}</td>
-                        <td class="px-3 py-2">{{ $batch->payroll_type }}</td>
-                        <td class="px-3 py-2">
-                            @if ($configuration)
-                                <div class="space-y-1 text-xs text-slate-600">
-                                    <div>
-                                        <span class="font-medium text-slate-700">Working:</span>
-                                        {{ $configuration['working_days'] === null ? 'Not recorded' : $configuration['working_days'].' days' }}
-                                        <span class="mx-1 text-slate-300">|</span>
-                                        <span class="font-medium text-slate-700">GSIS:</span>
-                                        {{ $configuration['gsis_days'] === null ? 'Not recorded' : $configuration['gsis_days'].' days' }}
+                        <th class="px-3 py-2">Payroll Period</th>
+                        <th class="px-3 py-2">Payroll Type</th>
+                        <th class="px-3 py-2">Generation Configuration</th>
+                        <th class="px-3 py-2">Generated</th>
+                        <th class="px-3 py-2 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @forelse ($batches as $batch)
+                        @php
+                            $configuration = $batchConfigurations[$batch->id] ?? null;
+                        @endphp
+                        <tr>
+                            <td class="px-3 py-2 font-medium">{{ $batch->payroll_period }}</td>
+                            <td class="px-3 py-2">{{ $batch->payroll_type }}</td>
+                            <td class="px-3 py-2">
+                                @if ($configuration)
+                                    <div class="space-y-1 text-xs text-slate-600">
+                                        <div>
+                                            <span class="font-medium text-slate-700">Working:</span>
+                                            {{ $configuration['working_days'] === null ? 'Not recorded' : $configuration['working_days'].' days' }}
+                                            <span class="mx-1 text-slate-300">|</span>
+                                            <span class="font-medium text-slate-700">GSIS:</span>
+                                            {{ $configuration['gsis_days'] === null ? 'Not recorded' : $configuration['gsis_days'].' days' }}
+                                        </div>
+                                        <div>
+                                            <span class="font-medium text-slate-700">Employee:</span>
+                                            {{ $configuration['employee_type'] }}
+                                        </div>
+                                        <div class="max-w-[760px] truncate" title="{{ implode(', ', $configuration['leave_types']) }}">
+                                            <span class="font-medium text-slate-700">Leaves:</span>
+                                            {{ implode(', ', $configuration['leave_types']) }}
+                                        </div>
                                     </div>
-                                    <div>
-                                        <span class="font-medium text-slate-700">Employee:</span>
-                                        {{ $configuration['employee_type'] }}
-                                    </div>
-                                    <div>
-                                        <span class="font-medium text-slate-700">Leaves:</span>
-                                        {{ implode(', ', $configuration['leave_types']) }}
-                                    </div>
+                                @else
+                                    <span class="text-xs text-slate-500">Not recorded</span>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2">{{ $batch->snapshot_created_at?->format('M d, Y h:i A') }}</td>
+                            <td class="px-3 py-2 text-right align-top">
+                                <button wire:click="selectBatch({{ $batch->id }})" class="h-8 whitespace-nowrap rounded-md border border-slate-300 px-3 text-xs font-medium hover:bg-slate-50">
+                                    View Snapshot
+                                </button>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="px-3 py-8 text-center text-slate-500">No payroll snapshots found.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        <div>
+            {{ $batches->links() }}
+        </div>
+    @else
+        <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                    <tr>
+                        <th class="px-3 py-2">Payroll Period</th>
+                        <th class="px-3 py-2">Payroll Type</th>
+                        <th class="px-3 py-2">Scope</th>
+                        <th class="px-3 py-2">Saved Configuration</th>
+                        <th class="px-3 py-2">Saved</th>
+                        <th class="w-48 px-3 py-2 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @forelse ($drafts as $draft)
+                        @php
+                            $configuration = $draftConfigurations[$draft->id] ?? null;
+                        @endphp
+                        <tr>
+                            <td class="px-3 py-2 font-medium">{{ $draft->payroll_period }}</td>
+                            <td class="px-3 py-2">{{ strtoupper($draft->payroll_type_code) }}</td>
+                            <td class="max-w-[260px] px-3 py-2">
+                                <div class="truncate" title="{{ $configuration['scope'] ?? 'Not recorded' }}">
+                                    {{ $configuration['scope'] ?? 'Not recorded' }}
                                 </div>
-                            @else
-                                <span class="text-xs text-slate-500">Not recorded</span>
-                            @endif
-                        </td>
-                        <td class="px-3 py-2">{{ $batch->snapshot_created_at?->format('M d, Y h:i A') }}</td>
-                        <td class="px-3 py-2 text-right">
-                            <button wire:click="selectBatch({{ $batch->id }})" class="rounded-md border border-slate-300 px-3 py-1.5 hover:bg-slate-50">
-                                View Snapshot
-                            </button>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="5" class="px-3 py-8 text-center text-slate-500">No payroll snapshots found.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
+                            </td>
+                            <td class="px-3 py-2">
+                                @if ($configuration)
+                                    <div class="space-y-1 text-xs text-slate-600">
+                                        <div>
+                                            <span class="font-medium text-slate-700">Step:</span>
+                                            {{ $configuration['current_step'] }}
+                                            <span class="mx-1 text-slate-300">|</span>
+                                            <span class="font-medium text-slate-700">Working:</span>
+                                            {{ $configuration['working_days'] }} days
+                                            <span class="mx-1 text-slate-300">|</span>
+                                            <span class="font-medium text-slate-700">GSIS:</span>
+                                            {{ $configuration['gsis_days'] }} days
+                                        </div>
+                                        <div>
+                                            <span class="font-medium text-slate-700">Employee:</span>
+                                            {{ $configuration['employee_type'] }}
+                                        </div>
+                                        <div class="max-w-[760px] truncate" title="{{ implode(', ', $configuration['leave_types']) }}">
+                                            <span class="font-medium text-slate-700">Leaves:</span>
+                                            {{ implode(', ', $configuration['leave_types']) }}
+                                        </div>
+                                    </div>
+                                @else
+                                    <span class="text-xs text-slate-500">Not recorded</span>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2">
+                                <div>{{ $draft->saved_at?->format('M d, Y h:i A') }}</div>
+                                <div class="text-xs text-slate-500">{{ $draft->saved_by ?: 'Unknown user' }}</div>
+                            </td>
+                            <td class="px-3 py-2 text-right align-top">
+                                <div class="flex items-start justify-end gap-2 whitespace-nowrap">
+                                    <button wire:click="continueDraft({{ $draft->id }})" class="h-8 whitespace-nowrap rounded-md bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700">
+                                        Continue Draft
+                                    </button>
+                                    <button
+                                        wire:click="deleteDraft({{ $draft->id }})"
+                                        wire:confirm="Delete this saved payroll draft?"
+                                        class="h-8 whitespace-nowrap rounded-md border border-red-200 px-3 text-xs font-semibold text-red-700 hover:bg-red-50"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6" class="px-3 py-8 text-center text-slate-500">No saved payroll drafts found.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
 
-    <div>
-        {{ $batches->links() }}
-    </div>
+        <div>
+            {{ $drafts->links() }}
+        </div>
+    @endif
 
-    @if ($records->isNotEmpty())
+    @if ($activeTab === 'finalized' && $records->isNotEmpty())
         @php
             $firstSnapshot = $records->first()->snapshot_json ?? [];
             $columnGroups = $firstSnapshot['column_groups'] ?? [];

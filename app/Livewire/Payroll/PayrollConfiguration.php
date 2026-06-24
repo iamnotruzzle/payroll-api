@@ -179,62 +179,63 @@ class PayrollConfiguration extends Component
     private function existingGenerationsFor(array $data): array
     {
         $matches = [];
-        $configurationKey = $this->configurationKeyFor($data);
+        $selectedDivisionIds = $this->normalizedIds($data['selectedDivisionIds'] ?? []);
+        $selectedDepartmentIds = $this->normalizedIds($data['selectedDepartmentIds'] ?? []);
+        $selectedDivisionDepartmentIds = $this->departmentIdsForDivisions($selectedDivisionIds);
 
-        $draft = PayrollGenerationDraft::query()
-            ->where('configuration_key', $configurationKey)
-            ->first();
+        $drafts = PayrollGenerationDraft::query()
+            ->where('payroll_period', (string) $data['period'])
+            ->where('payroll_type_code', (string) $data['payrollType'])
+            ->latest('saved_at')
+            ->get()
+            ->filter(fn (PayrollGenerationDraft $draft) => $this->draftOverlapsConfiguration(
+                $draft,
+                $selectedDivisionIds,
+                $selectedDepartmentIds,
+                $selectedDivisionDepartmentIds,
+            ))
+            ->take(5);
 
-        if ($draft) {
+        foreach ($drafts as $draft) {
             $matches[] = [
                 'type' => 'draft',
                 'label' => 'Saved draft',
-                'description' => 'This exact configuration has an unfinished payroll draft.',
+                'description' => $this->draftOverlapDescription($draft, $selectedDivisionIds, $selectedDepartmentIds),
                 'date' => $draft->saved_at?->format('M d, Y g:i A'),
                 'by' => $draft->saved_by,
             ];
         }
 
-        $selectedLeaveTypeIds = $this->normalizedLeaveTypeIds($data['selectedLeaveTypeIds'] ?? []);
         $batches = PayrollBatch::query()
-            ->whereIn('division_id', $data['selectedDivisionIds'])
-            ->when(
-                ($data['selectedDepartmentIds'] ?? []) !== [],
-                fn ($query) => $query->whereIn('department_id', $data['selectedDepartmentIds']),
-                fn ($query) => $query->whereNull('department_id'),
-            )
             ->where('payroll_period', (string) $data['period'])
             ->where('payroll_type_code', (string) $data['payrollType'])
-            ->where('working_days', (int) $data['workingDays'])
-            ->where('employee_type', (string) $data['employeeTypeFilter'])
-            ->where('gsis_days', (int) $data['gsisDays'])
-            ->whereJsonLength('included_leave_type_ids', count($selectedLeaveTypeIds))
-            ->where(function ($query) use ($selectedLeaveTypeIds) {
-                foreach ($selectedLeaveTypeIds as $leaveTypeId) {
-                    $query->whereJsonContains('included_leave_type_ids', $leaveTypeId);
-                }
-            })
             ->latest('snapshot_created_at')
-            ->limit(3)
-            ->get();
+            ->get()
+            ->filter(fn (PayrollBatch $batch) => $this->batchOverlapsConfiguration(
+                $batch,
+                $selectedDivisionIds,
+                $selectedDepartmentIds,
+                $selectedDivisionDepartmentIds,
+            ))
+            ->take(5);
 
         foreach ($batches as $batch) {
             $matches[] = [
                 'type' => 'finalized',
                 'label' => 'Finalized payroll',
-                'description' => 'A payroll run with this exact configuration was already finalized.',
+                'description' => $this->batchOverlapDescription($batch, $selectedDivisionIds, $selectedDepartmentIds),
                 'date' => $batch->snapshot_created_at?->format('M d, Y g:i A'),
                 'by' => $batch->generated_by,
             ];
         }
 
-        if (($data['selectedDepartmentIds'] ?? []) === [] || count($data['selectedDepartmentIds']) !== 1 || $batches->isNotEmpty()) {
+        if ($selectedDepartmentIds === [] || count($selectedDepartmentIds) !== 1 || $batches->isNotEmpty()) {
             return $matches;
         }
 
         $legacyBatch = PayrollBatch::query()
             ->whereNull('division_id')
-            ->where('department_id', (int) $data['selectedDepartmentIds'][0])
+            ->where('department_id', (int) $selectedDepartmentIds[0])
             ->where('payroll_period', (string) $data['period'])
             ->whereNull('payroll_type_code')
             ->latest('snapshot_created_at')
@@ -251,6 +252,96 @@ class PayrollConfiguration extends Component
         }
 
         return $matches;
+    }
+
+    private function batchOverlapsConfiguration(PayrollBatch $batch, array $selectedDivisionIds, array $selectedDepartmentIds, array $selectedDivisionDepartmentIds): bool
+    {
+        $batchDivisionId = (int) ($batch->division_id ?? 0);
+        $batchDepartmentId = (int) ($batch->department_id ?? 0);
+
+        if ($batchDepartmentId > 0 && in_array($batchDepartmentId, $selectedDepartmentIds, true)) {
+            return true;
+        }
+
+        if ($batchDepartmentId === 0 && $batchDivisionId > 0 && in_array($batchDivisionId, $selectedDivisionIds, true)) {
+            return true;
+        }
+
+        if ($selectedDepartmentIds !== [] && $batchDepartmentId === 0 && $batchDivisionId > 0) {
+            return Department::query()
+                ->whereIn('department_id', $selectedDepartmentIds)
+                ->where('division_id', $batchDivisionId)
+                ->exists();
+        }
+
+        return $batchDepartmentId > 0 && in_array($batchDepartmentId, $selectedDivisionDepartmentIds, true);
+    }
+
+    private function draftOverlapsConfiguration(PayrollGenerationDraft $draft, array $selectedDivisionIds, array $selectedDepartmentIds, array $selectedDivisionDepartmentIds): bool
+    {
+        $state = $draft->state_json ?? [];
+        $draftDivisionIds = $this->normalizedIds($state['selected_division_ids'] ?? ($draft->division_id ? [$draft->division_id] : []));
+        $draftDepartmentIds = $this->normalizedIds($state['selected_department_ids'] ?? ($draft->department_id ? [$draft->department_id] : []));
+
+        if (array_intersect($draftDepartmentIds, $selectedDepartmentIds) !== []) {
+            return true;
+        }
+
+        if ($draftDepartmentIds === [] && array_intersect($draftDivisionIds, $selectedDivisionIds) !== []) {
+            return true;
+        }
+
+        if ($selectedDepartmentIds !== [] && $draftDepartmentIds === [] && $draftDivisionIds !== []) {
+            return Department::query()
+                ->whereIn('department_id', $selectedDepartmentIds)
+                ->whereIn('division_id', $draftDivisionIds)
+                ->exists();
+        }
+
+        return array_intersect($draftDepartmentIds, $selectedDivisionDepartmentIds) !== [];
+    }
+
+    private function batchOverlapDescription(PayrollBatch $batch, array $selectedDivisionIds, array $selectedDepartmentIds): string
+    {
+        if ($batch->department_id && in_array((int) $batch->department_id, $selectedDepartmentIds, true)) {
+            return 'A finalized payroll already exists for this department/office in the same period and payroll type.';
+        }
+
+        if (! $batch->department_id && $batch->division_id && in_array((int) $batch->division_id, $selectedDivisionIds, true)) {
+            return 'A finalized payroll already exists for this division in the same period and payroll type.';
+        }
+
+        return 'A finalized payroll already exists for an overlapping department/office or division in the same period and payroll type.';
+    }
+
+    private function draftOverlapDescription(PayrollGenerationDraft $draft, array $selectedDivisionIds, array $selectedDepartmentIds): string
+    {
+        $state = $draft->state_json ?? [];
+        $draftDivisionIds = $this->normalizedIds($state['selected_division_ids'] ?? ($draft->division_id ? [$draft->division_id] : []));
+        $draftDepartmentIds = $this->normalizedIds($state['selected_department_ids'] ?? ($draft->department_id ? [$draft->department_id] : []));
+
+        if (array_intersect($draftDepartmentIds, $selectedDepartmentIds) !== []) {
+            return 'A saved draft already exists for this department/office in the same period and payroll type.';
+        }
+
+        if ($draftDepartmentIds === [] && array_intersect($draftDivisionIds, $selectedDivisionIds) !== []) {
+            return 'A saved draft already exists for this division in the same period and payroll type.';
+        }
+
+        return 'A saved draft already exists for an overlapping department/office or division in the same period and payroll type.';
+    }
+
+    private function departmentIdsForDivisions(array $divisionIds): array
+    {
+        if ($divisionIds === []) {
+            return [];
+        }
+
+        return Department::query()
+            ->whereIn('division_id', $divisionIds)
+            ->pluck('department_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     private function configurationKeyFor(array $data): string

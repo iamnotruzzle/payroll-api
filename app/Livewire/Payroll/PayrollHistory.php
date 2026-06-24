@@ -9,20 +9,44 @@ use Livewire\WithPagination;
 
 use App\Models\Payroll\PayrollBatch;
 use App\Models\Payroll\PayrollBatchRecord;
+use App\Models\Payroll\PayrollGenerationDraft;
+use App\Models\Payroll\PayrollType;
 
 class PayrollHistory extends Component
 {
     use WithPagination;
 
+    public string $activeTab = 'finalized';
+
     public ?string $period = null;
 
-    public ?string $dateFrom = null;
+    public string $payrollTypeFilter = '';
 
-    public ?string $dateTo = null;
+    public string $employeeTypeFilter = '';
 
     public ?int $selectedBatchId = null;
 
     public string $search = '';
+
+    public function updated($property): void
+    {
+        if (in_array($property, ['period', 'payrollTypeFilter', 'employeeTypeFilter', 'search'], true)) {
+            $this->resetPage();
+            $this->resetPage('draftsPage');
+        }
+    }
+
+    public function showTab(string $tab): void
+    {
+        if (! in_array($tab, ['finalized', 'drafts'], true)) {
+            return;
+        }
+
+        $this->activeTab = $tab;
+        $this->selectedBatchId = null;
+        $this->resetPage();
+        $this->resetPage('draftsPage');
+    }
 
     public function selectBatch(int $batchId): void
     {
@@ -60,15 +84,15 @@ class PayrollHistory extends Component
             )
 
             ->when(
-                $this->dateFrom,
+                $this->payrollTypeFilter,
                 fn($q) =>
-                $q->whereDate('snapshot_created_at', '>=', $this->dateFrom)
+                $q->where('payroll_type_code', $this->payrollTypeFilter)
             )
 
             ->when(
-                $this->dateTo,
+                $this->employeeTypeFilter,
                 fn($q) =>
-                $q->whereDate('snapshot_created_at', '<=', $this->dateTo)
+                $q->where('employee_type', $this->employeeTypeFilter)
             )
 
             ->when(
@@ -77,13 +101,70 @@ class PayrollHistory extends Component
                 $q->where(function ($query) {
                     $query
                         ->where('payroll_period', 'like', '%' . $this->search . '%')
-                        ->orWhere('payroll_type', 'like', '%' . $this->search . '%');
+                        ->orWhere('payroll_type', 'like', '%' . $this->search . '%')
+                        ->orWhere('payroll_type_code', 'like', '%' . $this->search . '%')
+                        ->orWhere('generated_by', 'like', '%' . $this->search . '%');
                 })
             )
 
             ->latest('snapshot_created_at')
 
             ->paginate(10);
+    }
+
+    public function getDraftsProperty()
+    {
+        return PayrollGenerationDraft::query()
+            ->when(
+                $this->period,
+                fn ($q) => $q->where('payroll_period', $this->period)
+            )
+            ->when(
+                $this->payrollTypeFilter,
+                fn ($q) => $q->where('payroll_type_code', $this->payrollTypeFilter)
+            )
+            ->when(
+                $this->employeeTypeFilter,
+                fn ($q) => $q->where('employee_type', $this->employeeTypeFilter)
+            )
+            ->when(
+                $this->search,
+                fn ($q) => $q->where(function ($query) {
+                    $query
+                        ->where('payroll_period', 'like', '%' . $this->search . '%')
+                        ->orWhere('payroll_type_code', 'like', '%' . $this->search . '%')
+                        ->orWhere('saved_by', 'like', '%' . $this->search . '%');
+                })
+            )
+            ->latest('saved_at')
+            ->paginate(10, ['*'], 'draftsPage');
+    }
+
+    public function continueDraft(int $draftId)
+    {
+        $draft = PayrollGenerationDraft::query()->findOrFail($draftId);
+        $state = $draft->state_json ?? [];
+        $divisionIds = $this->normalizedDraftIds($state['selected_division_ids'] ?? ($draft->division_id ? [$draft->division_id] : []));
+        $departmentIds = $this->normalizedDraftIds($state['selected_department_ids'] ?? ($draft->department_id ? [$draft->department_id] : []));
+        $payrollTypeCode = $draft->payroll_type_code ?: PayrollType::CODE_GENERAL;
+
+        return redirect()->route(PayrollType::generationRouteFor($payrollTypeCode), [
+            'division_ids' => implode(',', $divisionIds),
+            'department_ids' => implode(',', $departmentIds),
+            'division_id' => $divisionIds[0] ?? null,
+            'department_id' => $departmentIds[0] ?? null,
+            'payroll_type' => $payrollTypeCode,
+            'period' => $draft->payroll_period,
+            'working_days' => $draft->working_days,
+            'gsis_days' => $draft->gsis_days ?? 30,
+            'leave_type_ids' => $this->leaveTypeIdsQueryValue($draft->included_leave_type_ids ?? []),
+            'employee_type' => $draft->employee_type,
+        ]);
+    }
+
+    public function deleteDraft(int $draftId): void
+    {
+        PayrollGenerationDraft::query()->whereKey($draftId)->delete();
     }
 
     public function generationConfigurationFor(PayrollBatch $batch): array
@@ -101,9 +182,28 @@ class PayrollHistory extends Component
         ];
     }
 
+    public function draftConfigurationFor(PayrollGenerationDraft $draft): array
+    {
+        $state = $draft->state_json ?? [];
+        $divisionIds = $this->normalizedDraftIds($state['selected_division_ids'] ?? ($draft->division_id ? [$draft->division_id] : []));
+        $departmentIds = $this->normalizedDraftIds($state['selected_department_ids'] ?? ($draft->department_id ? [$draft->department_id] : []));
+        $leaveTypeIds = $draft->included_leave_type_ids;
+
+        return [
+            'scope' => $this->scopeLabel($divisionIds, $departmentIds),
+            'payroll_type_code' => $draft->payroll_type_code ?: null,
+            'working_days' => $draft->working_days,
+            'gsis_days' => $draft->gsis_days,
+            'employee_type' => $this->employeeTypeLabel($draft->employee_type),
+            'current_step' => $draft->current_step,
+            'leave_types' => $this->includedLeaveTypeLabels(is_array($leaveTypeIds) ? $leaveTypeIds : null),
+        ];
+    }
+
     public function render()
     {
         $batches = $this->batches;
+        $drafts = $this->drafts;
         $records = $this->selectedBatchRecords;
         $selectedBatch = $this->selectedBatch;
         $selectedBatchConfiguration = $selectedBatch
@@ -113,6 +213,12 @@ class PayrollHistory extends Component
             ->getCollection()
             ->mapWithKeys(fn (PayrollBatch $batch) => [
                 $batch->id => $this->generationConfigurationFor($batch),
+            ])
+            ->all();
+        $draftConfigurations = $drafts
+            ->getCollection()
+            ->mapWithKeys(fn (PayrollGenerationDraft $draft) => [
+                $draft->id => $this->draftConfigurationFor($draft),
             ])
             ->all();
 
@@ -136,14 +242,29 @@ class PayrollHistory extends Component
         }
 
         return view('livewire.payroll.payroll-history', [
+            'activeTab' => $this->activeTab,
             'batches' => $batches,
+            'drafts' => $drafts,
             'records' => $records,
             'selectedBatch' => $selectedBatch,
             'selectedBatchConfiguration' => $selectedBatchConfiguration,
             'batchConfigurations' => $batchConfigurations,
+            'draftConfigurations' => $draftConfigurations,
             'compensationColumns' => $compensationColumns,
             'loanColumns' => $loanColumns,
+            'payrollTypeOptions' => $this->payrollTypeOptions(),
+            'employeeTypeOptions' => Employee::employeeTypeOptions(),
         ]);
+    }
+
+    public function clearFilters(): void
+    {
+        $this->period = null;
+        $this->payrollTypeFilter = '';
+        $this->employeeTypeFilter = '';
+        $this->search = '';
+        $this->resetPage();
+        $this->resetPage('draftsPage');
     }
 
     private function employeeTypeLabel(?string $employeeType): string
@@ -153,6 +274,15 @@ class PayrollHistory extends Component
         }
 
         return Employee::employeeTypeOptions()[$employeeType] ?? ucfirst($employeeType);
+    }
+
+    private function payrollTypeOptions(): array
+    {
+        return [
+            PayrollType::CODE_GENERAL => 'General',
+            PayrollType::CODE_HAZARD => 'Hazard',
+            PayrollType::CODE_MEDICARE => 'Medicare',
+        ];
     }
 
     private function includedLeaveTypeLabels(?array $leaveTypeIds): array
@@ -177,5 +307,57 @@ class PayrollHistory extends Component
         return $ids
             ->map(fn (int $id) => $labels[$id] ?? "Leave #{$id}")
             ->all();
+    }
+
+    private function normalizedDraftIds(mixed $values): array
+    {
+        return collect(is_array($values) ? $values : [$values])
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function leaveTypeIdsQueryValue(array $values): string
+    {
+        $ids = collect($values)
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        return $ids === [] ? 'none' : implode(',', $ids);
+    }
+
+    private function scopeLabel(array $divisionIds, array $departmentIds): string
+    {
+        if ($departmentIds !== []) {
+            $departments = \App\Models\Hris\Department::query()
+                ->whereIn('department_id', $departmentIds)
+                ->pluck('department')
+                ->all();
+
+            return $departments === []
+                ? count($departmentIds) . ' department(s)'
+                : implode(', ', $departments);
+        }
+
+        if ($divisionIds !== []) {
+            $divisions = \App\Models\Hris\Division::query()
+                ->whereIn('division_id', $divisionIds)
+                ->pluck('division')
+                ->all();
+
+            return $divisions === []
+                ? count($divisionIds) . ' division(s)'
+                : implode(', ', $divisions);
+        }
+
+        return 'Not recorded';
     }
 }
