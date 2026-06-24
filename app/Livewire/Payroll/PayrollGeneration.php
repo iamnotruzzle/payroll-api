@@ -8,7 +8,6 @@ use App\Models\Hris\Employee;
 use App\Models\Hris\EmployeeLeave;
 use App\Models\Hris\LeaveType;
 use App\Models\Hris\Position;
-use App\Models\Hris\SalaryGrade;
 use App\Models\Payroll\PayrollAdjustmentType;
 use App\Models\Payroll\PayrollAdditional;
 use App\Models\Payroll\PayrollAuditLog;
@@ -83,7 +82,9 @@ class PayrollGeneration extends Component
 
     public array $selectedLeaveTypeIds = [];
 
-    public string $search = '';
+    public array $employeeFilterIds = [];
+
+    public array $appliedEmployeeFilterIds = [];
 
     public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
 
@@ -164,6 +165,8 @@ class PayrollGeneration extends Component
 
     public ?string $draftNotice = null;
 
+    private ?StatutoryContributionService $statutoryContributionService = null;
+
     public function mount(): void
     {
         $userDepartmentId = auth()->user()?->employee?->department_id;
@@ -199,7 +202,8 @@ class PayrollGeneration extends Component
         $this->employeeTypeFilter = array_key_exists($employeeType, Employee::employeeTypeOptions())
             ? $employeeType
             : Employee::EMPLOYEE_TYPE_PLANTILLA;
-        $this->search = (string) request()->query('search', '');
+        $this->employeeFilterIds = $this->parseEmployeeIdList(request()->query('employee_ids', []));
+        $this->appliedEmployeeFilterIds = $this->employeeFilterIds;
         $this->loanColumnGroups = app(PayrollLoanReferenceService::class)->columnGroups();
         $this->restoreDraft();
         $this->currentStep = max(1, min(count($this->steps), request()->integer('step') ?: $this->currentStep));
@@ -248,6 +252,18 @@ class PayrollGeneration extends Component
     public function previousStep(): void
     {
         $this->goToStep($this->currentStep - 1);
+    }
+
+    public function applyEmployeeFilter(): void
+    {
+        $this->employeeFilterIds = $this->parseEmployeeIdList($this->employeeFilterIds);
+        $this->appliedEmployeeFilterIds = $this->employeeFilterIds;
+    }
+
+    public function clearEmployeeFilter(): void
+    {
+        $this->employeeFilterIds = [];
+        $this->appliedEmployeeFilterIds = [];
     }
 
     public function applyDeductionProgram(int $programId): void
@@ -678,7 +694,7 @@ class PayrollGeneration extends Component
 
         $this->taxAnnualizationFile = null;
         $this->taxAnnualizationImportMessage = $imported > 0
-            ? "Imported annualization lookup values for {$imported} employee(s). Click Save Step to keep them in the draft."
+            ? "Imported annualization lookup values for {$imported} employee(s). Click Save as Draft to keep them in the draft."
             : 'No annualization lookup rows were found in the selected workbook.';
     }
 
@@ -888,6 +904,7 @@ class PayrollGeneration extends Component
         return view('livewire.payroll.payroll-generation', [
             'departments' => Department::query()->orderBy('department')->get(),
             'divisions' => Division::query()->orderBy('division')->get(),
+            'employeeFilterOptions' => $this->employeeFilterOptions(),
             'employeeTypeOptions' => Employee::employeeTypeOptions(),
             'compensations' => $compensations,
             'deductionPrograms' => $deductionPrograms,
@@ -963,19 +980,15 @@ class PayrollGeneration extends Component
             ->when(true, fn ($query) => $this->applyEmployeeScope($query))
             ->where('is_active', 'Y')
             ->employeeType($this->employeeTypeFilter)
-            ->when(trim($this->search) !== '', function ($query) {
-                $search = trim($this->search);
-                $query->where(function ($query) use ($search) {
-                    $query->where('emp_id', 'like', "%{$search}%")
-                        ->orWhere('firstname', 'like', "%{$search}%")
-                        ->orWhere('lastname', 'like', "%{$search}%");
-                });
-            })
+            ->when($this->appliedEmployeeFilterIds !== [], fn ($query) => $query->whereIn('emp_id', $this->appliedEmployeeFilterIds))
             ->orderBy('lastname')
             ->orderBy('firstname')
             ->get();
 
         $salaryMatrix = $this->salaryMatrix();
+        $loanReferenceRows = $this->loanReferenceRows();
+        $loanReferenceByEntity = $this->loanReferenceByEntity($loanReferenceRows);
+        $loanReferenceLookup = $this->loanReferenceLookup($loanReferenceRows);
         $periodStart = $this->selectedPeriodStart();
         $periodEnd = $periodStart->endOfMonth();
         $previousMraPeriod = $this->previousMraPeriod();
@@ -1036,7 +1049,7 @@ class PayrollGeneration extends Component
             : collect();
         $labelOptions = PayrollDtrLabelOption::query()->get()->keyBy('code');
 
-        return $employees->map(function (Employee $employee) use ($compensations, $deductionPrograms, $adjustmentTypes, $salaryMatrix, $leaves, $excludedLeaveDates, $labels, $adjustments, $mraAdjustments, $labelOptions, $loanItems, $previousTaxAnnualization, $periodStart, $periodEnd, $leavePeriodStart, $leavePeriodEnd) {
+        return $employees->map(function (Employee $employee) use ($compensations, $deductionPrograms, $adjustmentTypes, $salaryMatrix, $loanReferenceByEntity, $loanReferenceLookup, $leaves, $excludedLeaveDates, $labels, $adjustments, $mraAdjustments, $labelOptions, $loanItems, $previousTaxAnnualization, $periodStart, $periodEnd, $leavePeriodStart, $leavePeriodEnd) {
             $payBasis = $this->editablePayBasisFor($employee);
             $salaryGrade = $payBasis['salary_grade'];
             $step = $payBasis['step'];
@@ -1230,7 +1243,7 @@ class PayrollGeneration extends Component
             $totalOtherDeductions = round($programDeductionTotal + $loanTotal, 2);
             $loanColumns = $this->blankLoanColumns();
             foreach ($employeeLoanItems as $loanItem) {
-                $key = $this->loanColumnKey($loanItem);
+                $key = $this->loanColumnKeyFromReference($loanItem, $loanReferenceByEntity);
                 $loanColumns[$key] = round(($loanColumns[$key] ?? 0) + (float) $loanItem->amount_due, 2);
             }
             $loanByEntity = $employeeLoanItems
@@ -1293,14 +1306,15 @@ class PayrollGeneration extends Component
                 'loan_deductions' => [
                     'total' => $loanTotal,
                     'columns' => $loanColumns,
-                    'items' => $employeeLoanItems->map(function (PayrollLoanImportItem $item) {
-                        $loanType = $this->loanTypeForItem($item);
+                    'items' => $employeeLoanItems->map(function (PayrollLoanImportItem $item) use ($loanReferenceByEntity, $loanReferenceLookup) {
+                        $loanColumnKey = $this->loanColumnKeyFromReference($item, $loanReferenceByEntity);
+                        $loanType = $this->loanTypeForItemFromReference($item, $loanColumnKey, $loanReferenceLookup);
 
                         return [
                             'id' => $item->id,
                             'emp_id' => $item->matched_emp_id,
                             'entity' => $item->entity,
-                            'loan_type_id' => $loanType?->id ? (string) $loanType->id : '',
+                            'loan_type_id' => $loanType ? (string) $loanType['id'] : '',
                             'loan_account_no' => $item->loan_account_no,
                             'loan_type' => $item->loan_type,
                             'monthly_amortization' => (string) $item->monthly_amortization,
@@ -1342,6 +1356,8 @@ class PayrollGeneration extends Component
         $this->compensationAdjustments = [];
         $this->mandatoryDeductionAdjustments = [];
         $this->taxAnnualizationOverrides = [];
+        $this->employeeFilterIds = [];
+        $this->appliedEmployeeFilterIds = [];
         $this->selectedAdjustmentTypeIds = [];
         $this->deductionProgramSelections = [];
         $this->finalizedRunId = null;
@@ -1496,6 +1512,96 @@ class PayrollGeneration extends Component
     private function loanColumnKey(PayrollLoanImportItem $item): string
     {
         return app(PayrollLoanReferenceService::class)->columnKeyFor($item);
+    }
+
+    private function loanReferenceRows(): Collection
+    {
+        return DB::connection('payroll')
+            ->table('payroll_loan_types as types')
+            ->join('payroll_loan_entities as entities', 'entities.id', '=', 'types.entity_id')
+            ->where('types.is_active', true)
+            ->select([
+                'types.id',
+                'types.name',
+                'types.review_column_key',
+                'types.review_column_label',
+                'types.match_keywords',
+                'types.sort_order',
+                'entities.code as entity_code',
+                'entities.name as entity_name',
+            ])
+            ->orderBy('types.sort_order')
+            ->orderBy('types.name')
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'name' => (string) $row->name,
+                'review_column_key' => (string) $row->review_column_key,
+                'review_column_label' => (string) $row->review_column_label,
+                'match_keywords' => array_values((array) json_decode((string) $row->match_keywords, true)),
+                'entity_code' => strtoupper((string) $row->entity_code),
+                'entity_name' => strtoupper((string) $row->entity_name),
+            ]);
+    }
+
+    private function loanReferenceByEntity(Collection $loanReferenceRows): Collection
+    {
+        return $loanReferenceRows->reduce(function (Collection $groups, array $type) {
+            foreach (array_unique([$type['entity_code'], $type['entity_name']]) as $entity) {
+                $groups[$entity] = $groups->get($entity, collect())->push($type);
+            }
+
+            return $groups;
+        }, collect())->map(fn (Collection $items) => $items->unique('id')->values());
+    }
+
+    private function loanReferenceLookup(Collection $loanReferenceRows): Collection
+    {
+        return $loanReferenceRows
+            ->flatMap(fn (array $type) => collect([
+                $this->loanLookupKey('name', $type['name']) => $type,
+                $this->loanLookupKey('label', $type['review_column_label']) => $type,
+                $this->loanLookupKey('key', $type['review_column_key']) => $type,
+            ]))
+            ->filter(fn ($type, string $key) => $key !== '');
+    }
+
+    private function loanLookupKey(string $field, mixed $value): string
+    {
+        $value = trim(strtolower((string) $value));
+
+        return $value === '' ? '' : $field.'|'.$value;
+    }
+
+    private function loanColumnKeyFromReference(PayrollLoanImportItem $item, Collection $loanReferenceByEntity): string
+    {
+        $entity = strtoupper((string) $item->entity);
+        $typeText = strtoupper((string) $item->loan_type.' '.$item->loan_account_no.' '.$item->remarks);
+        $types = $loanReferenceByEntity->get($entity, collect());
+
+        foreach ($types as $type) {
+            foreach (($type['match_keywords'] ?: []) as $keyword) {
+                if ($keyword !== '' && str_contains($typeText, strtoupper((string) $keyword))) {
+                    return $type['review_column_key'];
+                }
+            }
+        }
+
+        return ($types->first()['review_column_key'] ?? null)
+            ?? match ($entity) {
+                'UCPB' => 'ucpb',
+                'DBP' => 'dbp',
+                'LBP' => 'lbp',
+                'COCO' => 'coco',
+                default => 'other_loans',
+            };
+    }
+
+    private function loanTypeForItemFromReference(PayrollLoanImportItem $item, string $loanColumnKey, Collection $loanReferenceLookup): ?array
+    {
+        return $loanReferenceLookup->get($this->loanLookupKey('name', $item->loan_type))
+            ?? $loanReferenceLookup->get($this->loanLookupKey('label', $item->loan_type))
+            ?? $loanReferenceLookup->get($this->loanLookupKey('key', $loanColumnKey));
     }
 
     private function manualLoanImportFor(CarbonImmutable $periodStart): \App\Models\Payroll\PayrollLoanImport
@@ -1918,13 +2024,14 @@ class PayrollGeneration extends Component
 
     private function statutoryContributions(float $basicSalary): array
     {
-        $contributions = app(StatutoryContributionService::class)->calculate(
+        $service = $this->statutoryContributionService();
+        $contributions = $service->calculate(
             $basicSalary,
             $this->selectedPeriodStart(),
         );
 
         $gsisBaseSalary = round($basicSalary * (max(0, min(30, $this->gsisDays)) / 30), 2);
-        $gsisContributions = app(StatutoryContributionService::class)->calculate(
+        $gsisContributions = $service->calculate(
             $gsisBaseSalary,
             $this->selectedPeriodStart(),
         );
@@ -1936,6 +2043,11 @@ class PayrollGeneration extends Component
         $contributions['employer_total'] = round(array_sum($contributions['employer']), 2);
 
         return $contributions;
+    }
+
+    private function statutoryContributionService(): StatutoryContributionService
+    {
+        return $this->statutoryContributionService ??= app(StatutoryContributionService::class);
     }
 
     private function excludedLeaveDates(array $empIds, CarbonImmutable $periodStart, CarbonImmutable $periodEnd): Collection
@@ -1991,6 +2103,20 @@ class PayrollGeneration extends Component
         return $this->normalizedIds(is_array($value) ? $value : explode(',', (string) $value));
     }
 
+    private function parseEmployeeIdList(mixed $value): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        return collect(is_array($value) ? $value : explode(',', (string) $value))
+            ->map(fn ($id) => trim((string) $id))
+            ->filter(fn (string $id) => $id !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     private function normalizedIds(array $values): array
     {
         return collect($values)
@@ -2021,6 +2147,37 @@ class PayrollGeneration extends Component
             'department',
             fn ($departmentQuery) => $departmentQuery->whereIn('division_id', $this->selectedDivisionIds)
         );
+    }
+
+    private function employeeFilterOptions(): Collection
+    {
+        if ($this->selectedDivisionIds === [] && $this->selectedDepartmentIds === []) {
+            return collect();
+        }
+
+        return Employee::query()
+            ->select([
+                'emp_id',
+                'firstname',
+                'middlename',
+                'lastname',
+                'extension',
+                'suffix',
+                'position_id',
+                'department_id',
+                'is_active',
+            ])
+            ->with(['position:position_id,position_title'])
+            ->when(true, fn ($query) => $this->applyEmployeeScope($query))
+            ->where('is_active', 'Y')
+            ->employeeType($this->employeeTypeFilter)
+            ->orderBy('lastname')
+            ->orderBy('firstname')
+            ->get()
+            ->map(fn (Employee $employee) => [
+                'emp_id' => (string) $employee->emp_id,
+                'label' => trim($employee->emp_id.' - '.$this->formatPayrollEmployeeName($employee).' - '.($employee->position?->position_title ?? 'No position'), ' -'),
+            ]);
     }
 
     private function scopeName(): string
@@ -2412,7 +2569,8 @@ class PayrollGeneration extends Component
 
     private function salaryMatrix(): array
     {
-        $grades = SalaryGrade::query()
+        $grades = DB::connection('mysql')
+            ->table('tbl_salary_grade')
             ->select(['salary_grade', 'step_increment', 'salary', 'effectivity_date'])
             ->orderByDesc('effectivity_date')
             ->get()

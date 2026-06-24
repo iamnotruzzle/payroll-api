@@ -1,5 +1,5 @@
 @php
-    $payrollLoadingTargets = 'search,goToStep,nextStep,previousStep';
+    $payrollLoadingTargets = 'applyEmployeeFilter,clearEmployeeFilter,goToStep,nextStep,previousStep';
     $selectedDepartments = $departments->whereIn('department_id', $selectedDepartmentIds ?? []);
     $selectedDivisions = $divisions->whereIn('division_id', $selectedDivisionIds ?? []);
     $scopeLabel = $selectedDepartments->count() === 1
@@ -34,7 +34,7 @@
             }
 
             if (this.stepDirty) {
-                alert('You have unsaved changes on this step. Please click Save Step before leaving.');
+                alert('You have unsaved changes on this step. Please click Save as Draft before leaving.');
                 return;
             }
 
@@ -63,15 +63,6 @@
             <a href="{{ route('payroll.generation.configuration', ['division_ids' => implode(',', $selectedDivisionIds ?? []), 'department_ids' => implode(',', $selectedDepartmentIds ?? []), 'division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'gsis_days' => $gsisDays, 'leave_type_ids' => $selectedLeaveTypeIds === [] ? 'none' : implode(',', $selectedLeaveTypeIds), 'employee_type' => $employeeTypeFilter]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                 Change Configuration
             </a>
-            <a href="{{ route('payroll.deduction-programs') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
-                Manage Deduction Programs
-            </a>
-            <a href="{{ route('payroll.compensations') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
-                Manage Compensations
-            </a>
-            <a href="{{ route('payroll.adjustment-types') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
-                Manage Adjustment Types
-            </a>
         </div>
     </div>
 
@@ -97,12 +88,49 @@
         </div>
     @endif
 
-    <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <label class="text-sm font-medium">Employee Search</label>
-        <input wire:model.live.debounce.300ms="search" wire:loading.attr="disabled" wire:target="{{ $payrollLoadingTargets }}" type="search" placeholder="Filter generated payroll rows by employee ID or name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
-    </div>
-
     <div class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+        <div class="mb-3 flex flex-wrap items-end justify-end gap-2">
+            <div class="w-full sm:max-w-xl">
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="payroll-employee-filter">
+                    Employee Filter
+                </label>
+                <select
+                    id="payroll-employee-filter"
+                    data-select2-employee-picker
+                    data-model="employeeFilterIds"
+                    data-defer-request="true"
+                    data-placeholder="Select employees"
+                    multiple
+                    wire:loading.attr="disabled"
+                    wire:target="{{ $payrollLoadingTargets }}"
+                    class="w-full rounded-md border border-slate-300 text-sm"
+                >
+                    @foreach ($employeeFilterOptions as $employee)
+                        <option value="{{ $employee['emp_id'] }}" @selected(in_array((string) $employee['emp_id'], $employeeFilterIds, true))>
+                            {{ $employee['label'] }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <button
+                type="button"
+                wire:click="applyEmployeeFilter"
+                wire:loading.attr="disabled"
+                wire:target="{{ $payrollLoadingTargets }}"
+                class="rounded-md bg-[#5f61e6] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#5254d9] disabled:cursor-wait disabled:opacity-60"
+            >
+                Filter
+            </button>
+            <button
+                type="button"
+                wire:click="clearEmployeeFilter"
+                wire:loading.attr="disabled"
+                wire:target="{{ $payrollLoadingTargets }}"
+                class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+            >
+                Clear
+            </button>
+        </div>
         <div class="grid gap-2 md:grid-cols-4 lg:grid-cols-8">
             @foreach ($steps as $number => $label)
                 <button
@@ -163,25 +191,6 @@
         x-on:input="markStepDirty({{ $currentStep }}, $event)"
         x-on:change="markStepDirty({{ $currentStep }}, $event)"
     >
-    @if (in_array($currentStep, [1, 3, 4, 5, 7], true))
-        <div class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-            <div>
-                <div class="font-semibold">Step changes</div>
-                <div x-show="stepDirty">Unsaved edits are waiting on this step.</div>
-                <div x-show="!stepDirty">This step has no unsaved edits.</div>
-            </div>
-            <button
-                type="button"
-                x-on:click="saveStep()"
-                wire:loading.attr="disabled"
-                wire:target="saveStepChanges"
-                class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
-            >
-                <span wire:loading.remove wire:target="saveStepChanges">Save Step</span>
-                <span wire:loading wire:target="saveStepChanges">Saving...</span>
-            </button>
-        </div>
-    @endif
     @if ($currentStep === 1)
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-4 py-3">
@@ -614,9 +623,6 @@
                     <h3 class="font-semibold">Deduction Programs</h3>
                     <p class="text-sm text-slate-600">Turn recurring deductions on for this payroll run and choose who they apply to.</p>
                 </div>
-                <a href="{{ route('payroll.deduction-programs') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
-                    Manage Programs
-                </a>
             </div>
 
             @php
@@ -1348,29 +1354,7 @@
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-4 py-3">
                 <h3 class="font-semibold">Tax Calculation</h3>
-                <p class="text-sm text-slate-600">Annualization IV:KA with GB:GF withholding tax outputs.</p>
-            </div>
-            <div class="flex flex-wrap items-end gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-                <div class="min-w-72">
-                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Actual Payroll Workbook</label>
-                    <input wire:model="taxAnnualizationFile" type="file" accept=".xlsx,.xls,.xlsm" class="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
-                    @error('taxAnnualizationFile')
-                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                    @enderror
-                </div>
-                <button
-                    type="button"
-                    wire:click="importTaxAnnualizationLookup"
-                    wire:loading.attr="disabled"
-                    wire:target="importTaxAnnualizationLookup,taxAnnualizationFile"
-                    class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60"
-                >
-                    <span wire:loading.remove wire:target="importTaxAnnualizationLookup,taxAnnualizationFile">Import Annualization Lookup</span>
-                    <span wire:loading wire:target="importTaxAnnualizationLookup,taxAnnualizationFile">Importing...</span>
-                </button>
-                @if ($taxAnnualizationImportMessage)
-                    <p class="text-sm text-slate-700">{{ $taxAnnualizationImportMessage }}</p>
-                @endif
+                <p class="text-sm text-slate-600">Review annualized taxable income, tax due, withholding tax, and net pay.</p>
             </div>
             <div class="hidden overflow-x-auto">
                 <table class="min-w-[2480px] divide-y divide-slate-200 text-sm">
@@ -1482,7 +1466,7 @@
                         <tr>
                             <th class="px-4 py-2" colspan="3"></th>
                             <th class="px-4 py-2 text-center" colspan="30">ANNUALIZATION</th>
-                            <th class="px-4 py-2 text-center" colspan="6">GB:GF</th>
+                            <th class="px-4 py-2 text-center" colspan="6">WITHHOLDING TAX OUTPUTS</th>
                         </tr>
                         <tr>
                             <th class="payroll-sticky-employee-header px-4 py-3">Employee</th>

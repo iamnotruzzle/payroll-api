@@ -2,14 +2,16 @@
 
 namespace App\Services\Payroll;
 
-use App\Models\Payroll\PayrollStatutoryContribution;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class StatutoryContributionService
 {
+    private array $rulesByDate = [];
+
     private const FALLBACK_RULES = [
         'gsis_life_retirement' => [
             'employee_label' => 'life_retirement',
@@ -171,42 +173,26 @@ class StatutoryContributionService
     private function rulesForDate(CarbonInterface $date, float $monthlySalary): array
     {
         try {
-            $rules = PayrollStatutoryContribution::query()
-                ->with(['brackets' => function ($query) use ($date) {
-                    $query
-                        ->where(function ($query) use ($date) {
-                            $query->whereNull('effective_start')
-                                ->orWhereDate('effective_start', '<=', $date->toDateString());
-                        })
-                        ->where(function ($query) use ($date) {
-                            $query->whereNull('effective_end')
-                                ->orWhereDate('effective_end', '>=', $date->toDateString());
-                        })
-                        ->orderByDesc('effective_start')
-                        ->orderByDesc('min_salary');
-                }])
-                ->where('is_active', true)
-                ->whereIn('code', array_keys(self::FALLBACK_RULES))
-                ->get()
-                ->mapWithKeys(function (PayrollStatutoryContribution $contribution) use ($monthlySalary) {
+            $rules = $this->activeRulesForDate($date)
+                ->mapWithKeys(function (array $contribution) use ($monthlySalary) {
                     $bracket = $this->matchingBracket($contribution, $monthlySalary);
                     if (! $bracket) {
                         return [];
                     }
 
                     return [
-                        $contribution->code => [
-                            'name' => $contribution->name,
-                            'effective_start' => $bracket->effective_start?->toDateString(),
-                            'effective_end' => $bracket->effective_end?->toDateString(),
-                            'min_salary' => (float) $bracket->min_salary,
-                            'max_salary' => $bracket->max_salary !== null ? (float) $bracket->max_salary : null,
-                            'employee_rate' => (float) $bracket->employee_rate,
-                            'employer_rate' => (float) $bracket->employer_rate,
-                            'employee_fixed_amount' => $bracket->employee_fixed_amount !== null ? (float) $bracket->employee_fixed_amount : null,
-                            'employer_fixed_amount' => $bracket->employer_fixed_amount !== null ? (float) $bracket->employer_fixed_amount : null,
-                            'employee_cap' => $bracket->employee_cap !== null ? (float) $bracket->employee_cap : null,
-                            'employer_cap' => $bracket->employer_cap !== null ? (float) $bracket->employer_cap : null,
+                        $contribution['code'] => [
+                            'name' => $contribution['name'],
+                            'effective_start' => $bracket['effective_start'],
+                            'effective_end' => $bracket['effective_end'],
+                            'min_salary' => (float) $bracket['min_salary'],
+                            'max_salary' => $bracket['max_salary'] !== null ? (float) $bracket['max_salary'] : null,
+                            'employee_rate' => (float) $bracket['employee_rate'],
+                            'employer_rate' => (float) $bracket['employer_rate'],
+                            'employee_fixed_amount' => $bracket['employee_fixed_amount'] !== null ? (float) $bracket['employee_fixed_amount'] : null,
+                            'employer_fixed_amount' => $bracket['employer_fixed_amount'] !== null ? (float) $bracket['employer_fixed_amount'] : null,
+                            'employee_cap' => $bracket['employee_cap'] !== null ? (float) $bracket['employee_cap'] : null,
+                            'employer_cap' => $bracket['employer_cap'] !== null ? (float) $bracket['employer_cap'] : null,
                         ],
                     ];
                 });
@@ -217,13 +203,75 @@ class StatutoryContributionService
         }
     }
 
-    private function matchingBracket(PayrollStatutoryContribution $contribution, float $monthlySalary): mixed
+    private function activeRulesForDate(CarbonInterface $date): Collection
+    {
+        $dateKey = $date->toDateString();
+
+        if (array_key_exists($dateKey, $this->rulesByDate)) {
+            return $this->rulesByDate[$dateKey];
+        }
+
+        $brackets = DB::connection('payroll')
+            ->table('payroll_statutory_contribution_brackets as brackets')
+            ->join('payroll_statutory_contributions as contributions', 'contributions.id', '=', 'brackets.statutory_contribution_id')
+            ->where('contributions.is_active', true)
+            ->whereIn('contributions.code', array_keys(self::FALLBACK_RULES))
+            ->where(function ($query) use ($dateKey) {
+                $query->whereNull('brackets.effective_start')
+                    ->orWhereDate('brackets.effective_start', '<=', $dateKey);
+            })
+            ->where(function ($query) use ($dateKey) {
+                $query->whereNull('brackets.effective_end')
+                    ->orWhereDate('brackets.effective_end', '>=', $dateKey);
+            })
+            ->orderByDesc('brackets.effective_start')
+            ->orderByDesc('brackets.min_salary')
+            ->select([
+                'contributions.code',
+                'contributions.name',
+                'brackets.effective_start',
+                'brackets.effective_end',
+                'brackets.min_salary',
+                'brackets.max_salary',
+                'brackets.employee_rate',
+                'brackets.employer_rate',
+                'brackets.employee_fixed_amount',
+                'brackets.employer_fixed_amount',
+                'brackets.employee_cap',
+                'brackets.employer_cap',
+            ])
+            ->get()
+            ->groupBy('code')
+            ->map(fn (Collection $rows, string $code) => [
+                'code' => $code,
+                'name' => (string) $rows->first()->name,
+                'brackets' => $rows
+                    ->map(fn ($row) => [
+                        'effective_start' => $row->effective_start,
+                        'effective_end' => $row->effective_end,
+                        'min_salary' => $row->min_salary,
+                        'max_salary' => $row->max_salary,
+                        'employee_rate' => $row->employee_rate,
+                        'employer_rate' => $row->employer_rate,
+                        'employee_fixed_amount' => $row->employee_fixed_amount ?? null,
+                        'employer_fixed_amount' => $row->employer_fixed_amount ?? null,
+                        'employee_cap' => $row->employee_cap,
+                        'employer_cap' => $row->employer_cap,
+                    ])
+                    ->values(),
+            ]);
+
+        return $this->rulesByDate[$dateKey] = $brackets;
+    }
+
+    private function matchingBracket(array $contribution, float $monthlySalary): mixed
     {
         $salary = max(0, $monthlySalary);
-        $match = $contribution->brackets
-            ->first(function ($bracket) use ($salary) {
-                $min = (float) $bracket->min_salary;
-                $max = $bracket->max_salary !== null ? (float) $bracket->max_salary : null;
+        $brackets = $contribution['brackets'];
+        $match = $brackets
+            ->first(function (array $bracket) use ($salary) {
+                $min = (float) $bracket['min_salary'];
+                $max = $bracket['max_salary'] !== null ? (float) $bracket['max_salary'] : null;
 
                 return $salary >= $min && ($max === null || $salary <= $max);
             });
@@ -232,13 +280,13 @@ class StatutoryContributionService
             return $match;
         }
 
-        $effectiveStart = $contribution->brackets->first()?->effective_start?->toDateString();
-        $brackets = $contribution->brackets
+        $effectiveStart = $brackets->first()['effective_start'] ?? null;
+        $brackets = $brackets
             ->when($effectiveStart !== null, fn (Collection $brackets) => $brackets
-                ->filter(fn ($bracket) => $bracket->effective_start?->toDateString() === $effectiveStart));
+                ->filter(fn (array $bracket) => $bracket['effective_start'] === $effectiveStart));
 
         $lowestBracket = $brackets->sortBy('min_salary')->first();
-        if ($lowestBracket && $salary < (float) $lowestBracket->min_salary) {
+        if ($lowestBracket && $salary < (float) $lowestBracket['min_salary']) {
             return $lowestBracket;
         }
 

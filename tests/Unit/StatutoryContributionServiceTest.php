@@ -139,6 +139,30 @@ class StatutoryContributionServiceTest extends TestCase
         $this->assertSame(40.0, $higherSalary['employer']['government_pagibig']);
     }
 
+    public function test_it_reuses_statutory_rule_queries_for_the_same_effective_date(): void
+    {
+        $this->usePayrollMemoryDatabase();
+        $contributionId = $this->createContribution('pagibig', 'Pag-IBIG');
+        $this->insertBracket($contributionId, '2026-01-01', null, 0, 10000);
+
+        DB::connection('payroll')->flushQueryLog();
+        DB::connection('payroll')->enableQueryLog();
+
+        $service = app(StatutoryContributionService::class);
+
+        foreach ([1000, 2000, 3000, 4000, 5000] as $salary) {
+            $service->calculate($salary, '2026-06-01');
+        }
+
+        $ruleQueries = collect(DB::connection('payroll')->getQueryLog())
+            ->filter(fn (array $query) => str_contains($query['query'], 'payroll_statutory_contribution_brackets'))
+            ->count();
+
+        DB::connection('payroll')->disableQueryLog();
+
+        $this->assertSame(1, $ruleQueries);
+    }
+
     public function test_it_prefers_an_actual_salary_match_before_falling_back_to_the_latest_effective_period(): void
     {
         $this->usePayrollMemoryDatabase();
