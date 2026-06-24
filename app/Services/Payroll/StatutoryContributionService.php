@@ -131,6 +131,10 @@ class StatutoryContributionService
             $employeeAmount = $this->contributionAmount($base, (float) $rule['employee_rate'], $rule['employee_cap'] ?? null, $rule['employee_fixed_amount'] ?? null, $code);
             $employerAmount = $this->contributionAmount($base, (float) $rule['employer_rate'], $rule['employer_cap'] ?? null, $rule['employer_fixed_amount'] ?? null, $code);
 
+            if ($code === 'philhealth') {
+                $employerAmount = $this->philHealthEmployerShare($base, $rule, $employeeAmount);
+            }
+
             if ($employeeKey !== null) {
                 $employee[$employeeKey] = $employeeAmount;
             }
@@ -291,5 +295,36 @@ class StatutoryContributionService
         }
 
         return round(max(0, $amount), 2);
+    }
+
+    private function philHealthEmployerShare(float $base, array $rule, float $employeeAmount): float
+    {
+        if ($base <= 0) {
+            return 0.0;
+        }
+
+        if (($rule['employer_fixed_amount'] ?? null) !== null && ($rule['employer_fixed_amount'] ?? '') !== '') {
+            return round(max(0, (float) $rule['employer_fixed_amount']), 2);
+        }
+
+        $totalRate = (float) $rule['employee_rate'] + (float) $rule['employer_rate'];
+        $totalPremium = $base * $totalRate;
+        $employeeCap = $rule['employee_cap'] ?? null;
+        $employerCap = $rule['employer_cap'] ?? null;
+        $totalCap = 0.0;
+
+        if ($employeeCap !== null && $employeeCap !== '') {
+            $totalCap += (float) $employeeCap;
+        }
+
+        if ($employerCap !== null && $employerCap !== '') {
+            $totalCap += (float) $employerCap;
+        }
+
+        if ($totalCap > 0) {
+            $totalPremium = min($totalPremium, $totalCap);
+        }
+
+        return round(max(0, round($totalPremium, 2) - $employeeAmount), 2);
     }
 }

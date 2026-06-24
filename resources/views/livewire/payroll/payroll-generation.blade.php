@@ -207,7 +207,7 @@
                         </tr>
                         <tr>
                             <th class="px-4 py-3">Employee No.</th>
-                            <th class="px-4 py-3">Employee Name</th>
+                            <th class="payroll-sticky-employee-header px-4 py-3">Employee Name</th>
                             <th class="px-4 py-3">Position</th>
                             <th class="px-4 py-3 text-right">Salary Grade</th>
                             <th class="px-4 py-3 text-right">Step</th>
@@ -225,7 +225,7 @@
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50">
                                 <td class="px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
-                                <td class="px-4 py-3">
+                                <td class="payroll-sticky-employee-cell px-4 py-3">
                                     <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
                                     <div class="text-xs text-slate-500">{{ $row['position'] ?? '-' }}</div>
                                 </td>
@@ -307,7 +307,7 @@
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th rowspan="2" class="px-4 py-3 align-middle">Employee Name</th>
+                            <th rowspan="2" class="payroll-sticky-employee-header px-4 py-3 align-middle">Employee Name</th>
                             <th rowspan="2" class="px-4 py-3 text-right align-middle">Basic Salary</th>
                             <th colspan="{{ max(1, $compensations->count()) }}" class="border-b border-slate-200 px-4 py-3 text-center">Additional Earnings</th>
                             <th rowspan="2" class="px-4 py-3 text-right align-middle">Gross Pay</th>
@@ -323,7 +323,7 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50">
-                                <td class="px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
+                                <td class="payroll-sticky-employee-cell px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['basic_salary'], 2) }}</td>
                                 @forelse ($compensations as $item)
                                     <td class="px-4 py-3 text-right">{{ number_format($row['compensations'][$item->id]['amount'] ?? 0, 2) }}</td>
@@ -385,7 +385,7 @@
                 <table class="divide-y divide-slate-200 text-sm" style="min-width: {{ 1320 + ($adjustmentTypes->count() * 140) }}px;">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th rowspan="2" class="px-4 py-3 align-middle">Employee Name</th>
+                            <th rowspan="2" class="payroll-sticky-employee-header px-4 py-3 align-middle">Employee Name</th>
                             <th rowspan="2" class="px-4 py-3 text-right align-middle">Deduct Days</th>
                             <th rowspan="2" class="px-4 py-3 text-right align-middle">Gross Compensation</th>
                             <th colspan="{{ 5 + $adjustmentTypes->count() }}" class="border-b border-slate-200 px-4 py-3 text-center">Compensation Adjustment</th>
@@ -409,7 +409,7 @@
                                 $employeeAdjustmentTypeIds = collect(array_keys($employeeExtraItems))->map(fn ($id) => (int) $id)->all();
                             @endphp
                             <tr class="hover:bg-slate-50">
-                                <td class="px-4 py-3 align-top">
+                                <td class="payroll-sticky-employee-cell px-4 py-3 align-top">
                                     <div class="flex min-w-[230px] items-start justify-between gap-3">
                                         <div>
                                             <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
@@ -550,7 +550,7 @@
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="px-4 py-3">Employee Name</th>
+                            <th class="payroll-sticky-employee-header px-4 py-3">Employee Name</th>
                             <th class="px-4 py-3 text-right">GSIS (PS)</th>
                             <th class="px-4 py-3 text-right">GSIS (GS)</th>
                             <th class="px-4 py-3 text-right">EC</th>
@@ -567,7 +567,7 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50">
-                                <td class="px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
+                                <td class="payroll-sticky-employee-cell px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
                                 @foreach ([
                                     ['key' => 'life_retirement', 'source' => 'statutory_deductions'],
                                     ['key' => 'government_life_retirement', 'source' => 'statutory_government_shares'],
@@ -734,7 +734,7 @@
                         <table class="border-separate border-spacing-0 text-sm" style="min-width: {{ $programPreviewWidth }}px;">
                             <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
                                 <tr>
-                                    <th class="sticky left-0 z-20 border-b border-r border-slate-300 bg-slate-100 px-3 py-2">Employee</th>
+                                    <th class="payroll-sticky-employee-header border-b border-r border-slate-300 px-3 py-2">Employee</th>
                                     <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net Before Programs</th>
                                     @foreach ($activeDeductionPrograms as $program)
                                         <th class="border-b border-r border-slate-300 px-3 py-2 text-right">{{ $program->name }}</th>
@@ -749,7 +749,7 @@
                                         $programItems = collect($row['program_deductions']['items']);
                                     @endphp
                                     <tr class="hover:bg-slate-50">
-                                        <td class="sticky left-0 border-b border-r border-slate-200 bg-inherit px-3 py-2">
+                                        <td class="payroll-sticky-employee-cell border-b border-r border-slate-200 px-3 py-2">
                                             <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
                                             <div class="text-xs text-slate-500">{{ $row['emp_id'] }} &middot; {{ $row['position'] ?? '-' }}</div>
                                         </td>
@@ -1191,13 +1191,31 @@
                         </div>
 
                         <div class="space-y-4 overflow-y-auto px-5 py-5">
-                            <div class="grid gap-3 lg:grid-cols-[1fr_auto]">
+                            <div
+                                class="grid gap-3 lg:grid-cols-[1fr_auto]"
+                                x-data="{ uploadingLoanFile: false, loanUploadProgress: 0, loanUploadError: '' }"
+                                x-on:livewire-upload-start="uploadingLoanFile = true; loanUploadProgress = 0; loanUploadError = ''"
+                                x-on:livewire-upload-finish="uploadingLoanFile = false; loanUploadProgress = 100"
+                                x-on:livewire-upload-error="uploadingLoanFile = false; loanUploadError = 'Upload failed. The workbook may exceed the server upload limit or the connection was interrupted.'"
+                                x-on:livewire-upload-cancel="uploadingLoanFile = false; loanUploadError = 'Upload cancelled.'"
+                                x-on:livewire-upload-progress="loanUploadProgress = $event.detail.progress"
+                            >
                                 <div>
                                     <label class="text-sm font-medium">Loan Excel file</label>
-                                    <input wire:model="loanFile" type="file" accept=".xlsx,.xls,.csv" class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                    <input wire:model="loanFile" type="file" accept=".xlsx,.xls,.xlsm,.csv" class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                                     @error('loanFile')
                                         <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                                     @enderror
+                                    <div x-cloak x-show="uploadingLoanFile" x-transition class="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
+                                        <div class="flex items-center justify-between gap-3 text-xs font-medium text-blue-800">
+                                            <span x-text="loanUploadProgress >= 100 ? 'Finalizing upload' : 'Uploading workbook'"></span>
+                                            <span x-text="`${loanUploadProgress}%`"></span>
+                                        </div>
+                                        <div class="mt-2 h-2 overflow-hidden rounded-full bg-blue-100">
+                                            <div class="h-full rounded-full bg-blue-600 transition-all duration-150" x-bind:style="`width: ${loanUploadProgress}%`"></div>
+                                        </div>
+                                    </div>
+                                    <div x-cloak x-show="loanUploadError" x-transition class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" x-text="loanUploadError"></div>
                                 </div>
                                 <div class="flex items-end">
                                     <button type="button" wire:click="previewLoanImport" wire:loading.attr="disabled" wire:target="previewLoanImport,loanFile" class="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60 lg:w-auto">
@@ -1280,7 +1298,7 @@
                     <table class="min-w-[1120px] border-separate border-spacing-0 text-sm">
                         <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
                             <tr>
-                                <th class="sticky left-0 z-20 border-b border-r border-slate-300 bg-slate-100 px-3 py-2">Employee</th>
+                                <th class="payroll-sticky-employee-header border-b border-r border-slate-300 px-3 py-2">Employee</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net After Programs</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Loan Deductions</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Final Net Pay</th>
@@ -1290,7 +1308,7 @@
                         <tbody>
                             @forelse ($rows as $row)
                                 <tr class="hover:bg-slate-50">
-                                    <td class="sticky left-0 border-b border-r border-slate-200 bg-inherit px-3 py-2">
+                                    <td class="payroll-sticky-employee-cell border-b border-r border-slate-200 px-3 py-2">
                                         <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
                                         <div class="text-xs text-slate-500">{{ $row['emp_id'] }} · {{ $row['position'] ?? '-' }}</div>
                                     </td>
@@ -1358,7 +1376,7 @@
                 <table class="min-w-[2480px] divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="px-4 py-3">Employee</th>
+                            <th class="payroll-sticky-employee-header px-4 py-3">Employee</th>
                             <th class="px-4 py-3">Entry Date</th>
                             <th class="px-4 py-3 text-right">SG</th>
                             <th class="px-4 py-3 text-right">Salary</th>
@@ -1382,14 +1400,14 @@
                             <th class="px-4 py-3 text-right">WITHHOLDING TAX (GROSS)</th>
                             <th class="px-4 py-3 text-right">WITHHOLDING TAX (ADJUSTMENT)</th>
                             <th class="px-4 py-3 text-right">NET PAY</th>
-                            <th class="px-4 py-3 text-right">GE 15th</th>
-                            <th class="px-4 py-3 text-right">GF 30th</th>
+                            <th class="px-4 py-3 text-right">15th</th>
+                            <th class="px-4 py-3 text-right">30th</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50">
-                                <td class="px-4 py-3">
+                                <td class="payroll-sticky-employee-cell px-4 py-3">
                                     <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
                                     <div class="text-xs text-slate-500">{{ $row['emp_id'] }} Â· {{ $row['position'] ?? '-' }}</div>
                                 </td>
@@ -1467,7 +1485,7 @@
                             <th class="px-4 py-2 text-center" colspan="6">GB:GF</th>
                         </tr>
                         <tr>
-                            <th class="px-4 py-3">Employee</th>
+                            <th class="payroll-sticky-employee-header px-4 py-3">Employee</th>
                             <th class="px-4 py-3">Position</th>
                             <th class="px-4 py-3 text-right">SG</th>
                             <th class="px-4 py-3">APPOINTMENT DATE</th>
@@ -1511,12 +1529,12 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50">
-                                <td class="px-4 py-3">
+                                <td class="payroll-sticky-employee-cell px-4 py-3">
                                     <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
                                     <div class="text-xs text-slate-500">{{ $row['emp_id'] }}</div>
                                 </td>
                                 <td class="px-4 py-3">{{ $row['position'] ?? '-' }}</td>
-                                <td class="px-4 py-3 text-right">{{ $row['tax']['salary_grade'] ?? '-' }}</td>
+                                <td class="px-4 py-3 text-right">{{ $row['tax']['salary_grade'] ?? '-' }} / {{ $row['step'] ?? '-' }}</td>
                                 <td class="px-4 py-3">{{ $row['tax']['entry_date'] ?? '-' }}</td>
                                 <td class="px-4 py-3">-</td>
                                 <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.future_months" type="number" step="0.0001" placeholder="{{ number_format($row['tax']['future_months'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
@@ -1547,9 +1565,9 @@
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_tax_withheld'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['under_over_withheld'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['monthly_annualized_tax_due'] ?? 0, 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model.live.debounce.500ms="taxAnnualizationOverrides.{{ $row['emp_id'] }}.gross_withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['gross_withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.gross_withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['gross_withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['withholding_tax_gross'] ?? $row['tax']['monthly_tax_due'], 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model.live.debounce.500ms="taxAnnualizationOverrides.{{ $row['emp_id'] }}.withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_loan_deductions'], 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['fifteenth'], 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['thirtieth'], 2) }}</td>

@@ -558,7 +558,7 @@ class PayrollGeneration extends Component
     public function previewLoanImport(): void
     {
         $data = $this->validate([
-            'loanFile' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
+            'loanFile' => ['required', 'file', 'mimes:xlsx,xls,xlsm,csv', 'max:65536'],
         ]);
 
         $file = $data['loanFile'];

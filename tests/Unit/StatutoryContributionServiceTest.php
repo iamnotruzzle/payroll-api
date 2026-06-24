@@ -37,7 +37,7 @@ class StatutoryContributionServiceTest extends TestCase
         $this->assertSame(3200.0, $result['employer_total']);
     }
 
-    public function test_philhealth_uses_excel_rounddown_to_cents(): void
+    public function test_philhealth_reconciles_government_share_to_the_rounded_total_premium(): void
     {
         Config::set('database.connections.payroll', [
             'driver' => 'sqlite',
@@ -48,8 +48,38 @@ class StatutoryContributionServiceTest extends TestCase
         $result = app(StatutoryContributionService::class)->calculate(31705, '2026-06-01');
 
         $this->assertSame(792.62, $result['employee']['phic']);
-        $this->assertSame(792.62, $result['employer']['government_phic']);
+        $this->assertSame(792.63, $result['employer']['government_phic']);
         $this->assertSame(3896.07, $result['employee_total']);
+    }
+
+    public function test_philhealth_matches_excel_for_employee_000869(): void
+    {
+        Config::set('database.connections.payroll', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+
+        $result = app(StatutoryContributionService::class)->calculate(24329, '2026-06-01');
+
+        $this->assertSame(608.22, $result['employee']['phic']);
+        $this->assertSame(608.23, $result['employer']['government_phic']);
+        $this->assertSame(3047.83, $result['employee_total']);
+
+        $grossCompensation = 27410.82;
+        $totalOtherDeductions = 50.0;
+        $withholdingTaxGross = 317.23;
+        $withholdingTaxAdjustment = 0.0;
+        $finalNetPay = round(
+            $grossCompensation
+            - $result['employee_total']
+            - $totalOtherDeductions
+            - $withholdingTaxGross
+            - $withholdingTaxAdjustment,
+            2
+        );
+
+        $this->assertSame(23995.76, $finalNetPay);
     }
 
     public function test_it_does_not_apply_salary_floor_to_zero_salary(): void

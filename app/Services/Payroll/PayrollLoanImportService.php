@@ -77,6 +77,35 @@ class PayrollLoanImportService
         'penalty' => 'penalty_due',
     ];
 
+    private const EXTRACTED_LOAN_DETAIL_HEADERS = ['REMARKS', 'AMORT', 'TERMS'];
+
+    private const EXTRACTED_LOAN_FALLBACK_HEADERS = [
+        'B' => 'PAGIBIG II',
+        'F' => 'EMERGENCY LOAN',
+        'J' => 'COMPUTER LOAN',
+        'N' => 'CONSO',
+        'R' => 'REGULAR POLICY LOAN',
+        'V' => 'GSIS MPL',
+        'Z' => 'UOLI PREM.',
+        'AD' => 'GFAL',
+        'AH' => 'OPTIONAL POLICY',
+        'AL' => 'HOUSING LOAN',
+        'AP' => 'UCPB(W1)',
+        'AT' => 'GSIS MPL_LITE',
+        'AX' => 'PAGIBIG MPL',
+        'BB' => 'UCPB(W2)',
+        'BF' => 'PAGIBIG CALAMITY',
+        'BJ' => 'DBP',
+        'BN' => 'LBP',
+        'BR' => 'COCO',
+        'BV' => 'PAGIBIG II (2)',
+        'BZ' => 'PAGIBIG II (3)',
+        'CD' => 'MS',
+        'CH' => 'SSS',
+        'CL' => 'GSEL',
+        'CP' => 'GBEL',
+    ];
+
     public function buildTemplate(): string
     {
         $spreadsheet = new Spreadsheet();
@@ -290,7 +319,36 @@ class PayrollLoanImportService
             'required' => false,
         ]]);
 
-        return $columns;
+        return count($columns) > 1
+            ? $columns
+            : $this->fallbackExtractedLoanColumns($sheet, $columns);
+    }
+
+    private function fallbackExtractedLoanColumns($sheet, array $detectedColumns): array
+    {
+        $columnsByIndex = collect($detectedColumns)->keyBy('col')->all();
+
+        foreach (self::EXTRACTED_LOAN_FALLBACK_HEADERS as $letter => $fallbackHeader) {
+            $col = Coordinate::columnIndexFromString($letter);
+            $header = trim((string) $sheet->getCell([$col, 1])->getFormattedValue()) ?: $fallbackHeader;
+
+            if (! $this->looksLikeExtractedLoanAmountColumn($sheet, $col)) {
+                continue;
+            }
+
+            $columnsByIndex[$col] ??= [
+                'col' => $col,
+                'loan_type' => $header,
+                'entity' => $this->entityForExtractedLoanHeader($header),
+                'remarks_col' => $col + 1,
+                'amort_col' => $col + 2,
+                'terms_col' => $col + 3,
+            ];
+        }
+
+        ksort($columnsByIndex);
+
+        return array_values($columnsByIndex);
     }
 
     private function addEmployeeReferenceSheet(Spreadsheet $spreadsheet, array $employees)
@@ -355,17 +413,30 @@ class PayrollLoanImportService
     public function import(string $path, string $originalFilename, ?string $storedPath, ?string $importedBy): PayrollLoanImport
     {
         return $this->savePreview(
-            $this->preview($path),
+            $this->preview($path, $originalFilename),
             $originalFilename,
             $storedPath,
             $importedBy,
         );
     }
 
-    public function preview(string $path): array
+    public function preview(string $path, ?string $originalFilename = null): array
     {
         $reader = IOFactory::createReaderForFile($path);
         $reader->setReadDataOnly(true);
+        $sheetNames = $this->worksheetNames($reader, $path);
+
+        if ($extractedLoansSheetName = $this->findWorksheetName($sheetNames, 'extracted loans')) {
+            $reader->setLoadSheetsOnly([$extractedLoansSheetName]);
+            $spreadsheet = $reader->load($path);
+
+            return $this->previewExtractedLoans($spreadsheet->getSheet(0), $originalFilename);
+        }
+
+        if ($sheetNames !== []) {
+            $reader->setLoadSheetsOnly([$sheetNames[0]]);
+        }
+
         $spreadsheet = $reader->load($path);
         $sheet = $spreadsheet->getSheet(0);
 
@@ -380,10 +451,12 @@ class PayrollLoanImportService
 
         return [
             'source_entity' => strtoupper($sourceEntity),
-            'billing_period' => $this->parseMonth($billingPeriod)?->toDateString(),
+            'billing_period' => $this->parseMonth($billingPeriod)?->toDateString()
+                ?? $this->parseMonthFromFilename($originalFilename)?->toDateString(),
             'total_rows' => count($items),
             'valid_rows' => $validRows,
             'invalid_rows' => count($items) - $validRows,
+            'loan_type_counts' => $this->loanTypeCounts($items),
             'items' => $items,
         ];
     }
@@ -393,7 +466,7 @@ class PayrollLoanImportService
         return DB::connection('payroll')->transaction(function () use ($preview, $originalFilename, $storedPath, $importedBy) {
             $import = PayrollLoanImport::create([
                 'source_entity' => $preview['source_entity'] ?? 'OTHER',
-                'billing_period' => $preview['billing_period'] ?? null,
+                'billing_period' => $preview['billing_period'] ?? $this->parseMonthFromFilename($originalFilename)?->toDateString(),
                 'original_filename' => $originalFilename,
                 'stored_path' => $storedPath,
                 'imported_by' => $importedBy,
@@ -418,6 +491,196 @@ class PayrollLoanImportService
 
             return $import->load('items');
         });
+    }
+
+    private function worksheetNames($reader, string $path): array
+    {
+        try {
+            return $reader->listWorksheetNames($path) ?: [];
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    private function findWorksheetName(array $sheetNames, string $target): ?string
+    {
+        foreach ($sheetNames as $sheetName) {
+            if (strtolower(trim((string) $sheetName)) === strtolower($target)) {
+                return $sheetName;
+            }
+        }
+
+        return null;
+    }
+
+    private function previewExtractedLoans($sheet, ?string $originalFilename = null): array
+    {
+        $billingPeriod = $this->parseMonthFromFilename($originalFilename)
+            ?? CarbonImmutable::today()->startOfMonth();
+        $loanColumns = $this->extractedLoanColumns($sheet);
+        $rows = $this->extractExtractedLoanRows($sheet, $loanColumns, $billingPeriod);
+        $items = $this->validateRows($rows);
+        $validRows = collect($items)->where('validation_status', 'valid')->count();
+
+        return [
+            'source_entity' => 'EXTRACTED LOANS',
+            'billing_period' => $billingPeriod->toDateString(),
+            'total_rows' => count($items),
+            'valid_rows' => $validRows,
+            'invalid_rows' => count($items) - $validRows,
+            'loan_type_counts' => $this->loanTypeCounts($items),
+            'detected_loan_columns' => collect($loanColumns)
+                ->map(fn (array $column) => [
+                    'column' => Coordinate::stringFromColumnIndex($column['col']),
+                    'loan_type' => $column['loan_type'],
+                ])
+                ->values()
+                ->all(),
+            'items' => $items,
+        ];
+    }
+
+    private function loanTypeCounts(array $items): array
+    {
+        return collect($items)
+            ->groupBy(fn (array $item) => (string) ($item['loan_type'] ?: 'Unspecified'))
+            ->map(fn (Collection $items) => $items->count())
+            ->sortDesc()
+            ->all();
+    }
+
+    private function extractedLoanColumns($sheet): array
+    {
+        $columns = [];
+        $highestColumn = Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
+
+        for ($col = 2; $col <= $highestColumn; $col++) {
+            $header = trim((string) $sheet->getCell([$col, 1])->getFormattedValue());
+            $normalized = $this->normalizeExtractedHeader($header);
+
+            if ($header === ''
+                || in_array($normalized, self::EXTRACTED_LOAN_DETAIL_HEADERS, true)
+                || in_array($normalized, ['ID NO', 'DIVISION'], true)) {
+                continue;
+            }
+
+            $nextHeader = $this->normalizeExtractedHeader($sheet->getCell([$col + 1, 1])->getFormattedValue());
+            $secondHeader = $this->normalizeExtractedHeader($sheet->getCell([$col + 2, 1])->getFormattedValue());
+            $thirdHeader = $this->normalizeExtractedHeader($sheet->getCell([$col + 3, 1])->getFormattedValue());
+
+            if (! $this->looksLikeExtractedLoanAmountColumn($sheet, $col)
+                || ($nextHeader !== 'REMARKS' && ! in_array($secondHeader, ['AMORT', 'AMORTIZATION'], true) && $thirdHeader !== 'TERMS')) {
+                continue;
+            }
+
+            $columns[] = [
+                'col' => $col,
+                'loan_type' => $header,
+                'entity' => $this->entityForExtractedLoanHeader($header),
+                'remarks_col' => $col + 1,
+                'amort_col' => $col + 2,
+                'terms_col' => $col + 3,
+            ];
+
+            $col += 3;
+        }
+
+        return $columns;
+    }
+
+    private function normalizeExtractedHeader(mixed $value): string
+    {
+        $header = strtoupper(trim((string) $value));
+        $header = preg_replace('/\s+/', ' ', $header);
+        $header = preg_replace('/^(REMARKS|AMORT|AMORTIZATION|TERMS)\d+$/', '$1', $header);
+
+        return $header ?: '';
+    }
+
+    private function looksLikeExtractedLoanAmountColumn($sheet, int $col): bool
+    {
+        $highestRow = $sheet->getHighestDataRow();
+        $numericValues = 0;
+
+        for ($row = 3; $row <= $highestRow; $row++) {
+            $amount = $this->cellAmount($sheet, $col, $row);
+            if ($amount !== null && $amount > 0) {
+                $numericValues++;
+            }
+
+            if ($numericValues >= 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function extractExtractedLoanRows($sheet, array $loanColumns, CarbonImmutable $billingPeriod): array
+    {
+        $rows = [];
+        $seen = [];
+        $highestRow = $sheet->getHighestDataRow();
+
+        for ($rowNumber = 3; $rowNumber <= $highestRow; $rowNumber++) {
+            $employeeId = trim((string) $sheet->getCell([1, $rowNumber])->getFormattedValue());
+            if ($employeeId === '') {
+                continue;
+            }
+
+            $employee = Employee::query()
+                ->where('emp_id', $employeeId)
+                ->where('is_active', 'Y')
+                ->first(['emp_id', 'firstname', 'middlename', 'lastname', 'extension', 'prefix', 'suffix']);
+            $employeeName = $employee?->full_name ?: '';
+
+            foreach ($loanColumns as $column) {
+                $amountDue = $this->cellAmount($sheet, $column['col'], $rowNumber);
+                if ($amountDue === null || $amountDue <= 0) {
+                    continue;
+                }
+
+                $reference = trim((string) $sheet->getCell([$column['remarks_col'], $rowNumber])->getFormattedValue());
+                $amortization = $this->cellAmount($sheet, $column['amort_col'], $rowNumber);
+                $terms = trim((string) $sheet->getCell([$column['terms_col'], $rowNumber])->getFormattedValue());
+                $dedupeKey = implode('|', [
+                    strtoupper($column['entity']),
+                    $billingPeriod->toDateString(),
+                    strtoupper($employeeId),
+                    strtoupper($reference !== '' ? $reference : $column['loan_type']),
+                ]);
+
+                if (isset($seen[$dedupeKey])) {
+                    continue;
+                }
+
+                $seen[$dedupeKey] = true;
+                $remarks = trim(implode(' ', array_filter([
+                    $reference !== '' ? "Reference: {$reference}" : null,
+                    $amortization !== null ? 'Amort: '.$this->formatAmountForRemarks($amortization) : null,
+                    $terms !== '' ? "Terms: {$terms}" : null,
+                ])));
+
+                $rows[] = [
+                    'row_number' => $rowNumber,
+                    'entity' => $column['entity'],
+                    'due_month' => $billingPeriod->toDateString(),
+                    'employee_id' => $employeeId,
+                    'employee_name' => $employeeName,
+                    'loan_account_no' => $reference !== '' ? $reference : $column['loan_type'],
+                    'loan_type' => $column['loan_type'],
+                    'monthly_amortization' => $amortization ?? $amountDue,
+                    'amount_due' => $amountDue,
+                    'outstanding_balance' => null,
+                    'principal_due' => null,
+                    'interest_due' => null,
+                    'penalty_due' => null,
+                    'remarks' => $remarks ?: null,
+                ];
+            }
+        }
+
+        return $rows;
     }
 
     private function findHeaderRow($sheet): int
@@ -486,6 +749,14 @@ class PayrollLoanImportService
         }
 
         $employeeName = trim((string) ($row['employee_name'] ?? ''));
+        $matchedEmpId = $this->matchEmployee($row['employee_id'] ?? null, $employeeName);
+        if ($employeeName === '' && $matchedEmpId) {
+            $employeeName = Employee::query()
+                ->where('emp_id', $matchedEmpId)
+                ->first(['emp_id', 'firstname', 'middlename', 'lastname', 'extension', 'prefix', 'suffix'])
+                ?->full_name ?? '';
+        }
+
         if ($employeeName === '') {
             $errors[] = 'Employee Name is required.';
         }
@@ -505,7 +776,6 @@ class PayrollLoanImportService
             $errors[] = 'Amount Due must be greater than zero.';
         }
 
-        $matchedEmpId = $this->matchEmployee($row['employee_id'] ?? null, $employeeName);
         if (! $matchedEmpId) {
             $errors[] = 'No active HRIS employee matched by Employee ID or name.';
         }
@@ -674,7 +944,14 @@ class PayrollLoanImportService
             return ExcelDate::excelToDateTimeObject($cell->getValue())->format('Y-m-d');
         }
 
-        return trim((string) $cell->getFormattedValue());
+        $rawValue = trim((string) $cell->getValue());
+        $value = trim((string) $cell->getFormattedValue());
+
+        if (str_starts_with($rawValue, '=') && in_array(strtoupper($value), ['', '0', 'NO MATCH'], true)) {
+            return '';
+        }
+
+        return str_starts_with($value, '=') ? '' : $value;
     }
 
     private function parseMonth(mixed $value): ?CarbonImmutable
@@ -698,6 +975,24 @@ class PayrollLoanImportService
         }
     }
 
+    private function parseMonthFromFilename(?string $filename): ?CarbonImmutable
+    {
+        $filename = trim((string) $filename);
+        if ($filename === '') {
+            return null;
+        }
+
+        if (preg_match('/\b([A-Za-z]+)\s+((?:19|20)\d{2})\b/', $filename, $matches)) {
+            return $this->parseMonth($matches[1].' '.$matches[2]);
+        }
+
+        if (preg_match('/\b((?:19|20)\d{2})[-_ ](0?[1-9]|1[0-2])\b/', $filename, $matches)) {
+            return $this->parseMonth($matches[1].'-'.str_pad($matches[2], 2, '0', STR_PAD_LEFT));
+        }
+
+        return null;
+    }
+
     private function amount(mixed $value): ?float
     {
         $value = trim((string) $value);
@@ -713,6 +1008,41 @@ class PayrollLoanImportService
         return round(max(0, (float) $normalized), 2);
     }
 
+    private function cellAmount($sheet, int $col, int $row): ?float
+    {
+        $cell = $sheet->getCell([$col, $row]);
+        $value = $cell->getCalculatedValue();
+
+        if ($value === null || $value === '') {
+            $value = $cell->getFormattedValue();
+        }
+
+        return $this->amount($value);
+    }
+
+    private function entityForExtractedLoanHeader(string $header): string
+    {
+        $normalized = strtoupper($header);
+
+        return match (true) {
+            str_contains($normalized, 'PAGIBIG'), str_contains($normalized, 'PAG-IBIG') => 'PAG-IBIG',
+            str_contains($normalized, 'UCPB') => 'UCPB',
+            str_contains($normalized, 'DBP') => 'DBP',
+            str_contains($normalized, 'LBP') => 'LBP',
+            str_contains($normalized, 'COCO') => 'COCO',
+            str_contains($normalized, 'SSS') => 'OTHER',
+            str_contains($normalized, 'MS') => 'OTHER',
+            str_contains($normalized, 'GSEL') => 'OTHER',
+            str_contains($normalized, 'GBEL') => 'OTHER',
+            default => 'GSIS',
+        };
+    }
+
+    private function formatAmountForRemarks(float $amount): string
+    {
+        return rtrim(rtrim(number_format($amount, 2, '.', ''), '0'), '.');
+    }
+
     private function normalizeName(string $name): string
     {
         $name = str_replace(',', ' ', strtoupper($name));
@@ -726,7 +1056,12 @@ class PayrollLoanImportService
     private function rowHasData(array $row): bool
     {
         foreach (array_column(self::COLUMNS, 'key') as $key) {
-            if (trim((string) ($row[$key] ?? '')) !== '') {
+            if ($key === 'entity') {
+                continue;
+            }
+
+            $value = strtoupper(trim((string) ($row[$key] ?? '')));
+            if ($value !== '' && $value !== 'NO MATCH' && ! str_starts_with($value, '=')) {
                 return true;
             }
         }
