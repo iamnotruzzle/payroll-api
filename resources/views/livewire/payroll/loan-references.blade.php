@@ -1,8 +1,16 @@
 <section class="space-y-4 pb-12">
     <div>
-        <div>
-            <h2 class="text-xl font-semibold">Loan References</h2>
-            <p class="text-sm text-slate-600">Select a loan entity, then manage loan types and review-column mappings for imported loan files.</p>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+            <h2 class="text-xl font-semibold">{{ $isAdditionalPremiumMode ? 'Additional Premiums' : 'Loan References' }}</h2>
+            <p class="text-sm text-slate-600">{{ $isAdditionalPremiumMode ? 'Manage employee savings and premium deduction types used by payroll generation imports.' : 'Select a loan entity, then manage loan types and review-column mappings for imported loan files.' }}</p>
+            </div>
+            @if ($isAdditionalPremiumMode)
+                <div class="flex flex-wrap gap-2">
+                    <a href="{{ route('payroll.loan-imports.template') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Export Import Template</a>
+                    <a href="{{ route('payroll.loan-imports') }}" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Open Imports</a>
+                </div>
+            @endif
         </div>
     </div>
 
@@ -13,10 +21,12 @@
     <div class="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-                <h3 class="font-semibold">Entities</h3>
-                <button type="button" wire:click="openEntityModal" class="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
-                    New Entity
-                </button>
+                <h3 class="font-semibold">{{ $isAdditionalPremiumMode ? 'Category' : 'Entities' }}</h3>
+                @unless ($isAdditionalPremiumMode)
+                    <button type="button" wire:click="openEntityModal" class="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
+                        New Entity
+                    </button>
+                @endunless
             </div>
             <div class="max-h-[720px] divide-y divide-slate-100 overflow-y-auto">
                 @forelse ($entities as $entity)
@@ -48,9 +58,11 @@
                             <button type="button" wire:click="openTypeModal" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
                                 New Type
                             </button>
-                            <button type="button" wire:click="openEntityModal({{ $selectedEntity->id }})" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50">
-                                Edit Entity
-                            </button>
+                            @unless ($isAdditionalPremiumMode)
+                                <button type="button" wire:click="openEntityModal({{ $selectedEntity->id }})" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                                    Edit Entity
+                                </button>
+                            @endunless
                         </div>
                     @endif
                 </div>

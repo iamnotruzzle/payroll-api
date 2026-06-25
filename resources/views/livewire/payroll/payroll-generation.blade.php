@@ -15,7 +15,8 @@
     class="space-y-4 pb-24"
     x-data="{
         stepDirty: false,
-        formSteps: [1, 3, 4, 5, 7],
+        filtersOpen: @js(! empty($employeeFilterIds)),
+        formSteps: [1, 3, 4, 5, 8],
         markStepDirty(currentStep, event) {
             if (!this.formSteps.includes(currentStep) || event.target?.type === 'search') {
                 return;
@@ -50,16 +51,6 @@
             </p>
         </div>
         <div class="flex flex-wrap gap-2">
-            <button
-                type="button"
-                x-on:click="saveStep()"
-                wire:loading.attr="disabled"
-                wire:target="saveStepChanges"
-                class="rounded-md border border-[#696cff] bg-white px-4 py-2 text-sm font-medium text-[#5f61e6] hover:bg-[#f1f2ff] disabled:cursor-wait disabled:opacity-60"
-            >
-                <span wire:loading.remove wire:target="saveStepChanges">Save as Draft</span>
-                <span wire:loading wire:target="saveStepChanges">Saving Draft...</span>
-            </button>
             <a href="{{ route('payroll.generation.configuration', ['division_ids' => implode(',', $selectedDivisionIds ?? []), 'department_ids' => implode(',', $selectedDepartmentIds ?? []), 'division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'gsis_days' => $gsisDays, 'leave_type_ids' => $selectedLeaveTypeIds === [] ? 'none' : implode(',', $selectedLeaveTypeIds), 'employee_type' => $employeeTypeFilter]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                 Change Configuration
             </a>
@@ -88,50 +79,78 @@
         </div>
     @endif
 
-    <div class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-        <div class="mb-3 flex flex-wrap items-end justify-end gap-2">
-            <div class="w-full sm:max-w-xl">
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="payroll-employee-filter">
-                    Employee Filter
-                </label>
-                <select
-                    id="payroll-employee-filter"
-                    data-select2-employee-picker
-                    data-model="employeeFilterIds"
-                    data-defer-request="true"
-                    data-placeholder="Select employees"
-                    multiple
-                    wire:loading.attr="disabled"
-                    wire:target="{{ $payrollLoadingTargets }}"
-                    class="w-full rounded-md border border-slate-300 text-sm"
-                >
-                    @foreach ($employeeFilterOptions as $employee)
-                        <option value="{{ $employee['emp_id'] }}" @selected(in_array((string) $employee['emp_id'], $employeeFilterIds, true))>
-                            {{ $employee['label'] }}
-                        </option>
-                    @endforeach
-                </select>
+    <div class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-3 py-2">
+            <div>
+                <h3 class="text-sm font-semibold text-slate-900">Payroll Steps</h3>
+                <p class="text-xs text-slate-500">
+                    @if (count($employeeFilterIds) > 0)
+                        Showing {{ count($employeeFilterIds) }} selected {{ \Illuminate\Support\Str::plural('employee', count($employeeFilterIds)) }}.
+                    @else
+                        Showing all employees in this payroll scope.
+                    @endif
+                </p>
             </div>
             <button
                 type="button"
-                wire:click="applyEmployeeFilter"
-                wire:loading.attr="disabled"
-                wire:target="{{ $payrollLoadingTargets }}"
-                class="rounded-md bg-[#5f61e6] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#5254d9] disabled:cursor-wait disabled:opacity-60"
+                x-on:click="filtersOpen = ! filtersOpen"
+                class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                x-bind:aria-expanded="filtersOpen.toString()"
             >
-                Filter
-            </button>
-            <button
-                type="button"
-                wire:click="clearEmployeeFilter"
-                wire:loading.attr="disabled"
-                wire:target="{{ $payrollLoadingTargets }}"
-                class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
-            >
-                Clear
+                <span>Filters</span>
+                @if (count($employeeFilterIds) > 0)
+                    <span class="rounded-full bg-[#5f61e6] px-2 py-0.5 text-xs font-semibold text-white">{{ count($employeeFilterIds) }}</span>
+                @endif
+                <span class="text-xs text-slate-500" x-text="filtersOpen ? 'Hide' : 'Show'"></span>
             </button>
         </div>
-        <div class="grid gap-2 md:grid-cols-4 lg:grid-cols-8">
+
+        <div x-cloak x-show="filtersOpen" x-transition class="border-b border-slate-200 bg-slate-50 px-3 py-3">
+            <div class="flex flex-wrap items-end justify-end gap-2">
+                <div class="w-full sm:max-w-xl">
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="payroll-employee-filter">
+                        Employee Filter
+                    </label>
+                    <select
+                        id="payroll-employee-filter"
+                        data-select2-employee-picker
+                        data-model="employeeFilterIds"
+                        data-defer-request="true"
+                        data-placeholder="Select employees"
+                        multiple
+                        wire:loading.attr="disabled"
+                        wire:target="{{ $payrollLoadingTargets }}"
+                        class="w-full rounded-md border border-slate-300 text-sm"
+                    >
+                        @foreach ($employeeFilterOptions as $employee)
+                            <option value="{{ $employee['emp_id'] }}" @selected(in_array((string) $employee['emp_id'], $employeeFilterIds, true))>
+                                {{ $employee['label'] }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <button
+                    type="button"
+                    wire:click="applyEmployeeFilter"
+                    wire:loading.attr="disabled"
+                    wire:target="{{ $payrollLoadingTargets }}"
+                    class="rounded-md bg-[#5f61e6] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#5254d9] disabled:cursor-wait disabled:opacity-60"
+                >
+                    Filter
+                </button>
+                <button
+                    type="button"
+                    wire:click="clearEmployeeFilter"
+                    wire:loading.attr="disabled"
+                    wire:target="{{ $payrollLoadingTargets }}"
+                    class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+                >
+                    Clear
+                </button>
+            </div>
+        </div>
+
+        <div class="grid gap-2 p-3 md:grid-cols-4 lg:grid-cols-8">
             @foreach ($steps as $number => $label)
                 <button
                     type="button"
@@ -193,9 +212,10 @@
     >
     @if ($currentStep === 1)
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-4 py-3">
-                <h3 class="font-semibold">MRA Validation</h3>
-                <p class="text-sm text-slate-600">
+            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                <div>
+                    <h3 class="font-semibold">MRA Validation</h3>
+                    <p class="text-sm text-slate-600">
                     Source:
                     {{ $previousMraPeriod['start']->format('M d, Y') }} to {{ $previousMraPeriod['end']->format('M d, Y') }}
                     @if ($previousMraReport)
@@ -203,7 +223,9 @@
                     @else
                         · no previous month MRA found; current DTR deductions are shown as fallback.
                     @endif
-                </p>
+                    </p>
+                </div>
+                @include('livewire.payroll.partials.step-save-button')
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
@@ -212,7 +234,7 @@
                             <th colspan="3" class="border-b border-slate-200 px-4 py-3 text-center">Employee Information</th>
                             <th colspan="2" class="border-b border-slate-200 px-4 py-3 text-center">Pay Basis</th>
                             <th colspan="6" class="border-b border-slate-200 px-4 py-3 text-center">Leave Basis</th>
-                            <th colspan="2" class="border-b border-slate-200 px-4 py-3 text-center">Payroll Input</th>
+                            <th colspan="6" class="border-b border-slate-200 px-4 py-3 text-center">Payroll Input</th>
                         </tr>
                         <tr>
                             <th class="px-4 py-3">Employee No.</th>
@@ -226,8 +248,12 @@
                             <th class="px-4 py-3 text-right">Laundry</th>
                             <th class="px-4 py-3 text-right">TEV</th>
                             <th class="px-4 py-3 text-right">Prior MRA Days</th>
-                            <th class="px-4 py-3 text-right">Deduct Days for Payroll</th>
-                            <th class="px-4 py-3 text-right">Gross Basic Salary</th>
+                            <th class="px-4 py-3 text-right">HRIS LWOP</th>
+                            <th class="px-4 py-3 text-right">Logbook LWOP</th>
+                            <th class="px-4 py-3 text-right">Unauthorized Days</th>
+                            <th class="px-4 py-3 text-right">Paid Days</th>
+                            <th class="px-4 py-3 text-right">GSIS Days</th>
+                            <th class="px-4 py-3 text-right">Adjusted Basic Salary</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -285,6 +311,18 @@
                                     <input wire:model="leaveDeductionOverrides.{{ $row['emp_id'] }}.tev_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
                                 </td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['mra_adjustment_days'] ?? 0, 3) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['hris_lwop_days'] ?? 0, 3) }}</td>
+                                <td class="px-4 py-3 text-right">
+                                    <input
+                                        wire:model="logbookLwopDayOverrides.{{ $row['emp_id'] }}"
+                                        type="number"
+                                        min="0"
+                                        max="31"
+                                        step="0.001"
+                                        placeholder="0.000"
+                                        class="w-28 rounded-md border border-slate-300 px-3 py-2 text-right text-sm"
+                                    >
+                                </td>
                                 <td class="px-4 py-3 text-right">
                                     <input
                                         wire:model="deductionDayOverrides.{{ $row['emp_id'] }}"
@@ -296,11 +334,13 @@
                                         class="w-28 rounded-md border border-slate-300 px-3 py-2 text-right text-sm"
                                     >
                                 </td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['paid_days'] ?? 0, 3) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['employee_gsis_days'] ?? 0, 3) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['basic_salary'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="13" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="17" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -379,9 +419,12 @@
                 },
             }"
         >
-            <div class="border-b border-slate-200 px-4 py-3">
-                <h3 class="font-semibold">Deductions and Adjustments</h3>
-                <p class="mt-1 text-sm text-slate-600">Compensation adjustments for the Regular payroll output.</p>
+            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                <div>
+                    <h3 class="font-semibold">Deductions and Adjustments</h3>
+                    <p class="mt-1 text-sm text-slate-600">Compensation adjustments for the Regular payroll output.</p>
+                </div>
+                @include('livewire.payroll.partials.step-save-button')
             </div>
 
             @error('adjustments')
@@ -552,8 +595,9 @@
         </div>
     @elseif ($currentStep === 4)
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-4 py-3">
+            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
                 <h3 class="font-semibold">Mandatory Deductions</h3>
+                @include('livewire.payroll.partials.step-save-button')
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
@@ -618,11 +662,12 @@
         </div>
     @elseif ($currentStep === 5)
         <div class="space-y-4">
-            <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
                 <div>
                     <h3 class="font-semibold">Deduction Programs</h3>
                     <p class="text-sm text-slate-600">Turn recurring deductions on for this payroll run and choose who they apply to.</p>
                 </div>
+                @include('livewire.payroll.partials.step-save-button')
             </div>
 
             @php
@@ -798,17 +843,32 @@
                 </div>
             </div>
         </div>
-    @elseif ($currentStep === 6)
+    @elseif (in_array($currentStep, [6, 7], true))
         @php
+            $isAdditionalPremiumStep = $currentStep === 6;
+            $stepDeductionTypes = $isAdditionalPremiumStep ? $additionalPremiumTypes : $loanTypes;
+            $stepTitle = $isAdditionalPremiumStep ? 'Additional Premium Deductions' : 'Loan Deductions';
+            $stepDescription = $isAdditionalPremiumStep
+                ? 'Additional premium deductions for selected employees can be imported or entered manually.'
+                : 'Loan deductions for selected employees can be imported or entered manually.';
+            $stepAddLabel = $isAdditionalPremiumStep ? 'Add Employee Premium' : 'Add Employee Loan';
+            $stepImportLabel = $isAdditionalPremiumStep ? 'Import Premium Excel' : 'Import Loan Excel';
+            $stepManageLabel = $isAdditionalPremiumStep ? 'Additional Premiums' : 'Recent Imports';
+            $stepNetBeforeLabel = $isAdditionalPremiumStep ? 'Net After Programs' : 'Net After Premiums';
+            $stepTotalLabel = $isAdditionalPremiumStep ? 'Additional Premium' : 'Loan Deductions';
+            $stepFinalLabel = $isAdditionalPremiumStep ? 'Net After Premiums' : 'Final Net Pay';
+            $stepDeductionKey = $isAdditionalPremiumStep ? 'additional_premiums' : 'loan_deductions';
+            $stepNetBeforeKey = $isAdditionalPremiumStep ? 'net_after_program_deductions' : 'net_after_additional_premiums';
+            $stepNetAfterKey = $isAdditionalPremiumStep ? 'net_after_additional_premiums' : 'net_after_loan_deductions';
             $loanEmployees = $rows->map(fn ($row) => [
                 'emp_id' => $row['emp_id'],
                 'name' => $row['employee_name'],
             ])->values();
-            $loanTypeOptions = $loanTypes->map(fn ($type) => [
+            $loanTypeOptions = $stepDeductionTypes->map(fn ($type) => [
                 'id' => (string) $type->id,
                 'label' => ($type->entity?->name ?? $type->entity?->code).' - '.$type->name,
             ])->values();
-            $recentLoanSuggestions = $this->recentLoanSuggestionsForModal($rows, $loanTypes);
+            $recentLoanSuggestions = $this->recentLoanSuggestionsForModal($rows, $stepDeductionTypes);
         @endphp
         <div
             class="space-y-4"
@@ -983,21 +1043,21 @@
 
             <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
                 <div>
-                    <h3 class="font-semibold">Loan Deductions</h3>
-                    <p class="text-sm text-slate-600">Loan deductions for {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }} can be imported or entered manually.</p>
+                    <h3 class="font-semibold">{{ $stepTitle }}</h3>
+                    <p class="text-sm text-slate-600">{{ $stepDescription }} {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }}.</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <button type="button" x-on:click="openLoanModal()" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
-                        Add Employee Loan
+                        {{ $stepAddLabel }}
                     </button>
                     <a href="{{ route('payroll.loan-imports.template') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                         Export Template
                     </a>
                     <button type="button" wire:click="openLoanImportModal" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                        Import Loan Excel
+                        {{ $stepImportLabel }}
                     </button>
-                    <a href="{{ route('payroll.loan-imports') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
-                        Recent Imports
+                    <a href="{{ $isAdditionalPremiumStep ? route('payroll.additional-premiums') : route('payroll.loan-imports') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                        {{ $stepManageLabel }}
                     </a>
                 </div>
             </div>
@@ -1305,9 +1365,9 @@
                         <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
                             <tr>
                                 <th class="payroll-sticky-employee-header border-b border-r border-slate-300 px-3 py-2">Employee</th>
-                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net After Programs</th>
-                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Loan Deductions</th>
-                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Final Net Pay</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">{{ $stepNetBeforeLabel }}</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">{{ $stepTotalLabel }}</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">{{ $stepFinalLabel }}</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2">Deduction Details</th>
                             </tr>
                         </thead>
@@ -1318,13 +1378,13 @@
                                         <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
                                         <div class="text-xs text-slate-500">{{ $row['emp_id'] }} · {{ $row['position'] ?? '-' }}</div>
                                     </td>
-                                    <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ number_format($row['net_after_program_deductions'], 2) }}</td>
-                                    <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold {{ ($row['loan_deductions']['total'] ?? 0) > 0 ? 'text-blue-700' : 'text-slate-500' }}">
-                                        {{ number_format($row['loan_deductions']['total'] ?? 0, 2) }}
+                                    <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ number_format($row[$stepNetBeforeKey] ?? 0, 2) }}</td>
+                                    <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold {{ ($row[$stepDeductionKey]['total'] ?? 0) > 0 ? 'text-blue-700' : 'text-slate-500' }}">
+                                        {{ number_format($row[$stepDeductionKey]['total'] ?? 0, 2) }}
                                     </td>
-                                    <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format($row['net_after_loan_deductions'], 2) }}</td>
+                                    <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format($row[$stepNetAfterKey] ?? 0, 2) }}</td>
                                     <td class="border-b border-r border-slate-200 px-3 py-2">
-                                        @forelse ($row['loan_deductions']['items'] as $loan)
+                                        @forelse ($row[$stepDeductionKey]['items'] as $loan)
                                             <div class="mb-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs">
                                                 <span class="font-semibold">{{ $loan['entity'] }}</span>
                                                 <span class="text-slate-500">· {{ $loan['loan_account_no'] }}</span>
@@ -1335,7 +1395,7 @@
                                             </div>
                                         @empty
                                             <button type="button" x-on:click="openLoanModal(@js($row['emp_id']))" class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                                                Add loan deduction
+                                                {{ $isAdditionalPremiumStep ? 'Add additional premium' : 'Add loan deduction' }}
                                             </button>
                                         @endforelse
                                     </td>
@@ -1350,11 +1410,14 @@
                 </div>
             </div>
         </div>
-    @elseif ($currentStep === 7)
+    @elseif ($currentStep === 8)
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-4 py-3">
-                <h3 class="font-semibold">Tax Calculation</h3>
-                <p class="text-sm text-slate-600">Review annualized taxable income, tax due, withholding tax, and net pay.</p>
+            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                <div>
+                    <h3 class="font-semibold">Tax Calculation</h3>
+                    <p class="text-sm text-slate-600">Review annualized taxable income, tax due, withholding tax, and net pay.</p>
+                </div>
+                @include('livewire.payroll.partials.step-save-button')
             </div>
             <div class="hidden overflow-x-auto">
                 <table class="min-w-[2480px] divide-y divide-slate-200 text-sm">
@@ -1402,7 +1465,7 @@
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['hazard'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['net_compensation'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['monthly_mandatory_deductions'], 2) }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format(($row['program_deductions']['total'] ?? 0) + ($row['loan_deductions']['total'] ?? 0), 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format(($row['program_deductions']['total'] ?? 0) + ($row['additional_premiums']['total'] ?? 0) + ($row['loan_deductions']['total'] ?? 0), 2) }}</td>
                                 <td class="px-4 py-3 text-right">0.00</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['monthly_net_income'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['tax_adjustment'] ?? 0, 2) }}</td>
@@ -1437,7 +1500,7 @@
                                 <td></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($totals['net_compensation'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($totals['total_mandatory_deductions'], 2) }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format(($totals['program_deductions'] ?? 0) + ($totals['loan_deductions'] ?? 0), 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format(($totals['program_deductions'] ?? 0) + ($totals['additional_premiums'] ?? 0) + ($totals['loan_deductions'] ?? 0), 2) }}</td>
                                 <td class="px-4 py-3 text-right">0.00</td>
                                 <td></td>
                                 <td></td>

@@ -86,6 +86,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/payroll/loan-imports', [PayrollPageController::class, 'loanImports'])->name('payroll.loan-imports');
         Route::get('/payroll/loan-imports/template', [PayrollLoanImportController::class, 'template'])->name('payroll.loan-imports.template');
         Route::get('/payroll/loan-references', [PayrollPageController::class, 'loanReferences'])->name('payroll.loan-references');
+        Route::get('/payroll/additional-premiums', [PayrollPageController::class, 'additionalPremiums'])->name('payroll.additional-premiums');
         Route::get('/payroll/compensations', [PayrollPageController::class, 'compensations'])->name('payroll.compensations');
         Route::get('/payroll/adjustment-types', [PayrollPageController::class, 'adjustmentTypes'])->name('payroll.adjustment-types');
         Route::get('/payroll/deduction-programs', [PayrollPageController::class, 'deductionPrograms'])->name('payroll.deduction-programs');

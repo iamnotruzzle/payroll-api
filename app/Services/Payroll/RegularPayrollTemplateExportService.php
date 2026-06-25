@@ -135,7 +135,7 @@ class RegularPayrollTemplateExportService
             $programs = collect($row['program_deductions']['items'] ?? []);
             $adjustments = $row['compensation_adjustments'] ?? [];
             $totalOtherDeductions = $row['total_other_deductions']
-                ?? (($row['program_deductions']['total'] ?? 0) + ($row['loan_deductions']['total'] ?? 0));
+                ?? (($row['program_deductions']['total'] ?? 0) + ($row['additional_premiums']['total'] ?? 0) + ($row['loan_deductions']['total'] ?? 0));
 
             $this->setCells($sheet, $excelRow, [
                 'A' => $index + 1,

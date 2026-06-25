@@ -82,7 +82,7 @@
                             wire:model.blur="formula"
                             rows="4"
                             spellcheck="false"
-                            placeholder="max(0, configured_value - 50 * subsistence_deduct_days)"
+                            placeholder="max(0, configured_value - (configured_value / 30) * subsistence_deduct_days)"
                             class="erp-formula-editor-input block w-full resize-y border-0 bg-slate-900 px-3 py-3 font-mono text-sm leading-6 text-slate-100 outline-none placeholder:text-slate-500"
                         ></textarea>
 
@@ -131,8 +131,9 @@
                                 <div>
                                     <div class="mb-1.5 text-[11px] font-semibold uppercase text-slate-500">Templates</div>
                                     <div class="flex flex-wrap gap-1.5">
-                                        <button type="button" x-on:click="replace('max(0, configured_value - 50 * subsistence_deduct_days) * (1 - (0.5 * is_part_time))')" class="erp-formula-template rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100">Subsistence</button>
-                                        <button type="button" x-on:click="replace('max(0, configured_value - 6.818 * laundry_deduct_days) * (1 - (0.5 * is_part_time))')" class="erp-formula-template rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100">Laundry</button>
+                                        <button type="button" x-on:click="replace('max(0, configured_value - (configured_value / 30) * subsistence_deduct_days) * (1 - (0.5 * is_part_time))')" class="erp-formula-template rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100">Subsistence</button>
+                                        <button type="button" x-on:click="replace('max(0, configured_value - (configured_value / 22) * laundry_deduct_days) * (1 - (0.5 * is_part_time))')" class="erp-formula-template rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100">Laundry</button>
+                                        <button type="button" x-on:click="replace('max(0, configured_value - (configured_value / 22) * pera_deduct_days) * (1 - (0.5 * is_part_time))')" class="erp-formula-template rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100">PERA</button>
                                         <button type="button" x-on:click="replace('basic_salary * hazard_rate')" class="erp-formula-template rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100">Hazard Pay</button>
                                     </div>
                                 </div>

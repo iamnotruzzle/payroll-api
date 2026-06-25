@@ -189,6 +189,11 @@ class PayrollPageController extends Controller
         return view('payroll.loan-references');
     }
 
+    public function additionalPremiums()
+    {
+        return view('payroll.additional-premiums');
+    }
+
     public function compensations()
     {
         return view('payroll.compensations');

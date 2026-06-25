@@ -8,9 +8,11 @@ return new class extends Migration
 {
     protected $connection = 'payroll';
 
-    private const SUBSISTENCE_FORMULA = 'max(0, configured_value - 50 * subsistence_deduct_days) * (1 - (0.5 * is_part_time))';
+    private const SUBSISTENCE_FORMULA = 'max(0, configured_value - (configured_value / 30) * subsistence_deduct_days) * (1 - (0.5 * is_part_time))';
 
-    private const LAUNDRY_FORMULA = 'max(0, configured_value - 6.818 * laundry_deduct_days) * (1 - (0.5 * is_part_time))';
+    private const LAUNDRY_FORMULA = 'max(0, configured_value - (configured_value / 22) * laundry_deduct_days) * (1 - (0.5 * is_part_time))';
+
+    private const PERA_FORMULA = 'max(0, configured_value - (configured_value / 22) * pera_deduct_days) * (1 - (0.5 * is_part_time))';
 
     public function up(): void
     {
@@ -20,6 +22,7 @@ return new class extends Migration
 
         $this->convertFixedRuleToFormula('subsistence_allowance', '%Subsistence%', self::SUBSISTENCE_FORMULA);
         $this->convertFixedRuleToFormula('laundry_allowance', '%Laundry%', self::LAUNDRY_FORMULA);
+        $this->convertFixedRuleToFormula('pera', '%PERA%', self::PERA_FORMULA);
     }
 
     public function down(): void
@@ -30,6 +33,7 @@ return new class extends Migration
 
         $this->restoreGeneratedFormulaToFixed(self::SUBSISTENCE_FORMULA);
         $this->restoreGeneratedFormulaToFixed(self::LAUNDRY_FORMULA);
+        $this->restoreGeneratedFormulaToFixed(self::PERA_FORMULA);
     }
 
     private function convertFixedRuleToFormula(string $variableName, string $namePattern, string $formula): void

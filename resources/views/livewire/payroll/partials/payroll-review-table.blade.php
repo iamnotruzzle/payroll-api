@@ -122,7 +122,7 @@
                         @endforeach
                     @endforeach
                     <td class="px-4 py-3 text-right">{{ number_format($row['net_before_other_deductions'], 2) }}</td>
-                    <td class="px-4 py-3 text-right">{{ number_format($row['total_other_deductions'] ?? (($row['program_deductions']['total'] ?? 0) + ($row['loan_deductions']['total'] ?? 0)), 2) }}</td>
+                    <td class="px-4 py-3 text-right">{{ number_format($row['total_other_deductions'] ?? (($row['program_deductions']['total'] ?? 0) + ($row['additional_premiums']['total'] ?? 0) + ($row['loan_deductions']['total'] ?? 0)), 2) }}</td>
                     <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_loan_deductions'], 2) }}</td>
                     <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['fifteenth'], 2) }}</td>
                     <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['thirtieth'], 2) }}</td>
@@ -175,7 +175,7 @@
                         @endforeach
                     @endforeach
                     <td class="px-4 py-3 text-right">{{ number_format($totals['net_before_other_deductions'], 2) }}</td>
-                    <td class="px-4 py-3 text-right">{{ number_format($totals['total_other_deductions'] ?? (($totals['program_deductions'] ?? 0) + ($totals['loan_deductions'] ?? 0)), 2) }}</td>
+                    <td class="px-4 py-3 text-right">{{ number_format($totals['total_other_deductions'] ?? (($totals['program_deductions'] ?? 0) + ($totals['additional_premiums'] ?? 0) + ($totals['loan_deductions'] ?? 0)), 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['net_after_loan_deductions'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['fifteenth'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['thirtieth'], 2) }}</td>

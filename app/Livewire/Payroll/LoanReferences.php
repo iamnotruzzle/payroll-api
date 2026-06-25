@@ -8,6 +8,10 @@ use Livewire\Component;
 
 class LoanReferences extends Component
 {
+    private const ADDITIONAL_PREMIUM_ENTITY_CODE = 'ADDITIONAL_PREMIUM';
+
+    public string $mode = 'loans';
+
     public ?int $editingEntityId = null;
     public bool $showEntityModal = false;
     public string $entityCode = '';
@@ -28,10 +32,24 @@ class LoanReferences extends Component
     public int $typeSortOrder = 0;
     public bool $typeIsActive = true;
 
+    public function mount(string $mode = 'loans'): void
+    {
+        $this->mode = $mode;
+
+        if ($this->isAdditionalPremiumMode()) {
+            $this->selectedEntityId = $this->additionalPremiumEntityId();
+            $this->typeEntityId = $this->selectedEntityId;
+            $this->reviewGroup = 'Additional Premiums';
+            $this->reviewColumnKey = 'additional_premium';
+            $this->reviewColumnLabel = 'Additional Premium';
+        }
+    }
+
     public function render()
     {
         $entities = PayrollLoanEntity::query()
             ->withCount('loanTypes')
+            ->when($this->isAdditionalPremiumMode(), fn ($query) => $query->where('code', self::ADDITIONAL_PREMIUM_ENTITY_CODE))
             ->orderBy('sort_order')
             ->orderBy('code')
             ->get();
@@ -46,6 +64,7 @@ class LoanReferences extends Component
                 ->orderBy('name')
                 ->get(),
             'selectedEntity' => $entities->firstWhere('id', $this->selectedEntityId),
+            'isAdditionalPremiumMode' => $this->isAdditionalPremiumMode(),
         ]);
     }
 
@@ -58,6 +77,10 @@ class LoanReferences extends Component
 
     public function openEntityModal(?int $id = null): void
     {
+        if ($this->isAdditionalPremiumMode()) {
+            return;
+        }
+
         $this->resetEntityForm();
         if ($id) {
             $this->editEntity($id);
@@ -88,6 +111,10 @@ class LoanReferences extends Component
 
     public function saveEntity(): void
     {
+        if ($this->isAdditionalPremiumMode()) {
+            return;
+        }
+
         $data = $this->validate([
             'entityCode' => ['required', 'string', 'max:40', 'regex:/^[A-Za-z0-9_-]+$/'],
             'entityName' => ['required', 'string', 'max:120'],
@@ -123,6 +150,10 @@ class LoanReferences extends Component
 
     public function deleteEntity(int $id): void
     {
+        if ($this->isAdditionalPremiumMode()) {
+            return;
+        }
+
         PayrollLoanEntity::findOrFail($id)->delete();
         $this->resetEntityForm();
         $this->selectedEntityId = PayrollLoanEntity::query()->orderBy('sort_order')->value('id');
@@ -208,12 +239,31 @@ class LoanReferences extends Component
             : $this->selectedEntityId;
         $this->typeCode = '';
         $this->typeName = '';
-        $this->reviewGroup = 'Bank Loans';
-        $this->reviewColumnKey = '';
-        $this->reviewColumnLabel = '';
+        $this->reviewGroup = $this->isAdditionalPremiumMode() ? 'Additional Premiums' : 'Bank Loans';
+        $this->reviewColumnKey = $this->isAdditionalPremiumMode() ? 'additional_premium' : '';
+        $this->reviewColumnLabel = $this->isAdditionalPremiumMode() ? 'Additional Premium' : '';
         $this->matchKeywords = '';
         $this->typeSortOrder = 0;
         $this->typeIsActive = true;
         $this->resetValidation();
+    }
+
+    private function isAdditionalPremiumMode(): bool
+    {
+        return $this->mode === 'additional_premiums';
+    }
+
+    private function additionalPremiumEntityId(): ?int
+    {
+        $entity = PayrollLoanEntity::query()->firstOrCreate(
+            ['code' => self::ADDITIONAL_PREMIUM_ENTITY_CODE],
+            [
+                'name' => 'Additional Premiums',
+                'sort_order' => 900,
+                'is_active' => true,
+            ]
+        );
+
+        return $entity->id;
     }
 }
