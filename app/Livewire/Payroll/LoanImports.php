@@ -3,10 +3,12 @@
 namespace App\Livewire\Payroll;
 
 use App\Models\Hris\Employee;
+use App\Models\Payroll\PayrollLoanEntity;
 use App\Models\Payroll\PayrollLoanImport;
 use App\Models\Payroll\PayrollLoanImportItem;
 use App\Models\Payroll\PayrollLoanType;
 use App\Services\Payroll\PayrollLoanImportService;
+use App\Services\Payroll\PayrollLoanReferenceService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +21,8 @@ class LoanImports extends Component
     use WithFileUploads;
 
     public $loanFile;
+
+    public string $mode = 'loans';
 
     public ?int $selectedImportId = null;
 
@@ -43,8 +47,9 @@ class LoanImports extends Component
         'remarks' => '',
     ];
 
-    public function mount(): void
+    public function mount(string $mode = 'loans'): void
     {
+        $this->mode = $mode === 'additional_premiums' ? 'additional_premiums' : 'loans';
         $this->period = request()->query('period', CarbonImmutable::today()->format('Y-m'));
     }
 
@@ -65,7 +70,7 @@ class LoanImports extends Component
 
     public function render()
     {
-        $imports = PayrollLoanImport::query()
+        $imports = $this->scopedImportsQuery()
             ->withCount('items')
             ->orderByDesc('imported_at')
             ->orderByDesc('id')
@@ -87,9 +92,12 @@ class LoanImports extends Component
             'loanTypes' => PayrollLoanType::query()
                 ->with('entity')
                 ->where('is_active', true)
+                ->whereHas('entity', fn ($query) => $this->scopeEntityQuery($query))
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->get(),
+            'isAdditionalPremiumMode' => $this->isAdditionalPremiumMode(),
+            'labels' => $this->labels(),
         ]);
     }
 
@@ -110,6 +118,7 @@ class LoanImports extends Component
         $this->loanImportPreview = app(PayrollLoanImportService::class)->preview(
             Storage::path($storedPath),
             $file->getClientOriginalName(),
+            $this->mode,
         );
     }
 
@@ -124,6 +133,7 @@ class LoanImports extends Component
         $this->loanImportPreview = app(PayrollLoanImportService::class)->preview(
             Storage::path($this->pendingLoanImportPath),
             $this->pendingLoanImportOriginalFilename ?? 'loan_import.xlsx',
+            $this->mode,
         );
 
         if (($this->loanImportPreview['invalid_rows'] ?? 0) > 0) {
@@ -156,9 +166,12 @@ class LoanImports extends Component
 
     public function exportTemplate()
     {
-        $path = app(PayrollLoanImportService::class)->buildTemplate();
+        $path = app(PayrollLoanImportService::class)->buildTemplate($this->mode);
+        $filename = $this->isAdditionalPremiumMode()
+            ? 'payroll_additional_premium_import_template.xlsx'
+            : 'payroll_loan_due_import_template.xlsx';
 
-        return response()->download($path, 'payroll_loan_due_import_template.xlsx', [
+        return response()->download($path, $filename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
     }
@@ -224,8 +237,8 @@ class LoanImports extends Component
             $employee = Employee::query()->where('emp_id', $data['emp_id'])->first();
             $loanType = PayrollLoanType::query()->with('entity')->find((int) $data['loan_type_id']);
 
-            if (! $employee || ! $loanType) {
-                $this->addError('loanDeductionForm', 'Choose a valid employee and loan type for row '.($index + 1).'.');
+            if (! $employee || ! $loanType || ! $this->loanTypeMatchesMode($loanType)) {
+                $this->addError('loanDeductionForm', 'Choose a valid employee and '.$this->labels()['type_name_lc'].' for row '.($index + 1).'.');
 
                 return;
             }
@@ -266,7 +279,7 @@ class LoanImports extends Component
 
         $this->refreshLoanImportCounts($import->id);
         $this->selectedImportId = $import->id;
-        session()->flash('status', "Saved {$saved} loan deduction(s).");
+        session()->flash('status', "Saved {$saved} ".$this->labels()['deduction_lc']." deduction(s).");
         $this->dispatch('loan-deduction-batch-saved');
     }
 
@@ -285,6 +298,7 @@ class LoanImports extends Component
             ->where('validation_status', 'valid')
             ->whereIn('matched_emp_id', $empIds)
             ->whereDate('due_month', '<', $this->selectedPeriodStart()->toDateString())
+            ->whereIn(DB::raw('UPPER(entity)'), $this->entityNamesForMode())
             ->orderByDesc('due_month')
             ->orderByDesc('id')
             ->get()
@@ -357,9 +371,9 @@ class LoanImports extends Component
     {
         return PayrollLoanImport::query()->firstOrCreate(
             [
-                'source_entity' => 'Manual Entry',
+                'source_entity' => $this->isAdditionalPremiumMode() ? 'Manual Additional Premium' : 'Manual Entry',
                 'billing_period' => $periodStart->toDateString(),
-                'original_filename' => 'manual-loan-deductions',
+                'original_filename' => $this->isAdditionalPremiumMode() ? 'manual-additional-premiums' : 'manual-loan-deductions',
             ],
             [
                 'stored_path' => null,
@@ -413,5 +427,125 @@ class LoanImports extends Component
         $givenName = trim(implode(' ', array_filter([$firstName, $middleInitial])));
 
         return trim($lastName.', '.$givenName, ' ,');
+    }
+
+    private function scopedImportsQuery()
+    {
+        return PayrollLoanImport::query()
+            ->when($this->isAdditionalPremiumMode(), function ($query) {
+                $query->where(function ($query) {
+                    $query->whereIn(DB::raw('UPPER(source_entity)'), $this->entityNamesForMode())
+                        ->orWhere('original_filename', 'manual-additional-premiums')
+                        ->orWhereHas('items', fn ($items) => $items->whereIn(DB::raw('UPPER(entity)'), $this->entityNamesForMode()));
+                });
+            }, function ($query) {
+                $query->where('original_filename', '!=', 'manual-additional-premiums')
+                    ->whereNotIn(DB::raw('UPPER(source_entity)'), $this->additionalPremiumEntityNames())
+                    ->whereDoesntHave('items', fn ($items) => $items->whereIn(DB::raw('UPPER(entity)'), $this->additionalPremiumEntityNames()));
+            });
+    }
+
+    private function scopeEntityQuery($query): void
+    {
+        $entityNames = $this->additionalPremiumEntityNames();
+
+        if ($this->isAdditionalPremiumMode()) {
+            $query->where(function ($query) use ($entityNames) {
+                foreach ($entityNames as $entityName) {
+                    $query->orWhereRaw('UPPER(code) = ?', [$entityName])
+                        ->orWhereRaw('UPPER(name) = ?', [$entityName]);
+                }
+            });
+
+            return;
+        }
+
+        foreach ($entityNames as $entityName) {
+            $query->whereRaw('UPPER(code) != ?', [$entityName])
+                ->whereRaw('UPPER(name) != ?', [$entityName]);
+        }
+    }
+
+    private function loanTypeMatchesMode(PayrollLoanType $loanType): bool
+    {
+        $entityNames = $this->additionalPremiumEntityNames();
+        $entityCode = strtoupper((string) $loanType->entity?->code);
+        $entityName = strtoupper((string) $loanType->entity?->name);
+        $isPremiumType = in_array($entityCode, $entityNames, true) || in_array($entityName, $entityNames, true);
+
+        return $this->isAdditionalPremiumMode() ? $isPremiumType : ! $isPremiumType;
+    }
+
+    private function entityNamesForMode(): array
+    {
+        if ($this->isAdditionalPremiumMode()) {
+            return $this->additionalPremiumEntityNames();
+        }
+
+        $premiumNames = $this->additionalPremiumEntityNames();
+
+        return PayrollLoanEntity::query()
+            ->where('is_active', true)
+            ->get(['code', 'name'])
+            ->flatMap(fn (PayrollLoanEntity $entity) => [$entity->code, $entity->name])
+            ->map(fn (?string $name) => strtoupper((string) $name))
+            ->filter(fn (string $name) => $name !== '' && ! in_array($name, $premiumNames, true))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function additionalPremiumEntityNames(): array
+    {
+        return collect([
+            ...PayrollLoanReferenceService::ADDITIONAL_PREMIUM_ENTITY_CODES,
+            ...app(PayrollLoanReferenceService::class)->additionalPremiumEntityCodes(),
+        ])
+            ->map(fn (string $code) => strtoupper($code))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function isAdditionalPremiumMode(): bool
+    {
+        return $this->mode === 'additional_premiums';
+    }
+
+    private function labels(): array
+    {
+        return $this->isAdditionalPremiumMode()
+            ? [
+                'page_title' => 'Additional Premium Imports',
+                'description' => 'Upload or encode additional premium deductions separately from bank loans.',
+                'add_button' => 'Add Employee Premium',
+                'template_button' => 'Export Premium Template',
+                'modal_title' => 'Batch Add Employee Premiums',
+                'modal_subtitle' => 'Included in Additional Premiums for',
+                'import_title' => 'Import Additional Premium File',
+                'empty_imports' => 'No additional premium imports yet.',
+                'type_name' => 'Premium Type',
+                'type_name_lc' => 'premium type',
+                'deduction_lc' => 'additional premium',
+                'batch_title' => 'Batch Premiums',
+                'empty_batch' => 'No additional premiums staged yet.',
+                'ready_text' => 'Ready for payroll Step 6.',
+            ]
+            : [
+                'page_title' => 'Loan Due Imports',
+                'description' => 'Upload the uniform loan or deduction template and review validation before payroll generation.',
+                'add_button' => 'Add Loan Deduction',
+                'template_button' => 'Export Template',
+                'modal_title' => 'Batch Add Employee Loans',
+                'modal_subtitle' => 'Included in Loan Due Imports for',
+                'import_title' => 'Import Loan Due File',
+                'empty_imports' => 'No loan imports yet.',
+                'type_name' => 'Loan Type',
+                'type_name_lc' => 'loan type',
+                'deduction_lc' => 'loan',
+                'batch_title' => 'Batch Loans',
+                'empty_batch' => 'No loan deductions staged yet.',
+                'ready_text' => 'Ready for payroll Step 7.',
+            ];
     }
 }

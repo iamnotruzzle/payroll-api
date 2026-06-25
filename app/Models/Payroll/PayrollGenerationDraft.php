@@ -6,6 +6,22 @@ use Illuminate\Database\Eloquent\Model;
 
 class PayrollGenerationDraft extends Model
 {
+    public const LEGACY_WIZARD_STEP_COUNT = 8;
+
+    public const ADDITIONAL_PREMIUM_STEP = 6;
+
+    public const WIZARD_STEPS = [
+        1 => 'MRA Validation',
+        2 => 'Compensation',
+        3 => 'Deductions and Adjustments',
+        4 => 'Mandatory Deductions',
+        5 => 'Deduction Programs',
+        6 => 'Additional Premium',
+        7 => 'Loan Deductions',
+        8 => 'Tax Calculation',
+        9 => 'Review',
+    ];
+
     protected $connection = 'payroll';
 
     protected $table = 'payroll_generation_drafts';
@@ -36,6 +52,29 @@ class PayrollGenerationDraft extends Model
         'state_json' => 'array',
         'saved_at' => 'datetime',
     ];
+
+    public static function currentWizardStepCount(): int
+    {
+        return count(self::WIZARD_STEPS);
+    }
+
+    public static function restoredWizardStep(int $currentStep, array $state = []): int
+    {
+        $step = max(1, $currentStep);
+        $savedStepCount = (int) ($state['wizard_step_count'] ?? self::LEGACY_WIZARD_STEP_COUNT);
+        $currentStepCount = self::currentWizardStepCount();
+
+        if ($savedStepCount > 0 && $savedStepCount < $currentStepCount && $step >= self::ADDITIONAL_PREMIUM_STEP) {
+            $step += $currentStepCount - $savedStepCount;
+        }
+
+        return max(1, min($currentStepCount, $step));
+    }
+
+    public static function wizardStepLabel(int $step): string
+    {
+        return self::WIZARD_STEPS[$step] ?? 'Step '.$step;
+    }
 
     public static function configurationKey(
         ?int $divisionId,

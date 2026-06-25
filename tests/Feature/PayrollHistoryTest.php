@@ -197,7 +197,9 @@ class PayrollHistoryTest extends TestCase
         $this->assertStringContainsString('Saved Drafts', $html);
         $this->assertStringContainsString('Billing and Claims', $html);
         $this->assertStringContainsString('Step:', $html);
-        $this->assertStringContainsString('7', $html);
+        $this->assertStringContainsString('8', $html);
+        $this->assertStringContainsString('of 9', $html);
+        $this->assertStringContainsString('Tax Calculation', $html);
         $this->assertStringContainsString('Continue Draft', $html);
 
         $response = $component->continueDraft($draft->id);

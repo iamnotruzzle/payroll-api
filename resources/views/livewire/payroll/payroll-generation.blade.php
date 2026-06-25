@@ -150,7 +150,7 @@
             </div>
         </div>
 
-        <div class="grid gap-2 p-3 md:grid-cols-4 lg:grid-cols-8">
+        <div class="grid gap-2 p-3 md:grid-cols-3 lg:grid-cols-9">
             @foreach ($steps as $number => $label)
                 <button
                     type="button"
@@ -175,7 +175,7 @@
             <span class="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700"></span>
             Loading payroll rows...
         </div>
-        <div class="overflow-x-auto">
+        <div class="payroll-table-scroll overflow-x-auto">
             <table class="min-w-full divide-y divide-slate-200 text-sm">
                 <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                     <tr>
@@ -187,7 +187,7 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                    @for ($i = 0; $i < 8; $i++)
+                    @for ($i = 0; $i < count($steps); $i++)
                         <tr class="animate-pulse">
                             <td class="px-4 py-4">
                                 <div class="h-4 w-44 rounded bg-slate-200"></div>
@@ -227,19 +227,19 @@
                 </div>
                 @include('livewire.payroll.partials.step-save-button')
             </div>
-            <div class="overflow-x-auto">
+            <div class="payroll-table-scroll overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th colspan="3" class="border-b border-slate-200 px-4 py-3 text-center">Employee Information</th>
+                            <th colspan="3" class="payroll-sticky-employee-info-group border-b border-r-2 border-slate-300 px-4 py-3 text-center">Employee Information</th>
                             <th colspan="2" class="border-b border-slate-200 px-4 py-3 text-center">Pay Basis</th>
                             <th colspan="6" class="border-b border-slate-200 px-4 py-3 text-center">Leave Basis</th>
                             <th colspan="6" class="border-b border-slate-200 px-4 py-3 text-center">Payroll Input</th>
                         </tr>
                         <tr>
-                            <th class="px-4 py-3">Employee No.</th>
-                            <th class="payroll-sticky-employee-header px-4 py-3">Employee Name</th>
-                            <th class="px-4 py-3">Position</th>
+                            <th class="payroll-sticky-employee-no-header px-4 py-3">Employee No.</th>
+                            <th class="payroll-sticky-employee-name-header px-4 py-3">Employee Name</th>
+                            <th class="payroll-sticky-employee-position-header border-r-2 border-slate-300 px-4 py-3">Position</th>
                             <th class="px-4 py-3 text-right">Salary Grade</th>
                             <th class="px-4 py-3 text-right">Step</th>
                             <th class="px-4 py-3">Leave Period</th>
@@ -259,12 +259,11 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50">
-                                <td class="px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
-                                <td class="payroll-sticky-employee-cell px-4 py-3">
+                                <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
+                                <td class="payroll-sticky-employee-name-cell px-4 py-3">
                                     <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
-                                    <div class="text-xs text-slate-500">{{ $row['position'] ?? '-' }}</div>
                                 </td>
-                                <td class="px-4 py-3">{{ $row['position'] ?? '-' }}</td>
+                                <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">
                                     <input wire:model="payBasisOverrides.{{ $row['emp_id'] }}.salary_grade" type="number" min="0" step="1" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
                                 </td>
@@ -352,16 +351,19 @@
             <div class="border-b border-slate-200 px-4 py-3">
                 <h3 class="font-semibold">Compensation</h3>
             </div>
-            <div class="overflow-x-auto">
+            <div class="payroll-table-scroll overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th rowspan="2" class="payroll-sticky-employee-header px-4 py-3 align-middle">Employee Name</th>
+                            <th colspan="3" class="payroll-sticky-employee-info-group border-b border-r-2 border-slate-300 px-4 py-3 text-center">Employee Information</th>
                             <th rowspan="2" class="px-4 py-3 text-right align-middle">Basic Salary</th>
                             <th colspan="{{ max(1, $compensations->count()) }}" class="border-b border-slate-200 px-4 py-3 text-center">Additional Earnings</th>
                             <th rowspan="2" class="px-4 py-3 text-right align-middle">Gross Pay</th>
                         </tr>
                         <tr>
+                            <th class="payroll-sticky-employee-no-header px-4 py-3">Employee No.</th>
+                            <th class="payroll-sticky-employee-name-header px-4 py-3">Employee Name</th>
+                            <th class="payroll-sticky-employee-position-header border-r-2 border-slate-300 px-4 py-3">Position</th>
                             @forelse ($compensations as $item)
                                 <th class="px-4 py-3 text-right">{{ $item->name }}</th>
                             @empty
@@ -372,7 +374,9 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50">
-                                <td class="payroll-sticky-employee-cell px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
+                                <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
+                                <td class="payroll-sticky-employee-name-cell px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
+                                <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['basic_salary'], 2) }}</td>
                                 @forelse ($compensations as $item)
                                     <td class="px-4 py-3 text-right">{{ number_format($row['compensations'][$item->id]['amount'] ?? 0, 2) }}</td>
@@ -383,7 +387,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ 3 + max(1, $compensations->count()) }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="{{ 5 + max(1, $compensations->count()) }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -433,17 +437,20 @@
                 </div>
             @enderror
 
-            <div class="overflow-x-auto">
-                <table class="divide-y divide-slate-200 text-sm" style="min-width: {{ 1320 + ($adjustmentTypes->count() * 140) }}px;">
+            <div class="payroll-table-scroll overflow-x-auto">
+                <table class="divide-y divide-slate-200 text-sm" style="min-width: {{ 1560 + ($adjustmentTypes->count() * 140) }}px;">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th rowspan="2" class="payroll-sticky-employee-header px-4 py-3 align-middle">Employee Name</th>
+                            <th colspan="3" class="payroll-sticky-employee-info-group border-b border-r-2 border-slate-300 px-4 py-3 text-center">Employee Information</th>
                             <th rowspan="2" class="px-4 py-3 text-right align-middle">Deduct Days</th>
                             <th rowspan="2" class="px-4 py-3 text-right align-middle">Gross Compensation</th>
                             <th colspan="{{ 5 + $adjustmentTypes->count() }}" class="border-b border-slate-200 px-4 py-3 text-center">Compensation Adjustment</th>
                             <th rowspan="2" class="px-4 py-3 text-right align-middle">Net Compensation</th>
                         </tr>
                         <tr>
+                            <th class="payroll-sticky-employee-no-header px-4 py-3">Employee No.</th>
+                            <th class="payroll-sticky-employee-name-header px-4 py-3">Employee Name</th>
+                            <th class="payroll-sticky-employee-position-header border-r-2 border-slate-300 px-4 py-3">Position</th>
                             <th class="px-3 py-3 text-right">Basic Salary</th>
                             <th class="px-3 py-3 text-right">Subsistence</th>
                             <th class="px-3 py-3 text-right">Laundry</th>
@@ -461,17 +468,18 @@
                                 $employeeAdjustmentTypeIds = collect(array_keys($employeeExtraItems))->map(fn ($id) => (int) $id)->all();
                             @endphp
                             <tr class="hover:bg-slate-50">
-                                <td class="payroll-sticky-employee-cell px-4 py-3 align-top">
+                                <td class="payroll-sticky-employee-no-cell px-4 py-3 align-top font-medium">{{ $row['emp_id'] }}</td>
+                                <td class="payroll-sticky-employee-name-cell px-4 py-3 align-top">
                                     <div class="flex min-w-[230px] items-start justify-between gap-3">
                                         <div>
                                             <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
-                                            <div class="text-xs text-slate-500">{{ $row['emp_id'] }}</div>
                                         </div>
                                         <button type="button" x-on:click="start(@js($row['emp_id']), @js($row['employee_name']), @js($employeeAdjustmentTypeIds))" class="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                                             +
                                         </button>
                                     </div>
                                 </td>
+                                <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3 align-top">{{ $row['position'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right align-top">{{ number_format($row['deduction_days'], 3) }}</td>
                                 <td class="px-4 py-3 text-right align-top font-medium">{{ number_format($row['gross'], 2) }}</td>
                                 @foreach (['basic_salary', 'subsistence', 'laundry', 'pera'] as $field)
@@ -514,14 +522,14 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ 9 + $adjustmentTypes->count() }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="{{ 11 + $adjustmentTypes->count() }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
                     @if ($rows->isNotEmpty())
                         <tfoot class="bg-slate-50 font-semibold">
                             <tr>
-                                <td class="px-4 py-3">Totals</td>
+                                <td colspan="3" class="border-r-2 border-slate-300 px-4 py-3">Totals</td>
                                 <td></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($totals['gross'], 2) }}</td>
                                 <td class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['basic_salary'], 2) }}</td>
@@ -599,11 +607,13 @@
                 <h3 class="font-semibold">Mandatory Deductions</h3>
                 @include('livewire.payroll.partials.step-save-button')
             </div>
-            <div class="overflow-x-auto">
+            <div class="payroll-table-scroll overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="payroll-sticky-employee-header px-4 py-3">Employee Name</th>
+                            <th class="payroll-sticky-employee-no-header px-4 py-3">Employee No.</th>
+                            <th class="payroll-sticky-employee-name-header px-4 py-3">Employee Name</th>
+                            <th class="payroll-sticky-employee-position-header border-r-2 border-slate-300 px-4 py-3">Position</th>
                             <th class="px-4 py-3 text-right">GSIS (PS)</th>
                             <th class="px-4 py-3 text-right">GSIS (GS)</th>
                             <th class="px-4 py-3 text-right">EC</th>
@@ -620,7 +630,9 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50">
-                                <td class="payroll-sticky-employee-cell px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
+                                <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
+                                <td class="payroll-sticky-employee-name-cell px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
+                                <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
                                 @foreach ([
                                     ['key' => 'life_retirement', 'source' => 'statutory_deductions'],
                                     ['key' => 'government_life_retirement', 'source' => 'statutory_government_shares'],
@@ -653,7 +665,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="12" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="14" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -679,7 +691,7 @@
                 <div class="border-b border-slate-200 px-4 py-3">
                     <h3 class="font-semibold">Program Setup</h3>
                 </div>
-                <div class="overflow-x-auto">
+                <div class="payroll-table-scroll overflow-x-auto">
                     <table class="min-w-[1120px] border-separate border-spacing-0 text-sm">
                         <thead class="bg-slate-100 text-left text-xs uppercase text-slate-600">
                             <tr>
@@ -781,11 +793,13 @@
                     <div class="border-b border-slate-200 px-4 py-3">
                         <h3 class="font-semibold">Program Deduction Preview</h3>
                     </div>
-                    <div class="max-h-[640px] overflow-auto">
+                    <div class="payroll-table-scroll max-h-[640px] overflow-auto">
                         <table class="border-separate border-spacing-0 text-sm" style="min-width: {{ $programPreviewWidth }}px;">
                             <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
                                 <tr>
-                                    <th class="payroll-sticky-employee-header border-b border-r border-slate-300 px-3 py-2">Employee</th>
+                                    <th class="payroll-sticky-employee-no-header border-b border-slate-300 px-3 py-2">Employee No.</th>
+                                    <th class="payroll-sticky-employee-name-header border-b border-slate-300 px-3 py-2">Employee Name</th>
+                                    <th class="payroll-sticky-employee-position-header border-b border-r border-slate-300 px-3 py-2">Position</th>
                                     <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net Before Programs</th>
                                     @foreach ($activeDeductionPrograms as $program)
                                         <th class="border-b border-r border-slate-300 px-3 py-2 text-right">{{ $program->name }}</th>
@@ -800,10 +814,9 @@
                                         $programItems = collect($row['program_deductions']['items']);
                                     @endphp
                                     <tr class="hover:bg-slate-50">
-                                        <td class="payroll-sticky-employee-cell border-b border-r border-slate-200 px-3 py-2">
-                                            <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
-                                            <div class="text-xs text-slate-500">{{ $row['emp_id'] }} &middot; {{ $row['position'] ?? '-' }}</div>
-                                        </td>
+                                        <td class="payroll-sticky-employee-no-cell border-b border-slate-200 px-3 py-2 font-medium">{{ $row['emp_id'] }}</td>
+                                        <td class="payroll-sticky-employee-name-cell border-b border-slate-200 px-3 py-2 font-medium text-slate-900">{{ $row['employee_name'] }}</td>
+                                        <td class="payroll-sticky-employee-position-cell border-b border-r border-slate-200 px-3 py-2">{{ $row['position'] ?? '-' }}</td>
                                         <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ number_format($row['net_before_other_deductions'], 2) }}</td>
                                         @foreach ($activeDeductionPrograms as $program)
                                             @php
@@ -834,7 +847,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ 4 + $activeDeductionPrograms->count() }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                        <td colspan="{{ 6 + $activeDeductionPrograms->count() }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -854,6 +867,10 @@
             $stepAddLabel = $isAdditionalPremiumStep ? 'Add Employee Premium' : 'Add Employee Loan';
             $stepImportLabel = $isAdditionalPremiumStep ? 'Import Premium Excel' : 'Import Loan Excel';
             $stepManageLabel = $isAdditionalPremiumStep ? 'Additional Premiums' : 'Recent Imports';
+            $stepTypeLabel = $isAdditionalPremiumStep ? 'Premium Type' : 'Loan Type';
+            $stepTypeLabelLc = $isAdditionalPremiumStep ? 'premium type' : 'loan type';
+            $stepDeductionLabel = $isAdditionalPremiumStep ? 'premium deduction' : 'loan deduction';
+            $stepBatchTitle = $isAdditionalPremiumStep ? 'Batch Premiums' : 'Batch Loans';
             $stepNetBeforeLabel = $isAdditionalPremiumStep ? 'Net After Programs' : 'Net After Premiums';
             $stepTotalLabel = $isAdditionalPremiumStep ? 'Additional Premium' : 'Loan Deductions';
             $stepFinalLabel = $isAdditionalPremiumStep ? 'Net After Premiums' : 'Final Net Pay';
@@ -882,6 +899,15 @@
                 loanEmployees: @js($loanEmployees),
                 loanTypeOptions: @js($loanTypeOptions),
                 recentLoanSuggestions: @js($recentLoanSuggestions),
+                labels: {
+                    type: @js($stepTypeLabel),
+                    typeLc: @js($stepTypeLabelLc),
+                    deduction: @js($stepDeductionLabel),
+                    editTitle: @js($isAdditionalPremiumStep ? 'Edit Premium Deduction' : 'Edit Loan Deduction'),
+                    batchTitle: @js($isAdditionalPremiumStep ? 'Batch Add Employee Premiums' : 'Batch Add Employee Loans'),
+                    emptyBatch: @js($isAdditionalPremiumStep ? 'No additional premiums staged yet.' : 'No loan deductions staged yet.'),
+                    save: @js($isAdditionalPremiumStep ? 'Save Premium Deduction' : 'Save Loan Deduction'),
+                },
                 editingLoanItemId: null,
                 loanForm: {
                     emp_id: '',
@@ -982,7 +1008,7 @@
                 addLoanToBatch() {
                     this.batchError = '';
                     if (!this.loanForm.emp_id || !this.loanForm.loan_type_id || this.loanForm.amount_due === '') {
-                        this.batchError = 'Choose an employee, choose a loan type, and enter the amount due.';
+                        this.batchError = `Choose an employee, choose a ${this.labels.typeLc}, and enter the amount due.`;
                         return;
                     }
 
@@ -1024,7 +1050,7 @@
                 saveLoanBatch() {
                     this.batchError = '';
                     if (this.loanBatch.length === 0) {
-                        this.batchError = 'Add at least one loan deduction to the batch.';
+                        this.batchError = `Add at least one ${this.labels.deduction} to the batch.`;
                         return;
                     }
 
@@ -1050,7 +1076,7 @@
                     <button type="button" x-on:click="openLoanModal()" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
                         {{ $stepAddLabel }}
                     </button>
-                    <a href="{{ route('payroll.loan-imports.template') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                    <a href="{{ route('payroll.loan-imports.template', $isAdditionalPremiumStep ? ['mode' => 'additional_premiums'] : []) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                         Export Template
                     </a>
                     <button type="button" wire:click="openLoanImportModal" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
@@ -1072,8 +1098,8 @@
                     <div x-on:click.outside="closeLoanModal()" class="flex max-h-[92vh] w-full max-w-7xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
                         <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
                             <div>
-                                <h3 class="font-semibold text-slate-900" x-text="editingLoanItemId ? 'Edit Loan Deduction' : 'Batch Add Employee Loans'"></h3>
-                                <p class="mt-1 text-sm text-slate-600">Included in Loan Deductions for {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }}.</p>
+                                <h3 class="font-semibold text-slate-900" x-text="editingLoanItemId ? labels.editTitle : labels.batchTitle"></h3>
+                                <p class="mt-1 text-sm text-slate-600">Included in {{ $stepTitle }} for {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }}.</p>
                             </div>
                             <button type="button" x-on:click="closeLoanModal()" class="rounded-md px-2 py-1 text-xl leading-none text-slate-500 hover:bg-slate-100" aria-label="Close loan deduction modal">
                                 &times;
@@ -1099,9 +1125,9 @@
                             </div>
 
                             <div>
-                                <label class="text-xs font-semibold uppercase text-slate-500">Loan Type</label>
+                                <label class="text-xs font-semibold uppercase text-slate-500">{{ $stepTypeLabel }}</label>
                                 <select x-ref="loanType" x-model="loanForm.loan_type_id" x-on:change="$nextTick(() => applyRecentLoanSuggestion())" data-select2-searchable data-placeholder="Search loan type" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                    <option value="">Select loan type</option>
+                                    <option value="">Select {{ $stepTypeLabelLc }}</option>
                                     <template x-for="loanType in loanTypeOptions" :key="loanType.id">
                                         <option :value="loanType.id" x-text="loanType.label"></option>
                                     </template>
@@ -1112,9 +1138,9 @@
                             </div>
 
                             <div x-show="selectedRecentLoanSuggestion" class="md:col-span-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
-                                <span>Auto-filled from </span><span x-text="selectedRecentLoanSuggestion?.due_month"></span><span> for the same employee and loan type.</span>
+                                <span>Auto-filled from </span><span x-text="selectedRecentLoanSuggestion?.due_month"></span><span> for the same employee and {{ $stepTypeLabelLc }}.</span>
                                 <div x-show="amountChangedFromRecent()" class="mt-1 font-semibold text-amber-800">
-                                    Same loan reference, but the amount differs from the previous <span x-text="Number(selectedRecentLoanSuggestion?.amount_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></span>.
+                                    Same reference, but the amount differs from the previous <span x-text="Number(selectedRecentLoanSuggestion?.amount_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></span>.
                                 </div>
                             </div>
 
@@ -1188,15 +1214,15 @@
 
                             <div class="min-h-[360px] overflow-hidden rounded-lg border border-slate-200">
                                 <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-                                    <h4 class="font-semibold text-slate-900">Batch Loans</h4>
+                                    <h4 class="font-semibold text-slate-900">{{ $stepBatchTitle }}</h4>
                                     <span class="text-sm text-slate-600"><span x-text="loanBatch.length"></span> staged</span>
                                 </div>
-                                <div class="max-h-[520px] overflow-auto">
+                                <div class="payroll-table-scroll max-h-[520px] overflow-auto">
                                     <table class="min-w-[820px] divide-y divide-slate-200 text-sm">
                                         <thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500">
                                             <tr>
                                                 <th class="px-3 py-2">Employee</th>
-                                                <th class="px-3 py-2">Loan Type</th>
+                                                <th class="px-3 py-2">{{ $stepTypeLabel }}</th>
                                                 <th class="px-3 py-2 text-right">Amount Due</th>
                                                 <th class="px-3 py-2 text-right">Principal</th>
                                                 <th class="px-3 py-2 text-right">Action</th>
@@ -1219,7 +1245,7 @@
                                                 </tr>
                                             </template>
                                             <tr x-show="loanBatch.length === 0">
-                                                <td colspan="5" class="px-3 py-10 text-center text-slate-500">No loan deductions staged yet.</td>
+                                                <td colspan="5" class="px-3 py-10 text-center text-slate-500" x-text="labels.emptyBatch"></td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -1232,7 +1258,7 @@
                                 Cancel
                             </button>
                             <button type="button" x-show="editingLoanItemId" x-on:click="saveLoan()" x-bind:disabled="savingLoan" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
-                                <span x-show="!savingLoan">Save Loan Deduction</span>
+                                <span x-show="!savingLoan" x-text="labels.save"></span>
                                 <span x-show="savingLoan">Saving...</span>
                             </button>
                             <button type="button" x-show="!editingLoanItemId" x-on:click="saveLoanBatch()" x-bind:disabled="savingLoan || loanBatch.length === 0" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
@@ -1248,7 +1274,7 @@
                     <div class="flex max-h-[90vh] w-full max-w-6xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
                         <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
                             <div>
-                                <h3 class="font-semibold text-slate-900">Import Loan Excel</h3>
+                                <h3 class="font-semibold text-slate-900">{{ $stepImportLabel }}</h3>
                                 <p class="mt-1 text-sm text-slate-600">Preview and validate the completed deduction template before saving it to payroll.</p>
                             </div>
                             <button type="button" wire:click="closeLoanImportModal" class="rounded-md px-2 py-1 text-xl leading-none text-slate-500 hover:bg-slate-100" aria-label="Close import modal">
@@ -1267,7 +1293,7 @@
                                 x-on:livewire-upload-progress="loanUploadProgress = $event.detail.progress"
                             >
                                 <div>
-                                    <label class="text-sm font-medium">Loan Excel file</label>
+                                    <label class="text-sm font-medium">{{ $isAdditionalPremiumStep ? 'Premium Excel file' : 'Loan Excel file' }}</label>
                                     <input wire:model="loanFile" type="file" accept=".xlsx,.xls,.xlsm,.csv" class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                                     @error('loanFile')
                                         <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
@@ -1292,7 +1318,7 @@
 
                             <div wire:loading.flex wire:target="previewLoanImport,saveLoanImport,loanFile" class="items-center gap-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
                                 <span class="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700"></span>
-                                <span>Reading and validating loan rows...</span>
+                                <span>Reading and validating deduction rows...</span>
                             </div>
 
                             @if (! empty($loanImportPreview))
@@ -1303,7 +1329,7 @@
                                 @endif
 
                                 <div class="overflow-hidden rounded-lg border border-slate-200">
-                                    <div class="max-h-[420px] overflow-auto">
+                                    <div class="payroll-table-scroll max-h-[420px] overflow-auto">
                                         <table class="min-w-[1280px] border-separate border-spacing-0 text-sm">
                                             <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
                                                 <tr>
@@ -1342,7 +1368,7 @@
                                 </div>
                             @else
                                 <div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-                                    Upload a loan Excel file, then preview rows before saving.
+                                    Upload an Excel file, then preview rows before saving.
                                 </div>
                             @endif
                         </div>
@@ -1360,11 +1386,13 @@
             @endif
 
             <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                <div class="max-h-[640px] overflow-auto">
-                    <table class="min-w-[1120px] border-separate border-spacing-0 text-sm">
+                <div class="payroll-table-scroll max-h-[640px] overflow-auto">
+                    <table class="min-w-[1360px] border-separate border-spacing-0 text-sm">
                         <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
                             <tr>
-                                <th class="payroll-sticky-employee-header border-b border-r border-slate-300 px-3 py-2">Employee</th>
+                                <th class="payroll-sticky-employee-no-header border-b border-slate-300 px-3 py-2">Employee No.</th>
+                                <th class="payroll-sticky-employee-name-header border-b border-slate-300 px-3 py-2">Employee Name</th>
+                                <th class="payroll-sticky-employee-position-header border-b border-r border-slate-300 px-3 py-2">Position</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2 text-right">{{ $stepNetBeforeLabel }}</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2 text-right">{{ $stepTotalLabel }}</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2 text-right">{{ $stepFinalLabel }}</th>
@@ -1374,10 +1402,9 @@
                         <tbody>
                             @forelse ($rows as $row)
                                 <tr class="hover:bg-slate-50">
-                                    <td class="payroll-sticky-employee-cell border-b border-r border-slate-200 px-3 py-2">
-                                        <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
-                                        <div class="text-xs text-slate-500">{{ $row['emp_id'] }} · {{ $row['position'] ?? '-' }}</div>
-                                    </td>
+                                    <td class="payroll-sticky-employee-no-cell border-b border-slate-200 px-3 py-2 font-medium">{{ $row['emp_id'] }}</td>
+                                    <td class="payroll-sticky-employee-name-cell border-b border-slate-200 px-3 py-2 font-medium text-slate-900">{{ $row['employee_name'] }}</td>
+                                    <td class="payroll-sticky-employee-position-cell border-b border-r border-slate-200 px-3 py-2">{{ $row['position'] ?? '-' }}</td>
                                     <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ number_format($row[$stepNetBeforeKey] ?? 0, 2) }}</td>
                                     <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold {{ ($row[$stepDeductionKey]['total'] ?? 0) > 0 ? 'text-blue-700' : 'text-slate-500' }}">
                                         {{ number_format($row[$stepDeductionKey]['total'] ?? 0, 2) }}
@@ -1402,7 +1429,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                    <td colspan="7" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -1419,11 +1446,13 @@
                 </div>
                 @include('livewire.payroll.partials.step-save-button')
             </div>
-            <div class="hidden overflow-x-auto">
-                <table class="min-w-[2480px] divide-y divide-slate-200 text-sm">
+            <div class="hidden payroll-table-scroll overflow-x-auto">
+                <table class="min-w-[2720px] divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="payroll-sticky-employee-header px-4 py-3">Employee</th>
+                            <th class="payroll-sticky-employee-no-header px-4 py-3">Employee No.</th>
+                            <th class="payroll-sticky-employee-name-header px-4 py-3">Employee Name</th>
+                            <th class="payroll-sticky-employee-position-header border-r-2 border-slate-300 px-4 py-3">Position</th>
                             <th class="px-4 py-3">Entry Date</th>
                             <th class="px-4 py-3 text-right">SG</th>
                             <th class="px-4 py-3 text-right">Salary</th>
@@ -1454,10 +1483,9 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50">
-                                <td class="payroll-sticky-employee-cell px-4 py-3">
-                                    <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
-                                    <div class="text-xs text-slate-500">{{ $row['emp_id'] }} Â· {{ $row['position'] ?? '-' }}</div>
-                                </td>
+                                <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
+                                <td class="payroll-sticky-employee-name-cell px-4 py-3 font-medium text-slate-900">{{ $row['employee_name'] }}</td>
+                                <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
                                 <td class="px-4 py-3">{{ $row['tax']['entry_date'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">{{ $row['tax']['salary_grade'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['salary'] ?? 0, 2) }}</td>
@@ -1486,14 +1514,14 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="26" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="28" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
                     @if ($rows->isNotEmpty())
                         <tfoot class="bg-slate-50 font-semibold">
                             <tr>
-                                <td class="px-4 py-3">Totals</td>
+                                <td colspan="3" class="border-r-2 border-slate-300 px-4 py-3">Totals</td>
                                 <td colspan="2"></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($totals['basic_salary'], 2) }}</td>
                                 <td></td>
@@ -1523,17 +1551,18 @@
                     @endif
                 </table>
             </div>
-            <div class="overflow-x-auto">
-                <table class="min-w-[5520px] divide-y divide-slate-200 text-sm">
+            <div class="payroll-table-scroll overflow-x-auto">
+                <table class="min-w-[5760px] divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="px-4 py-2" colspan="3"></th>
+                            <th class="px-4 py-2" colspan="4"></th>
                             <th class="px-4 py-2 text-center" colspan="30">ANNUALIZATION</th>
                             <th class="px-4 py-2 text-center" colspan="6">WITHHOLDING TAX OUTPUTS</th>
                         </tr>
                         <tr>
-                            <th class="payroll-sticky-employee-header px-4 py-3">Employee</th>
-                            <th class="px-4 py-3">Position</th>
+                            <th class="payroll-sticky-employee-no-header px-4 py-3">Employee No.</th>
+                            <th class="payroll-sticky-employee-name-header px-4 py-3">Employee Name</th>
+                            <th class="payroll-sticky-employee-position-header border-r-2 border-slate-300 px-4 py-3">Position</th>
                             <th class="px-4 py-3 text-right">SG</th>
                             <th class="px-4 py-3">APPOINTMENT DATE</th>
                             <th class="px-4 py-3">EXPECTED RETIRE/RESIGN DATE</th>
@@ -1576,11 +1605,9 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50">
-                                <td class="payroll-sticky-employee-cell px-4 py-3">
-                                    <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
-                                    <div class="text-xs text-slate-500">{{ $row['emp_id'] }}</div>
-                                </td>
-                                <td class="px-4 py-3">{{ $row['position'] ?? '-' }}</td>
+                                <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
+                                <td class="payroll-sticky-employee-name-cell px-4 py-3 font-medium text-slate-900">{{ $row['employee_name'] }}</td>
+                                <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">{{ $row['tax']['salary_grade'] ?? '-' }} / {{ $row['step'] ?? '-' }}</td>
                                 <td class="px-4 py-3">{{ $row['tax']['entry_date'] ?? '-' }}</td>
                                 <td class="px-4 py-3">-</td>
@@ -1621,14 +1648,14 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="39" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="40" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
         </div>
-    @else
+    @elseif ($currentStep === 9)
         @php
             $activeReviewDeductionPrograms = $deductionPrograms->filter(fn ($program) => filter_var($deductionProgramSelections[(string) $program->id]['enabled'] ?? false, FILTER_VALIDATE_BOOL));
         @endphp
@@ -1702,6 +1729,10 @@
                 'deductionPrograms' => $activeReviewDeductionPrograms,
             ])
 
+        </div>
+    @else
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            This payroll step is not available. Use the step navigation to continue.
         </div>
     @endif
     </div>

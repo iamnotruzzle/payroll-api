@@ -35,7 +35,8 @@ class RegularPayrollTemplateExportServiceTest extends TestCase
             $this->assertSame(200.66, $sheet->getCell('AU7')->getValue());
             $this->assertSame(50.0, $sheet->getCell('AV7')->getValue());
             $this->assertSame(0, $sheet->getCell('AW7')->getValue());
-            $this->assertSame(210.1, $sheet->getCell('EO7')->getValue());
+            $this->assertSame(55.55, $sheet->getCell('EN7')->getValue());
+            $this->assertSame(265.65, $sheet->getCell('EO7')->getValue());
             $this->assertSame(1234.56, $sheet->getCell('EV7')->getValue());
             $this->assertSame(42080.13, $sheet->getCell('EX7')->getValue());
             $this->assertSame(21040.07, $sheet->getCell('EY7')->getValue());
@@ -45,6 +46,7 @@ class RegularPayrollTemplateExportServiceTest extends TestCase
             $this->assertSame('OPTIONAL / AJ', $sheet->getCell('CJ3')->getValue());
             $this->assertSame('COCO', $sheet->getCell('EI3')->getValue());
             $this->assertSame('OTHER LOANS', $sheet->getCell('EK3')->getValue());
+            $this->assertSame('ADDITIONAL PREMIUM', $sheet->getCell('EN3')->getValue());
             $this->assertSame(11.11, $sheet->getCell('CE7')->getValue());
             $this->assertSame(22.22, $sheet->getCell('CJ7')->getValue());
             $this->assertSame(33.33, $sheet->getCell('EI7')->getValue());
@@ -180,9 +182,13 @@ class RegularPayrollTemplateExportServiceTest extends TestCase
                     ],
                 ],
             ],
+            'additional_premiums' => [
+                'total' => 55.55,
+                'items' => [],
+            ],
             'gross' => 50000,
             'net_before_other_deductions' => 44300,
-            'total_other_deductions' => 210.10,
+            'total_other_deductions' => 265.65,
             'net_after_tax' => 43065.44,
             'net_after_program_deductions' => 43065.44,
             'net_after_loan_deductions' => 42080.13,

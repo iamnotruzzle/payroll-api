@@ -149,6 +149,8 @@
                                         <div>
                                             <span class="font-medium text-slate-700">Step:</span>
                                             {{ $configuration['current_step'] }}
+                                            of {{ $configuration['step_count'] ?? 9 }}
+                                            <span class="text-slate-500">({{ $configuration['step_label'] ?? 'Step '.$configuration['current_step'] }})</span>
                                             <span class="mx-1 text-slate-300">|</span>
                                             <span class="font-medium text-slate-700">Working:</span>
                                             {{ $configuration['working_days'] }} days
@@ -291,6 +293,7 @@
                             $governmentShares = $snapshot['statutory_government_shares'] ?? [];
                             $tax = $snapshot['tax'] ?? [];
                             $programs = $snapshot['program_deductions'] ?? [];
+                            $additionalPremiums = $snapshot['additional_premiums'] ?? [];
                             $loans = $snapshot['loan_deductions'] ?? [];
                             $totals = $snapshot['totals'] ?? [];
                         @endphp
@@ -373,7 +376,7 @@
                                         @elseif ($columnKey === 'tax_deductions')
                                             {{ number_format($tax['monthly_mandatory_deductions'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'tax_other_deductions')
-                                            {{ number_format(($programs['total'] ?? 0) + ($loans['total'] ?? 0), 2) }}
+                                            {{ number_format(($programs['total'] ?? 0) + ($additionalPremiums['total'] ?? 0) + ($loans['total'] ?? 0), 2) }}
                                         @elseif ($columnKey === 'tax_refunds')
                                             {{ number_format(0, 2) }}
                                         @elseif ($columnKey === 'tax_monthly_net_income')
@@ -410,7 +413,7 @@
                                         @elseif ($columnKey === 'net_before_other_deductions')
                                             {{ number_format($totals['net_before_other_deductions'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'loan_total')
-                                            {{ number_format($totals['total_other_deductions'] ?? (($programs['total'] ?? 0) + ($loans['total'] ?? 0)), 2) }}
+                                            {{ number_format($totals['total_other_deductions'] ?? (($programs['total'] ?? 0) + ($additionalPremiums['total'] ?? 0) + ($loans['total'] ?? 0)), 2) }}
                                         @elseif ($columnKey === 'net_after_loan_deductions')
                                             <span class="font-semibold">
                                                 {{ number_format($totals['net_after_loan_deductions'] ?? 0, 2) }}
@@ -422,6 +425,8 @@
                                         {{-- PROGRAM TOTAL --}}
                                         @elseif ($columnKey === 'program_total')
                                             {{ number_format($programs['total'] ?? 0, 2) }}
+                                        @elseif ($columnKey === 'additional_premium_total')
+                                            {{ number_format($additionalPremiums['total'] ?? 0, 2) }}
                                         {{-- COMPENSATION COLUMNS --}}
                                         @elseif (str_starts_with($columnKey, 'compensation_'))
                                             @php

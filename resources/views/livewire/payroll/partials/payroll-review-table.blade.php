@@ -5,10 +5,10 @@
     $deductionProgramCount = $deductionPrograms->count();
     $adjustmentTypes = collect($adjustmentTypes ?? []);
     $adjustmentTypeCount = $adjustmentTypes->count();
-    $reviewTableWidth = max(3170, 3060 + ($compensations->count() * 120) + ($adjustmentTypeCount * 140) + ($deductionProgramCount * 150) + ($loanColumnCount * 120));
+    $reviewTableWidth = max(3290, 3180 + ($compensations->count() * 120) + ($adjustmentTypeCount * 140) + ($deductionProgramCount * 150) + ($loanColumnCount * 120));
 @endphp
 
-<div class="overflow-x-auto">
+<div class="payroll-table-scroll overflow-x-auto">
     <table class="divide-y divide-slate-200 text-sm" style="min-width: {{ $reviewTableWidth }}px;">
         <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>
@@ -19,6 +19,7 @@
                 <th colspan="10" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Mandatory Deductions</th>
                 <th colspan="2" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Tax Calculation</th>
                 <th colspan="{{ max(1, $deductionProgramCount) + 1 }}" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Deduction Programs</th>
+                <th colspan="1" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Additional Premiums</th>
                 @foreach ($loanColumnGroups as $groupLabel => $columns)
                     <th colspan="{{ count($columns) }}" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">{{ $groupLabel }}</th>
                 @endforeach
@@ -59,6 +60,7 @@
                     <th class="px-4 py-3 text-right">No Active Programs</th>
                 @endforelse
                 <th class="border-r-2 border-slate-300 px-4 py-3 text-right">Program Total</th>
+                <th class="border-r-2 border-slate-300 px-4 py-3 text-right">Additional Premium</th>
                 @foreach ($loanColumnGroups as $columns)
                     @foreach ($columns as $key => $label)
                         <th class="px-4 py-3 text-right {{ $loop->last ? 'border-r-2 border-slate-300' : '' }}">{{ $label }}</th>
@@ -116,6 +118,7 @@
                         <td class="px-4 py-3 text-right text-slate-400">-</td>
                     @endforelse
                     <td class="border-r-2 border-slate-200 px-4 py-3 text-right font-semibold">{{ number_format($row['program_deductions']['total'] ?? 0, 2) }}</td>
+                    <td class="border-r-2 border-slate-200 px-4 py-3 text-right font-semibold">{{ number_format($row['additional_premiums']['total'] ?? 0, 2) }}</td>
                     @foreach ($loanColumnGroups as $columns)
                         @foreach ($columns as $key => $label)
                             <td class="px-4 py-3 text-right {{ $loop->last ? 'border-r-2 border-slate-200' : '' }}">{{ number_format($row['loan_deductions']['columns'][$key] ?? 0, 2) }}</td>
@@ -129,7 +132,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ 28 + $compensations->count() + $adjustmentTypeCount + max(1, $deductionProgramCount) + $loanColumnCount }}" class="px-4 py-8 text-center text-slate-500">
+                    <td colspan="{{ 29 + $compensations->count() + $adjustmentTypeCount + max(1, $deductionProgramCount) + $loanColumnCount }}" class="px-4 py-8 text-center text-slate-500">
                         No active HRIS employees found for the selected department.
                     </td>
                 </tr>
@@ -169,6 +172,7 @@
                         <td class="px-4 py-3 text-right text-slate-400">-</td>
                     @endforelse
                     <td class="border-r-2 border-slate-300 px-4 py-3 text-right">{{ number_format($totals['program_deductions'], 2) }}</td>
+                    <td class="border-r-2 border-slate-300 px-4 py-3 text-right">{{ number_format($totals['additional_premiums'] ?? 0, 2) }}</td>
                     @foreach ($loanColumnGroups as $columns)
                         @foreach ($columns as $key => $label)
                             <td class="px-4 py-3 text-right {{ $loop->last ? 'border-r-2 border-slate-300' : '' }}">{{ number_format($totals['loan_columns'][$key] ?? 0, 2) }}</td>

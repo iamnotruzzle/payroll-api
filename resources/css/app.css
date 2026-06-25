@@ -369,10 +369,65 @@ input[type="number"] {
     background-color: #f8f8fc;
 }
 
+.erp-content .payroll-table-scroll {
+    overflow: auto;
+    scrollbar-gutter: stable;
+}
+
+.erp-content .payroll-table-scroll:not([class*="max-h-"]) {
+    max-height: min(70vh, 42rem);
+}
+
+.erp-content .payroll-table-scroll > table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.erp-content .payroll-table-scroll thead {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+}
+
+.erp-content .payroll-table-scroll thead th {
+    background: #f6f7fb !important;
+}
+
+.erp-content
+    .payroll-table-scroll:has(
+        > .payroll-floating-scrollbar[data-scrollable="true"]
+    )
+    thead {
+    top: 1rem;
+}
+
+.erp-content .payroll-floating-scrollbar {
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 50;
+    display: none;
+    height: 1rem;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-bottom: 1px solid #e7e9f2;
+    background: rgba(255, 255, 255, 0.94);
+}
+
+.erp-content .payroll-floating-scrollbar[data-scrollable="true"] {
+    display: block;
+}
+
+.erp-content .payroll-floating-scrollbar-inner {
+    height: 1px;
+}
+
 .erp-content .payroll-sticky-employee-header {
     position: sticky;
     left: 0;
-    z-index: 20;
+    z-index: 45;
     min-width: 14rem;
     background: #f6f7fb !important;
     box-shadow: 1px 0 0 #d9dee8;
@@ -394,7 +449,7 @@ input[type="number"] {
 .erp-content .payroll-sticky-employee-info-group {
     position: sticky;
     left: 0;
-    z-index: 30;
+    z-index: 46;
     width: 38rem;
     min-width: 38rem;
     background: #f6f7fb !important;
@@ -413,7 +468,7 @@ input[type="number"] {
 .erp-content .payroll-sticky-employee-no-header,
 .erp-content .payroll-sticky-employee-name-header,
 .erp-content .payroll-sticky-employee-position-header {
-    z-index: 30;
+    z-index: 46;
     background: #f6f7fb !important;
 }
 

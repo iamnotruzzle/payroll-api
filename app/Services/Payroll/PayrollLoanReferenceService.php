@@ -12,6 +12,8 @@ class PayrollLoanReferenceService
 {
     public const DEFAULT_ENTITIES = ['GSIS', 'PAG-IBIG', 'UCPB', 'DBP', 'LBP', 'COCO', 'OTHER'];
 
+    public const ADDITIONAL_PREMIUM_ENTITY_CODES = ['ADDITIONAL_PREMIUM', 'ADDITIONAL PREMIUMS'];
+
     public const DEFAULT_COLUMN_GROUPS = [
         'GSIS' => [
             'gsis_emergency' => 'Emergency Loan',
@@ -35,7 +37,7 @@ class PayrollLoanReferenceService
         ],
     ];
 
-    public function entityCodes(): array
+    public function entityCodes(bool $includeAdditionalPremiums = true): array
     {
         if (! $this->referenceTablesExist()) {
             return self::DEFAULT_ENTITIES;
@@ -43,12 +45,35 @@ class PayrollLoanReferenceService
 
         $codes = PayrollLoanEntity::query()
             ->where('is_active', true)
+            ->when(! $includeAdditionalPremiums, fn ($query) => $this->excludeAdditionalPremiumEntities($query))
             ->orderBy('sort_order')
             ->orderBy('code')
             ->pluck('code')
             ->all();
 
         return $codes ?: self::DEFAULT_ENTITIES;
+    }
+
+    public function additionalPremiumEntityCodes(): array
+    {
+        if (! $this->referenceTablesExist()) {
+            return ['ADDITIONAL_PREMIUM'];
+        }
+
+        $codes = PayrollLoanEntity::query()
+            ->where('is_active', true)
+            ->where(function ($query) {
+                foreach (self::ADDITIONAL_PREMIUM_ENTITY_CODES as $code) {
+                    $query->orWhereRaw('UPPER(code) = ?', [strtoupper($code)])
+                        ->orWhereRaw('UPPER(name) = ?', [strtoupper($code)]);
+                }
+            })
+            ->orderBy('sort_order')
+            ->orderBy('code')
+            ->pluck('code')
+            ->all();
+
+        return $codes ?: ['ADDITIONAL_PREMIUM'];
     }
 
     public function typeNames(): array
@@ -97,6 +122,7 @@ class PayrollLoanReferenceService
 
         $groups = PayrollLoanType::query()
             ->where('is_active', true)
+            ->whereHas('entity', fn ($query) => $this->excludeAdditionalPremiumEntities($query))
             ->orderBy('sort_order')
             ->get()
             ->groupBy('review_group')
@@ -149,5 +175,13 @@ class PayrollLoanReferenceService
     {
         return Schema::connection('payroll')->hasTable('payroll_loan_entities')
             && Schema::connection('payroll')->hasTable('payroll_loan_types');
+    }
+
+    private function excludeAdditionalPremiumEntities($query): void
+    {
+        foreach (self::ADDITIONAL_PREMIUM_ENTITY_CODES as $code) {
+            $query->whereRaw('UPPER(code) != ?', [strtoupper($code)])
+                ->whereRaw('UPPER(name) != ?', [strtoupper($code)]);
+        }
     }
 }

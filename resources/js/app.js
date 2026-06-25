@@ -50,6 +50,72 @@ const initPayrollEmployeePickers = () => {
     });
 };
 
+const initPayrollTableScrollbars = () => {
+    document.querySelectorAll('.payroll-table-scroll').forEach((scrollArea) => {
+        const table = scrollArea.querySelector('table');
+
+        if (!table || scrollArea.classList.contains('hidden')) {
+            return;
+        }
+
+        let scrollbar = scrollArea.querySelector(':scope > .payroll-floating-scrollbar');
+
+        if (!scrollbar) {
+            scrollbar = document.createElement('div');
+            scrollbar.className = 'payroll-floating-scrollbar';
+            scrollbar.setAttribute('aria-hidden', 'true');
+
+            const inner = document.createElement('div');
+            inner.className = 'payroll-floating-scrollbar-inner';
+            scrollbar.appendChild(inner);
+            scrollArea.prepend(scrollbar);
+        }
+
+        const inner = scrollbar.firstElementChild;
+        const isScrollable = table.scrollWidth > scrollArea.clientWidth + 1;
+
+        if (inner) {
+            inner.style.width = `${table.scrollWidth}px`;
+        }
+
+        scrollbar.dataset.scrollable = isScrollable ? 'true' : 'false';
+
+        if (scrollbar.dataset.bound === 'true') {
+            return;
+        }
+
+        scrollbar.dataset.bound = 'true';
+
+        let syncing = false;
+
+        scrollbar.addEventListener('scroll', () => {
+            if (syncing) {
+                return;
+            }
+
+            syncing = true;
+            scrollArea.scrollLeft = scrollbar.scrollLeft;
+            window.requestAnimationFrame(() => {
+                syncing = false;
+            });
+        });
+
+        scrollArea.addEventListener('scroll', () => {
+            if (syncing) {
+                return;
+            }
+
+            syncing = true;
+            scrollbar.scrollLeft = scrollArea.scrollLeft;
+            window.requestAnimationFrame(() => {
+                syncing = false;
+            });
+        });
+    });
+};
+
+window.addEventListener('resize', initPayrollTableScrollbars);
+
 (() => {
     let hooksInstalled = false;
     let activeRequests = 0;
@@ -172,7 +238,10 @@ const initPayrollEmployeePickers = () => {
             startLoading();
             succeed(() => {
                 stopLoading();
-                queueMicrotask(initPayrollEmployeePickers);
+                queueMicrotask(() => {
+                    initPayrollEmployeePickers();
+                    initPayrollTableScrollbars();
+                });
             });
             fail(stopLoading);
         });
@@ -181,7 +250,10 @@ const initPayrollEmployeePickers = () => {
             startLoading();
             succeed(() => {
                 stopLoading();
-                queueMicrotask(initPayrollEmployeePickers);
+                queueMicrotask(() => {
+                    initPayrollEmployeePickers();
+                    initPayrollTableScrollbars();
+                });
             });
             fail(stopLoading);
         });
@@ -190,19 +262,23 @@ const initPayrollEmployeePickers = () => {
     document.addEventListener('livewire:init', () => {
         installLivewireHooks();
         initPayrollEmployeePickers();
+        initPayrollTableScrollbars();
     });
     document.addEventListener('livewire:initialized', () => {
         installLivewireHooks();
         initPayrollEmployeePickers();
+        initPayrollTableScrollbars();
     });
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             installLivewireHooks();
             initPayrollEmployeePickers();
+            initPayrollTableScrollbars();
         });
     } else {
         installLivewireHooks();
         initPayrollEmployeePickers();
+        initPayrollTableScrollbars();
     }
 })();

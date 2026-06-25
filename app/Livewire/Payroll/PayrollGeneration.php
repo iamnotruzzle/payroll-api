@@ -146,17 +146,7 @@ class PayrollGeneration extends Component
 
     public ?array $recentLoanSuggestion = null;
 
-    public array $steps = [
-        1 => 'MRA Validation',
-        2 => 'Compensation',
-        3 => 'Deductions and Adjustments',
-        4 => 'Mandatory Deductions',
-        5 => 'Deduction Programs',
-        6 => 'Additional Premium',
-        7 => 'Loan Deductions',
-        8 => 'Tax Calculation',
-        9 => 'Review',
-    ];
+    public array $steps = PayrollGenerationDraft::WIZARD_STEPS;
 
     public array $loanColumnGroups = [];
 
@@ -377,6 +367,12 @@ class PayrollGeneration extends Component
         $existingItem = $this->editingLoanItemId
             ? PayrollLoanImportItem::query()->find($this->editingLoanItemId)
             : null;
+        if (! $this->loanTypeMatchesCurrentDeductionStep($loanType)) {
+            $this->addError('loanDeductionForm', 'Choose a valid '.$this->currentDeductionTypeLabel().' type.');
+
+            return;
+        }
+
         $import = $existingItem?->import ?: $this->manualLoanImportFor($periodStart);
         $payload = [
             'import_id' => $import->id,
@@ -407,14 +403,14 @@ class PayrollGeneration extends Component
 
         $this->refreshLoanImportCounts($import->id);
         $this->closeLoanDeductionModal();
-        session()->flash('loan_import_status', 'Loan deduction saved.');
+        session()->flash('loan_import_status', $this->currentDeductionLabel().' saved.');
         $this->dispatch('loan-deduction-saved');
     }
 
     public function saveLoanDeductionsBatch(array $forms): void
     {
         if ($forms === []) {
-            $this->addError('loanDeductionForm', 'Add at least one loan deduction before saving the batch.');
+            $this->addError('loanDeductionForm', 'Add at least one '.$this->currentDeductionLabel().' before saving the batch.');
 
             return;
         }
@@ -453,8 +449,8 @@ class PayrollGeneration extends Component
 
             $employee = Employee::query()->where('emp_id', $data['emp_id'])->first();
             $loanType = PayrollLoanType::query()->with('entity')->find((int) $data['loan_type_id']);
-            if (! $employee || ! $loanType) {
-                $this->addError('loanDeductionForm', 'Choose a valid employee and loan type for row '.($index + 1).'.');
+            if (! $employee || ! $loanType || ! $this->loanTypeMatchesCurrentDeductionStep($loanType)) {
+                $this->addError('loanDeductionForm', 'Choose a valid employee and '.$this->currentDeductionTypeLabel().' type for row '.($index + 1).'.');
 
                 return;
             }
@@ -494,7 +490,7 @@ class PayrollGeneration extends Component
         });
 
         $this->refreshLoanImportCounts($import->id);
-        session()->flash('loan_import_status', "Saved {$saved} loan deduction(s).");
+        session()->flash('loan_import_status', "Saved {$saved} ".$this->currentDeductionLabel()."(s).");
         $this->dispatch('loan-deduction-batch-saved');
     }
 
@@ -586,7 +582,7 @@ class PayrollGeneration extends Component
         $storedPath = $file->store('payroll/loan-imports');
         $this->pendingLoanImportPath = $storedPath;
         $this->pendingLoanImportOriginalFilename = $file->getClientOriginalName();
-        $this->loanImportPreview = app(PayrollLoanImportService::class)->preview(Storage::path($storedPath));
+        $this->loanImportPreview = app(PayrollLoanImportService::class)->preview(Storage::path($storedPath), $file->getClientOriginalName(), $this->currentDeductionImportMode());
     }
 
     public function saveLoanImport(): void
@@ -597,9 +593,9 @@ class PayrollGeneration extends Component
             return;
         }
 
-        $this->loanImportPreview = app(PayrollLoanImportService::class)->preview(Storage::path($this->pendingLoanImportPath));
+        $this->loanImportPreview = app(PayrollLoanImportService::class)->preview(Storage::path($this->pendingLoanImportPath), $this->pendingLoanImportOriginalFilename, $this->currentDeductionImportMode());
         if (($this->loanImportPreview['invalid_rows'] ?? 0) > 0) {
-            $this->addError('loanFile', 'Fix invalid rows before saving the loan import.');
+            $this->addError('loanFile', 'Fix invalid rows before saving the import.');
 
             return;
         }
@@ -616,7 +612,7 @@ class PayrollGeneration extends Component
 
         session()->flash(
             'loan_import_status',
-            "Imported {$import->total_rows} loan row(s): {$import->valid_rows} ready, {$import->invalid_rows} needing review."
+            "Imported {$import->total_rows} ".$this->currentDeductionLabel()." row(s): {$import->valid_rows} ready, {$import->invalid_rows} needing review."
         );
     }
 
@@ -726,6 +722,7 @@ class PayrollGeneration extends Component
                 'employee_type' => $this->employeeTypeFilter,
                 'current_step' => $this->currentStep,
                 'state_json' => [
+                    'wizard_step_count' => count($this->steps),
                     'selected_division_ids' => $this->selectedDivisionIds,
                     'selected_department_ids' => $this->selectedDepartmentIds,
                     'deduction_day_overrides' => $this->deductionDayOverrides,
@@ -1396,7 +1393,7 @@ class PayrollGeneration extends Component
         }
 
         $state = $draft->state_json ?? [];
-        $this->currentStep = max(1, min(count($this->steps), (int) $draft->current_step));
+        $this->currentStep = PayrollGenerationDraft::restoredWizardStep((int) $draft->current_step, $state);
         $this->selectedDivisionIds = $this->normalizedIds($state['selected_division_ids'] ?? $this->selectedDivisionIds);
         $this->selectedDepartmentIds = $this->normalizedIds($state['selected_department_ids'] ?? $this->selectedDepartmentIds);
         $this->syncLegacyScopeIds();
@@ -1614,6 +1611,31 @@ class PayrollGeneration extends Component
             ->get();
     }
 
+    private function currentDeductionImportMode(): string
+    {
+        return $this->currentStep === 6 ? 'additional_premiums' : 'loans';
+    }
+
+    private function currentDeductionLabel(): string
+    {
+        return $this->currentStep === 6 ? 'additional premium deduction' : 'loan deduction';
+    }
+
+    private function currentDeductionTypeLabel(): string
+    {
+        return $this->currentStep === 6 ? 'premium' : 'loan';
+    }
+
+    private function loanTypeMatchesCurrentDeductionStep(PayrollLoanType $loanType): bool
+    {
+        $entityCode = strtoupper((string) $loanType->entity?->code);
+        $entityName = strtoupper((string) $loanType->entity?->name);
+        $isPremiumType = in_array($entityCode, self::ADDITIONAL_PREMIUM_ENTITY_CODES, true)
+            || in_array($entityName, self::ADDITIONAL_PREMIUM_ENTITY_CODES, true);
+
+        return $this->currentStep === 6 ? $isPremiumType : ! $isPremiumType;
+    }
+
     private function isAdditionalPremiumItem(PayrollLoanImportItem $item): bool
     {
         $entity = strtoupper(trim((string) $item->entity));
@@ -1685,11 +1707,13 @@ class PayrollGeneration extends Component
 
     private function manualLoanImportFor(CarbonImmutable $periodStart): \App\Models\Payroll\PayrollLoanImport
     {
+        $isPremium = $this->currentStep === 6;
+
         return \App\Models\Payroll\PayrollLoanImport::query()->firstOrCreate(
             [
-                'source_entity' => 'Manual Entry',
+                'source_entity' => $isPremium ? 'Manual Additional Premium' : 'Manual Entry',
                 'billing_period' => $periodStart->toDateString(),
-                'original_filename' => 'manual-loan-deductions',
+                'original_filename' => $isPremium ? 'manual-additional-premiums' : 'manual-loan-deductions',
             ],
             [
                 'stored_path' => null,
@@ -3329,6 +3353,7 @@ class PayrollGeneration extends Component
                 'thirtieth',
             ]],
             ['label' => 'Deduction Programs', 'columns' => array_merge($deductionPrograms->map(fn ($program) => 'program_'.$program->id)->all(), ['program_total'])],
+            ['label' => 'Additional Premiums', 'columns' => ['additional_premium_total']],
             ...collect($this->loanColumnGroups)->map(fn (array $columns, string $label) => ['label' => $label, 'columns' => array_keys($columns)])->values()->all(),
             ['label' => 'Net Pay Distribution', 'columns' => ['net_before_other_deductions', 'loan_total']],
         ];
@@ -3390,6 +3415,7 @@ class PayrollGeneration extends Component
             'withholding_tax_gross' => ['label' => 'GB Withholding Tax (Gross)', 'enabled' => true],
             'withholding_tax_adjustment' => ['label' => 'GC Withholding Tax (Adjustment)', 'enabled' => true],
             'program_total' => ['label' => 'Program Total', 'enabled' => true],
+            'additional_premium_total' => ['label' => 'Additional Premium', 'enabled' => true],
             'net_before_other_deductions' => ['label' => 'Net Before Other Deductions', 'enabled' => true],
             'loan_total' => ['label' => 'TOTAL OTHER DEDUCTIONS', 'enabled' => true],
             'net_after_loan_deductions' => ['label' => 'GD Net Pay', 'enabled' => true],

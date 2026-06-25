@@ -29,7 +29,7 @@ class RegularPayrollTemplateExportService
         'P', 'Q', 'T', 'U', 'V', 'AB', 'AC', 'AD', 'AE', 'AG', 'AH', 'AI',
         'AJ', 'AK', 'AL', 'AN', 'AO', 'AQ', 'AR', 'AS', 'AT', 'AU', 'AW',
         'AX', 'AY', 'AZ', 'BA', 'BB', 'BC', 'BD', 'BE', 'EK', 'EL', 'EM',
-        'EO', 'ET', 'EU', 'EV', 'EX', 'EY', 'EZ', 'FE', 'FF', 'FG', 'FI',
+        'EN', 'EO', 'ET', 'EU', 'EV', 'EX', 'EY', 'EZ', 'FE', 'FF', 'FG', 'FI',
         'FK', 'FM',
     ];
 
@@ -58,6 +58,8 @@ class RegularPayrollTemplateExportService
         'penalty_bac' => 'EL',
         'mmsu' => 'EM',
     ];
+
+    private const ADDITIONAL_PREMIUM_COLUMN = 'EN';
 
     public function export(Collection $rows, Collection $compensations, Collection $deductionPrograms, string $period): string
     {
@@ -187,6 +189,7 @@ class RegularPayrollTemplateExportService
                 'EK' => $this->programAmount($programs, ['death aid']),
                 'EL' => $this->programAmount($programs, ['penalty bac', 'bac']),
                 'EM' => $this->programAmount($programs, ['mmsu']),
+                self::ADDITIONAL_PREMIUM_COLUMN => $this->money($row['additional_premiums']['total'] ?? 0),
                 'EO' => $this->money($totalOtherDeductions),
                 'ET' => $this->money($tax['monthly_mandatory_deductions'] ?? 0),
                 'EU' => $this->money($tax['monthly_net_income'] ?? 0),
@@ -219,6 +222,8 @@ class RegularPayrollTemplateExportService
                 $sheet->setCellValue("{$column}3", strtoupper((string) $label));
             }
         }
+
+        $sheet->setCellValue(self::ADDITIONAL_PREMIUM_COLUMN.'3', 'ADDITIONAL PREMIUM');
     }
 
     private function setLoanAmountCells(Worksheet $sheet, int $row, array $loans): void

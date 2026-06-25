@@ -188,6 +188,7 @@ class PayrollHistory extends Component
         $divisionIds = $this->normalizedDraftIds($state['selected_division_ids'] ?? ($draft->division_id ? [$draft->division_id] : []));
         $departmentIds = $this->normalizedDraftIds($state['selected_department_ids'] ?? ($draft->department_id ? [$draft->department_id] : []));
         $leaveTypeIds = $draft->included_leave_type_ids;
+        $currentStep = PayrollGenerationDraft::restoredWizardStep((int) $draft->current_step, $state);
 
         return [
             'scope' => $this->scopeLabel($divisionIds, $departmentIds),
@@ -195,7 +196,9 @@ class PayrollHistory extends Component
             'working_days' => $draft->working_days,
             'gsis_days' => $draft->gsis_days,
             'employee_type' => $this->employeeTypeLabel($draft->employee_type),
-            'current_step' => $draft->current_step,
+            'current_step' => $currentStep,
+            'step_count' => PayrollGenerationDraft::currentWizardStepCount(),
+            'step_label' => PayrollGenerationDraft::wizardStepLabel($currentStep),
             'leave_types' => $this->includedLeaveTypeLabels(is_array($leaveTypeIds) ? $leaveTypeIds : null),
         ];
     }

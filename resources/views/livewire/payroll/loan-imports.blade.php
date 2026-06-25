@@ -26,6 +26,7 @@
         loanEmployees: @js($loanEmployees),
         loanTypeOptions: @js($loanTypeOptions),
         recentLoanSuggestions: @js($recentLoanSuggestions),
+        labels: @js($labels),
         loanForm: {
             emp_id: '',
             loan_type_id: '',
@@ -106,7 +107,7 @@
         addLoanToBatch() {
             this.batchError = '';
             if (!this.loanForm.emp_id || !this.loanForm.loan_type_id || this.loanForm.amount_due === '') {
-                this.batchError = 'Choose an employee, choose a loan type, and enter the amount due.';
+                this.batchError = `Choose an employee, choose a ${this.labels.type_name_lc}, and enter the amount due.`;
                 return;
             }
 
@@ -142,7 +143,7 @@
         saveLoanBatch() {
             this.batchError = '';
             if (this.loanBatch.length === 0) {
-                this.batchError = 'Add at least one loan deduction to the batch.';
+                this.batchError = `Add at least one ${this.labels.deduction_lc} deduction to the batch.`;
                 return;
             }
 
@@ -155,8 +156,8 @@
 >
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
-            <h2 class="text-xl font-semibold">Loan Due Imports</h2>
-            <p class="text-sm text-slate-600">Upload the uniform loan or deduction template and review validation before payroll generation.</p>
+            <h2 class="text-xl font-semibold">{{ $labels['page_title'] }}</h2>
+            <p class="text-sm text-slate-600">{{ $labels['description'] }}</p>
         </div>
         <div class="flex flex-wrap items-end gap-2">
             <label class="block">
@@ -164,10 +165,10 @@
                 <input wire:model.live="period" type="month" class="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm">
             </label>
             <button type="button" x-on:click="openLoanModal()" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-800">
-                Add Loan Deduction
+                {{ $labels['add_button'] }}
             </button>
             <button type="button" wire:click="exportTemplate" wire:loading.attr="disabled" wire:target="exportTemplate" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-wait disabled:opacity-70">
-                Export Template
+                {{ $labels['template_button'] }}
             </button>
         </div>
     </div>
@@ -216,7 +217,7 @@
                         </p>
                         @if (! empty($loanImportPreview['loan_type_counts']))
                             <p class="mt-1 max-w-5xl text-xs text-slate-500">
-                                {{ count($loanImportPreview['loan_type_counts']) }} loan type(s):
+                                {{ count($loanImportPreview['loan_type_counts']) }} {{ $labels['type_name_lc'] }}(s):
                                 @foreach (array_slice($loanImportPreview['loan_type_counts'], 0, 8, true) as $loanType => $count)
                                     <span class="font-medium text-slate-700">{{ $loanType }}</span> {{ number_format($count) }}@if (! $loop->last), @endif
                                 @endforeach
@@ -251,7 +252,7 @@
                                 <th class="border-b border-r border-slate-300 px-3 py-2">Due Month</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2">Entity</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2">Employee</th>
-                                <th class="border-b border-r border-slate-300 px-3 py-2">Loan Type</th>
+                                <th class="border-b border-r border-slate-300 px-3 py-2">{{ $labels['type_name'] }}</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2">Reference/Account No.</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Amount Due</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2">Validation</th>
@@ -301,8 +302,8 @@
         <div x-on:click.outside="closeLoanModal()" class="flex max-h-[92vh] w-full max-w-7xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
             <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
                 <div>
-                    <h3 class="font-semibold text-slate-900">Batch Add Employee Loans</h3>
-                    <p class="mt-1 text-sm text-slate-600">Included in Loan Due Imports for {{ $selectedPeriodLabel }}.</p>
+                    <h3 class="font-semibold text-slate-900">{{ $labels['modal_title'] }}</h3>
+                    <p class="mt-1 text-sm text-slate-600">{{ $labels['modal_subtitle'] }} {{ $selectedPeriodLabel }}.</p>
                 </div>
                 <button type="button" x-on:click="closeLoanModal()" class="rounded-md px-2 py-1 text-xl leading-none text-slate-500 hover:bg-slate-100" aria-label="Close loan deduction modal">
                     &times;
@@ -325,9 +326,9 @@
                     </div>
 
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Loan Type</label>
+                        <label class="text-xs font-semibold uppercase text-slate-500">{{ $labels['type_name'] }}</label>
                         <select x-ref="loanType" x-model="loanForm.loan_type_id" x-on:change="$nextTick(() => applyRecentLoanSuggestion())" data-select2-searchable data-placeholder="Search loan type" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            <option value="">Select loan type</option>
+                            <option value="">Select {{ $labels['type_name_lc'] }}</option>
                             <template x-for="loanType in loanTypeOptions" :key="loanType.id">
                                 <option :value="loanType.id" x-text="loanType.label"></option>
                             </template>
@@ -335,9 +336,9 @@
                     </div>
 
                     <div x-show="selectedRecentLoanSuggestion" class="md:col-span-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
-                        <span>Auto-filled from </span><span x-text="selectedRecentLoanSuggestion?.due_month"></span><span> for the same employee and loan type.</span>
+                        <span>Auto-filled from </span><span x-text="selectedRecentLoanSuggestion?.due_month"></span><span> for the same employee and {{ $labels['type_name_lc'] }}.</span>
                         <div x-show="amountChangedFromRecent()" class="mt-1 font-semibold text-amber-800">
-                            Same loan reference, but the amount differs from the previous <span x-text="Number(selectedRecentLoanSuggestion?.amount_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></span>.
+                            Same reference, but the amount differs from the previous <span x-text="Number(selectedRecentLoanSuggestion?.amount_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></span>.
                         </div>
                     </div>
 
@@ -399,7 +400,7 @@
 
                 <div class="min-h-[360px] overflow-hidden rounded-lg border border-slate-200">
                     <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-                        <h4 class="font-semibold text-slate-900">Batch Loans</h4>
+                        <h4 class="font-semibold text-slate-900">{{ $labels['batch_title'] }}</h4>
                         <span class="text-sm text-slate-600"><span x-text="loanBatch.length"></span> staged</span>
                     </div>
                     <div class="max-h-[520px] overflow-auto">
@@ -407,7 +408,7 @@
                             <thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500">
                                 <tr>
                                     <th class="px-3 py-2">Employee</th>
-                                    <th class="px-3 py-2">Loan Type</th>
+                                    <th class="px-3 py-2">{{ $labels['type_name'] }}</th>
                                     <th class="px-3 py-2 text-right">Amount Due</th>
                                     <th class="px-3 py-2 text-right">Principal</th>
                                     <th class="px-3 py-2 text-right">Action</th>
@@ -430,7 +431,7 @@
                                     </tr>
                                 </template>
                                 <tr x-show="loanBatch.length === 0">
-                                    <td colspan="5" class="px-3 py-10 text-center text-slate-500">No loan deductions staged yet.</td>
+                                    <td colspan="5" class="px-3 py-10 text-center text-slate-500">{{ $labels['empty_batch'] }}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -462,7 +463,7 @@
                 x-on:livewire-upload-cancel="uploadingLoanFile = false; loanUploadError = 'Upload cancelled.'"
                 x-on:livewire-upload-progress="loanUploadProgress = $event.detail.progress"
             >
-                <h3 class="font-semibold">Import Loan Due File</h3>
+                <h3 class="font-semibold">{{ $labels['import_title'] }}</h3>
                 <div class="mt-4">
                     <label class="text-sm font-medium">Excel file</label>
                     <input wire:model="loanFile" type="file" accept=".xlsx,.xls,.xlsm,.csv" class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
@@ -485,7 +486,7 @@
 
                 <div wire:loading.flex wire:target="previewLoanImport,saveLoanImport" class="mt-3 items-center gap-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
                     <span class="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700"></span>
-                    <span>Reading and validating loan rows...</span>
+                    <span>Reading and validating deduction rows...</span>
                 </div>
 
                 <button type="submit" wire:loading.attr="disabled" wire:target="previewLoanImport,loanFile" class="mt-4 w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60">
@@ -519,7 +520,7 @@
                             </div>
                         </button>
                     @empty
-                        <p class="px-4 py-8 text-center text-sm text-slate-500">No loan imports yet.</p>
+                        <p class="px-4 py-8 text-center text-sm text-slate-500">{{ $labels['empty_imports'] }}</p>
                     @endforelse
                 </div>
             </div>
@@ -590,7 +591,7 @@
                                 <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format((float) $item->amount_due, 2) }}</td>
                                 <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ $item->outstanding_balance !== null ? number_format((float) $item->outstanding_balance, 2) : '-' }}</td>
                                 <td class="border-b border-r border-slate-200 px-3 py-2 text-xs text-slate-600">
-                                    {{ $item->validation_errors ? implode(' ', $item->validation_errors) : 'Ready for payroll Step 5.' }}
+                                    {{ $item->validation_errors ? implode(' ', $item->validation_errors) : $labels['ready_text'] }}
                                 </td>
                             </tr>
                         @empty

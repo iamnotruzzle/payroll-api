@@ -106,11 +106,12 @@ class PayrollLoanImportService
         'CP' => 'GBEL',
     ];
 
-    public function buildTemplate(): string
+    public function buildTemplate(string $mode = 'loans'): string
     {
+        $additionalPremiumMode = $this->isAdditionalPremiumMode($mode);
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Loan Due Import');
+        $sheet->setTitle($additionalPremiumMode ? 'Additional Premium Import' : 'Loan Due Import');
         $sheet->freezePane('A5');
         $spreadsheet->getSecurity()->setLockStructure(true);
         $spreadsheet->getSecurity()->setWorkbookPassword('mmmhmc');
@@ -119,7 +120,7 @@ class PayrollLoanImportService
         $headers = array_column($templateColumns, 'label');
         $sheet->fromArray([['Entity', null, null]], null, 'A1');
         $sheet->fromArray($headers, null, 'A4');
-        $entityCodes = app(PayrollLoanReferenceService::class)->entityCodes();
+        $entityCodes = $this->entityCodesForMode($mode);
         $sheet->setCellValue('B1', $entityCodes[0] ?? 'GSIS');
 
         $lastColumn = Coordinate::stringFromColumnIndex(count($templateColumns));
@@ -148,7 +149,7 @@ class PayrollLoanImportService
         $employeeSheet = $this->addEmployeeReferenceSheet($spreadsheet, $employees);
         $employeeLastRow = max(2, count($employees) + 1);
         $spreadsheet->addNamedRange(new NamedRange('EmployeeNames', $employeeSheet, '$A$2:$A$'.$employeeLastRow));
-        $this->addLoanTypeReferenceSheet($spreadsheet);
+        $this->addLoanTypeReferenceSheet($spreadsheet, $entityCodes);
 
         $entityValidation = $sheet->getCell('B1')->getDataValidation();
         $entityValidation->setType(DataValidation::TYPE_LIST)
@@ -241,13 +242,14 @@ class PayrollLoanImportService
         $instructions->getColumnDimension('B')->setWidth(14);
         $instructions->getColumnDimension('C')->setWidth(82);
 
-        $path = sys_get_temp_dir().'/loan_due_import_template_'.now()->format('Ymd_His').'.xlsx';
+        $prefix = $additionalPremiumMode ? 'additional_premium_import_template_' : 'loan_due_import_template_';
+        $path = sys_get_temp_dir().'/'.$prefix.now()->format('Ymd_His').'.xlsx';
         (new Xlsx($spreadsheet))->save($path);
 
         return $path;
     }
 
-    private function addLoanTypeReferenceSheet(Spreadsheet $spreadsheet): void
+    private function addLoanTypeReferenceSheet(Spreadsheet $spreadsheet, array $entityCodes): void
     {
         $reference = app(PayrollLoanReferenceService::class);
         $sheet = $spreadsheet->createSheet();
@@ -256,7 +258,6 @@ class PayrollLoanImportService
         $sheet->getProtection()->setSheet(true);
         $sheet->getProtection()->setPassword('mmmhmc');
         $maxRows = 1;
-        $entityCodes = $reference->entityCodes();
         $allTypes = collect($entityCodes)
             ->flatMap(fn (string $entityCode) => $reference->typeNamesForEntity($entityCode))
             ->unique()
@@ -410,23 +411,23 @@ class PayrollLoanImportService
             ->all();
     }
 
-    public function import(string $path, string $originalFilename, ?string $storedPath, ?string $importedBy): PayrollLoanImport
+    public function import(string $path, string $originalFilename, ?string $storedPath, ?string $importedBy, string $mode = 'loans'): PayrollLoanImport
     {
         return $this->savePreview(
-            $this->preview($path, $originalFilename),
+            $this->preview($path, $originalFilename, $mode),
             $originalFilename,
             $storedPath,
             $importedBy,
         );
     }
 
-    public function preview(string $path, ?string $originalFilename = null): array
+    public function preview(string $path, ?string $originalFilename = null, string $mode = 'loans'): array
     {
         $reader = IOFactory::createReaderForFile($path);
         $reader->setReadDataOnly(true);
         $sheetNames = $this->worksheetNames($reader, $path);
 
-        if ($extractedLoansSheetName = $this->findWorksheetName($sheetNames, 'extracted loans')) {
+        if (! $this->isAdditionalPremiumMode($mode) && $extractedLoansSheetName = $this->findWorksheetName($sheetNames, 'extracted loans')) {
             $reader->setLoadSheetsOnly([$extractedLoansSheetName]);
             $spreadsheet = $reader->load($path);
 
@@ -443,9 +444,14 @@ class PayrollLoanImportService
         $headerRow = $this->findHeaderRow($sheet);
         $headerMap = $this->headerMap($sheet, $headerRow);
         $rows = $this->extractRows($sheet, $headerRow, $headerMap);
-        $sourceEntity = $this->metadataEntity($sheet) ?: $this->firstNonEmpty($rows, 'entity') ?: 'OTHER';
+        $sourceEntity = $this->isAdditionalPremiumMode($mode)
+            ? $this->additionalPremiumEntityCode()
+            : ($this->metadataEntity($sheet, $mode) ?: $this->firstNonEmpty($rows, 'entity') ?: 'OTHER');
+        if ($this->isAdditionalPremiumMode($mode)) {
+            $rows = array_map(fn (array $row) => array_merge($row, ['entity' => $sourceEntity]), $rows);
+        }
         $billingPeriod = $this->firstNonEmpty($rows, 'due_month');
-        $items = $this->validateRows($rows, $sourceEntity);
+        $items = $this->validateRows($rows, $sourceEntity, $mode);
 
         $validRows = collect($items)->where('validation_status', 'valid')->count();
 
@@ -734,10 +740,10 @@ class PayrollLoanImportService
         return $rows;
     }
 
-    private function validateRow(array $row, ?string $sourceEntity = null): array
+    private function validateRow(array $row, ?string $sourceEntity = null, string $mode = 'loans'): array
     {
         $errors = [];
-        $entityCodes = app(PayrollLoanReferenceService::class)->entityCodes();
+        $entityCodes = $this->entityCodesForMode($mode);
         $entity = strtoupper(trim((string) ($row['entity'] ?: $sourceEntity ?: '')));
         if (! in_array($entity, $entityCodes, true)) {
             $errors[] = 'Entity must be one of: '.implode(', ', $entityCodes).'.';
@@ -801,10 +807,10 @@ class PayrollLoanImportService
         ];
     }
 
-    private function validateRows(array $rows, ?string $sourceEntity = null): array
+    private function validateRows(array $rows, ?string $sourceEntity = null, string $mode = 'loans'): array
     {
         $items = collect($rows)
-            ->map(fn (array $row) => $this->validateRow($row, $sourceEntity))
+            ->map(fn (array $row) => $this->validateRow($row, $sourceEntity, $mode))
             ->values();
 
         $duplicates = $items
@@ -1080,15 +1086,34 @@ class PayrollLoanImportService
         return null;
     }
 
-    private function metadataEntity($sheet): ?string
+    private function metadataEntity($sheet, string $mode = 'loans'): ?string
     {
         foreach (['B1', 'B2', 'A2'] as $cell) {
             $value = strtoupper(trim((string) $sheet->getCell($cell)->getFormattedValue()));
-            if (in_array($value, app(PayrollLoanReferenceService::class)->entityCodes(), true)) {
+            if (in_array($value, $this->entityCodesForMode($mode), true)) {
                 return $value;
             }
         }
 
         return null;
+    }
+
+    private function entityCodesForMode(string $mode): array
+    {
+        $reference = app(PayrollLoanReferenceService::class);
+
+        return $this->isAdditionalPremiumMode($mode)
+            ? $reference->additionalPremiumEntityCodes()
+            : $reference->entityCodes(false);
+    }
+
+    private function additionalPremiumEntityCode(): string
+    {
+        return app(PayrollLoanReferenceService::class)->additionalPremiumEntityCodes()[0] ?? 'ADDITIONAL_PREMIUM';
+    }
+
+    private function isAdditionalPremiumMode(string $mode): bool
+    {
+        return $mode === 'additional_premiums';
     }
 }
