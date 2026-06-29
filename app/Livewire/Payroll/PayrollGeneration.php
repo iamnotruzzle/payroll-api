@@ -88,7 +88,7 @@ class PayrollGeneration extends Component
 
     public array $appliedEmployeeFilterIds = [];
 
-    public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
+    public array $employeeTypeFilter = [Employee::EMPLOYEE_TYPE_PLANTILLA];
 
     #[Url(as: 'step', except: 1)]
     public int $currentStep = 1;
@@ -193,10 +193,9 @@ class PayrollGeneration extends Component
             ? $this->parseSelectedLeaveTypeIds(request()->query('leave_type_ids', []))
             : $this->defaultSelectedLeaveTypeIds();
 
-        $employeeType = request()->query('employee_type', Employee::EMPLOYEE_TYPE_PLANTILLA);
-        $this->employeeTypeFilter = array_key_exists($employeeType, Employee::employeeTypeOptions())
-            ? $employeeType
-            : Employee::EMPLOYEE_TYPE_PLANTILLA;
+        $this->employeeTypeFilter = Employee::normalizeEmployeeTypes(
+            request()->query('employee_type', Employee::EMPLOYEE_TYPE_PLANTILLA)
+        );
         $this->employeeFilterIds = $this->parseEmployeeIdList(request()->query('employee_ids', []));
         $this->appliedEmployeeFilterIds = $this->employeeFilterIds;
         $this->loanColumnGroups = app(PayrollLoanReferenceService::class)->columnGroups();
@@ -719,7 +718,7 @@ class PayrollGeneration extends Component
                 'working_days' => $this->workingDays,
                 'gsis_days' => $this->gsisDays,
                 'included_leave_type_ids' => $this->selectedLeaveTypeIds,
-                'employee_type' => $this->employeeTypeFilter,
+                'employee_type' => Employee::employeeTypeQueryValue($this->employeeTypeFilter),
                 'current_step' => $this->currentStep,
                 'state_json' => [
                     'wizard_step_count' => count($this->steps),
@@ -909,6 +908,8 @@ class PayrollGeneration extends Component
             'divisions' => Division::query()->orderBy('division')->get(),
             'employeeFilterOptions' => $this->employeeFilterOptions(),
             'employeeTypeOptions' => Employee::employeeTypeOptions(),
+            'employeeTypeLabel' => Employee::employeeTypeLabel($this->employeeTypeFilter),
+            'employeeTypeQueryValue' => Employee::employeeTypeQueryValue($this->employeeTypeFilter),
             'compensations' => $compensations,
             'deductionPrograms' => $deductionPrograms,
             'allAdjustmentTypes' => $allAdjustmentTypes,
@@ -1058,7 +1059,11 @@ class PayrollGeneration extends Component
             $payBasis = $this->editablePayBasisFor($employee);
             $salaryGrade = $payBasis['salary_grade'];
             $step = $payBasis['step'];
+            $isPartTime = $this->isPartTimeEmployee($employee);
             $baseBasicSalary = (float) ($salaryMatrix[$salaryGrade][$step] ?? 0);
+            if ($isPartTime) {
+                $baseBasicSalary = round($baseBasicSalary / 2, 2);
+            }
             $leaveDeduction = $this->leaveDeductionDetails(
                 $leaves->get($employee->emp_id, collect()),
                 $leavePeriodStart,
@@ -1100,7 +1105,7 @@ class PayrollGeneration extends Component
                 'pera_deduct_days' => $effectivePeraDeductDays,
                 'laundry_deduct_days' => $effectiveLaundryDeductDays,
                 'tev_deduct_days' => $leaveDeduction['tev_days'],
-                'is_part_time' => $this->isPartTimeEmployee($employee),
+                'is_part_time' => $isPartTime,
                 'paid_days' => $employeePaidDays,
                 'employee_gsis_days' => $employeeGsisDays,
             ];
@@ -1422,7 +1427,7 @@ class PayrollGeneration extends Component
             PayrollType::CODE_GENERAL,
             $this->period,
             $this->workingDays,
-            $this->employeeTypeFilter,
+            Employee::employeeTypeQueryValue($this->employeeTypeFilter),
             $this->gsisDays,
             $this->selectedLeaveTypeIds,
         );
@@ -2790,6 +2795,10 @@ class PayrollGeneration extends Component
 
     private function isPartTimeEmployee(Employee $employee): bool
     {
+        if ((int) $employee->empstat_id === Employee::EMPSTAT_PART_TIME) {
+            return true;
+        }
+
         $values = [
             $employee->getAttribute('employment_type'),
             $employee->getAttribute('employee_type'),
@@ -3004,7 +3013,7 @@ class PayrollGeneration extends Component
                 'working_days' => $this->workingDays,
                 'gsis_days' => $this->gsisDays,
                 'included_leave_type_ids' => $this->selectedLeaveTypeIds,
-                'employee_type' => $this->employeeTypeFilter,
+                'employee_type' => Employee::employeeTypeQueryValue($this->employeeTypeFilter),
                 'generated_by' => $generatedBy,
                 'snapshot_created_at' => now(),
                 'remarks' => "Payroll run #{$run->id} finalized from Payroll Generation module.",

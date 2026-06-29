@@ -52,6 +52,20 @@ class StatutoryContributionServiceTest extends TestCase
         $this->assertSame(3896.07, $result['employee_total']);
     }
 
+    public function test_philhealth_splits_the_rounded_total_premium_like_rf1(): void
+    {
+        Config::set('database.connections.payroll', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+
+        $result = app(StatutoryContributionService::class)->calculate(51301.50, '2026-06-01');
+
+        $this->assertSame(1282.54, $result['employee']['phic']);
+        $this->assertSame(1282.54, $result['employer']['government_phic']);
+    }
+
     public function test_philhealth_matches_excel_for_employee_000869(): void
     {
         Config::set('database.connections.payroll', [

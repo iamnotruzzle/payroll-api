@@ -47,11 +47,11 @@
         <div>
             <h2 class="text-xl font-semibold">Payroll Generation</h2>
             <p class="text-sm text-slate-600">
-                {{ $scopeLabel }} · {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }} · {{ $employeeTypeOptions[$employeeTypeFilter] ?? 'Selected employees' }}
+                {{ $scopeLabel }} · {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }} · {{ $employeeTypeLabel }}
             </p>
         </div>
         <div class="flex flex-wrap gap-2">
-            <a href="{{ route('payroll.generation.configuration', ['division_ids' => implode(',', $selectedDivisionIds ?? []), 'department_ids' => implode(',', $selectedDepartmentIds ?? []), 'division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'gsis_days' => $gsisDays, 'leave_type_ids' => $selectedLeaveTypeIds === [] ? 'none' : implode(',', $selectedLeaveTypeIds), 'employee_type' => $employeeTypeFilter]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+            <a href="{{ route('payroll.generation.configuration', ['division_ids' => implode(',', $selectedDivisionIds ?? []), 'department_ids' => implode(',', $selectedDepartmentIds ?? []), 'division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'gsis_days' => $gsisDays, 'leave_type_ids' => $selectedLeaveTypeIds === [] ? 'none' : implode(',', $selectedLeaveTypeIds), 'employee_type' => $employeeTypeQueryValue]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                 Change Configuration
             </a>
         </div>
@@ -106,8 +106,8 @@
         </div>
 
         <div x-cloak x-show="filtersOpen" x-transition class="border-b border-slate-200 bg-slate-50 px-3 py-3">
-            <div class="flex flex-wrap items-end justify-end gap-2">
-                <div class="w-full sm:max-w-xl">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-end">
+                <div class="w-full min-w-0 sm:max-w-xl sm:flex-1">
                     <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="payroll-employee-filter">
                         Employee Filter
                     </label>
@@ -129,24 +129,26 @@
                         @endforeach
                     </select>
                 </div>
-                <button
-                    type="button"
-                    wire:click="applyEmployeeFilter"
-                    wire:loading.attr="disabled"
-                    wire:target="{{ $payrollLoadingTargets }}"
-                    class="rounded-md bg-[#5f61e6] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#5254d9] disabled:cursor-wait disabled:opacity-60"
-                >
-                    Filter
-                </button>
-                <button
-                    type="button"
-                    wire:click="clearEmployeeFilter"
-                    wire:loading.attr="disabled"
-                    wire:target="{{ $payrollLoadingTargets }}"
-                    class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
-                >
-                    Clear
-                </button>
+                <div class="flex shrink-0 gap-2">
+                    <button
+                        type="button"
+                        wire:click="applyEmployeeFilter"
+                        wire:loading.attr="disabled"
+                        wire:target="{{ $payrollLoadingTargets }}"
+                        class="rounded-md bg-[#5f61e6] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#5254d9] disabled:cursor-wait disabled:opacity-60"
+                    >
+                        Filter
+                    </button>
+                    <button
+                        type="button"
+                        wire:click="clearEmployeeFilter"
+                        wire:loading.attr="disabled"
+                        wire:target="{{ $payrollLoadingTargets }}"
+                        class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+                    >
+                        Clear
+                    </button>
+                </div>
             </div>
         </div>
 

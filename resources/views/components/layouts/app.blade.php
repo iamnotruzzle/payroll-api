@@ -78,15 +78,39 @@
                     'payroll.adjustment-types'
                 ),
                 'items' => [
-                    ['label' => 'Payroll Generation', 'route' => 'payroll.generation.configuration', 'icon' => 'banknote', 'active' => request()->routeIs('payroll.generation', 'payroll.generation.configuration', 'payroll.generation.hazard', 'payroll.generation.medicare')],
-                    ['label' => 'Payroll History', 'route' => 'payroll.history', 'icon' => 'history', 'active' => request()->routeIs('payroll.history')],
-                    ['label' => 'Loan Due Imports', 'route' => 'payroll.loan-imports', 'icon' => 'upload', 'active' => request()->routeIs('payroll.loan-imports')],
-                    ['label' => 'Loan References', 'route' => 'payroll.loan-references', 'icon' => 'files', 'active' => request()->routeIs('payroll.loan-references')],
-                    ['label' => 'Additional Premiums', 'route' => 'payroll.additional-premiums', 'icon' => 'coins', 'active' => request()->routeIs('payroll.additional-premiums')],
-                    ['label' => 'Deduction Programs', 'route' => 'payroll.deduction-programs', 'icon' => 'list-checks', 'active' => request()->routeIs('payroll.deduction-programs')],
-                    ['label' => 'Mandatory Deductions', 'route' => 'payroll.statutory-contributions', 'icon' => 'wallet', 'active' => request()->routeIs('payroll.statutory-contributions')],
-                    ['label' => 'Compensation Rules', 'route' => 'payroll.compensations', 'icon' => 'coins', 'active' => request()->routeIs('payroll.compensations')],
-                    ['label' => 'Adjustment Types', 'route' => 'payroll.adjustment-types', 'icon' => 'sliders', 'active' => request()->routeIs('payroll.adjustment-types')],
+                    [
+                        'key' => 'payroll_runs',
+                        'label' => 'Payroll Runs',
+                        'icon' => 'banknote',
+                        'open' => request()->routeIs('payroll.generation', 'payroll.generation.configuration', 'payroll.generation.hazard', 'payroll.generation.medicare', 'payroll.history'),
+                        'children' => [
+                            ['label' => 'Payroll Generation', 'route' => 'payroll.generation.configuration', 'icon' => 'banknote', 'active' => request()->routeIs('payroll.generation', 'payroll.generation.configuration', 'payroll.generation.hazard', 'payroll.generation.medicare')],
+                            ['label' => 'Payroll History', 'route' => 'payroll.history', 'icon' => 'history', 'active' => request()->routeIs('payroll.history')],
+                        ],
+                    ],
+                    [
+                        'key' => 'payroll_imports',
+                        'label' => 'Imports and References',
+                        'icon' => 'files',
+                        'open' => request()->routeIs('payroll.loan-imports', 'payroll.loan-references', 'payroll.additional-premiums'),
+                        'children' => [
+                            ['label' => 'Loan Due Imports', 'route' => 'payroll.loan-imports', 'icon' => 'upload', 'active' => request()->routeIs('payroll.loan-imports')],
+                            ['label' => 'Loan References', 'route' => 'payroll.loan-references', 'icon' => 'files', 'active' => request()->routeIs('payroll.loan-references')],
+                            ['label' => 'Additional Premiums', 'route' => 'payroll.additional-premiums', 'icon' => 'coins', 'active' => request()->routeIs('payroll.additional-premiums')],
+                        ],
+                    ],
+                    [
+                        'key' => 'payroll_setup',
+                        'label' => 'Payroll Setup',
+                        'icon' => 'sliders',
+                        'open' => request()->routeIs('payroll.deduction-programs', 'payroll.statutory-contributions', 'payroll.compensations', 'payroll.adjustment-types'),
+                        'children' => [
+                            ['label' => 'Deduction Programs', 'route' => 'payroll.deduction-programs', 'icon' => 'list-checks', 'active' => request()->routeIs('payroll.deduction-programs')],
+                            ['label' => 'Mandatory Deductions', 'route' => 'payroll.statutory-contributions', 'icon' => 'wallet', 'active' => request()->routeIs('payroll.statutory-contributions')],
+                            ['label' => 'Compensation Rules', 'route' => 'payroll.compensations', 'icon' => 'coins', 'active' => request()->routeIs('payroll.compensations')],
+                            ['label' => 'Adjustment Types', 'route' => 'payroll.adjustment-types', 'icon' => 'sliders', 'active' => request()->routeIs('payroll.adjustment-types')],
+                        ],
+                    ],
                 ],
             ],
             [
@@ -277,16 +301,12 @@
         </aside>
 
         <section class="min-w-0">
-            <header class="sticky top-0 z-30 border-b border-[#e4e6ef] bg-white/90 px-4 py-3 backdrop-blur sm:px-5">
-                <div class="flex w-full items-center justify-between gap-4">
-                    <div class="min-w-0">
-                        <p class="text-[11px] font-semibold uppercase text-[#8a8d93]">Workspace</p>
-                        <h2 class="mt-0.5 truncate text-base font-semibold text-[#2f3349]">{{ $title ?? 'Payroll Scheduler' }}</h2>
-                    </div>
-                    <div class="hidden items-center gap-3 text-right sm:flex">
-                        <div>
-                            <p class="text-sm font-semibold text-[#2f3349]">{{ $employeeName }}</p>
-                            <p class="text-xs text-[#697a8d]">{{ $account?->emp_id }}</p>
+            <header class="sticky top-0 z-30 border-b border-[#e4e6ef] bg-white/90 px-4 py-2 backdrop-blur sm:px-5">
+                <div class="flex w-full items-center justify-end">
+                    <div class="flex items-center gap-3 text-right">
+                        <div class="hidden sm:block">
+                            <p class="text-sm font-semibold leading-tight text-[#2f3349]">{{ $employeeName }}</p>
+                            <p class="text-xs leading-tight text-[#697a8d]">{{ $account?->emp_id }}</p>
                         </div>
                         <div class="grid h-8 w-8 place-items-center rounded-full bg-[#f1f2ff] text-xs font-bold text-[#696cff]">{{ $initial }}</div>
                     </div>

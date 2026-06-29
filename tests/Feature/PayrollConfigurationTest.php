@@ -173,7 +173,7 @@ class PayrollConfigurationTest extends TestCase
         $component->workingDays = 22;
         $component->gsisDays = 30;
         $component->selectedLeaveTypeIds = [];
-        $component->employeeTypeFilter = 'plantilla';
+        $component->employeeTypeFilter = ['plantilla'];
 
         return $component;
     }

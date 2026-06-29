@@ -28,8 +28,8 @@ class June2026PayrollRegressionTest extends TestCase
         $component->selectedDepartmentIds = [10];
         $component->selectedDivisionIds = [1];
         $component->selectedLeaveTypeIds = [1];
-        $component->employeeTypeFilter = 'plantilla';
-        $component->appliedEmployeeFilterIds = ['000742', '001415', '002039'];
+        $component->employeeTypeFilter = ['plantilla', 'part_time'];
+        $component->appliedEmployeeFilterIds = ['000742', '001415', '002039', '009999'];
         $component->loanColumnGroups = ['Other' => ['other_loans' => 'Other Loans']];
 
         $component->deductionDayOverrides = [
@@ -76,6 +76,16 @@ class June2026PayrollRegressionTest extends TestCase
                 'tax' => 269.73,
                 'fifteenth' => 12255.72,
                 'thirtieth' => 12255.72,
+            ],
+            '009999' => [
+                'case' => 'Part-time basic pay',
+                'basic_salary' => 12164.5,
+                'subsistence' => 750.0,
+                'laundry' => 75.0,
+                'pera' => 1000.0,
+                'tax' => 0.0,
+                'fifteenth' => 6170.29,
+                'thirtieth' => 6170.29,
             ],
         ];
 
@@ -160,6 +170,7 @@ class June2026PayrollRegressionTest extends TestCase
             $table->string('suffix')->nullable();
             $table->integer('position_id');
             $table->integer('department_id');
+            $table->integer('empstat_id')->default(1);
             $table->string('is_active', 1)->default('Y');
             $table->integer('step')->default(1);
             $table->date('date_hired')->nullable();
@@ -420,6 +431,7 @@ class June2026PayrollRegressionTest extends TestCase
                 'lastname' => 'Ayson',
                 'position_id' => 11,
                 'department_id' => 10,
+                'empstat_id' => 1,
                 'is_active' => 'Y',
                 'step' => 1,
                 'date_hired' => '2020-01-01',
@@ -433,6 +445,7 @@ class June2026PayrollRegressionTest extends TestCase
                 'lastname' => 'Cabuyadao',
                 'position_id' => 9,
                 'department_id' => 10,
+                'empstat_id' => 1,
                 'is_active' => 'Y',
                 'step' => 1,
                 'date_hired' => '2020-01-01',
@@ -446,6 +459,21 @@ class June2026PayrollRegressionTest extends TestCase
                 'lastname' => 'Mabuti',
                 'position_id' => 10,
                 'department_id' => 10,
+                'empstat_id' => 1,
+                'is_active' => 'Y',
+                'step' => 1,
+                'date_hired' => '2020-01-01',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'emp_id' => '009999',
+                'firstname' => 'Part',
+                'middlename' => 'T',
+                'lastname' => 'Time',
+                'position_id' => 10,
+                'department_id' => 10,
+                'empstat_id' => 3,
                 'is_active' => 'Y',
                 'step' => 1,
                 'date_hired' => '2020-01-01',

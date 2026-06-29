@@ -134,7 +134,7 @@ class StatutoryContributionService
             $employerAmount = $this->contributionAmount($base, (float) $rule['employer_rate'], $rule['employer_cap'] ?? null, $rule['employer_fixed_amount'] ?? null, $code);
 
             if ($code === 'philhealth') {
-                $employerAmount = $this->philHealthEmployerShare($base, $rule, $employeeAmount);
+                [$employeeAmount, $employerAmount] = $this->philHealthShares($base, $rule);
             }
 
             if ($employeeKey !== null) {
@@ -338,21 +338,21 @@ class StatutoryContributionService
             $amount = min($amount, $cap);
         }
 
-        if ($code === 'philhealth') {
-            return floor(max(0, $amount) * 100) / 100;
-        }
-
         return round(max(0, $amount), 2);
     }
 
-    private function philHealthEmployerShare(float $base, array $rule, float $employeeAmount): float
+    private function philHealthShares(float $base, array $rule): array
     {
         if ($base <= 0) {
-            return 0.0;
+            return [0.0, 0.0];
         }
 
-        if (($rule['employer_fixed_amount'] ?? null) !== null && ($rule['employer_fixed_amount'] ?? '') !== '') {
-            return round(max(0, (float) $rule['employer_fixed_amount']), 2);
+        if (($rule['employee_fixed_amount'] ?? null) !== null && ($rule['employee_fixed_amount'] ?? '') !== ''
+            && ($rule['employer_fixed_amount'] ?? null) !== null && ($rule['employer_fixed_amount'] ?? '') !== '') {
+            return [
+                round(max(0, (float) $rule['employee_fixed_amount']), 2),
+                round(max(0, (float) $rule['employer_fixed_amount']), 2),
+            ];
         }
 
         $totalRate = (float) $rule['employee_rate'] + (float) $rule['employer_rate'];
@@ -373,6 +373,13 @@ class StatutoryContributionService
             $totalPremium = min($totalPremium, $totalCap);
         }
 
-        return round(max(0, round($totalPremium, 2) - $employeeAmount), 2);
+        $totalPremium = round(max(0, $totalPremium), 2);
+        $employeeAmount = floor(($totalPremium / 2) * 100) / 100;
+        $employerAmount = round($totalPremium - $employeeAmount, 2);
+
+        return [
+            round($employeeAmount, 2),
+            round($employerAmount, 2),
+        ];
     }
 }

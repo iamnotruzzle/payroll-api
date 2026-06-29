@@ -6,25 +6,39 @@ use App\Models\Hris\Employee;
 use App\Models\Payroll\PayrollLoanEntity;
 use App\Models\Payroll\PayrollLoanImport;
 use App\Models\Payroll\PayrollLoanImportItem;
+use App\Models\Payroll\PayrollLoanImportItemAudit;
 use App\Models\Payroll\PayrollLoanType;
 use App\Services\Payroll\PayrollLoanImportService;
 use App\Services\Payroll\PayrollLoanReferenceService;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Livewire\WithPagination;
 
 class LoanImports extends Component
 {
     use WithFileUploads;
+    use WithPagination;
 
     public $loanFile;
 
     public string $mode = 'loans';
 
     public ?int $selectedImportId = null;
+
+    public int $itemsPerPage = 100;
+
+    public string $itemSearch = '';
+
+    public string $itemStatusFilter = '';
+
+    public string $itemEntityFilter = '';
+
+    public array $itemEdits = [];
 
     public ?string $pendingLoanImportPath = null;
 
@@ -68,6 +82,21 @@ class LoanImports extends Component
         $this->resetValidation('loanFile');
     }
 
+    public function updatedItemSearch(): void
+    {
+        $this->resetPage('importItemsPage');
+    }
+
+    public function updatedItemStatusFilter(): void
+    {
+        $this->resetPage('importItemsPage');
+    }
+
+    public function updatedItemEntityFilter(): void
+    {
+        $this->resetPage('importItemsPage');
+    }
+
     public function render()
     {
         $imports = $this->scopedImportsQuery()
@@ -78,12 +107,33 @@ class LoanImports extends Component
             ->get();
 
         $selected = $this->selectedImportId
-            ? PayrollLoanImport::with('items')->find($this->selectedImportId)
-            : $imports->first()?->load('items');
+            ? PayrollLoanImport::query()->find($this->selectedImportId)
+            : $imports->first();
+        $selectedItemsQuery = $selected ? $this->filteredImportItemsQuery($selected) : null;
+        $selectedItems = $selectedItemsQuery
+            ? $selectedItemsQuery->paginate($this->itemsPerPage, pageName: 'importItemsPage')
+            : null;
+        $selectedItems?->getCollection()->each(fn (PayrollLoanImportItem $item) => $this->hydrateItemEdit($item));
+        $auditStates = $selectedItems
+            ? collect($selectedItems->items())->mapWithKeys(fn (PayrollLoanImportItem $item) => [$item->id => $this->auditStateFor($item)])->all()
+            : [];
+        $itemEntityOptions = $selected
+            ? PayrollLoanImportItem::query()
+                ->where('import_id', $selected->id)
+                ->select('entity')
+                ->distinct()
+                ->orderBy('entity')
+                ->pluck('entity')
+                ->filter()
+                ->values()
+            : collect();
 
         return view('livewire.payroll.loan-imports', [
             'imports' => $imports,
             'selected' => $selected,
+            'selectedItems' => $selectedItems,
+            'auditStates' => $auditStates,
+            'itemEntityOptions' => $itemEntityOptions,
             'employees' => Employee::query()
                 ->where('is_active', 'Y')
                 ->orderBy('lastname')
@@ -150,6 +200,8 @@ class LoanImports extends Component
         );
 
         $this->selectedImportId = $import->id;
+        $this->resetPage('importItemsPage');
+        $this->resetItemFilters();
         $this->resetLoanImportState();
 
         session()->flash(
@@ -179,6 +231,92 @@ class LoanImports extends Component
     public function selectImport(int $id): void
     {
         $this->selectedImportId = $id;
+        $this->resetPage('importItemsPage');
+        $this->resetItemFilters();
+    }
+
+    public function clearItemFilters(): void
+    {
+        $this->resetItemFilters();
+        $this->resetPage('importItemsPage');
+    }
+
+    public function saveImportItem(int $itemId): void
+    {
+        $item = PayrollLoanImportItem::query()->findOrFail($itemId);
+        $before = $this->auditedValues($item);
+        $data = $this->validatedItemEdit($itemId);
+        $after = $this->normalizeAuditValues([
+            ...$before,
+            ...$data,
+            ...$this->validateImportItemValues($data),
+        ]);
+
+        if ($before === $after) {
+            return;
+        }
+
+        DB::connection('payroll')->transaction(function () use ($item, $before, $after) {
+            $item->fill($after);
+            $item->save();
+            $this->recordImportItemAudit($item, 'update', $before, $after);
+            $this->refreshLoanImportCounts($item->import_id);
+        });
+
+        $this->itemEdits[$itemId] = $this->editValuesFromArray($after);
+        session()->flash('status', 'Import row updated.');
+    }
+
+    public function undoImportItem(int $itemId): void
+    {
+        $item = PayrollLoanImportItem::query()->findOrFail($itemId);
+        $audit = $this->latestUndoableAudit($item);
+
+        if (! $audit) {
+            return;
+        }
+
+        $before = $this->auditedValues($item);
+        $after = $this->normalizeAuditValues((array) $audit->old_values);
+
+        DB::connection('payroll')->transaction(function () use ($item, $audit, $before, $after) {
+            $item->fill($after);
+            $item->save();
+            $audit->fill([
+                'reverted_at' => now(),
+                'reverted_by' => auth()->user()?->emp_id ?? 'web',
+            ])->save();
+            $this->recordImportItemAudit($item, 'undo', $before, $after);
+            $this->refreshLoanImportCounts($item->import_id);
+        });
+
+        $this->itemEdits[$itemId] = $this->editValuesFromArray($after);
+    }
+
+    public function redoImportItem(int $itemId): void
+    {
+        $item = PayrollLoanImportItem::query()->findOrFail($itemId);
+        $audit = $this->latestRedoableAudit($item);
+
+        if (! $audit) {
+            return;
+        }
+
+        $before = $this->auditedValues($item);
+        $after = $this->normalizeAuditValues((array) $audit->old_values);
+
+        DB::connection('payroll')->transaction(function () use ($item, $audit, $before, $after) {
+            $item->fill($after);
+            $item->save();
+            $audit->fill([
+                'reverted_at' => now(),
+                'reverted_by' => auth()->user()?->emp_id ?? 'web',
+            ])->save();
+            $this->recordImportItemAudit($item, 'redo', $before, $after);
+            $this->refreshLoanImportCounts($item->import_id);
+        });
+
+        $this->itemEdits[$itemId] = $this->editValuesFromArray($after);
     }
 
     public function closeLoanImportPreview(): void
@@ -223,7 +361,7 @@ class LoanImports extends Component
                 'remarks' => ['nullable', 'string'],
             ], [
                 'emp_id.required' => 'Choose an employee for row '.($index + 1).'.',
-                'loan_type_id.required' => 'Choose a loan type for row '.($index + 1).'.',
+                'loan_type_id.required' => 'Choose a '.$this->labels()['type_name_lc'].' for row '.($index + 1).'.',
                 'amount_due.required' => 'Enter the amount due for row '.($index + 1).'.',
             ]);
 
@@ -279,6 +417,8 @@ class LoanImports extends Component
 
         $this->refreshLoanImportCounts($import->id);
         $this->selectedImportId = $import->id;
+        $this->resetPage('importItemsPage');
+        $this->resetItemFilters();
         session()->flash('status', "Saved {$saved} ".$this->labels()['deduction_lc']." deduction(s).");
         $this->dispatch('loan-deduction-batch-saved');
     }
@@ -326,6 +466,190 @@ class LoanImports extends Component
             });
 
         return $suggestions;
+    }
+
+    private function filteredImportItemsQuery(PayrollLoanImport $selected)
+    {
+        return PayrollLoanImportItem::query()
+            ->where('import_id', $selected->id)
+            ->when($this->itemStatusFilter !== '', fn ($query) => $query->where('validation_status', $this->itemStatusFilter))
+            ->when($this->itemEntityFilter !== '', fn ($query) => $query->where('entity', $this->itemEntityFilter))
+            ->when(trim($this->itemSearch) !== '', function ($query) {
+                $search = '%'.strtolower(trim($this->itemSearch)).'%';
+
+                $query->where(function ($query) use ($search) {
+                    $query
+                        ->whereRaw('LOWER(employee_id) LIKE ?', [$search])
+                        ->orWhereRaw('LOWER(matched_emp_id) LIKE ?', [$search])
+                        ->orWhereRaw('LOWER(employee_name) LIKE ?', [$search])
+                        ->orWhereRaw('LOWER(loan_account_no) LIKE ?', [$search])
+                        ->orWhereRaw('LOWER(loan_type) LIKE ?', [$search])
+                        ->orWhereRaw('LOWER(remarks) LIKE ?', [$search]);
+                });
+            })
+            ->orderBy('row_number')
+            ->orderBy('id');
+    }
+
+    private function resetItemFilters(): void
+    {
+        $this->itemSearch = '';
+        $this->itemStatusFilter = '';
+        $this->itemEntityFilter = '';
+    }
+
+    private function hydrateItemEdit(PayrollLoanImportItem $item): void
+    {
+        $this->itemEdits[$item->id] ??= $this->editValuesFromArray($this->auditedValues($item));
+    }
+
+    private function editableImportItemFields(): array
+    {
+        return [
+            'due_month',
+            'employee_id',
+            'employee_name',
+            'loan_account_no',
+            'loan_type',
+            'monthly_amortization',
+            'amount_due',
+            'outstanding_balance',
+            'remarks',
+            'validation_status',
+            'validation_errors',
+        ];
+    }
+
+    private function auditedValues(PayrollLoanImportItem $item): array
+    {
+        return $this->normalizeAuditValues($item->only($this->editableImportItemFields()));
+    }
+
+    private function normalizeAuditValues(array $values): array
+    {
+        foreach (['monthly_amortization', 'amount_due', 'outstanding_balance'] as $field) {
+            $values[$field] = ($values[$field] ?? null) === null || $values[$field] === ''
+                ? null
+                : $this->moneyValue($values[$field]);
+        }
+
+        if (($values['due_month'] ?? null) instanceof CarbonInterface) {
+            $values['due_month'] = $values['due_month']->toDateString();
+        }
+
+        foreach (['due_month', 'employee_id', 'employee_name', 'loan_account_no', 'loan_type', 'remarks', 'validation_status'] as $field) {
+            $values[$field] = trim((string) ($values[$field] ?? ''));
+        }
+
+        $values['validation_errors'] = array_values((array) ($values['validation_errors'] ?? [])) ?: null;
+
+        return $values;
+    }
+
+    private function editValuesFromArray(array $values): array
+    {
+        return [
+            'due_month' => $values['due_month'] ?? '',
+            'employee_id' => $values['employee_id'] ?? '',
+            'employee_name' => $values['employee_name'] ?? '',
+            'loan_account_no' => $values['loan_account_no'] ?? '',
+            'loan_type' => $values['loan_type'] ?? '',
+            'monthly_amortization' => $values['monthly_amortization'] ?? '',
+            'amount_due' => $values['amount_due'] ?? '',
+            'outstanding_balance' => $values['outstanding_balance'] ?? '',
+            'remarks' => $values['remarks'] ?? '',
+        ];
+    }
+
+    private function validatedItemEdit(int $itemId): array
+    {
+        $data = validator($this->itemEdits[$itemId] ?? [], [
+            'due_month' => ['required', 'date'],
+            'employee_id' => ['nullable', 'string', 'max:80'],
+            'employee_name' => ['required', 'string', 'max:255'],
+            'loan_account_no' => ['nullable', 'string', 'max:120'],
+            'loan_type' => ['nullable', 'string', 'max:120'],
+            'monthly_amortization' => ['nullable', 'numeric', 'min:0'],
+            'amount_due' => ['required', 'numeric', 'min:0'],
+            'outstanding_balance' => ['nullable', 'numeric', 'min:0'],
+            'remarks' => ['nullable', 'string', 'max:5000'],
+        ])->validate();
+
+        foreach (['monthly_amortization', 'outstanding_balance'] as $field) {
+            $data[$field] = ($data[$field] ?? null) === null || $data[$field] === ''
+                ? null
+                : $this->moneyValue($data[$field]);
+        }
+        $data['amount_due'] = $this->moneyValue($data['amount_due']);
+        $data['loan_account_no'] = trim((string) ($data['loan_account_no'] ?? '')) ?: '(blank)';
+        $data['loan_type'] = trim((string) ($data['loan_type'] ?? '')) ?: null;
+        $data['employee_id'] = trim((string) ($data['employee_id'] ?? '')) ?: null;
+        $data['remarks'] = trim((string) ($data['remarks'] ?? '')) ?: null;
+
+        return $data;
+    }
+
+    private function validateImportItemValues(array $data): array
+    {
+        $errors = [];
+        if (trim((string) ($data['employee_name'] ?? '')) === '') {
+            $errors[] = 'Employee name is required.';
+        }
+        if (trim((string) ($data['loan_account_no'] ?? '')) === '') {
+            $errors[] = 'Reference/account number is required.';
+        }
+        if ((float) ($data['amount_due'] ?? 0) < 0) {
+            $errors[] = 'Amount due must be zero or greater.';
+        }
+
+        return [
+            'validation_status' => $errors === [] ? 'valid' : 'invalid',
+            'validation_errors' => $errors ?: null,
+        ];
+    }
+
+    private function recordImportItemAudit(PayrollLoanImportItem $item, string $action, array $oldValues, array $newValues): void
+    {
+        PayrollLoanImportItemAudit::query()->create([
+            'import_id' => $item->import_id,
+            'import_item_id' => $item->id,
+            'action' => $action,
+            'old_values' => $oldValues,
+            'new_values' => $newValues,
+            'performed_by' => auth()->user()?->emp_id ?? 'web',
+            'created_at' => now(),
+        ]);
+    }
+
+    private function latestAudit(PayrollLoanImportItem $item): ?PayrollLoanImportItemAudit
+    {
+        return PayrollLoanImportItemAudit::query()
+            ->where('import_item_id', $item->id)
+            ->latest('created_at')
+            ->latest('id')
+            ->first();
+    }
+
+    private function latestUndoableAudit(PayrollLoanImportItem $item): ?PayrollLoanImportItemAudit
+    {
+        $audit = $this->latestAudit($item);
+
+        return $audit && in_array($audit->action, ['update', 'redo'], true) && ! $audit->reverted_at ? $audit : null;
+    }
+
+    private function latestRedoableAudit(PayrollLoanImportItem $item): ?PayrollLoanImportItemAudit
+    {
+        $audit = $this->latestAudit($item);
+
+        return $audit && $audit->action === 'undo' && ! $audit->reverted_at ? $audit : null;
+    }
+
+    private function auditStateFor(PayrollLoanImportItem $item): array
+    {
+        return [
+            'can_undo' => (bool) $this->latestUndoableAudit($item),
+            'can_redo' => (bool) $this->latestRedoableAudit($item),
+        ];
     }
 
     private function normalizeManualLoanForm(array $form): array

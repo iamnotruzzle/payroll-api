@@ -9,10 +9,10 @@
         <div>
             <h2 class="text-xl font-semibold">Hazard Pay Payroll</h2>
             <p class="text-sm text-slate-600">
-                {{ $scopeLabel }} &middot; {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }} &middot; {{ $employeeTypeOptions[$employeeTypeFilter] ?? 'Selected employees' }}
+                {{ $scopeLabel }} &middot; {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }} &middot; {{ $employeeTypeLabel }}
             </p>
         </div>
-        <a href="{{ route('payroll.generation.configuration', ['division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_HAZARD, 'period' => $period, 'working_days' => $workingDays, 'employee_type' => $employeeTypeFilter]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+        <a href="{{ route('payroll.generation.configuration', ['division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_HAZARD, 'period' => $period, 'working_days' => $workingDays, 'employee_type' => $employeeTypeQueryValue]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
             Change Configuration
         </a>
     </div>

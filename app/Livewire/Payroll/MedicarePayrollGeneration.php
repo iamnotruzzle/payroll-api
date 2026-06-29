@@ -20,7 +20,7 @@ class MedicarePayrollGeneration extends Component
 
     public int $workingDays = 22;
 
-    public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
+    public array $employeeTypeFilter = [Employee::EMPLOYEE_TYPE_PLANTILLA];
 
     public string $search = '';
 
@@ -36,10 +36,9 @@ class MedicarePayrollGeneration extends Component
         $this->period = request()->query('period', CarbonImmutable::today()->format('Y-m'));
         $this->workingDays = max(1, min(31, request()->integer('working_days') ?: 22));
 
-        $employeeType = request()->query('employee_type', Employee::EMPLOYEE_TYPE_PLANTILLA);
-        $this->employeeTypeFilter = array_key_exists($employeeType, Employee::employeeTypeOptions())
-            ? $employeeType
-            : Employee::EMPLOYEE_TYPE_PLANTILLA;
+        $this->employeeTypeFilter = Employee::normalizeEmployeeTypes(
+            request()->query('employee_type', Employee::EMPLOYEE_TYPE_PLANTILLA)
+        );
     }
 
     public function render()
@@ -56,6 +55,7 @@ class MedicarePayrollGeneration extends Component
             'professionalFeePeriod' => $professionalFeePeriod,
             'scopeName' => $this->scopeName(),
             'employeeTypeOptions' => Employee::employeeTypeOptions(),
+            'employeeTypeLabel' => Employee::employeeTypeLabel($this->employeeTypeFilter),
         ]);
     }
 
@@ -147,7 +147,7 @@ class MedicarePayrollGeneration extends Component
             'payroll_type' => PayrollType::CODE_MEDICARE,
             'period' => $this->period,
             'working_days' => $this->workingDays,
-            'employee_type' => $this->employeeTypeFilter,
+            'employee_type' => Employee::employeeTypeQueryValue($this->employeeTypeFilter),
         ]);
     }
 }

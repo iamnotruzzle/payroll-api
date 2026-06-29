@@ -26,12 +26,20 @@
 
                     <div>
                         <label class="text-sm font-medium">Employee Type</label>
-                        <select wire:model="employeeTypeFilter" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
+                        <select
+                            data-select2-searchable
+                            data-model="employeeTypeFilter"
+                            data-defer-request="true"
+                            data-placeholder="Select employee types"
+                            multiple
+                            class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm"
+                        >
                             @foreach ($employeeTypeOptions as $value => $label)
-                                <option value="{{ $value }}">{{ $label }}</option>
+                                <option value="{{ $value }}" @selected(in_array($value, $employeeTypeFilter, true))>{{ $label }}</option>
                             @endforeach
                         </select>
                         @error('employeeTypeFilter') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        @error('employeeTypeFilter.*') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
                 </div>
 

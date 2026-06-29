@@ -16,6 +16,7 @@ use App\Services\Schedule\ScheduleLockService;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 
 class ScheduleDashboard extends Component
@@ -53,10 +54,10 @@ class ScheduleDashboard extends Component
     public function render()
     {
         $schedule = $this->selectedScheduleId
-            ? MonthlySchedule::with('assignments.shiftCode', 'assignments.employee')
+            ? MonthlySchedule::with('assignments.shiftCode', 'assignments.employee.department.division')
                 ->where('department_id', $this->department_id)
                 ->find($this->selectedScheduleId)
-            : MonthlySchedule::with('assignments.shiftCode', 'assignments.employee')
+            : MonthlySchedule::with('assignments.shiftCode', 'assignments.employee.department.division')
                 ->where('year', $this->year)
                 ->where('month', $this->month)
                 ->when($this->department_id, fn ($query) => $query->where('department_id', $this->department_id))
@@ -101,7 +102,7 @@ class ScheduleDashboard extends Component
             'year' => ['required', 'integer', 'min:2020', 'max:2100'],
             'month' => ['required', 'integer', 'between:1,12'],
             'schedule_template_id' => ['nullable', 'integer'],
-            'employeeTypeFilter' => ['required', 'in:plantilla,cos,all'],
+            'employeeTypeFilter' => ['required', Rule::in(array_keys(Employee::employeeTypeOptions()))],
         ]);
 
         $result = $service->generate($data['year'], $data['month'], $this->department_id, $data['schedule_template_id'], auth()->user()?->emp_id ?? 'web', $data['employeeTypeFilter']);
@@ -450,11 +451,27 @@ class ScheduleDashboard extends Component
             return true;
         }
 
-        $isContractOfService = (int) $employee->position_id === Employee::CONTRACT_OF_SERVICE_POSITION_ID;
+        $isExternalDivision = strtolower(trim((string) $employee->department?->division?->division)) === Employee::EXTERNAL_DIVISION_NAME;
 
-        return $this->employeeTypeFilter === Employee::EMPLOYEE_TYPE_COS
-            ? $isContractOfService
-            : ! $isContractOfService;
+        if ($this->employeeTypeFilter === Employee::EMPLOYEE_TYPE_EXTERNAL) {
+            return $isExternalDivision;
+        }
+
+        if ($isExternalDivision) {
+            return false;
+        }
+
+        return match ($this->employeeTypeFilter) {
+            Employee::EMPLOYEE_TYPE_CASUAL => (int) $employee->empstat_id === Employee::EMPSTAT_CASUAL,
+            Employee::EMPLOYEE_TYPE_PART_TIME => (int) $employee->empstat_id === Employee::EMPSTAT_PART_TIME,
+            Employee::EMPLOYEE_TYPE_CONTRACTUAL => (int) $employee->empstat_id === Employee::EMPSTAT_CONTRACTUAL,
+            Employee::EMPLOYEE_TYPE_TEMPORARY => (int) $employee->empstat_id === Employee::EMPSTAT_TEMPORARY,
+            Employee::EMPLOYEE_TYPE_VISITING_CONSULTANT => (int) $employee->empstat_id === Employee::EMPSTAT_VISITING_CONSULTANT,
+            Employee::EMPLOYEE_TYPE_COS => (int) $employee->empstat_id === Employee::EMPSTAT_CONTRACT_OF_SERVICE,
+            Employee::EMPLOYEE_TYPE_PROBATIONARY => (int) $employee->empstat_id === Employee::EMPSTAT_PROBATIONARY,
+            Employee::EMPLOYEE_TYPE_INTERN => (int) $employee->empstat_id === Employee::EMPSTAT_INTERN,
+            default => (int) $employee->empstat_id === Employee::EMPSTAT_PERMANENT,
+        };
     }
 
     private function formatEmployeeName($employee, int $firstNameInitialLength = 1): string

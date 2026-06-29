@@ -4,6 +4,7 @@ namespace App\Models\Payroll;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PayrollLoanImportItem extends Model
 {
@@ -47,5 +48,10 @@ class PayrollLoanImportItem extends Model
     public function import(): BelongsTo
     {
         return $this->belongsTo(PayrollLoanImport::class, 'import_id');
+    }
+
+    public function audits(): HasMany
+    {
+        return $this->hasMany(PayrollLoanImportItemAudit::class, 'import_item_id');
     }
 }

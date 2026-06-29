@@ -14,11 +14,49 @@ class Employee extends Authenticatable
 
     public const CONTRACT_OF_SERVICE_POSITION_ID = 100;
 
+    public const EMPSTAT_PERMANENT = 1;
+
+    public const EMPSTAT_CASUAL = 2;
+
+    public const EMPSTAT_PART_TIME = 3;
+
+    public const EMPSTAT_CONTRACTUAL = 4;
+
+    public const EMPSTAT_TEMPORARY = 5;
+
+    public const EMPSTAT_VISITING_CONSULTANT = 6;
+
+    public const EMPSTAT_CONTRACT_OF_SERVICE = 7;
+
+    public const EMPSTAT_PROBATIONARY = 8;
+
+    public const EMPSTAT_INTERN = 9;
+
+    public const EMPSTAT_EXTERNAL = 10;
+
     public const EMPLOYEE_TYPE_PLANTILLA = 'plantilla';
+
+    public const EMPLOYEE_TYPE_CASUAL = 'casual';
+
+    public const EMPLOYEE_TYPE_PART_TIME = 'part_time';
+
+    public const EMPLOYEE_TYPE_CONTRACTUAL = 'contractual';
+
+    public const EMPLOYEE_TYPE_TEMPORARY = 'temporary';
+
+    public const EMPLOYEE_TYPE_VISITING_CONSULTANT = 'visiting_consultant';
 
     public const EMPLOYEE_TYPE_COS = 'cos';
 
+    public const EMPLOYEE_TYPE_PROBATIONARY = 'probationary';
+
+    public const EMPLOYEE_TYPE_INTERN = 'intern';
+
+    public const EMPLOYEE_TYPE_EXTERNAL = 'external';
+
     public const EMPLOYEE_TYPE_ALL = 'all';
+
+    public const EXTERNAL_DIVISION_NAME = 'external';
 
     protected $connection = 'mysql';
 
@@ -150,24 +188,102 @@ class Employee extends Authenticatable
         return $this->is_section_head === 'Y';
     }
 
-    public function scopeEmployeeType(Builder $query, ?string $type = self::EMPLOYEE_TYPE_PLANTILLA): Builder
+    public function scopeEmployeeType(Builder $query, string|array|null $type = self::EMPLOYEE_TYPE_PLANTILLA): Builder
     {
-        switch ($type ?: self::EMPLOYEE_TYPE_PLANTILLA) {
-            case self::EMPLOYEE_TYPE_COS:
-                return $query->where('position_id', self::CONTRACT_OF_SERVICE_POSITION_ID);
-            case self::EMPLOYEE_TYPE_ALL:
-                return $query;
-            default:
-                return $query->where('position_id', '!=', self::CONTRACT_OF_SERVICE_POSITION_ID);
+        $types = self::normalizeEmployeeTypes($type);
+
+        if (in_array(self::EMPLOYEE_TYPE_ALL, $types, true)) {
+            return $query;
         }
+
+        return $query->where(function (Builder $query) use ($types) {
+            foreach ($types as $employeeType) {
+                $query->orWhere(fn (Builder $typeQuery) => self::applyEmployeeTypeConstraint($typeQuery, $employeeType));
+            }
+        });
     }
 
     public static function employeeTypeOptions(): array
     {
         return [
-            self::EMPLOYEE_TYPE_PLANTILLA => 'Plantilla Positions',
+            self::EMPLOYEE_TYPE_PLANTILLA => 'Permanent / Plantilla Positions',
+            self::EMPLOYEE_TYPE_CASUAL => 'Casual',
+            self::EMPLOYEE_TYPE_PART_TIME => 'Part Time',
+            self::EMPLOYEE_TYPE_CONTRACTUAL => 'Contractual',
+            self::EMPLOYEE_TYPE_TEMPORARY => 'Temporary',
+            self::EMPLOYEE_TYPE_VISITING_CONSULTANT => 'Visiting Consultant',
             self::EMPLOYEE_TYPE_COS => 'Contract of Service',
+            self::EMPLOYEE_TYPE_PROBATIONARY => 'Probationary',
+            self::EMPLOYEE_TYPE_INTERN => 'Intern',
+            self::EMPLOYEE_TYPE_EXTERNAL => 'External',
             self::EMPLOYEE_TYPE_ALL => 'All Employees',
         ];
+    }
+
+    public static function normalizeEmployeeTypes(mixed $types): array
+    {
+        if ($types === null || $types === '') {
+            $types = [self::EMPLOYEE_TYPE_PLANTILLA];
+        }
+
+        if (is_string($types)) {
+            $types = explode(',', $types);
+        }
+
+        $validTypes = array_keys(self::employeeTypeOptions());
+        $normalized = collect(is_array($types) ? $types : [$types])
+            ->map(fn ($type) => trim((string) $type))
+            ->filter(fn (string $type) => $type !== '' && in_array($type, $validTypes, true))
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($normalized === []) {
+            return [self::EMPLOYEE_TYPE_PLANTILLA];
+        }
+
+        if (in_array(self::EMPLOYEE_TYPE_ALL, $normalized, true)) {
+            return [self::EMPLOYEE_TYPE_ALL];
+        }
+
+        return collect($validTypes)
+            ->filter(fn (string $type) => in_array($type, $normalized, true))
+            ->values()
+            ->all();
+    }
+
+    public static function employeeTypeQueryValue(mixed $types): string
+    {
+        return implode(',', self::normalizeEmployeeTypes($types));
+    }
+
+    public static function employeeTypeLabel(mixed $types): string
+    {
+        $options = self::employeeTypeOptions();
+
+        return collect(self::normalizeEmployeeTypes($types))
+            ->map(fn (string $type) => $options[$type] ?? ucfirst($type))
+            ->implode(', ');
+    }
+
+    private static function applyEmployeeTypeConstraint(Builder $query, string $type): Builder
+    {
+        $excludeExternalDivision = fn (Builder $employeeQuery) => $employeeQuery
+            ->whereDoesntHave('department.division', fn (Builder $divisionQuery) => $divisionQuery
+                ->whereRaw('LOWER(TRIM(division)) = ?', [self::EXTERNAL_DIVISION_NAME]));
+
+        return match ($type) {
+            self::EMPLOYEE_TYPE_CASUAL => $excludeExternalDivision($query->where('empstat_id', self::EMPSTAT_CASUAL)),
+            self::EMPLOYEE_TYPE_PART_TIME => $excludeExternalDivision($query->where('empstat_id', self::EMPSTAT_PART_TIME)),
+            self::EMPLOYEE_TYPE_CONTRACTUAL => $excludeExternalDivision($query->where('empstat_id', self::EMPSTAT_CONTRACTUAL)),
+            self::EMPLOYEE_TYPE_TEMPORARY => $excludeExternalDivision($query->where('empstat_id', self::EMPSTAT_TEMPORARY)),
+            self::EMPLOYEE_TYPE_VISITING_CONSULTANT => $excludeExternalDivision($query->where('empstat_id', self::EMPSTAT_VISITING_CONSULTANT)),
+            self::EMPLOYEE_TYPE_COS => $excludeExternalDivision($query->where('empstat_id', self::EMPSTAT_CONTRACT_OF_SERVICE)),
+            self::EMPLOYEE_TYPE_PROBATIONARY => $excludeExternalDivision($query->where('empstat_id', self::EMPSTAT_PROBATIONARY)),
+            self::EMPLOYEE_TYPE_INTERN => $excludeExternalDivision($query->where('empstat_id', self::EMPSTAT_INTERN)),
+            self::EMPLOYEE_TYPE_EXTERNAL => $query->whereHas('department.division', fn (Builder $divisionQuery) => $divisionQuery
+                ->whereRaw('LOWER(TRIM(division)) = ?', [self::EXTERNAL_DIVISION_NAME])),
+            default => $excludeExternalDivision($query->where('empstat_id', self::EMPSTAT_PERMANENT)),
+        };
     }
 }

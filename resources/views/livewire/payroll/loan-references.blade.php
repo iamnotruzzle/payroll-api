@@ -1,5 +1,5 @@
 <section class="space-y-4 pb-12">
-    <div>
+    <div @class(['hidden' => $isAdditionalPremiumMode])>
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
             <h2 class="text-xl font-semibold">{{ $isAdditionalPremiumMode ? 'Additional Premiums' : 'Loan References' }}</h2>
@@ -18,8 +18,14 @@
         <div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>
     @endif
 
-    <div class="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <div @class([
+        'grid gap-4',
+        'xl:grid-cols-[320px_minmax(0,1fr)]' => ! $isAdditionalPremiumMode,
+    ])>
+        <div @class([
+            'overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm',
+            'hidden' => $isAdditionalPremiumMode,
+        ])>
             <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
                 <h3 class="font-semibold">{{ $isAdditionalPremiumMode ? 'Category' : 'Entities' }}</h3>
                 @unless ($isAdditionalPremiumMode)
@@ -49,9 +55,9 @@
             <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Entity</p>
-                        <h3 class="mt-1 text-lg font-semibold">{{ $selectedEntity?->code ?? 'No entity selected' }}</h3>
-                        <p class="text-sm text-slate-600">{{ $selectedEntity?->name }}</p>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $isAdditionalPremiumMode ? 'Premium Type Setup' : 'Selected Entity' }}</p>
+                        <h3 class="mt-1 text-lg font-semibold">{{ $isAdditionalPremiumMode ? 'Additional Premium Types' : ($selectedEntity?->code ?? 'No entity selected') }}</h3>
+                        <p class="text-sm text-slate-600">{{ $isAdditionalPremiumMode ? 'Maintain type names, review columns, and import matching keywords.' : $selectedEntity?->name }}</p>
                     </div>
                     @if ($selectedEntity)
                         <div class="flex gap-2">
@@ -71,7 +77,7 @@
             @if ($selectedEntity)
                 <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                     <div class="border-b border-slate-200 px-4 py-3">
-                        <h3 class="font-semibold">{{ $selectedEntity->code }} Types</h3>
+                        <h3 class="font-semibold">{{ $isAdditionalPremiumMode ? 'Configured Premium Types' : $selectedEntity->code.' Types' }}</h3>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-slate-200 text-sm">

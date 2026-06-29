@@ -35,7 +35,7 @@ class PayrollConfiguration extends Component
 
     public array $selectedLeaveTypeIds = [];
 
-    public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
+    public array $employeeTypeFilter = [Employee::EMPLOYEE_TYPE_PLANTILLA];
 
     public bool $showExistingGenerationNotice = false;
 
@@ -81,10 +81,9 @@ class PayrollConfiguration extends Component
             ? $this->parseSelectedLeaveTypeIds(request()->query('leave_type_ids', []))
             : $this->defaultSelectedLeaveTypeIds();
 
-        $employeeType = request()->query('employee_type', Employee::EMPLOYEE_TYPE_PLANTILLA);
-        $this->employeeTypeFilter = array_key_exists($employeeType, Employee::employeeTypeOptions())
-            ? $employeeType
-            : Employee::EMPLOYEE_TYPE_PLANTILLA;
+        $this->employeeTypeFilter = Employee::normalizeEmployeeTypes(
+            request()->query('employee_type', Employee::EMPLOYEE_TYPE_PLANTILLA)
+        );
     }
 
     public function proceed()
@@ -134,12 +133,14 @@ class PayrollConfiguration extends Component
             'gsisDays' => ['required', 'integer', 'min:0', 'max:31'],
             'selectedLeaveTypeIds' => ['array'],
             'selectedLeaveTypeIds.*' => ['integer', 'exists:mysql.tbl_leave_type,leave_type_id'],
-            'employeeTypeFilter' => ['required', 'in:plantilla,cos,all'],
+            'employeeTypeFilter' => ['required', 'array', 'min:1'],
+            'employeeTypeFilter.*' => ['required', Rule::in(array_keys(Employee::employeeTypeOptions()))],
         ]);
 
         $data['selectedDivisionIds'] = $this->normalizedIds($data['selectedDivisionIds'] ?? []);
         $data['selectedDepartmentIds'] = $this->normalizedIds($data['selectedDepartmentIds'] ?? []);
         $data['selectedLeaveTypeIds'] = $this->normalizedLeaveTypeIds($data['selectedLeaveTypeIds'] ?? []);
+        $data['employeeTypeFilter'] = Employee::normalizeEmployeeTypes($data['employeeTypeFilter'] ?? []);
 
         if ($data['selectedDepartmentIds'] !== []) {
             $departmentDivisionIds = Department::query()
@@ -155,6 +156,7 @@ class PayrollConfiguration extends Component
         $this->selectedDivisionIds = $data['selectedDivisionIds'];
         $this->selectedDepartmentIds = $data['selectedDepartmentIds'];
         $this->selectedLeaveTypeIds = $data['selectedLeaveTypeIds'];
+        $this->employeeTypeFilter = $data['employeeTypeFilter'];
         $this->syncLegacyScopeIds();
 
         return $data;
@@ -172,7 +174,7 @@ class PayrollConfiguration extends Component
             'working_days' => $data['workingDays'],
             'gsis_days' => $data['gsisDays'],
             'leave_type_ids' => $this->leaveTypeIdsQueryValue($data['selectedLeaveTypeIds'] ?? []),
-            'employee_type' => $data['employeeTypeFilter'],
+            'employee_type' => Employee::employeeTypeQueryValue($data['employeeTypeFilter']),
         ]);
     }
 
@@ -352,7 +354,7 @@ class PayrollConfiguration extends Component
             (string) $data['payrollType'],
             (string) $data['period'],
             (int) $data['workingDays'],
-            (string) $data['employeeTypeFilter'],
+            Employee::employeeTypeQueryValue($data['employeeTypeFilter']),
             (int) $data['gsisDays'],
             $this->normalizedLeaveTypeIds($data['selectedLeaveTypeIds'] ?? []),
         );

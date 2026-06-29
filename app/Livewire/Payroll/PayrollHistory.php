@@ -276,7 +276,7 @@ class PayrollHistory extends Component
             return 'Not recorded';
         }
 
-        return Employee::employeeTypeOptions()[$employeeType] ?? ucfirst($employeeType);
+        return Employee::employeeTypeLabel($employeeType);
     }
 
     private function payrollTypeOptions(): array

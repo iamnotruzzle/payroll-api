@@ -27,6 +27,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class PayrollOperationsController extends Controller
 {
@@ -222,7 +223,7 @@ class PayrollOperationsController extends Controller
             'period_end' => ['required', 'date'],
             'generated_by' => ['required', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
-            'employee_type' => ['nullable', 'in:plantilla,cos,all'],
+            'employee_type' => ['nullable', Rule::in(array_keys(Employee::employeeTypeOptions()))],
         ]);
 
         $report = DB::connection('payroll')->transaction(function () use ($data) {
@@ -519,7 +520,7 @@ class PayrollOperationsController extends Controller
             'department_id' => ['required', 'integer'],
             'from' => ['required', 'date'],
             'to' => ['required', 'date'],
-            'employee_type' => ['nullable', 'in:plantilla,cos,all'],
+            'employee_type' => ['nullable', Rule::in(array_keys(Employee::employeeTypeOptions()))],
         ]);
 
         app(SchedulerDtrSyncService::class)->syncDepartmentPeriod(
@@ -593,7 +594,7 @@ class PayrollOperationsController extends Controller
             'to' => ['required', 'date'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-            'employee_type' => ['nullable', 'in:plantilla,cos,all'],
+            'employee_type' => ['nullable', Rule::in(array_keys(Employee::employeeTypeOptions()))],
         ]);
 
         app(SchedulerDtrSyncService::class)->syncDepartmentPeriod(

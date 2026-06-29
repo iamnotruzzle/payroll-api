@@ -13,6 +13,7 @@
     } catch (\Throwable) {
         $selectedPeriodLabel = \Carbon\CarbonImmutable::today()->format('F Y');
     }
+    $isCompactPremiumLayout = $isAdditionalPremiumMode ?? false;
 @endphp
 
 <section
@@ -154,11 +155,17 @@
         },
     }"
 >
-    <div class="flex flex-wrap items-end justify-between gap-3">
-        <div>
-            <h2 class="text-xl font-semibold">{{ $labels['page_title'] }}</h2>
-            <p class="text-sm text-slate-600">{{ $labels['description'] }}</p>
-        </div>
+    <div @class([
+        'flex flex-wrap items-end gap-3',
+        'justify-between' => ! $isCompactPremiumLayout,
+        'justify-end' => $isCompactPremiumLayout,
+    ])>
+        @unless ($isCompactPremiumLayout)
+            <div>
+                <h2 class="text-xl font-semibold">{{ $labels['page_title'] }}</h2>
+                <p class="text-sm text-slate-600">{{ $labels['description'] }}</p>
+            </div>
+        @endunless
         <div class="flex flex-wrap items-end gap-2">
             <label class="block">
                 <span class="text-xs font-semibold uppercase text-slate-500">Billing Month</span>
@@ -327,7 +334,7 @@
 
                     <div>
                         <label class="text-xs font-semibold uppercase text-slate-500">{{ $labels['type_name'] }}</label>
-                        <select x-ref="loanType" x-model="loanForm.loan_type_id" x-on:change="$nextTick(() => applyRecentLoanSuggestion())" data-select2-searchable data-placeholder="Search loan type" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <select x-ref="loanType" x-model="loanForm.loan_type_id" x-on:change="$nextTick(() => applyRecentLoanSuggestion())" data-select2-searchable data-placeholder="Search {{ $labels['type_name_lc'] }}" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             <option value="">Select {{ $labels['type_name_lc'] }}</option>
                             <template x-for="loanType in loanTypeOptions" :key="loanType.id">
                                 <option :value="loanType.id" x-text="loanType.label"></option>
@@ -451,8 +458,14 @@
         </div>
     </div>
 
-    <div class="grid gap-4 xl:grid-cols-[360px_1fr]">
-        <div class="space-y-4">
+    <div @class([
+        'grid gap-4',
+        'xl:grid-cols-[360px_1fr]' => ! $isCompactPremiumLayout,
+    ])>
+        <div @class([
+            'space-y-4' => ! $isCompactPremiumLayout,
+            'grid gap-4 lg:grid-cols-[minmax(280px,360px)_minmax(280px,1fr)]' => $isCompactPremiumLayout,
+        ])>
             <form
                 wire:submit="previewLoanImport"
                 class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
@@ -499,7 +512,10 @@
                 <div class="border-b border-slate-200 px-4 py-3">
                     <h3 class="font-semibold">Recent Imports</h3>
                 </div>
-                <div class="divide-y divide-slate-100">
+                <div @class([
+                    'divide-y divide-slate-100',
+                    'max-h-[220px] overflow-y-auto' => $isCompactPremiumLayout,
+                ])>
                     @forelse ($imports as $import)
                         <button type="button" wire:click="selectImport({{ $import->id }})" class="block w-full px-4 py-3 text-left text-sm hover:bg-slate-50 {{ $selected?->id === $import->id ? 'bg-blue-50' : '' }}">
                             <div class="flex items-start justify-between gap-3">
@@ -513,7 +529,7 @@
                                     {{ $import->invalid_rows ? 'Review' : 'Ready' }}
                                 </span>
                             </div>
-                            <div class="mt-2 flex gap-3 text-xs text-slate-500">
+                            <div class="mt-2 flex gap-3 text-xs {{ $selected?->id === $import->id ? 'text-white' : 'text-slate-500' }}">
                                 <span>{{ number_format($import->valid_rows) }} valid</span>
                                 <span>{{ number_format($import->invalid_rows) }} invalid</span>
                                 <span>{{ $import->imported_at?->format('M d, Y g:i A') }}</span>
@@ -532,7 +548,7 @@
                     <h3 class="font-semibold">Validation Grid</h3>
                     <p class="text-sm text-slate-600">
                         @if ($selected)
-                            {{ $selected->original_filename }} · {{ number_format($selected->items->count()) }} row(s)
+                            {{ $selected->original_filename }} - Showing {{ number_format($selectedItems?->firstItem() ?? 0) }}-{{ number_format($selectedItems?->lastItem() ?? 0) }} of {{ number_format($selectedItems?->total() ?? $selected->total_rows) }} row(s)
                         @else
                             Select an import to preview rows.
                         @endif
@@ -556,8 +572,43 @@
                 @endif
             </div>
 
-            <div class="max-h-[680px] overflow-auto">
-                <table class="min-w-[1320px] border-separate border-spacing-0 text-sm">
+            @if ($selected)
+                <div class="grid gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 md:grid-cols-[minmax(220px,1fr)_180px_180px_auto]">
+                    <label class="block">
+                        <span class="text-xs font-semibold uppercase text-slate-500">Search Rows</span>
+                        <input wire:model.live.debounce.750ms="itemSearch" type="search" placeholder="Employee, reference, type, remarks" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-semibold uppercase text-slate-500">Status</span>
+                        <select wire:model.live="itemStatusFilter" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            <option value="">All statuses</option>
+                            <option value="valid">Valid</option>
+                            <option value="invalid">Invalid</option>
+                        </select>
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-semibold uppercase text-slate-500">Entity</span>
+                        <select wire:model.live="itemEntityFilter" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            <option value="">All entities</option>
+                            @foreach ($itemEntityOptions as $entityOption)
+                                <option value="{{ $entityOption }}">{{ $entityOption }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <div class="flex items-end">
+                        <button type="button" wire:click="clearItemFilters" class="w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+            @endif
+
+            <div @class([
+                'overflow-auto',
+                'max-h-[680px]' => ! $isCompactPremiumLayout,
+                'max-h-[520px]' => $isCompactPremiumLayout,
+            ])>
+                <table class="min-w-[1460px] border-separate border-spacing-0 text-sm">
                     <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
                         <tr>
                             <th class="sticky left-0 z-20 border-b border-r border-slate-300 bg-slate-100 px-3 py-2">Row</th>
@@ -566,15 +617,17 @@
                             <th class="border-b border-r border-slate-300 px-3 py-2">Due Month</th>
                             <th class="border-b border-r border-slate-300 px-3 py-2">Employee ID</th>
                             <th class="border-b border-r border-slate-300 px-3 py-2">Employee Name</th>
+                            <th class="border-b border-r border-slate-300 px-3 py-2">{{ $labels['type_name'] }}</th>
                             <th class="border-b border-r border-slate-300 px-3 py-2">Reference/Account No.</th>
                             <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Amortization</th>
                             <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Amount Due</th>
                             <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Balance</th>
                             <th class="border-b border-r border-slate-300 px-3 py-2">Validation</th>
+                            <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse (($selected?->items ?? collect()) as $item)
+                        @forelse (($selectedItems?->items() ?? []) as $item)
                             <tr class="{{ $item->validation_status === 'valid' ? 'bg-white hover:bg-emerald-50/50' : 'bg-amber-50 hover:bg-amber-100/60' }}">
                                 <td class="sticky left-0 border-b border-r border-slate-200 bg-inherit px-3 py-2 font-mono text-xs">{{ $item->row_number }}</td>
                                 <td class="border-b border-r border-slate-200 px-3 py-2">
@@ -583,25 +636,63 @@
                                     </span>
                                 </td>
                                 <td class="border-b border-r border-slate-200 px-3 py-2">{{ $item->entity }}</td>
-                                <td class="border-b border-r border-slate-200 px-3 py-2">{{ $item->due_month?->format('Y-m') }}</td>
-                                <td class="border-b border-r border-slate-200 px-3 py-2">{{ $item->employee_id ?: $item->matched_emp_id }}</td>
-                                <td class="border-b border-r border-slate-200 px-3 py-2 font-medium">{{ $item->employee_name }}</td>
-                                <td class="border-b border-r border-slate-200 px-3 py-2">{{ $item->loan_account_no }}</td>
-                                <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ number_format((float) $item->monthly_amortization, 2) }}</td>
-                                <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format((float) $item->amount_due, 2) }}</td>
-                                <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ $item->outstanding_balance !== null ? number_format((float) $item->outstanding_balance, 2) : '-' }}</td>
+                                <td class="border-b border-r border-slate-200 px-3 py-2">
+                                    <input wire:model="itemEdits.{{ $item->id }}.due_month" type="date" class="w-36 rounded-md border border-slate-300 px-2 py-1 text-sm">
+                                </td>
+                                <td class="border-b border-r border-slate-200 px-3 py-2">
+                                    <input wire:model="itemEdits.{{ $item->id }}.employee_id" type="text" class="w-28 rounded-md border border-slate-300 px-2 py-1 text-sm">
+                                </td>
+                                <td class="border-b border-r border-slate-200 px-3 py-2 font-medium">
+                                    <input wire:model="itemEdits.{{ $item->id }}.employee_name" type="text" class="w-72 rounded-md border border-slate-300 px-2 py-1 text-sm">
+                                </td>
+                                <td class="border-b border-r border-slate-200 px-3 py-2">
+                                    <input wire:model="itemEdits.{{ $item->id }}.loan_type" type="text" class="w-44 rounded-md border border-slate-300 px-2 py-1 text-sm">
+                                </td>
+                                <td class="border-b border-r border-slate-200 px-3 py-2">
+                                    <input wire:model="itemEdits.{{ $item->id }}.loan_account_no" type="text" class="w-44 rounded-md border border-slate-300 px-2 py-1 text-sm">
+                                </td>
+                                <td class="border-b border-r border-slate-200 px-3 py-2 text-right">
+                                    <input wire:model="itemEdits.{{ $item->id }}.monthly_amortization" type="number" min="0" step="0.01" class="w-28 rounded-md border border-slate-300 px-2 py-1 text-right text-sm">
+                                </td>
+                                <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold">
+                                    <input wire:model="itemEdits.{{ $item->id }}.amount_due" type="number" min="0" step="0.01" class="w-28 rounded-md border border-slate-300 px-2 py-1 text-right text-sm font-semibold">
+                                </td>
+                                <td class="border-b border-r border-slate-200 px-3 py-2 text-right">
+                                    <input wire:model="itemEdits.{{ $item->id }}.outstanding_balance" type="number" min="0" step="0.01" class="w-28 rounded-md border border-slate-300 px-2 py-1 text-right text-sm">
+                                </td>
                                 <td class="border-b border-r border-slate-200 px-3 py-2 text-xs text-slate-600">
                                     {{ $item->validation_errors ? implode(' ', $item->validation_errors) : $labels['ready_text'] }}
+                                </td>
+                                <td class="border-b border-r border-slate-200 px-3 py-2 text-right">
+                                    <div class="flex justify-end gap-1">
+                                        <button type="button" wire:click="saveImportItem({{ $item->id }})" wire:loading.attr="disabled" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold hover:bg-slate-50">
+                                            Save
+                                        </button>
+                                        <button type="button" wire:click="undoImportItem({{ $item->id }})" @disabled(! ($auditStates[$item->id]['can_undo'] ?? false)) class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
+                                            Undo
+                                        </button>
+                                        <button type="button" wire:click="redoImportItem({{ $item->id }})" @disabled(! ($auditStates[$item->id]['can_redo'] ?? false)) class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
+                                            Redo
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11" class="px-4 py-12 text-center text-slate-500">No rows to display.</td>
+                                <td colspan="13" class="px-4 py-12 text-center text-slate-500">No rows to display.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
+
+            @if ($selectedItems && $selectedItems->hasPages())
+                <div class="border-t border-slate-200 bg-white px-4 py-3">
+                    {{ $selectedItems->links() }}
+                </div>
+            @endif
         </div>
     </div>
 </section>
+
+

@@ -94,6 +94,10 @@ input[type="number"] {
     letter-spacing: 0;
 }
 
+[x-cloak] {
+    display: none !important;
+}
+
 .erp-sidebar {
     box-shadow: 0 0.125rem 0.5rem rgba(67, 89, 113, 0.08);
 }
@@ -689,6 +693,17 @@ input[type="number"] {
     background: var(--erp-primary-soft);
     color: var(--erp-primary);
     line-height: 1.2;
+    max-width: 100%;
+}
+
+.erp-content
+    .select2-container--default
+    .select2-selection--multiple
+    .select2-selection__choice__display {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .erp-content

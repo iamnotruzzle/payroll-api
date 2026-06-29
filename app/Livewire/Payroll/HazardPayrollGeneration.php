@@ -23,7 +23,7 @@ class HazardPayrollGeneration extends Component
 
     public string $search = '';
 
-    public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
+    public array $employeeTypeFilter = [Employee::EMPLOYEE_TYPE_PLANTILLA];
 
     public array $adjustments = [];
 
@@ -57,10 +57,9 @@ class HazardPayrollGeneration extends Component
         $this->period = request()->query('period', CarbonImmutable::today()->format('Y-m'));
         $this->workingDays = max(1, min(31, request()->integer('working_days') ?: $this->workingDays));
 
-        $employeeType = request()->query('employee_type', Employee::EMPLOYEE_TYPE_PLANTILLA);
-        $this->employeeTypeFilter = array_key_exists($employeeType, Employee::employeeTypeOptions())
-            ? $employeeType
-            : Employee::EMPLOYEE_TYPE_PLANTILLA;
+        $this->employeeTypeFilter = Employee::normalizeEmployeeTypes(
+            request()->query('employee_type', Employee::EMPLOYEE_TYPE_PLANTILLA)
+        );
         $this->search = (string) request()->query('search', '');
     }
 
@@ -72,6 +71,8 @@ class HazardPayrollGeneration extends Component
             'departments' => Department::query()->orderBy('department')->get(),
             'divisions' => Division::query()->orderBy('division')->get(),
             'employeeTypeOptions' => Employee::employeeTypeOptions(),
+            'employeeTypeLabel' => Employee::employeeTypeLabel($this->employeeTypeFilter),
+            'employeeTypeQueryValue' => Employee::employeeTypeQueryValue($this->employeeTypeFilter),
             'rows' => $rows,
             'totals' => [
                 'basic_salary' => $rows->sum('basic_salary'),
