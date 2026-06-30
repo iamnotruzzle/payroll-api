@@ -752,6 +752,47 @@ class PayrollGeneration extends Component
         $this->saveDraft();
     }
 
+    public function saveStepChangesAndGoToStep(int $step): bool
+    {
+        $this->saveDraft();
+
+        if ($this->getErrorBag()->has('draft')) {
+            return false;
+        }
+
+        $this->goToStep($step);
+
+        return true;
+    }
+
+    public function discardStepChangesAndGoToStep(int $step): bool
+    {
+        $targetStep = max(1, min(count($this->steps), $step));
+
+        $this->resetDraftBackedState();
+        $this->restoreDraft();
+        $this->goToStep($targetStep);
+
+        return true;
+    }
+
+    private function resetDraftBackedState(): void
+    {
+        $this->deductionDayOverrides = [];
+        $this->logbookLwopDayOverrides = [];
+        $this->leaveDeductionOverrides = [];
+        $this->leaveDateOverrides = [];
+        $this->payBasisOverrides = [];
+        $this->compensationAdjustments = [];
+        $this->mandatoryDeductionAdjustments = [];
+        $this->taxAnnualizationOverrides = [];
+        $this->selectedAdjustmentTypeIds = [];
+        $this->deductionProgramSelections = [];
+        $this->activeDraftId = null;
+        $this->draftSavedAt = null;
+        $this->draftNotice = null;
+    }
+
     private function resetLoanImportState(): void
     {
         $this->loanFile = null;
@@ -894,18 +935,22 @@ class PayrollGeneration extends Component
     {
         $compensations = $this->compensations();
         $deductionPrograms = $this->deductionPrograms();
-        $allAdjustmentTypes = $this->adjustmentTypes();
+        $allAdjustmentTypes = $this->needsAdjustmentTypeOptions()
+            ? $this->adjustmentTypes()
+            : collect();
         $this->syncSelectedAdjustmentTypeIds($allAdjustmentTypes);
         $adjustmentTypes = $this->selectedAdjustmentTypes($allAdjustmentTypes);
         $this->syncDeductionProgramSelections($deductionPrograms);
         $rows = $this->payrollRows($compensations, $deductionPrograms);
-        $totals = $this->payrollTotals($rows, $compensations);
+        $totals = $this->needsPayrollTotals()
+            ? $this->payrollTotals($rows, $compensations)
+            : [];
         $previousMraPeriod = $this->previousMraPeriod();
         $previousMraReport = $this->previousMraReport($previousMraPeriod);
 
         return view('livewire.payroll.payroll-generation', [
-            'departments' => Department::query()->orderBy('department')->get(),
-            'divisions' => Division::query()->orderBy('division')->get(),
+            'departments' => $this->departmentOptions(),
+            'divisions' => $this->divisionOptions(),
             'employeeFilterOptions' => $this->employeeFilterOptions(),
             'employeeTypeOptions' => Employee::employeeTypeOptions(),
             'employeeTypeLabel' => Employee::employeeTypeLabel($this->employeeTypeFilter),
@@ -914,13 +959,25 @@ class PayrollGeneration extends Component
             'deductionPrograms' => $deductionPrograms,
             'allAdjustmentTypes' => $allAdjustmentTypes,
             'adjustmentTypes' => $adjustmentTypes,
-            'loanTypes' => $this->loanTypes(false),
-            'additionalPremiumTypes' => $this->loanTypes(true),
+            'loanTypes' => $this->currentStep === 7 ? $this->loanTypes(false) : collect(),
+            'additionalPremiumTypes' => $this->currentStep === 6 ? $this->loanTypes(true) : collect(),
             'rows' => $rows,
             'previousMraPeriod' => $previousMraPeriod,
             'previousMraReport' => $previousMraReport,
             'totals' => $totals,
         ]);
+    }
+
+    private function needsAdjustmentTypeOptions(): bool
+    {
+        return in_array($this->currentStep, [3, 9], true)
+            || $this->selectedAdjustmentTypeIds !== []
+            || $this->compensationAdjustments !== [];
+    }
+
+    private function needsPayrollTotals(): bool
+    {
+        return in_array($this->currentStep, [3, 8, 9], true);
     }
 
     private function payrollTotals(Collection $rows, Collection $compensations): array
@@ -982,7 +1039,29 @@ class PayrollGeneration extends Component
         $adjustmentTypes = $this->selectedAdjustmentTypes();
 
         $employees = Employee::query()
-            ->with(['position', 'department.division'])
+            ->select([
+                'emp_id',
+                'firstname',
+                'middlename',
+                'lastname',
+                'extension',
+                'suffix',
+                'position_id',
+                'department_id',
+                'step',
+                'empstat_id',
+                'date_hired',
+                'tin_no',
+                'gsis_no',
+                'phic_no',
+                'pagibig_no',
+                'is_active',
+            ])
+            ->with([
+                'position:position_id,position_title,salary_grade,remarks',
+                'department:department_id,department,division_id',
+                'department.division:division_id,division',
+            ])
             ->when(true, fn ($query) => $this->applyEmployeeScope($query))
             ->where('is_active', 'Y')
             ->employeeType($this->employeeTypeFilter)
@@ -1003,7 +1082,23 @@ class PayrollGeneration extends Component
         $leavePeriodEnd = $previousMraPeriod['end'];
         $empIds = $employees->pluck('emp_id')->all();
         $loanItems = PayrollLoanImportItem::query()
-            ->with('import')
+            ->select([
+                'id',
+                'import_id',
+                'entity',
+                'due_month',
+                'matched_emp_id',
+                'loan_account_no',
+                'loan_type',
+                'monthly_amortization',
+                'amount_due',
+                'outstanding_balance',
+                'principal_due',
+                'interest_due',
+                'penalty_due',
+                'remarks',
+            ])
+            ->with('import:id,original_filename,imported_at')
             ->where('validation_status', 'valid')
             ->whereDate('due_month', $periodStart->toDateString())
             ->whereIn('matched_emp_id', $empIds)
@@ -1436,6 +1531,7 @@ class PayrollGeneration extends Component
     private function deductionPrograms(): Collection
     {
         return PayrollDeduction::query()
+            ->select(['id', 'name', 'is_percentage', 'value', 'is_active', 'sort_order'])
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('name')
@@ -1590,7 +1686,8 @@ class PayrollGeneration extends Component
     private function loanTypes(bool $additionalPremiums): Collection
     {
         return PayrollLoanType::query()
-            ->with('entity')
+            ->select(['id', 'entity_id', 'name', 'is_active', 'sort_order'])
+            ->with('entity:id,code,name')
             ->where('is_active', true)
             ->whereHas('entity', function ($query) use ($additionalPremiums) {
                 if ($additionalPremiums) {
@@ -2287,35 +2384,124 @@ class PayrollGeneration extends Component
         );
     }
 
+    private function departmentOptions(): Collection
+    {
+        return DB::connection('mysql')
+            ->table('tbl_department')
+            ->select(['department_id', 'department', 'division_id'])
+            ->orderBy('department')
+            ->get();
+    }
+
+    private function divisionOptions(): Collection
+    {
+        return DB::connection('mysql')
+            ->table('tbl_division')
+            ->select(['division_id', 'division'])
+            ->orderBy('division')
+            ->get();
+    }
+
     private function employeeFilterOptions(): Collection
     {
         if ($this->selectedDivisionIds === [] && $this->selectedDepartmentIds === []) {
             return collect();
         }
 
-        return Employee::query()
+        $query = DB::connection('mysql')
+            ->table('tbl_employee as employees')
+            ->leftJoin('tbl_position as positions', 'positions.position_id', '=', 'employees.position_id')
+            ->leftJoin('tbl_department as departments', 'departments.department_id', '=', 'employees.department_id')
+            ->leftJoin('tbl_division as divisions', 'divisions.division_id', '=', 'departments.division_id')
             ->select([
-                'emp_id',
-                'firstname',
-                'middlename',
-                'lastname',
-                'extension',
-                'suffix',
-                'position_id',
-                'department_id',
-                'is_active',
+                'employees.emp_id',
+                'employees.firstname',
+                'employees.middlename',
+                'employees.lastname',
+                'employees.extension',
+                'employees.suffix',
+                'positions.position_title',
             ])
-            ->with(['position:position_id,position_title'])
-            ->when(true, fn ($query) => $this->applyEmployeeScope($query))
-            ->where('is_active', 'Y')
-            ->employeeType($this->employeeTypeFilter)
-            ->orderBy('lastname')
-            ->orderBy('firstname')
+            ->where('employees.is_active', 'Y');
+
+        if ($this->selectedDepartmentIds !== []) {
+            $query->whereIn('employees.department_id', $this->selectedDepartmentIds);
+        } else {
+            $query->whereIn('departments.division_id', $this->selectedDivisionIds);
+        }
+
+        $this->applyRawEmployeeTypeScope($query);
+
+        return $query
+            ->orderBy('employees.lastname')
+            ->orderBy('employees.firstname')
             ->get()
-            ->map(fn (Employee $employee) => [
+            ->map(fn ($employee) => [
                 'emp_id' => (string) $employee->emp_id,
-                'label' => trim($employee->emp_id.' - '.$this->formatPayrollEmployeeName($employee).' - '.($employee->position?->position_title ?? 'No position'), ' -'),
+                'label' => trim($employee->emp_id.' - '.$this->formatRawPayrollEmployeeName($employee).' - '.($employee->position_title ?? 'No position'), ' -'),
             ]);
+    }
+
+    private function applyRawEmployeeTypeScope($query): void
+    {
+        $types = Employee::normalizeEmployeeTypes($this->employeeTypeFilter);
+
+        if (in_array(Employee::EMPLOYEE_TYPE_ALL, $types, true)) {
+            return;
+        }
+
+        $query->where(function ($typeQuery) use ($types) {
+            foreach ($types as $type) {
+                $typeQuery->orWhere(function ($employeeQuery) use ($type) {
+                    if ($type === Employee::EMPLOYEE_TYPE_EXTERNAL) {
+                        $employeeQuery->whereRaw('LOWER(TRIM(divisions.division)) = ?', [Employee::EXTERNAL_DIVISION_NAME]);
+
+                        return;
+                    }
+
+                    $employeeQuery
+                        ->where('employees.empstat_id', $this->employeeStatusIdForType($type))
+                        ->where(function ($divisionQuery) {
+                            $divisionQuery
+                                ->whereNull('divisions.division')
+                                ->orWhereRaw('LOWER(TRIM(divisions.division)) != ?', [Employee::EXTERNAL_DIVISION_NAME]);
+                        });
+                });
+            }
+        });
+    }
+
+    private function employeeStatusIdForType(string $type): int
+    {
+        return match ($type) {
+            Employee::EMPLOYEE_TYPE_CASUAL => Employee::EMPSTAT_CASUAL,
+            Employee::EMPLOYEE_TYPE_PART_TIME => Employee::EMPSTAT_PART_TIME,
+            Employee::EMPLOYEE_TYPE_CONTRACTUAL => Employee::EMPSTAT_CONTRACTUAL,
+            Employee::EMPLOYEE_TYPE_TEMPORARY => Employee::EMPSTAT_TEMPORARY,
+            Employee::EMPLOYEE_TYPE_VISITING_CONSULTANT => Employee::EMPSTAT_VISITING_CONSULTANT,
+            Employee::EMPLOYEE_TYPE_COS => Employee::EMPSTAT_CONTRACT_OF_SERVICE,
+            Employee::EMPLOYEE_TYPE_PROBATIONARY => Employee::EMPSTAT_PROBATIONARY,
+            Employee::EMPLOYEE_TYPE_INTERN => Employee::EMPSTAT_INTERN,
+            default => Employee::EMPSTAT_PERMANENT,
+        };
+    }
+
+    private function formatRawPayrollEmployeeName(object $employee): string
+    {
+        $lastName = trim(implode(' ', array_filter([
+            $employee->lastname ?? null,
+            $employee->extension ?? null,
+            $employee->suffix ?? null,
+        ])));
+        $firstName = trim((string) ($employee->firstname ?? ''));
+        $middleName = trim((string) ($employee->middlename ?? ''));
+        $middleInitial = $middleName !== ''
+            ? mb_strtoupper(mb_substr($middleName, 0, 1)).'.'
+            : null;
+
+        $givenName = trim(implode(' ', array_filter([$firstName, $middleInitial])));
+
+        return trim($lastName.', '.$givenName, ' ,');
     }
 
     private function scopeName(): string
@@ -2640,6 +2826,21 @@ class PayrollGeneration extends Component
     private function compensations(): Collection
     {
         return PayrollAdditional::query()
+            ->select([
+                'id',
+                'name',
+                'is_percentage',
+                'value',
+                'computation_type',
+                'formula',
+                'variable_name',
+                'include_in_net_pay',
+                'tax_treatment',
+                'annual_exempt_limit',
+                'supplemental_tax_rate',
+                'sort_order',
+                'is_active',
+            ])
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('name')
@@ -2667,6 +2868,7 @@ class PayrollGeneration extends Component
     private function adjustmentTypes(): Collection
     {
         return PayrollAdjustmentType::query()
+            ->select(['id', 'name', 'is_active', 'sort_order'])
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('name')
@@ -2675,7 +2877,6 @@ class PayrollGeneration extends Component
 
     private function selectedAdjustmentTypes(?Collection $adjustmentTypes = null): Collection
     {
-        $adjustmentTypes ??= $this->adjustmentTypes();
         $selectedIds = collect($this->selectedAdjustmentTypeIds)
             ->map(fn ($id) => (int) $id)
             ->unique()
@@ -2684,6 +2885,8 @@ class PayrollGeneration extends Component
         if ($selectedIds->isEmpty()) {
             return collect();
         }
+
+        $adjustmentTypes ??= $this->adjustmentTypes();
 
         return $adjustmentTypes
             ->filter(fn (PayrollAdjustmentType $type) => $selectedIds->contains((int) $type->id))

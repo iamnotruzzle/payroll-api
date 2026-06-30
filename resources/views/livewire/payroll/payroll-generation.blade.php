@@ -16,6 +16,13 @@
     x-data="{
         stepDirty: false,
         filtersOpen: @js(! empty($employeeFilterIds)),
+        unsavedStepModalOpen: false,
+        pendingStep: null,
+        modalBusy: false,
+        unsavedChanges: {},
+        get unsavedChangeRows() {
+            return Object.values(this.unsavedChanges).slice(0, 10);
+        },
         formSteps: [1, 3, 4, 5, 8],
         markStepDirty(currentStep, event) {
             if (!this.formSteps.includes(currentStep) || event.target?.type === 'search') {
@@ -23,10 +30,43 @@
             }
 
             this.stepDirty = true;
+            this.recordUnsavedChange(event);
+        },
+        recordUnsavedChange(event) {
+            const target = event.target;
+            const model = target?.getAttribute('wire:model')
+                || target?.getAttribute('wire:model.live')
+                || target?.getAttribute('wire:model.defer')
+                || target?.name
+                || target?.id
+                || `step-${Date.now()}`;
+            const row = target?.closest('tr');
+            const cells = row ? Array.from(row.querySelectorAll('td')) : [];
+            const employeeNo = (row?.dataset?.unsavedEmployeeNo || cells[0]?.innerText || '').trim();
+            const employeeName = (row?.dataset?.unsavedEmployeeName || cells[1]?.querySelector('[data-unsaved-employee-name]')?.innerText || cells[1]?.innerText || '').trim();
+            const value = target?.type === 'checkbox'
+                ? (target.checked ? 'Checked' : 'Unchecked')
+                : String(target?.value ?? '').trim();
+
+            this.unsavedChanges[model] = {
+                key: model,
+                employee: employeeNo || employeeName ? `${employeeNo}${employeeName ? ' - ' + employeeName : ''}` : 'Payroll step',
+                field: this.unsavedFieldLabel(model),
+                value: value || '-',
+            };
+        },
+        unsavedFieldLabel(model) {
+            const parts = String(model || '').split('.');
+            const field = parts[parts.length - 1] || 'field';
+
+            return field
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, (letter) => letter.toUpperCase());
         },
         saveStep() {
             return $wire.saveStepChanges().then(() => {
                 this.stepDirty = false;
+                this.unsavedChanges = {};
             });
         },
         leaveStep(currentStep, targetStep) {
@@ -35,17 +75,83 @@
             }
 
             if (this.stepDirty) {
-                alert('You have unsaved changes on this step. Please click Save as Draft before leaving.');
+                this.pendingStep = targetStep;
+                this.unsavedStepModalOpen = true;
                 return;
             }
 
             $wire.goToStep(targetStep);
         },
+        closeUnsavedStepModal() {
+            if (this.modalBusy) {
+                return;
+            }
+
+            this.unsavedStepModalOpen = false;
+            this.pendingStep = null;
+        },
+        discardStepChanges() {
+            if (this.pendingStep === null) {
+                return;
+            }
+
+            this.modalBusy = true;
+            return $wire.discardStepChangesAndGoToStep(this.pendingStep).then((changedStep) => {
+                if (changedStep === false) {
+                    return;
+                }
+
+                this.stepDirty = false;
+                this.unsavedChanges = {};
+                this.unsavedStepModalOpen = false;
+                this.pendingStep = null;
+            }).finally(() => {
+                this.modalBusy = false;
+            });
+        },
+        saveStepAndLeave() {
+            if (this.pendingStep === null) {
+                return;
+            }
+
+            this.modalBusy = true;
+            return $wire.saveStepChangesAndGoToStep(this.pendingStep).then((changedStep) => {
+                if (changedStep === false) {
+                    return;
+                }
+
+                this.stepDirty = false;
+                this.unsavedChanges = {};
+                this.unsavedStepModalOpen = false;
+                this.pendingStep = null;
+            }).finally(() => {
+                this.modalBusy = false;
+            });
+        },
     }"
 >
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
-            <h2 class="text-xl font-semibold">Payroll Generation</h2>
+            <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-xl font-semibold">Payroll Generation</h2>
+                @if (session('draft_success') || $draftNotice)
+                    @php
+                        $draftBadgeIsSuccess = (bool) session('draft_success');
+                        $draftBadgeLabel = $draftBadgeIsSuccess ? 'Draft saved' : 'Draft restored';
+                        $draftBadgeTitle = $draftBadgeIsSuccess ? session('draft_success') : $draftNotice;
+                    @endphp
+                    <span
+                        class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold {{ $draftBadgeIsSuccess ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-blue-200 bg-blue-50 text-blue-800' }}"
+                        title="{{ trim($draftBadgeTitle . ($draftSavedAt ? ' Last saved ' . $draftSavedAt . '.' : '')) }}"
+                    >
+                        <span class="h-1.5 w-1.5 rounded-full {{ $draftBadgeIsSuccess ? 'bg-emerald-500' : 'bg-blue-500' }}"></span>
+                        <span>{{ $draftBadgeLabel }}</span>
+                        @if ($draftSavedAt)
+                            <span class="font-medium opacity-80">{{ $draftSavedAt }}</span>
+                        @endif
+                    </span>
+                @endif
+            </div>
             <p class="text-sm text-slate-600">
                 {{ $scopeLabel }} · {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }} · {{ $employeeTypeLabel }}
             </p>
@@ -63,21 +169,85 @@
         </div>
     @enderror
 
-    @if (session('draft_success'))
-        <div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-            <div class="font-semibold">{{ session('draft_success') }}</div>
-            @if ($draftSavedAt)
-                <div class="mt-1 text-emerald-800">Saved {{ $draftSavedAt }}.</div>
-            @endif
+    <div
+        x-cloak
+        x-show="unsavedStepModalOpen"
+        x-transition.opacity
+        class="fixed inset-0 z-40 bg-black bg-opacity-50 backdrop-blur-sm"
+    ></div>
+
+    <div
+        x-cloak
+        x-show="unsavedStepModalOpen"
+        x-transition.opacity
+        class="fixed inset-0 z-50 flex items-center justify-center px-4 py-6"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="unsaved-step-title"
+        x-on:keydown.escape.window="closeUnsavedStepModal()"
+    >
+        <div
+            x-show="unsavedStepModalOpen"
+            x-transition
+            x-on:click.outside="closeUnsavedStepModal()"
+            class="w-full max-w-3xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl"
+        >
+            <div class="border-b border-slate-200 px-5 py-4">
+                <h3 id="unsaved-step-title" class="text-base font-semibold text-slate-900">Unsaved Changes</h3>
+                <p class="mt-1 text-sm leading-6 text-slate-600">
+                    You have unsaved changes on this payroll step. Save them as a draft before leaving, or discard them and continue.
+                </p>
+            </div>
+            <div class="px-5 py-4">
+                <div class="max-h-72 overflow-auto rounded-md border border-slate-200">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+                            <tr>
+                                <th class="px-3 py-2">Employee</th>
+                                <th class="px-3 py-2">Field</th>
+                                <th class="px-3 py-2">Unsaved Value</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 bg-white">
+                            <template x-if="unsavedChangeRows.length === 0">
+                                <tr>
+                                    <td colspan="3" class="px-3 py-4 text-center text-slate-500">Unsaved payroll step changes are pending.</td>
+                                </tr>
+                            </template>
+                            <template x-for="change in unsavedChangeRows" x-bind:key="change.key">
+                                <tr>
+                                    <td class="max-w-xs px-3 py-2 font-medium text-slate-900" x-text="change.employee"></td>
+                                    <td class="px-3 py-2 text-slate-700" x-text="change.field"></td>
+                                    <td class="max-w-xs truncate px-3 py-2 text-slate-700" x-text="change.value"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+                <p x-show="Object.values(unsavedChanges).length > 10" class="mt-2 text-xs text-slate-500">
+                    Showing the first 10 changed fields.
+                </p>
+            </div>
+            <div class="flex flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:justify-end">
+                <button
+                    type="button"
+                    x-on:click="discardStepChanges()"
+                    x-bind:disabled="modalBusy"
+                    class="rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:cursor-wait disabled:opacity-60"
+                >
+                    Discard Changes
+                </button>
+                <button
+                    type="button"
+                    x-on:click="saveStepAndLeave()"
+                    x-bind:disabled="modalBusy"
+                    class="rounded-md bg-[#5f61e6] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#5254d9] disabled:cursor-wait disabled:opacity-60"
+                >
+                    Save and Continue
+                </button>
+            </div>
         </div>
-    @elseif ($draftNotice)
-        <div class="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-            <div class="font-semibold">{{ $draftNotice }}</div>
-            @if ($draftSavedAt)
-                <div class="mt-1">Last saved {{ $draftSavedAt }}.</div>
-            @endif
-        </div>
-    @endif
+    </div>
 
     <div class="rounded-lg border border-slate-200 bg-white shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-3 py-2">
@@ -260,7 +430,7 @@
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
-                            <tr class="hover:bg-slate-50">
+                            <tr class="hover:bg-slate-50" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}">
                                 <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
                                 <td class="payroll-sticky-employee-name-cell px-4 py-3">
                                     <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
@@ -375,7 +545,7 @@
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
-                            <tr class="hover:bg-slate-50">
+                            <tr class="hover:bg-slate-50" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}">
                                 <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
                                 <td class="payroll-sticky-employee-name-cell px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
                                 <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
@@ -469,11 +639,11 @@
                                 $employeeExtraItems = (array) ($compensationAdjustments[$row['emp_id']]['extra_items'] ?? []);
                                 $employeeAdjustmentTypeIds = collect(array_keys($employeeExtraItems))->map(fn ($id) => (int) $id)->all();
                             @endphp
-                            <tr class="hover:bg-slate-50">
+                            <tr class="hover:bg-slate-50" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}">
                                 <td class="payroll-sticky-employee-no-cell px-4 py-3 align-top font-medium">{{ $row['emp_id'] }}</td>
                                 <td class="payroll-sticky-employee-name-cell px-4 py-3 align-top">
                                     <div class="flex min-w-[230px] items-start justify-between gap-3">
-                                        <div>
+                                        <div data-unsaved-employee-name>
                                             <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
                                         </div>
                                         <button type="button" x-on:click="start(@js($row['emp_id']), @js($row['employee_name']), @js($employeeAdjustmentTypeIds))" class="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
@@ -631,7 +801,7 @@
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
-                            <tr class="hover:bg-slate-50">
+                            <tr class="hover:bg-slate-50" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}">
                                 <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
                                 <td class="payroll-sticky-employee-name-cell px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
                                 <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
@@ -815,7 +985,7 @@
                                     @php
                                         $programItems = collect($row['program_deductions']['items']);
                                     @endphp
-                                    <tr class="hover:bg-slate-50">
+                                    <tr class="hover:bg-slate-50" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}">
                                         <td class="payroll-sticky-employee-no-cell border-b border-slate-200 px-3 py-2 font-medium">{{ $row['emp_id'] }}</td>
                                         <td class="payroll-sticky-employee-name-cell border-b border-slate-200 px-3 py-2 font-medium text-slate-900">{{ $row['employee_name'] }}</td>
                                         <td class="payroll-sticky-employee-position-cell border-b border-r border-slate-200 px-3 py-2">{{ $row['position'] ?? '-' }}</td>
@@ -1403,7 +1573,7 @@
                         </thead>
                         <tbody>
                             @forelse ($rows as $row)
-                                <tr class="hover:bg-slate-50">
+                                <tr class="hover:bg-slate-50" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}">
                                     <td class="payroll-sticky-employee-no-cell border-b border-slate-200 px-3 py-2 font-medium">{{ $row['emp_id'] }}</td>
                                     <td class="payroll-sticky-employee-name-cell border-b border-slate-200 px-3 py-2 font-medium text-slate-900">{{ $row['employee_name'] }}</td>
                                     <td class="payroll-sticky-employee-position-cell border-b border-r border-slate-200 px-3 py-2">{{ $row['position'] ?? '-' }}</td>
@@ -1484,7 +1654,7 @@
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
-                            <tr class="hover:bg-slate-50">
+                            <tr class="hover:bg-slate-50" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}">
                                 <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
                                 <td class="payroll-sticky-employee-name-cell px-4 py-3 font-medium text-slate-900">{{ $row['employee_name'] }}</td>
                                 <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
