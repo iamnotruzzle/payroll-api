@@ -167,6 +167,7 @@ return [
 
     'migrations' => [
         'table' => 'payroll_migrations',
+        'connection' => env('DB_MIGRATIONS_CONNECTION', 'payroll_scheduler'),
         'update_date_on_publish' => true,
     ],
 
