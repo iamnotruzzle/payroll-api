@@ -17,7 +17,7 @@
                 'key' => 'self_service',
                 'label' => 'Self Service',
                 'icon' => 'clock-3',
-                'visible' => true,
+                'visible' => auth()->user()?->hasRole('super-admin'),
                 'open' => request()->routeIs('time-punch.*'),
                 'items' => [
                     ['label' => 'Time Punch', 'route' => 'time-punch.index', 'icon' => 'clock-3', 'active' => request()->routeIs('time-punch.*')],
