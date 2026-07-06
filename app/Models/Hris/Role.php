@@ -9,6 +9,7 @@ class Role extends Model
 {
     use HasFactory;
 
+    protected $connection = 'hris';
 
     protected $fillable = [
         'name',

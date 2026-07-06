@@ -15,26 +15,26 @@ class EmployeeTypeScopeTest extends TestCase
     {
         parent::setUp();
 
-        Config::set('database.connections.mysql', [
+        Config::set('database.connections.hris', [
             'driver' => 'sqlite',
             'database' => ':memory:',
             'prefix' => '',
         ]);
 
-        DB::purge('mysql');
+        DB::purge('hris');
 
-        Schema::connection('mysql')->create('tbl_division', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_division', function (Blueprint $table) {
             $table->integer('division_id')->primary();
             $table->string('division');
         });
 
-        Schema::connection('mysql')->create('tbl_department', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_department', function (Blueprint $table) {
             $table->integer('department_id')->primary();
             $table->string('department');
             $table->integer('division_id');
         });
 
-        Schema::connection('mysql')->create('tbl_employee', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_employee', function (Blueprint $table) {
             $table->string('emp_id')->primary();
             $table->string('firstname');
             $table->string('lastname');
@@ -44,7 +44,7 @@ class EmployeeTypeScopeTest extends TestCase
             $table->string('is_active', 1)->default('Y');
         });
 
-        DB::connection('mysql')->table('tbl_division')->insert([
+        DB::connection('hris')->table('tbl_division')->insert([
             [
                 'division_id' => 1,
                 'division' => 'Medical Service',
@@ -55,7 +55,7 @@ class EmployeeTypeScopeTest extends TestCase
             ],
         ]);
 
-        DB::connection('mysql')->table('tbl_department')->insert([
+        DB::connection('hris')->table('tbl_department')->insert([
             [
                 'department_id' => 10,
                 'department' => 'Regular Department',
@@ -68,7 +68,7 @@ class EmployeeTypeScopeTest extends TestCase
             ],
         ]);
 
-        DB::connection('mysql')->table('tbl_employee')->insert([
+        DB::connection('hris')->table('tbl_employee')->insert([
             [
                 'emp_id' => '000001',
                 'firstname' => 'Permanent',
@@ -173,10 +173,10 @@ class EmployeeTypeScopeTest extends TestCase
 
     protected function tearDown(): void
     {
-        Schema::connection('mysql')->dropIfExists('tbl_employee');
-        Schema::connection('mysql')->dropIfExists('tbl_department');
-        Schema::connection('mysql')->dropIfExists('tbl_division');
-        DB::purge('mysql');
+        Schema::connection('hris')->dropIfExists('tbl_employee');
+        Schema::connection('hris')->dropIfExists('tbl_department');
+        Schema::connection('hris')->dropIfExists('tbl_division');
+        DB::purge('hris');
 
         parent::tearDown();
     }

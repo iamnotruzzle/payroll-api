@@ -9,5 +9,7 @@ class Role extends SpatieRole
 {
     use HasFactory;
 
+    protected $connection = 'hris';
+
     protected string $guard_name = 'web';
 }

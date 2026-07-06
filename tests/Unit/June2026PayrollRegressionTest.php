@@ -128,9 +128,9 @@ class June2026PayrollRegressionTest extends TestCase
 
     private function useMemoryDatabases(): void
     {
-        Config::set('database.default', 'mysql');
+        Config::set('database.default', 'hris');
 
-        foreach (['mysql', 'payroll'] as $connection) {
+        foreach (['hris', 'payroll'] as $connection) {
             Config::set("database.connections.{$connection}", [
                 'driver' => 'sqlite',
                 'database' => ':memory:',
@@ -143,25 +143,25 @@ class June2026PayrollRegressionTest extends TestCase
 
     private function createHrisTables(): void
     {
-        Schema::connection('mysql')->create('tbl_division', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_division', function (Blueprint $table) {
             $table->integer('division_id')->primary();
             $table->string('division');
         });
 
-        Schema::connection('mysql')->create('tbl_department', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_department', function (Blueprint $table) {
             $table->integer('department_id')->primary();
             $table->string('department');
             $table->integer('division_id');
         });
 
-        Schema::connection('mysql')->create('tbl_position', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_position', function (Blueprint $table) {
             $table->integer('position_id')->primary();
             $table->string('position_title');
             $table->integer('salary_grade');
             $table->string('remarks')->nullable();
         });
 
-        Schema::connection('mysql')->create('tbl_employee', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_employee', function (Blueprint $table) {
             $table->string('emp_id')->primary();
             $table->string('firstname');
             $table->string('middlename')->nullable();
@@ -181,7 +181,7 @@ class June2026PayrollRegressionTest extends TestCase
             $table->timestamps();
         });
 
-        Schema::connection('mysql')->create('tbl_salary_grade', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_salary_grade', function (Blueprint $table) {
             $table->id();
             $table->integer('salary_grade');
             $table->integer('step_increment');
@@ -189,13 +189,13 @@ class June2026PayrollRegressionTest extends TestCase
             $table->date('effectivity_date');
         });
 
-        Schema::connection('mysql')->create('tbl_leave_type', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_leave_type', function (Blueprint $table) {
             $table->integer('leave_type_id')->primary();
             $table->string('leave_name');
             $table->boolean('to_display')->default(true);
         });
 
-        Schema::connection('mysql')->create('tbl_employee_leave', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_employee_leave', function (Blueprint $table) {
             $table->id('leave_id');
             $table->string('emp_id');
             $table->integer('leave_type');
@@ -207,7 +207,7 @@ class June2026PayrollRegressionTest extends TestCase
             $table->timestamps();
         });
 
-        Schema::connection('mysql')->create('tbl_leave_log', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_leave_log', function (Blueprint $table) {
             $table->id('log_id');
             $table->unsignedBigInteger('leave_id');
             $table->string('emp_id');
@@ -394,23 +394,23 @@ class June2026PayrollRegressionTest extends TestCase
 
     private function seedValidatedWorkbookFixture(): void
     {
-        DB::connection('mysql')->table('tbl_division')->insert([
+        DB::connection('hris')->table('tbl_division')->insert([
             'division_id' => 1,
             'division' => 'Medical',
         ]);
-        DB::connection('mysql')->table('tbl_department')->insert([
+        DB::connection('hris')->table('tbl_department')->insert([
             'department_id' => 10,
             'department' => 'Validated Payroll',
             'division_id' => 1,
         ]);
 
         foreach ([11 => 27131, 9 => 22423, 10 => 24329] as $grade => $salary) {
-            DB::connection('mysql')->table('tbl_position')->insert([
+            DB::connection('hris')->table('tbl_position')->insert([
                 'position_id' => $grade,
                 'position_title' => "Validated SG {$grade}",
                 'salary_grade' => $grade,
             ]);
-            DB::connection('mysql')->table('tbl_salary_grade')->insert([
+            DB::connection('hris')->table('tbl_salary_grade')->insert([
                 'salary_grade' => $grade,
                 'step_increment' => 1,
                 'salary' => $salary,
@@ -418,12 +418,12 @@ class June2026PayrollRegressionTest extends TestCase
             ]);
         }
 
-        DB::connection('mysql')->table('tbl_leave_type')->insert([
+        DB::connection('hris')->table('tbl_leave_type')->insert([
             'leave_type_id' => 1,
             'leave_name' => 'Leave Without Pay',
         ]);
 
-        DB::connection('mysql')->table('tbl_employee')->insert([
+        DB::connection('hris')->table('tbl_employee')->insert([
             [
                 'emp_id' => '000742',
                 'firstname' => 'Shaila Marie',
@@ -482,7 +482,7 @@ class June2026PayrollRegressionTest extends TestCase
             ],
         ]);
 
-        DB::connection('mysql')->table('tbl_employee_leave')->insert([
+        DB::connection('hris')->table('tbl_employee_leave')->insert([
             'emp_id' => '000742',
             'leave_type' => 1,
             'start_date' => '2026-05-04',

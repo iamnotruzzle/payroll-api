@@ -3,12 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\Hris\UserAccount;
+use App\Models\Role;
 use App\Services\Rbac\LegacyHrisRbacBackfill;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class LegacyHrisRbacBackfillTest extends TestCase
@@ -17,20 +17,20 @@ class LegacyHrisRbacBackfillTest extends TestCase
     {
         parent::setUp();
 
-        Config::set('database.connections.mysql', [
+        Config::set('database.connections.hris', [
             'driver' => 'sqlite',
             'database' => ':memory:',
             'prefix' => '',
         ]);
-        Config::set('database.default', 'mysql');
+        Config::set('database.default', 'hris');
 
-        DB::purge('mysql');
+        DB::purge('hris');
 
-        Schema::connection('mysql')->dropIfExists('tbl_useraccount');
-        Schema::connection('mysql')->dropIfExists('model_has_roles');
-        Schema::connection('mysql')->dropIfExists('roles');
+        Schema::connection('hris')->dropIfExists('tbl_useraccount');
+        Schema::connection('hris')->dropIfExists('model_has_roles');
+        Schema::connection('hris')->dropIfExists('roles');
 
-        Schema::connection('mysql')->create('tbl_useraccount', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_useraccount', function (Blueprint $table) {
             $table->increments('userid');
             $table->string('emp_id')->nullable();
             $table->string('username')->nullable();
@@ -43,7 +43,7 @@ class LegacyHrisRbacBackfillTest extends TestCase
             $table->timestamps();
         });
 
-        Schema::connection('mysql')->create('roles', function (Blueprint $table) {
+        Schema::connection('hris')->create('roles', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->string('display_name')->nullable();
@@ -54,7 +54,7 @@ class LegacyHrisRbacBackfillTest extends TestCase
             $table->unique(['name', 'guard_name']);
         });
 
-        Schema::connection('mysql')->create('model_has_roles', function (Blueprint $table) {
+        Schema::connection('hris')->create('model_has_roles', function (Blueprint $table) {
             $table->unsignedBigInteger('role_id');
             $table->string('model_type');
             $table->unsignedBigInteger('model_id');

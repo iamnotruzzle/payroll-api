@@ -3,15 +3,27 @@
 namespace Database\Seeders;
 
 use App\Models\Hris\UserAccount;
+use App\Models\Permission;
+use App\Models\Role;
 use App\Support\Rbac\LegacyHrisRoleMapper;
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 class RBACSeeder extends Seeder
 {
     private const GUARD = 'web';
+
+    private const DESIGNATED_USER_ROLE_ASSIGNMENTS = [
+        '001783' => ['super-admin'],
+        '000720' => ['hr-payroll'],
+        '000825' => ['hr-payroll'],
+        '001866' => ['hr-payroll'],
+        '001555' => ['hr-payroll'],
+        '000035' => ['hr-payroll'],
+        '000822' => ['hr-payroll'],
+        '002039' => ['accounting-payroll'],
+        '002205' => ['accounting-payroll'],
+    ];
 
     public function run(): void
     {
@@ -37,6 +49,7 @@ class RBACSeeder extends Seeder
         }
 
         $this->assignInitialAdminRoles();
+        $this->assignDesignatedUserRoles();
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
@@ -70,6 +83,8 @@ class RBACSeeder extends Seeder
                 'payroll.configure' => 'Manage payroll configuration and references',
                 'payroll.generate' => 'Generate payroll runs',
                 'payroll.approve' => 'Review and finalize payroll outputs',
+                'payroll.generation.hr' => 'Edit HR-owned payroll generation steps',
+                'payroll.generation.accounting' => 'Edit Accounting-owned payroll generation fields and steps',
             ],
             'Timekeeping' => [
                 'timekeeping.view' => 'Access DTR and timekeeping workspace',
@@ -107,6 +122,8 @@ class RBACSeeder extends Seeder
                     'payroll.configure',
                     'payroll.generate',
                     'payroll.approve',
+                    'payroll.generation.hr',
+                    'payroll.generation.accounting',
                     'timekeeping.view',
                     'timekeeping.manage',
                     'timekeeping.approve',
@@ -133,6 +150,29 @@ class RBACSeeder extends Seeder
                     'references.view',
                 ],
             ],
+            'hr-payroll' => [
+                'display_name' => 'HR Payroll',
+                'description' => 'HR payroll staff who own payroll generation steps except Accounting-only fields.',
+                'permissions' => [
+                    'payroll.view',
+                    'payroll.configure',
+                    'payroll.generate',
+                    'payroll.generation.hr',
+                    'timekeeping.view',
+                    'references.view',
+                ],
+            ],
+            'accounting-payroll' => [
+                'display_name' => 'Accounting Payroll',
+                'description' => 'Accounting staff who maintain TEV and tax/review payroll generation steps.',
+                'permissions' => [
+                    'payroll.view',
+                    'payroll.approve',
+                    'payroll.generation.accounting',
+                    'timekeeping.view',
+                    'references.view',
+                ],
+            ],
             'payroll-processor' => [
                 'display_name' => 'Payroll Processor',
                 'description' => 'Configures payroll data and generates payroll runs.',
@@ -140,6 +180,7 @@ class RBACSeeder extends Seeder
                     'payroll.view',
                     'payroll.configure',
                     'payroll.generate',
+                    'payroll.generation.hr',
                     'timekeeping.view',
                     'references.view',
                 ],
@@ -150,6 +191,7 @@ class RBACSeeder extends Seeder
                 'permissions' => [
                     'payroll.view',
                     'payroll.approve',
+                    'payroll.generation.accounting',
                     'timekeeping.view',
                     'references.view',
                 ],
@@ -203,5 +245,15 @@ class RBACSeeder extends Seeder
             ->limit(25)
             ->get()
             ->each(fn (UserAccount $account) => $account->assignRole('admin'));
+    }
+
+    private function assignDesignatedUserRoles(): void
+    {
+        foreach (self::DESIGNATED_USER_ROLE_ASSIGNMENTS as $employeeId => $roles) {
+            UserAccount::query()
+                ->where('emp_id', $employeeId)
+                ->get()
+                ->each(fn (UserAccount $account) => $account->assignRole($roles));
+        }
     }
 }

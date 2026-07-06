@@ -39,7 +39,7 @@ class PayrollPageController extends Controller
     public function dtrPrintable(Request $request)
     {
         $data = $request->validate([
-            'emp_id' => ['required', 'string', 'exists:mysql.tbl_employee,emp_id'],
+            'emp_id' => ['required', 'string', 'exists:hris.tbl_employee,emp_id'],
             'month' => ['required', 'integer', 'between:1,12'],
             'year' => ['required', 'integer', 'between:1900,2100'],
         ]);

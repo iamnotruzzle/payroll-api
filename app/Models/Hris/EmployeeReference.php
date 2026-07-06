@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class EmployeeReference extends Model
 {
+    protected $connection = 'hris';
     protected $table = 'tbl_employee_ref';
     protected $primaryKey = 'reference_id';
 

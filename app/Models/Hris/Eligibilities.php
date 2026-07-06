@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Eligibilities extends Model
 {
+    protected $connection = 'hris';
     protected $table = 'tbl_eligibilities';
     protected $primaryKey = 'e_id';
     public $timestamps = false;

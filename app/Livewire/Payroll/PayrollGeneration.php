@@ -68,6 +68,10 @@ class PayrollGeneration extends Component
 
     private const ADDITIONAL_PREMIUM_ENTITY_CODES = ['ADDITIONAL_PREMIUM', 'ADDITIONAL PREMIUMS'];
 
+    private const HR_GENERATION_PERMISSION = 'payroll.generation.hr';
+
+    private const ACCOUNTING_GENERATION_PERMISSION = 'payroll.generation.accounting';
+
     public ?int $divisionId = null;
 
     public ?int $departmentId = null;
@@ -248,6 +252,71 @@ class PayrollGeneration extends Component
         $this->goToStep($this->currentStep - 1);
     }
 
+    public function payrollGenerationAccess(): array
+    {
+        $canEditHr = $this->canEditPayrollGenerationHr();
+        $canEditAccounting = $this->canEditPayrollGenerationAccounting();
+        $steps = [];
+
+        foreach (array_keys($this->steps) as $step) {
+            $steps[(int) $step] = [
+                'can_edit' => $this->canEditPayrollGenerationStep((int) $step),
+            ];
+        }
+
+        return [
+            'can_edit_hr' => $canEditHr,
+            'can_edit_accounting' => $canEditAccounting,
+            'can_edit_current_step' => $this->canEditPayrollGenerationStep($this->currentStep),
+            'can_edit_step1_hr_fields' => $this->canEditStep1HrFields(),
+            'can_edit_step1_tev' => $this->canEditStep1TevField(),
+            'steps' => $steps,
+        ];
+    }
+
+    public function canEditPayrollGenerationHr(): bool
+    {
+        return (bool) auth()->user()?->can(self::HR_GENERATION_PERMISSION);
+    }
+
+    public function canEditPayrollGenerationAccounting(): bool
+    {
+        return (bool) auth()->user()?->can(self::ACCOUNTING_GENERATION_PERMISSION);
+    }
+
+    public function canEditPayrollGenerationStep(?int $step = null): bool
+    {
+        $step ??= $this->currentStep;
+
+        return match ((int) $step) {
+            1 => $this->canEditStep1HrFields() || $this->canEditStep1TevField(),
+            2, 8, 9 => $this->canEditPayrollGenerationHr() || $this->canEditPayrollGenerationAccounting(),
+            3, 4, 5, 6, 7 => $this->canEditPayrollGenerationHr(),
+            default => false,
+        };
+    }
+
+    public function canEditStep1HrFields(): bool
+    {
+        return $this->canEditPayrollGenerationHr();
+    }
+
+    public function canEditStep1TevField(): bool
+    {
+        return $this->canEditPayrollGenerationAccounting();
+    }
+
+    private function ensureStepCanBeEdited(?int $step = null, ?string $message = null): bool
+    {
+        if ($this->canEditPayrollGenerationStep($step)) {
+            return true;
+        }
+
+        $this->addError('authorization', $message ?? 'You can review this payroll step, but you do not have permission to edit it.');
+
+        return false;
+    }
+
     public function applyEmployeeFilter(): void
     {
         $this->employeeFilterIds = $this->parseEmployeeIdList($this->employeeFilterIds);
@@ -262,16 +331,28 @@ class PayrollGeneration extends Component
 
     public function applyDeductionProgram(int $programId): void
     {
+        if (! $this->ensureStepCanBeEdited(5)) {
+            return;
+        }
+
         $this->deductionProgramSelections[(string) $programId]['enabled'] = true;
     }
 
     public function removeDeductionProgram(int $programId): void
     {
+        if (! $this->ensureStepCanBeEdited(5)) {
+            return;
+        }
+
         $this->deductionProgramSelections[(string) $programId]['enabled'] = false;
     }
 
     public function openLoanImportModal(): void
     {
+        if (! $this->ensureStepCanBeEdited($this->currentStep)) {
+            return;
+        }
+
         $this->resetLoanImportState();
         $this->showLoanImportModal = true;
     }
@@ -284,6 +365,10 @@ class PayrollGeneration extends Component
 
     public function openLoanDeductionModal(string $empId = '', ?int $loanItemId = null): void
     {
+        if (! $this->ensureStepCanBeEdited($this->currentStep)) {
+            return;
+        }
+
         $this->resetLoanDeductionForm();
         $this->editingLoanItemId = $loanItemId;
 
@@ -326,6 +411,10 @@ class PayrollGeneration extends Component
 
     public function saveLoanDeduction(): void
     {
+        if (! $this->ensureStepCanBeEdited($this->currentStep)) {
+            return;
+        }
+
         foreach (['monthly_amortization', 'outstanding_balance', 'principal_due', 'interest_due', 'penalty_due'] as $field) {
             if (($this->loanDeductionForm[$field] ?? null) === '') {
                 $this->loanDeductionForm[$field] = null;
@@ -408,6 +497,10 @@ class PayrollGeneration extends Component
 
     public function saveLoanDeductionsBatch(array $forms): void
     {
+        if (! $this->ensureStepCanBeEdited($this->currentStep)) {
+            return;
+        }
+
         if ($forms === []) {
             $this->addError('loanDeductionForm', 'Add at least one '.$this->currentDeductionLabel().' before saving the batch.');
 
@@ -573,6 +666,10 @@ class PayrollGeneration extends Component
 
     public function previewLoanImport(): void
     {
+        if (! $this->ensureStepCanBeEdited($this->currentStep)) {
+            return;
+        }
+
         $data = $this->validate([
             'loanFile' => ['required', 'file', 'mimes:xlsx,xls,xlsm,csv', 'max:65536'],
         ]);
@@ -586,6 +683,10 @@ class PayrollGeneration extends Component
 
     public function saveLoanImport(): void
     {
+        if (! $this->ensureStepCanBeEdited($this->currentStep)) {
+            return;
+        }
+
         if (! $this->pendingLoanImportPath || empty($this->loanImportPreview)) {
             $this->addError('loanFile', 'Preview the loan file before saving the import.');
 
@@ -617,6 +718,10 @@ class PayrollGeneration extends Component
 
     public function importTaxAnnualizationLookup(): void
     {
+        if (! $this->ensureStepCanBeEdited(8)) {
+            return;
+        }
+
         $data = $this->validate([
             'taxAnnualizationFile' => ['required', 'file', 'mimes:xlsx,xls,xlsm', 'max:20480'],
         ]);
@@ -700,6 +805,10 @@ class PayrollGeneration extends Component
 
     public function saveDraft(): void
     {
+        if (! $this->ensureStepCanBeEdited($this->currentStep)) {
+            return;
+        }
+
         if ($this->selectedDivisionIds === [] && $this->selectedDepartmentIds === []) {
             $this->addError('draft', 'Choose a division before saving this payroll draft.');
 
@@ -720,21 +829,7 @@ class PayrollGeneration extends Component
                 'included_leave_type_ids' => $this->selectedLeaveTypeIds,
                 'employee_type' => Employee::employeeTypeQueryValue($this->employeeTypeFilter),
                 'current_step' => $this->currentStep,
-                'state_json' => [
-                    'wizard_step_count' => count($this->steps),
-                    'selected_division_ids' => $this->selectedDivisionIds,
-                    'selected_department_ids' => $this->selectedDepartmentIds,
-                    'deduction_day_overrides' => $this->deductionDayOverrides,
-                    'logbook_lwop_day_overrides' => $this->logbookLwopDayOverrides,
-                    'leave_deduction_overrides' => $this->leaveDeductionOverrides,
-                    'leave_date_overrides' => $this->leaveDateOverrides,
-                    'pay_basis_overrides' => $this->payBasisOverrides,
-                    'compensation_adjustments' => $this->compensationAdjustments,
-                    'mandatory_deduction_adjustments' => $this->mandatoryDeductionAdjustments,
-                    'tax_annualization_overrides' => $this->taxAnnualizationOverrides,
-                    'selected_adjustment_type_ids' => $this->selectedAdjustmentTypeIds,
-                    'deduction_program_selections' => $this->deductionProgramSelections,
-                ],
+                'state_json' => $this->draftStateForCurrentStep(),
                 'saved_by' => auth()->user()?->emp_id ?? 'web',
                 'saved_at' => now(),
             ]
@@ -756,7 +851,7 @@ class PayrollGeneration extends Component
     {
         $this->saveDraft();
 
-        if ($this->getErrorBag()->has('draft')) {
+        if ($this->getErrorBag()->any()) {
             return false;
         }
 
@@ -774,6 +869,107 @@ class PayrollGeneration extends Component
         $this->goToStep($targetStep);
 
         return true;
+    }
+
+    private function draftStateForCurrentStep(): array
+    {
+        $state = [
+            ...$this->existingDraftState(),
+            'wizard_step_count' => count($this->steps),
+            'selected_division_ids' => $this->selectedDivisionIds,
+            'selected_department_ids' => $this->selectedDepartmentIds,
+        ];
+
+        return match ($this->currentStep) {
+            1 => $this->mergeStepOneDraftState($state),
+            3 => [
+                ...$state,
+                'compensation_adjustments' => $this->compensationAdjustments,
+                'selected_adjustment_type_ids' => $this->selectedAdjustmentTypeIds,
+            ],
+            4 => [
+                ...$state,
+                'mandatory_deduction_adjustments' => $this->mandatoryDeductionAdjustments,
+            ],
+            5 => [
+                ...$state,
+                'deduction_program_selections' => $this->deductionProgramSelections,
+            ],
+            8 => [
+                ...$state,
+                'tax_annualization_overrides' => $this->taxAnnualizationOverrides,
+            ],
+            default => $state,
+        };
+    }
+
+    private function mergeStepOneDraftState(array $state): array
+    {
+        $existingLeaveDeductionOverrides = (array) ($state['leave_deduction_overrides'] ?? []);
+        $canEditHrFields = $this->canEditStep1HrFields();
+        $canEditTev = $this->canEditStep1TevField();
+
+        if ($canEditHrFields && $canEditTev) {
+            return [
+                ...$state,
+                'deduction_day_overrides' => $this->deductionDayOverrides,
+                'logbook_lwop_day_overrides' => $this->logbookLwopDayOverrides,
+                'leave_deduction_overrides' => $this->leaveDeductionOverrides,
+                'leave_date_overrides' => $this->leaveDateOverrides,
+                'pay_basis_overrides' => $this->payBasisOverrides,
+            ];
+        }
+
+        if ($canEditHrFields) {
+            return [
+                ...$state,
+                'deduction_day_overrides' => $this->deductionDayOverrides,
+                'logbook_lwop_day_overrides' => $this->logbookLwopDayOverrides,
+                'leave_deduction_overrides' => $this->mergeLeaveDeductionOverrides(
+                    $existingLeaveDeductionOverrides,
+                    $this->leaveDeductionOverrides,
+                    ['subsistence_days', 'pera_days', 'laundry_days'],
+                ),
+                'leave_date_overrides' => $this->leaveDateOverrides,
+                'pay_basis_overrides' => $this->payBasisOverrides,
+            ];
+        }
+
+        if ($canEditTev) {
+            return [
+                ...$state,
+                'leave_deduction_overrides' => $this->mergeLeaveDeductionOverrides(
+                    $existingLeaveDeductionOverrides,
+                    $this->leaveDeductionOverrides,
+                    ['tev_days'],
+                ),
+            ];
+        }
+
+        return $state;
+    }
+
+    private function mergeLeaveDeductionOverrides(array $existing, array $incoming, array $fields): array
+    {
+        foreach ($incoming as $empId => $values) {
+            $values = (array) $values;
+            foreach ($fields as $field) {
+                if (array_key_exists($field, $values)) {
+                    $existing[$empId][$field] = $values[$field];
+                }
+            }
+        }
+
+        return $existing;
+    }
+
+    private function existingDraftState(): array
+    {
+        $draft = PayrollGenerationDraft::query()
+            ->where('configuration_key', $this->draftConfigurationKey())
+            ->first();
+
+        return (array) ($draft?->state_json ?? []);
     }
 
     private function resetDraftBackedState(): void
@@ -871,6 +1067,10 @@ class PayrollGeneration extends Component
 
     public function saveEmployeeAdjustment(string $empId, int $typeId, string $operator, mixed $amount): void
     {
+        if (! $this->ensureStepCanBeEdited(3)) {
+            return;
+        }
+
         if (! is_numeric($amount) || (float) $amount < 0) {
             $this->addError('adjustments', 'Enter a valid adjustment amount.');
 
@@ -899,12 +1099,20 @@ class PayrollGeneration extends Component
 
     public function removeEmployeeAdjustmentType(string $empId, int $typeId): void
     {
+        if (! $this->ensureStepCanBeEdited(3)) {
+            return;
+        }
+
         unset($this->compensationAdjustments[$empId]['extra_items'][(string) $typeId]);
         $this->selectedAdjustmentTypeIds = $this->selectedAdjustmentTypeIdsFromAdjustments($this->compensationAdjustments);
     }
 
     public function exportRegularPayrollTemplate(RegularPayrollTemplateExportService $exporter)
     {
+        if (! $this->ensureStepCanBeEdited(9, 'You can review this payroll but cannot export it.')) {
+            return null;
+        }
+
         if ($this->selectedDivisionIds === [] && $this->selectedDepartmentIds === []) {
             $this->addError('finalize', 'Choose a division before exporting payroll.');
 
@@ -965,6 +1173,7 @@ class PayrollGeneration extends Component
             'previousMraPeriod' => $previousMraPeriod,
             'previousMraReport' => $previousMraReport,
             'totals' => $totals,
+            'payrollGenerationAccess' => $this->payrollGenerationAccess(),
         ]);
     }
 
@@ -2386,7 +2595,7 @@ class PayrollGeneration extends Component
 
     private function departmentOptions(): Collection
     {
-        return DB::connection('mysql')
+        return DB::connection('hris')
             ->table('tbl_department')
             ->select(['department_id', 'department', 'division_id'])
             ->orderBy('department')
@@ -2395,7 +2604,7 @@ class PayrollGeneration extends Component
 
     private function divisionOptions(): Collection
     {
-        return DB::connection('mysql')
+        return DB::connection('hris')
             ->table('tbl_division')
             ->select(['division_id', 'division'])
             ->orderBy('division')
@@ -2408,7 +2617,7 @@ class PayrollGeneration extends Component
             return collect();
         }
 
-        $query = DB::connection('mysql')
+        $query = DB::connection('hris')
             ->table('tbl_employee as employees')
             ->leftJoin('tbl_position as positions', 'positions.position_id', '=', 'employees.position_id')
             ->leftJoin('tbl_department as departments', 'departments.department_id', '=', 'employees.department_id')
@@ -2936,7 +3145,7 @@ class PayrollGeneration extends Component
 
     private function salaryMatrix(): array
     {
-        $grades = DB::connection('mysql')
+        $grades = DB::connection('hris')
             ->table('tbl_salary_grade')
             ->select(['salary_grade', 'step_increment', 'salary', 'effectivity_date'])
             ->orderByDesc('effectivity_date')
@@ -3132,6 +3341,10 @@ class PayrollGeneration extends Component
 
     public function finalizePayroll(): void
     {
+        if (! $this->ensureStepCanBeEdited(9, 'You can review this payroll but cannot finalize it.')) {
+            return;
+        }
+
         if ($this->selectedDivisionIds === [] && $this->selectedDepartmentIds === []) {
             $this->addError('finalize', 'Choose a division before finalizing payroll.');
 

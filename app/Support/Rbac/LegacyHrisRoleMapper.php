@@ -11,6 +11,8 @@ class LegacyHrisRoleMapper
     public const SYSTEM_ROLES = [
         'super-admin',
         'admin',
+        'hr-payroll',
+        'accounting-payroll',
         'scheduler',
         'schedule-approver',
         'payroll-processor',

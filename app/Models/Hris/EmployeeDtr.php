@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class EmployeeDtr extends Model
 {
+    protected $connection = 'hris';
     protected $table = 'tbl_employee_dtr';
     protected $primaryKey = 'dtr_id';
 

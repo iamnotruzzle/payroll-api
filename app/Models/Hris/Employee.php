@@ -58,7 +58,7 @@ class Employee extends Authenticatable
 
     public const EXTERNAL_DIVISION_NAME = 'external';
 
-    protected $connection = 'mysql';
+    protected $connection = 'hris';
 
     protected $table = 'tbl_employee';
 

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class EmployeeLeave extends Model
 {
-
+    protected $connection = 'hris';
     protected $table = 'tbl_employee_leave';
     protected $primaryKey = 'leave_id';
 

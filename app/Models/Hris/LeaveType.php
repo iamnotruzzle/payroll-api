@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class LeaveType extends Model
 {
+    protected $connection = 'hris';
     protected $table = 'tbl_leave_type';
     protected $primaryKey = 'leave_type_id';
     public $timestamps = false;

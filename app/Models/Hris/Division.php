@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Division extends Model
 {
-    protected $connection = 'mysql';
+    protected $connection = 'hris';
     protected $table = 'tbl_division';
     protected $primaryKey = 'division_id';
     public $incrementing = true;

@@ -5,10 +5,10 @@ namespace App\Livewire\Admin;
 use Database\Seeders\RBACSeeder;
 use App\Models\Hris\Employee;
 use App\Models\Hris\UserAccount;
+use App\Models\Role;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Spatie\Permission\Models\Role;
 
 class UserAccounts extends Component
 {
@@ -120,24 +120,24 @@ class UserAccounts extends Component
             'empId' => [
                 'required',
                 'string',
-                'exists:mysql.tbl_employee,emp_id',
-                Rule::unique('tbl_useraccount', 'emp_id')->ignore($this->editingId, 'userid'),
+                'exists:hris.tbl_employee,emp_id',
+                Rule::unique('hris.tbl_useraccount', 'emp_id')->ignore($this->editingId, 'userid'),
             ],
             'username' => [
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('tbl_useraccount', 'username')->ignore($this->editingId, 'userid'),
+                Rule::unique('hris.tbl_useraccount', 'username')->ignore($this->editingId, 'userid'),
             ],
             'password' => [$this->editingId ? 'nullable' : 'required', 'string', 'min:8'],
             'userLevel' => ['nullable', 'integer', 'min:0'],
             'pimsRole' => ['nullable', 'integer', 'min:0'],
             'selectedRoles' => ['array'],
-            'selectedRoles.*' => ['string', 'exists:roles,name'],
+            'selectedRoles.*' => ['string', 'exists:hris.roles,name'],
             'selectedPermissions' => ['array'],
             'selectedPermissions.*' => [
                 'string',
-                Rule::exists('permissions', 'name')->where('guard_name', 'web'),
+                Rule::exists('hris.permissions', 'name')->where('guard_name', 'web'),
             ],
         ]);
 

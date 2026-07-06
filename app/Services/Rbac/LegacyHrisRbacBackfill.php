@@ -3,9 +3,9 @@
 namespace App\Services\Rbac;
 
 use App\Models\Hris\UserAccount;
+use App\Models\Role;
 use App\Support\Rbac\LegacyHrisRoleMapper;
 use Illuminate\Support\Collection;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 class LegacyHrisRbacBackfill

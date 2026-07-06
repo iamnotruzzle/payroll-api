@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EmployeeLeaveLog extends Model
 {
-    protected $connection = 'mysql';
+    protected $connection = 'hris';
 
     protected $table = 'tbl_leave_log';
 

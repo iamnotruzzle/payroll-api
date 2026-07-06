@@ -9,6 +9,9 @@
             : ($selectedDivisions->count() === 1
                 ? $selectedDivisions->first()->division . ' Division'
                 : max(1, $selectedDivisions->count()) . ' Divisions'));
+    $canEditCurrentStep = (bool) ($payrollGenerationAccess['can_edit_current_step'] ?? false);
+    $canEditStep1HrFields = (bool) ($payrollGenerationAccess['can_edit_step1_hr_fields'] ?? false);
+    $canEditStep1Tev = (bool) ($payrollGenerationAccess['can_edit_step1_tev'] ?? false);
 @endphp
 
 <section
@@ -324,15 +327,25 @@
 
         <div class="grid gap-2 p-3 md:grid-cols-3 lg:grid-cols-9">
             @foreach ($steps as $number => $label)
+                @php
+                    $stepCanEdit = (bool) ($payrollGenerationAccess['steps'][$number]['can_edit'] ?? false);
+                    $stepBadgeLabel = $stepCanEdit ? 'Accessible' : 'Read-only';
+                    $stepBadgeClasses = $currentStep === $number
+                        ? ($stepCanEdit ? 'bg-white/20 text-white ring-1 ring-white/35' : 'bg-amber-100 text-amber-950')
+                        : ($stepCanEdit ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-slate-100 text-slate-500 ring-1 ring-slate-200');
+                @endphp
                 <button
                     type="button"
                     x-on:click="leaveStep({{ $currentStep }}, {{ $number }})"
                     wire:loading.attr="disabled"
                     wire:target="{{ $payrollLoadingTargets }}"
-                    class="rounded-md border px-3 py-2 text-left text-sm transition {{ $currentStep === $number ? 'border-[#5f61e6] bg-[#5f61e6] font-semibold text-white shadow-sm shadow-[#696cff]/25' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' }}"
+                    class="flex min-h-20 flex-col justify-between rounded-md border px-3 py-2 text-left text-sm transition {{ $currentStep === $number ? 'border-[#5f61e6] bg-[#5f61e6] font-semibold text-white shadow-sm shadow-[#696cff]/25' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' }}"
                 >
-                    <span class="block text-xs font-semibold uppercase tracking-wide">Step {{ $number }}</span>
-                    <span class="mt-1 block font-medium">{{ $label }}</span>
+                    <span class="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide">
+                        <span>Step {{ $number }}</span>
+                        <span class="rounded-full px-2 py-0.5 text-[10px] normal-case tracking-normal {{ $stepBadgeClasses }}">{{ $stepBadgeLabel }}</span>
+                    </span>
+                    <span class="mt-3 block font-medium leading-snug">{{ $label }}</span>
                 </button>
             @endforeach
         </div>
@@ -437,10 +450,10 @@
                                 </td>
                                 <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">
-                                    <input wire:model="payBasisOverrides.{{ $row['emp_id'] }}.salary_grade" type="number" min="0" step="1" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                    <input wire:model="payBasisOverrides.{{ $row['emp_id'] }}.salary_grade" type="number" min="0" step="1" @disabled(! $canEditStep1HrFields) class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <input wire:model="payBasisOverrides.{{ $row['emp_id'] }}.step" type="number" min="1" max="8" step="1" class="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                    <input wire:model="payBasisOverrides.{{ $row['emp_id'] }}.step" type="number" min="1" max="8" step="1" @disabled(! $canEditStep1HrFields) class="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
                                 </td>
                                 <td class="px-4 py-3">
                                     <div class="min-w-[340px] space-y-2">
@@ -455,13 +468,13 @@
                                                         <div class="text-[11px] text-slate-500">HRIS: {{ $leaveItem['original_period'] }}</div>
                                                     </div>
                                                     <label class="flex items-center gap-1 text-xs text-slate-600">
-                                                        <input wire:model="leaveDateOverrides.{{ $leaveId }}.excluded" type="checkbox" class="rounded border-slate-300 text-red-600 focus:ring-red-500">
+                                                        <input wire:model="leaveDateOverrides.{{ $leaveId }}.excluded" type="checkbox" @disabled(! $canEditStep1HrFields) class="rounded border-slate-300 text-red-600 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-60">
                                                         Exclude
                                                     </label>
                                                 </div>
                                                 <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                                                    <input wire:model="leaveDateOverrides.{{ $leaveId }}.start_date" type="date" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
-                                                    <input wire:model="leaveDateOverrides.{{ $leaveId }}.end_date" type="date" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+                                                    <input wire:model="leaveDateOverrides.{{ $leaveId }}.start_date" type="date" @disabled(! $canEditStep1HrFields) class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
+                                                    <input wire:model="leaveDateOverrides.{{ $leaveId }}.end_date" type="date" @disabled(! $canEditStep1HrFields) class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
                                                 </div>
                                             </div>
                                         @empty
@@ -470,16 +483,16 @@
                                     </div>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <input wire:model="leaveDeductionOverrides.{{ $row['emp_id'] }}.subsistence_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                    <input wire:model="leaveDeductionOverrides.{{ $row['emp_id'] }}.subsistence_days" type="number" min="0" max="31" step="0.001" @disabled(! $canEditStep1HrFields) class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <input wire:model="leaveDeductionOverrides.{{ $row['emp_id'] }}.pera_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                    <input wire:model="leaveDeductionOverrides.{{ $row['emp_id'] }}.pera_days" type="number" min="0" max="31" step="0.001" @disabled(! $canEditStep1HrFields) class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <input wire:model="leaveDeductionOverrides.{{ $row['emp_id'] }}.laundry_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                    <input wire:model="leaveDeductionOverrides.{{ $row['emp_id'] }}.laundry_days" type="number" min="0" max="31" step="0.001" @disabled(! $canEditStep1HrFields) class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <input wire:model="leaveDeductionOverrides.{{ $row['emp_id'] }}.tev_days" type="number" min="0" max="31" step="0.001" class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                    <input wire:model="leaveDeductionOverrides.{{ $row['emp_id'] }}.tev_days" type="number" min="0" max="31" step="0.001" @disabled(! $canEditStep1Tev) class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
                                 </td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['mra_adjustment_days'] ?? 0, 3) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['hris_lwop_days'] ?? 0, 3) }}</td>
@@ -491,7 +504,8 @@
                                         max="31"
                                         step="0.001"
                                         placeholder="0.000"
-                                        class="w-28 rounded-md border border-slate-300 px-3 py-2 text-right text-sm"
+                                        @disabled(! $canEditStep1HrFields)
+                                        class="w-28 rounded-md border border-slate-300 px-3 py-2 text-right text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                                     >
                                 </td>
                                 <td class="px-4 py-3 text-right">
@@ -502,7 +516,8 @@
                                         max="31"
                                         step="0.001"
                                         placeholder="{{ number_format($row['mra_deduction_days'], 3) }}"
-                                        class="w-28 rounded-md border border-slate-300 px-3 py-2 text-right text-sm"
+                                        @disabled(! $canEditStep1HrFields)
+                                        class="w-28 rounded-md border border-slate-300 px-3 py-2 text-right text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                                     >
                                 </td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['paid_days'] ?? 0, 3) }}</td>
@@ -609,6 +624,7 @@
                 </div>
             @enderror
 
+            <fieldset @disabled(! $canEditCurrentStep) class="contents">
             <div class="payroll-table-scroll overflow-x-auto">
                 <table class="divide-y divide-slate-200 text-sm" style="min-width: {{ 1560 + ($adjustmentTypes->count() * 140) }}px;">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
@@ -772,6 +788,7 @@
                         </div>
                     </div>
                 </div>
+            </fieldset>
         </div>
     @elseif ($currentStep === 4)
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -779,6 +796,7 @@
                 <h3 class="font-semibold">Mandatory Deductions</h3>
                 @include('livewire.payroll.partials.step-save-button')
             </div>
+            <fieldset @disabled(! $canEditCurrentStep) class="contents">
             <div class="payroll-table-scroll overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
@@ -843,6 +861,7 @@
                     </tbody>
                 </table>
             </div>
+            </fieldset>
         </div>
     @elseif ($currentStep === 5)
         <div class="space-y-4">
@@ -859,6 +878,7 @@
                 $programPreviewWidth = max(920, 720 + ($activeDeductionPrograms->count() * 170));
             @endphp
 
+            <fieldset @disabled(! $canEditCurrentStep) class="contents">
             <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-4 py-3">
                     <h3 class="font-semibold">Program Setup</h3>
@@ -1027,6 +1047,7 @@
                     </div>
                 </div>
             </div>
+            </fieldset>
         </div>
     @elseif (in_array($currentStep, [6, 7], true))
         @php
@@ -1245,13 +1266,13 @@
                     <p class="text-sm text-slate-600">{{ $stepDescription }} {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }}.</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    <button type="button" x-on:click="openLoanModal()" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+                    <button type="button" x-on:click="openLoanModal()" @disabled(! $canEditCurrentStep) class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">
                         {{ $stepAddLabel }}
                     </button>
                     <a href="{{ route('payroll.loan-imports.template', $isAdditionalPremiumStep ? ['mode' => 'additional_premiums'] : []) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                         Export Template
                     </a>
-                    <button type="button" wire:click="openLoanImportModal" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                    <button type="button" wire:click="openLoanImportModal" @disabled(! $canEditCurrentStep) class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
                         {{ $stepImportLabel }}
                     </button>
                     <a href="{{ $isAdditionalPremiumStep ? route('payroll.additional-premiums') : route('payroll.loan-imports') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
@@ -1482,7 +1503,7 @@
                                     <div x-cloak x-show="loanUploadError" x-transition class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" x-text="loanUploadError"></div>
                                 </div>
                                 <div class="flex items-end">
-                                    <button type="button" wire:click="previewLoanImport" wire:loading.attr="disabled" wire:target="previewLoanImport,loanFile" class="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60 lg:w-auto">
+                                    <button type="button" wire:click="previewLoanImport" wire:loading.attr="disabled" wire:target="previewLoanImport,loanFile" @disabled(! $canEditCurrentStep) class="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 lg:w-auto">
                                         Preview Rows
                                     </button>
                                 </div>
@@ -1549,7 +1570,7 @@
                             <button type="button" wire:click="closeLoanImportModal" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                                 Cancel
                             </button>
-                            <button type="button" wire:click="saveLoanImport" wire:loading.attr="disabled" wire:target="saveLoanImport" @disabled(empty($loanImportPreview) || (($loanImportPreview['invalid_rows'] ?? 0) > 0)) class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                            <button type="button" wire:click="saveLoanImport" wire:loading.attr="disabled" wire:target="saveLoanImport" @disabled(! $canEditCurrentStep || empty($loanImportPreview) || (($loanImportPreview['invalid_rows'] ?? 0) > 0)) class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
                                 Save Import
                             </button>
                         </div>
@@ -1588,12 +1609,12 @@
                                                 <span class="font-semibold">{{ $loan['entity'] }}</span>
                                                 <span class="text-slate-500">· {{ $loan['loan_account_no'] }}</span>
                                                 <span class="float-right ml-2 font-semibold">{{ number_format($loan['amount_due'], 2) }}</span>
-                                                <button type="button" x-on:click="openLoanModal(@js($row['emp_id']), @js($loan))" class="ml-2 rounded border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">
+                                                <button type="button" x-on:click="openLoanModal(@js($row['emp_id']), @js($loan))" @disabled(! $canEditCurrentStep) class="ml-2 rounded border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60">
                                                     Edit
                                                 </button>
                                             </div>
                                         @empty
-                                            <button type="button" x-on:click="openLoanModal(@js($row['emp_id']))" class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                            <button type="button" x-on:click="openLoanModal(@js($row['emp_id']))" @disabled(! $canEditCurrentStep) class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
                                                 {{ $isAdditionalPremiumStep ? 'Add additional premium' : 'Add loan deduction' }}
                                             </button>
                                         @endforelse
@@ -1783,37 +1804,37 @@
                                 <td class="px-4 py-3 text-right">{{ $row['tax']['salary_grade'] ?? '-' }} / {{ $row['step'] ?? '-' }}</td>
                                 <td class="px-4 py-3">{{ $row['tax']['entry_date'] ?? '-' }}</td>
                                 <td class="px-4 py-3">-</td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.future_months" type="number" step="0.0001" placeholder="{{ number_format($row['tax']['future_months'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.annualization_leave_without_pay_months" type="number" step="0.0001" placeholder="{{ number_format($row['tax']['annualization_leave_without_pay_months'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.hazard_subsistence_deduction_months" type="number" step="0.0001" placeholder="{{ number_format($row['tax']['hazard_subsistence_deduction_months'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_basic" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_basic'] ?? 0, 2, '.', '') }}" class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.future_months" type="number" step="0.0001" placeholder="{{ number_format($row['tax']['future_months'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.annualization_leave_without_pay_months" type="number" step="0.0001" placeholder="{{ number_format($row['tax']['annualization_leave_without_pay_months'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.hazard_subsistence_deduction_months" type="number" step="0.0001" placeholder="{{ number_format($row['tax']['hazard_subsistence_deduction_months'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_basic" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_basic'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_basic'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_basic'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_basic'] ?? 0, 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_hazard" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_hazard'] ?? 0, 2, '.', '') }}" class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_hazard" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_hazard'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_hazard'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_hazard'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_hazard'] ?? 0, 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_subsistence" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_subsistence'] ?? 0, 2, '.', '') }}" class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_subsistence" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_subsistence'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_subsistence'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_subsistence'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_subsistence'] ?? 0, 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_mandatory_deductions" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_mandatory_deductions'] ?? 0, 2, '.', '') }}" class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_mandatory_deductions" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_mandatory_deductions'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_mandatory_deductions'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_mandatory_deductions'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_mandatory_deductions'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_monthly_taxable_income'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_taxable_income'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_tax_due'] ?? 0, 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_tax_withheld" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_tax_withheld'] ?? 0, 2, '.', '') }}" class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_tax_withheld" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_tax_withheld'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_tax_withheld'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_tax_withheld'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_tax_withheld'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['under_over_withheld'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['monthly_annualized_tax_due'] ?? 0, 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.gross_withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['gross_withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.gross_withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['gross_withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['withholding_tax_gross'] ?? $row['tax']['monthly_tax_due'], 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_loan_deductions'], 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['fifteenth'], 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['thirtieth'], 2) }}</td>
@@ -1847,7 +1868,7 @@
                     wire:click="exportRegularPayrollTemplate"
                     wire:loading.attr="disabled"
                     wire:target="exportRegularPayrollTemplate"
-                    @disabled($rows->isEmpty())
+                    @disabled($rows->isEmpty() || ! $canEditCurrentStep)
                     class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     <span wire:loading.remove wire:target="exportRegularPayrollTemplate">Export Regular Payroll</span>
@@ -1859,7 +1880,7 @@
                     wire:click="finalizePayroll"
                     wire:loading.attr="disabled"
                     wire:target="finalizePayroll"
-                    @disabled($rows->isEmpty())
+                    @disabled($rows->isEmpty() || ! $canEditCurrentStep)
                     class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     <span wire:loading.remove wire:target="finalizePayroll">Finalize Payroll Run</span>

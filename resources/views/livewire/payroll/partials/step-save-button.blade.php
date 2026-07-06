@@ -1,3 +1,4 @@
+@if ($canEditCurrentStep ?? true)
 <button
     type="button"
     x-on:click="saveStep()"
@@ -8,3 +9,4 @@
     <span wire:loading.remove wire:target="saveStepChanges">Save as Draft</span>
     <span wire:loading wire:target="saveStepChanges">Saving Draft...</span>
 </button>
+@endif

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class EmployeeVoluntaryWork extends Model
 {
+    protected $connection = 'hris';
     protected $table = 'tbl_employee_volwork';
     protected $primaryKey = 'volwork_id';
 

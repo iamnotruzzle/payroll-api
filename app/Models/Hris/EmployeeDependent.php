@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class EmployeeDependent extends Model
 {
+    protected $connection = 'hris';
     protected $table = 'tbl_employee_dependents';
     protected $primaryKey = 'dependent_id';
 

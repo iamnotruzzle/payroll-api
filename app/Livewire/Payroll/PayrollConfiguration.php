@@ -124,15 +124,15 @@ class PayrollConfiguration extends Component
     {
         $data = $this->validate([
             'selectedDivisionIds' => ['required', 'array', 'min:1'],
-            'selectedDivisionIds.*' => ['integer', 'exists:mysql.tbl_division,division_id'],
+            'selectedDivisionIds.*' => ['integer', 'exists:hris.tbl_division,division_id'],
             'selectedDepartmentIds' => ['array'],
-            'selectedDepartmentIds.*' => ['integer', 'exists:mysql.tbl_department,department_id'],
+            'selectedDepartmentIds.*' => ['integer', 'exists:hris.tbl_department,department_id'],
             'payrollType' => ['required', Rule::exists('payroll.payroll_types', 'code')->where('is_active', true)],
             'period' => ['required', 'date_format:Y-m'],
             'workingDays' => ['required', 'integer', 'min:1', 'max:31'],
             'gsisDays' => ['required', 'integer', 'min:0', 'max:31'],
             'selectedLeaveTypeIds' => ['array'],
-            'selectedLeaveTypeIds.*' => ['integer', 'exists:mysql.tbl_leave_type,leave_type_id'],
+            'selectedLeaveTypeIds.*' => ['integer', 'exists:hris.tbl_leave_type,leave_type_id'],
             'employeeTypeFilter' => ['required', 'array', 'min:1'],
             'employeeTypeFilter.*' => ['required', Rule::in(array_keys(Employee::employeeTypeOptions()))],
         ]);

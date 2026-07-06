@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class TrainingTypeLookup extends Model
 {
+    protected $connection = 'hris';
     protected $table = 'tbl_training_types';
     public $timestamps = false;
 

@@ -2,12 +2,12 @@
 
 namespace App\Livewire\Admin;
 
+use App\Models\Permission;
+use App\Models\Role;
 use Database\Seeders\RBACSeeder;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 class RolesPermissions extends Component
@@ -95,13 +95,13 @@ class RolesPermissions extends Component
                 'string',
                 'max:255',
                 'regex:/^[a-z0-9][a-z0-9._-]*$/',
-                Rule::unique('roles', 'name')->where('guard_name', 'web')->ignore($this->editingId),
+                Rule::unique('hris.roles', 'name')->where('guard_name', 'web')->ignore($this->editingId),
             ],
             'displayName' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'isActive' => ['boolean'],
             'selectedPermissions' => ['array'],
-            'selectedPermissions.*' => ['string', 'exists:permissions,name'],
+            'selectedPermissions.*' => ['string', 'exists:hris.permissions,name'],
         ]);
 
         $role = Role::query()->updateOrCreate(
@@ -145,7 +145,7 @@ class RolesPermissions extends Component
                 'string',
                 'max:255',
                 'regex:/^[a-z0-9][a-z0-9._-]*$/',
-                Rule::unique('permissions', 'name')->where('guard_name', 'web'),
+                Rule::unique('hris.permissions', 'name')->where('guard_name', 'web'),
             ],
         ]);
 

@@ -10,7 +10,7 @@ class UserAccount extends Authenticatable
 {
     use HasRoles;
 
-    protected $connection = 'mysql';
+    protected $connection = 'hris';
     protected $table = 'tbl_useraccount';
     protected $primaryKey = 'userid';
     protected string $guard_name = 'web';

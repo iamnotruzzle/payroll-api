@@ -17,7 +17,7 @@ class PayrollConfigurationTest extends TestCase
     {
         parent::setUp();
 
-        Config::set('database.connections.mysql', [
+        Config::set('database.connections.hris', [
             'driver' => 'sqlite',
             'database' => ':memory:',
             'prefix' => '',
@@ -27,23 +27,23 @@ class PayrollConfigurationTest extends TestCase
             'database' => ':memory:',
             'prefix' => '',
         ]);
-        Config::set('database.default', 'mysql');
+        Config::set('database.default', 'hris');
 
-        DB::purge('mysql');
+        DB::purge('hris');
         DB::purge('payroll');
 
-        Schema::connection('mysql')->create('tbl_division', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_division', function (Blueprint $table) {
             $table->integer('division_id')->primary();
             $table->string('division');
         });
 
-        Schema::connection('mysql')->create('tbl_department', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_department', function (Blueprint $table) {
             $table->integer('department_id')->primary();
             $table->integer('division_id')->nullable();
             $table->string('department');
         });
 
-        Schema::connection('mysql')->create('tbl_leave_type', function (Blueprint $table) {
+        Schema::connection('hris')->create('tbl_leave_type', function (Blueprint $table) {
             $table->integer('leave_type_id')->primary();
             $table->string('leave_name');
         });
@@ -93,10 +93,10 @@ class PayrollConfigurationTest extends TestCase
             $table->timestamps();
         });
 
-        DB::connection('mysql')->table('tbl_division')->insert([
+        DB::connection('hris')->table('tbl_division')->insert([
             ['division_id' => 10, 'division' => 'Finance Division'],
         ]);
-        DB::connection('mysql')->table('tbl_department')->insert([
+        DB::connection('hris')->table('tbl_department')->insert([
             ['department_id' => 20, 'division_id' => 10, 'department' => 'Billing and Claims'],
         ]);
         DB::connection('payroll')->table('payroll_types')->insert([

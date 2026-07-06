@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class PayrollItem extends Model
 {
+    protected $connection = 'hris';
     protected $table = 'payroll_items';
 
     protected $fillable = [
