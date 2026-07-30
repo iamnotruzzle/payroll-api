@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Schema;
 
 class Employee extends Authenticatable
 {
@@ -129,6 +130,7 @@ class Employee extends Authenticatable
         'govid_dateplace',
         'profile_pic',
         'is_section_head',
+        'is_external',
         'separationdate',
         'separationtype',
         'role',
@@ -147,6 +149,7 @@ class Employee extends Authenticatable
         'weight' => 'float',
         'vacation_leave_credits' => 'float',
         'sick_leave_credits' => 'float',
+        'is_external' => 'boolean',
     ];
 
     public function position(): BelongsTo
@@ -268,7 +271,12 @@ class Employee extends Authenticatable
 
     private static function applyEmployeeTypeConstraint(Builder $query, string $type): Builder
     {
+        $hasExternalFlag = Schema::connection('hris')->hasColumn('tbl_employee', 'is_external');
         $excludeExternalDivision = fn (Builder $employeeQuery) => $employeeQuery
+            ->when($hasExternalFlag, fn (Builder $flagQuery) => $flagQuery
+                ->where(fn (Builder $externalFlagQuery) => $externalFlagQuery
+                    ->whereNull('is_external')
+                    ->orWhere('is_external', false)))
             ->whereDoesntHave('department.division', fn (Builder $divisionQuery) => $divisionQuery
                 ->whereRaw('LOWER(TRIM(division)) = ?', [self::EXTERNAL_DIVISION_NAME]));
 
@@ -281,8 +289,13 @@ class Employee extends Authenticatable
             self::EMPLOYEE_TYPE_COS => $excludeExternalDivision($query->where('empstat_id', self::EMPSTAT_CONTRACT_OF_SERVICE)),
             self::EMPLOYEE_TYPE_PROBATIONARY => $excludeExternalDivision($query->where('empstat_id', self::EMPSTAT_PROBATIONARY)),
             self::EMPLOYEE_TYPE_INTERN => $excludeExternalDivision($query->where('empstat_id', self::EMPSTAT_INTERN)),
-            self::EMPLOYEE_TYPE_EXTERNAL => $query->whereHas('department.division', fn (Builder $divisionQuery) => $divisionQuery
-                ->whereRaw('LOWER(TRIM(division)) = ?', [self::EXTERNAL_DIVISION_NAME])),
+            self::EMPLOYEE_TYPE_EXTERNAL => $query->where(function (Builder $externalQuery) use ($hasExternalFlag) {
+                $externalQuery
+                    ->where('empstat_id', self::EMPSTAT_EXTERNAL)
+                    ->when($hasExternalFlag, fn (Builder $flagQuery) => $flagQuery->orWhere('is_external', true))
+                    ->orWhereHas('department.division', fn (Builder $divisionQuery) => $divisionQuery
+                        ->whereRaw('LOWER(TRIM(division)) = ?', [self::EXTERNAL_DIVISION_NAME]));
+            }),
             default => $excludeExternalDivision($query->where('empstat_id', self::EMPSTAT_PERMANENT)),
         };
     }

@@ -79,6 +79,11 @@
                     <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
                     <td class="payroll-sticky-employee-name-cell px-4 py-3">
                         <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
+                        @if ($row['is_part_time'] ?? false)
+                            <span class="inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-violet-700">Part-time</span>
+                        @elseif ($row['is_external'] ?? false)
+                            <span class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">External</span>
+                        @endif
                     </td>
                     <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
                     <td class="px-4 py-3 text-right">{{ $row['salary_grade'] ?? '-' }}</td>

@@ -101,13 +101,27 @@
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-4 py-3">
                 <h3 class="font-semibold">Tax Calculation</h3>
-                <p class="text-sm text-slate-600">Annualized taxable hazard pay and monthly withholding tax before review.</p>
+                <p class="text-sm text-slate-600">Uses the General Payroll annualization calculation and deducts only incremental hazard tax.</p>
             </div>
+            @include('livewire.payroll.partials.tax-input-import', [
+                'fileModel' => 'taxInputFile',
+                'preview' => $taxInputImportPreview,
+                'importMessage' => $taxInputImportMessage,
+                'validateAction' => 'previewTaxInputImport',
+                'templateAction' => 'exportTaxInputTemplate',
+                'confirmAction' => 'confirmTaxInputImport',
+            ])
             <div class="overflow-x-auto">
-                <table class="min-w-[1980px] divide-y divide-slate-200 text-sm">
+                <table class="min-w-[3000px] divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
                             <th class="px-4 py-3">Employee</th>
+                            <th class="px-4 py-3 text-right">Basic Previous</th>
+                            <th class="px-4 py-3 text-right">Hazard Previous</th>
+                            <th class="px-4 py-3 text-right">Subsistence Previous</th>
+                            <th class="px-4 py-3 text-right">Mandatory Deduction Previous</th>
+                            <th class="px-4 py-3 text-right">Tax Withheld Previous</th>
+                            <th class="px-4 py-3 text-right">Tax Adjustment</th>
                             <th class="px-4 py-3">Entry Date</th>
                             <th class="px-4 py-3 text-right">SG</th>
                             <th class="px-4 py-3 text-right">Salary</th>
@@ -115,7 +129,7 @@
                             <th class="px-4 py-3 text-right">Hazard</th>
                             <th class="px-4 py-3 text-right">Deductions</th>
                             <th class="px-4 py-3 text-right">Net Monthly Income</th>
-                            <th class="px-4 py-3 text-right">Tax Adjustment</th>
+                            <th class="px-4 py-3 text-right">Adjustment Used</th>
                             <th class="px-4 py-3 text-right">Total Months</th>
                             <th class="px-4 py-3 text-right">Leave W/O Pay (Months)</th>
                             <th class="px-4 py-3 text-right">Net, Months</th>
@@ -134,6 +148,20 @@
                                     <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
                                     <div class="text-xs text-slate-500">{{ $row['emp_id'] }} &middot; {{ $row['department'] ?: 'No department' }}</div>
                                 </td>
+                                @foreach ([
+                                    'previous_basic',
+                                    'previous_hazard',
+                                    'previous_subsistence',
+                                    'previous_mandatory_deductions',
+                                    'previous_tax_withheld',
+                                ] as $taxField)
+                                    <td class="px-4 py-3 text-right">
+                                        <input wire:model.live.debounce.250ms="taxOverrides.{{ $row['emp_id'] }}.{{ $taxField }}" type="number" min="0" step="0.01" placeholder="{{ number_format($row['tax'][$taxField] ?? 0, 2, '.', '') }}" class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                    </td>
+                                @endforeach
+                                <td class="px-4 py-3 text-right">
+                                    <input wire:model.live.debounce.250ms="taxOverrides.{{ $row['emp_id'] }}.withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                </td>
                                 <td class="px-4 py-3">{{ $row['tax']['entry_date'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">{{ $row['tax']['salary_grade'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['salary'] ?? 0, 2) }}</td>
@@ -149,12 +177,12 @@
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_mandatory_deductions'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_taxable_income'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_tax_due'], 2) }}</td>
-                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['monthly_tax_due'], 2) }}</td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['hazard_withholding_tax'], 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_tax'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="18" class="px-4 py-8 text-center text-sm text-slate-500">No employees found for this payroll configuration.</td>
+                                <td colspan="24" class="px-4 py-8 text-center text-sm text-slate-500">No employees found for this payroll configuration.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -162,7 +190,7 @@
                         <tfoot class="bg-slate-50 font-semibold">
                             <tr>
                                 <td class="px-4 py-3">Totals</td>
-                                <td colspan="2"></td>
+                                <td colspan="8"></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($totals['basic_salary'], 2) }}</td>
                                 <td></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($totals['adjusted_gross_hazard_pay'], 2) }}</td>
@@ -217,7 +245,7 @@
                                 <td class="px-4 py-3 text-right">{{ number_format($row['basic_salary'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['gross_hazard_pay'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['adjusted_gross_hazard_pay'], 2) }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['monthly_tax_due'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['hazard_withholding_tax'], 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_tax'], 2) }}</td>
                             </tr>
                         @empty

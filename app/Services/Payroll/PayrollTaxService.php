@@ -207,4 +207,13 @@ class PayrollTaxService
             'future_hazard_subsistence_months' => round($futureHazardSubsistenceMonths, 4),
         ];
     }
+
+    public function hazardWithholdingTax(array $annualization): float
+    {
+        return round(max(
+            0,
+            (float) ($annualization['current_hazard_tax_due'] ?? 0)
+            + (float) ($annualization['withholding_tax_adjustment'] ?? 0)
+        ), 2);
+    }
 }

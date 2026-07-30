@@ -23,6 +23,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 class PayrollLoanImportService
 {
     private const TEMPLATE_FIRST_ROW = 5;
+
     private const TEMPLATE_LAST_ROW = 204;
 
     public const COLUMNS = [
@@ -109,7 +110,7 @@ class PayrollLoanImportService
     public function buildTemplate(string $mode = 'loans'): string
     {
         $additionalPremiumMode = $this->isAdditionalPremiumMode($mode);
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle($additionalPremiumMode ? 'Additional Premium Import' : 'Loan Due Import');
         $sheet->freezePane('A5');
@@ -179,13 +180,10 @@ class PayrollLoanImportService
                 ->setErrorTitle('Invalid employee')
                 ->setError('Choose an employee from the HRIS employee list.');
 
-            $sheet->setCellValue(
-                "B{$row}",
-                '=IFERROR(VLOOKUP(D'.$row.',\'Employee Records\'!$A$2:$B$'.$employeeLastRow.',2,FALSE),"")'
-            );
+            $sheet->setCellValue("B{$row}", '=IFERROR(VLOOKUP(D'.$row.',\'Employee Records\'!$A$2:$B$'.$employeeLastRow.',2,FALSE),"")');
             $sheet->setCellValue(
                 "D{$row}",
-                '=IF($C'.$row.'="","",IFERROR(INDEX(EmployeeNames,MATCH($C'.$row.'&"*",EmployeeNames,0)),"NO MATCH"))'
+                '=IF($C'.$row.'="","",IF(COUNTIF(\'Employee Records\'!$B$2:$B$'.$employeeLastRow.',$C'.$row.')=1,INDEX(\'Employee Records\'!$A$2:$A$'.$employeeLastRow.',MATCH($C'.$row.',\'Employee Records\'!$B$2:$B$'.$employeeLastRow.',0)),IF(COUNTIF(\'Employee Records\'!$F$2:$F$'.$employeeLastRow.',UPPER(TRIM($C'.$row.'))&"*")=1,INDEX(\'Employee Records\'!$A$2:$A$'.$employeeLastRow.',MATCH(UPPER(TRIM($C'.$row.'))&"*",\'Employee Records\'!$F$2:$F$'.$employeeLastRow.',0)),IF(COUNTIF(\'Employee Records\'!$F$2:$F$'.$employeeLastRow.',UPPER(TRIM($C'.$row.'))&"*")>1,"AMBIGUOUS MATCH","NO MATCH"))))'
             );
 
             $loanTypeValidation = $sheet->getCell("F{$row}")->getDataValidation();
@@ -359,7 +357,7 @@ class PayrollLoanImportService
         $sheet->setSheetState(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::SHEETSTATE_HIDDEN);
         $sheet->freezePane('A2');
         $sheet->fromArray([
-            ['Employee Name', 'Employee ID', 'Lastname', 'Firstname', 'Middlename'],
+            ['Employee Name', 'Employee ID', 'Lastname', 'Firstname', 'Middlename', 'Search Key'],
         ], null, 'A1');
 
         if ($employees) {
@@ -367,21 +365,22 @@ class PayrollLoanImportService
         }
 
         $lastRow = max(2, count($employees) + 1);
-        $sheet->getStyle("A1:E{$lastRow}")->getProtection()->setLocked(Protection::PROTECTION_PROTECTED);
+        $sheet->getStyle("A1:F{$lastRow}")->getProtection()->setLocked(Protection::PROTECTION_PROTECTED);
         $sheet->getProtection()->setSheet(true);
         $sheet->getProtection()->setPassword('mmmhmc');
-        $sheet->getStyle('A1:E1')->applyFromArray([
+        $sheet->getStyle('A1:F1')->applyFromArray([
             'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF334155']],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ]);
-        $sheet->getStyle("A1:E{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_HAIR);
+        $sheet->getStyle("A1:F{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_HAIR);
         $sheet->getColumnDimension('A')->setWidth(42);
         $sheet->getColumnDimension('B')->setWidth(16);
         $sheet->getColumnDimension('C')->setWidth(24);
         $sheet->getColumnDimension('D')->setWidth(28);
         $sheet->getColumnDimension('E')->setWidth(24);
-        $sheet->setAutoFilter("A1:E{$lastRow}");
+        $sheet->getColumnDimension('F')->setWidth(54);
+        $sheet->setAutoFilter("A1:F{$lastRow}");
 
         return $sheet;
     }
@@ -405,6 +404,7 @@ class PayrollLoanImportService
                     $lastname,
                     $firstname,
                     $middlename,
+                    strtoupper(trim($lastname.' '.$firstname.' '.$middlename)),
                 ];
             })
             ->values()

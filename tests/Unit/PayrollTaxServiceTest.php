@@ -7,6 +7,26 @@ use Tests\TestCase;
 
 class PayrollTaxServiceTest extends TestCase
 {
+    public function test_hazard_withholding_uses_only_incremental_hazard_tax_and_signed_adjustment(): void
+    {
+        $service = app(PayrollTaxService::class);
+
+        $this->assertSame(550.0, $service->hazardWithholdingTax([
+            'monthly_tax_due' => 4000,
+            'current_hazard_tax_due' => 500,
+            'withholding_tax_adjustment' => 50,
+        ]));
+        $this->assertSame(400.0, $service->hazardWithholdingTax([
+            'monthly_tax_due' => 4000,
+            'current_hazard_tax_due' => 500,
+            'withholding_tax_adjustment' => -100,
+        ]));
+        $this->assertSame(0.0, $service->hazardWithholdingTax([
+            'current_hazard_tax_due' => 50,
+            'withholding_tax_adjustment' => -100,
+        ]));
+    }
+
     public function test_monthly_withholding_tax_matches_actual_payroll_tax_table(): void
     {
         $service = app(PayrollTaxService::class);

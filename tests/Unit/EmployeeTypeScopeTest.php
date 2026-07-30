@@ -41,6 +41,7 @@ class EmployeeTypeScopeTest extends TestCase
             $table->integer('position_id');
             $table->integer('department_id');
             $table->integer('empstat_id');
+            $table->boolean('is_external')->default(false);
             $table->string('is_active', 1)->default('Y');
         });
 
@@ -168,7 +169,17 @@ class EmployeeTypeScopeTest extends TestCase
                 'empstat_id' => Employee::EMPSTAT_PERMANENT,
                 'is_active' => 'Y',
             ],
+            [
+                'emp_id' => '000012',
+                'firstname' => 'External Flag',
+                'lastname' => 'Employee',
+                'position_id' => 10,
+                'department_id' => 10,
+                'empstat_id' => Employee::EMPSTAT_PERMANENT,
+                'is_active' => 'Y',
+            ],
         ]);
+        DB::connection('hris')->table('tbl_employee')->where('emp_id', '000012')->update(['is_external' => true]);
     }
 
     protected function tearDown(): void
@@ -215,15 +226,15 @@ class EmployeeTypeScopeTest extends TestCase
         $this->assertSame(['000007'], $this->employeeIdsForType(Employee::EMPLOYEE_TYPE_COS));
     }
 
-    public function test_external_employee_type_uses_division_instead_of_employment_status(): void
+    public function test_external_employee_type_accepts_status_division_or_explicit_flag(): void
     {
-        $this->assertSame(['000011'], $this->employeeIdsForType(Employee::EMPLOYEE_TYPE_EXTERNAL));
+        $this->assertSame(['000010', '000011', '000012'], $this->employeeIdsForType(Employee::EMPLOYEE_TYPE_EXTERNAL));
     }
 
     public function test_employee_type_scope_accepts_multiple_statuses(): void
     {
         $this->assertSame(
-            ['000001', '000003', '000011'],
+            ['000001', '000003', '000010', '000011', '000012'],
             $this->employeeIdsForType([
                 Employee::EMPLOYEE_TYPE_PLANTILLA,
                 Employee::EMPLOYEE_TYPE_PART_TIME,
@@ -246,6 +257,7 @@ class EmployeeTypeScopeTest extends TestCase
             '000009',
             '000010',
             '000011',
+            '000012',
         ], $this->employeeIdsForType(Employee::EMPLOYEE_TYPE_ALL));
     }
 

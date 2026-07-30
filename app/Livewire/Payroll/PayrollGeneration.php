@@ -8,40 +8,44 @@ use App\Models\Hris\Employee;
 use App\Models\Hris\EmployeeLeave;
 use App\Models\Hris\LeaveType;
 use App\Models\Hris\Position;
-use App\Models\Payroll\PayrollAdjustmentType;
 use App\Models\Payroll\PayrollAdditional;
+use App\Models\Payroll\PayrollAdjustmentType;
 use App\Models\Payroll\PayrollAuditLog;
 use App\Models\Payroll\PayrollBatch;
 use App\Models\Payroll\PayrollBatchRecord;
 use App\Models\Payroll\PayrollDeduction;
+use App\Models\Payroll\PayrollDeductionProgramMember;
 use App\Models\Payroll\PayrollDtrAdjustment;
 use App\Models\Payroll\PayrollDtrLabel;
 use App\Models\Payroll\PayrollDtrLabelOption;
 use App\Models\Payroll\PayrollEmployeePayrollLine;
 use App\Models\Payroll\PayrollEmployeeSnapshot;
+use App\Models\Payroll\PayrollExternalEmployeeOverride;
 use App\Models\Payroll\PayrollGenerationDraft;
 use App\Models\Payroll\PayrollLeaveCreditAdjustment;
 use App\Models\Payroll\PayrollLoanImportItem;
 use App\Models\Payroll\PayrollLoanType;
 use App\Models\Payroll\PayrollMraReport;
 use App\Models\Payroll\PayrollPeriod;
+use App\Models\Payroll\PayrollProcessedLeaveDate;
 use App\Models\Payroll\PayrollRun;
 use App\Models\Payroll\PayrollTimekeepingSummary;
 use App\Models\Payroll\PayrollType;
+use App\Services\Payroll\EmployeeRosterImportService;
 use App\Services\Payroll\PayrollLoanImportService;
 use App\Services\Payroll\PayrollLoanReferenceService;
 use App\Services\Payroll\PayrollTaxService;
 use App\Services\Payroll\RegularPayrollTemplateExportService;
 use App\Services\Payroll\StatutoryContributionService;
+use App\Services\Payroll\TaxInputImportService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
-use PhpOffice\PhpSpreadsheet\IOFactory;
-use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
 
 class PayrollGeneration extends Component
 {
@@ -117,9 +121,29 @@ class PayrollGeneration extends Component
 
     public ?string $taxAnnualizationImportMessage = null;
 
+    public array $taxInputImportPreview = [];
+
     public array $selectedAdjustmentTypeIds = [];
 
     public array $deductionProgramSelections = [];
+
+    public $programRosterFile;
+
+    public ?int $programRosterProgramId = null;
+
+    public array $programRosterPreview = [];
+
+    public $externalRosterFile;
+
+    public array $externalRosterPreview = [];
+
+    public string $tableSearch = '';
+
+    public string $tableSort = 'employee_name';
+
+    public string $tableSortDirection = 'asc';
+
+    public string $programSearch = '';
 
     public bool $showLoanImportModal = false;
 
@@ -327,6 +351,126 @@ class PayrollGeneration extends Component
     {
         $this->employeeFilterIds = [];
         $this->appliedEmployeeFilterIds = [];
+    }
+
+    public function sortTable(string $column): void
+    {
+        $allowed = ['emp_id', 'employee_name', 'position', 'basic_salary', 'gross', 'net_compensation', 'net_after_loan_deductions'];
+        if (! in_array($column, $allowed, true)) {
+            return;
+        }
+
+        if ($this->tableSort === $column) {
+            $this->tableSortDirection = $this->tableSortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->tableSort = $column;
+            $this->tableSortDirection = 'asc';
+        }
+    }
+
+    public function exportProgramRosterTemplate()
+    {
+        $program = PayrollDeduction::query()->findOrFail($this->programRosterProgramId);
+        $path = app(EmployeeRosterImportService::class)->template($program->name.' membership roster');
+
+        return response()->download($path, str($program->name)->slug('_').'_members.xlsx')->deleteFileAfterSend(true);
+    }
+
+    public function previewProgramRoster(): void
+    {
+        $this->validate([
+            'programRosterProgramId' => ['required', 'integer'],
+            'programRosterFile' => ['required', 'file', 'mimes:xlsx,xls', 'max:10240'],
+        ]);
+        PayrollDeduction::query()->findOrFail($this->programRosterProgramId);
+        $this->programRosterPreview = app(EmployeeRosterImportService::class)
+            ->preview($this->programRosterFile->getRealPath());
+    }
+
+    public function confirmProgramRoster(): void
+    {
+        if (! $this->ensureStepCanBeEdited(5)) {
+            return;
+        }
+
+        $program = PayrollDeduction::query()->findOrFail($this->programRosterProgramId);
+        $validRows = collect($this->programRosterPreview)->where('valid', true);
+        if ($validRows->isEmpty()) {
+            $this->addError('programRosterFile', 'The workbook has no valid employee rows.');
+
+            return;
+        }
+
+        DB::connection('payroll')->transaction(function () use ($program, $validRows) {
+            PayrollDeductionProgramMember::query()->where('deduction_program_id', $program->id)->delete();
+            foreach ($validRows as $row) {
+                PayrollDeductionProgramMember::query()->create([
+                    'deduction_program_id' => $program->id,
+                    'emp_id' => $row['emp_id'],
+                    'employee_name' => $row['employee_name'],
+                    'source' => 'excel',
+                    'imported_by' => auth()->user()?->emp_id ?? auth()->user()?->username,
+                ]);
+            }
+        });
+
+        $ids = $validRows->pluck('emp_id')->map(fn ($id) => (string) $id)->values()->all();
+        $this->deductionProgramSelections[(string) $program->id] = array_merge(
+            $this->deductionProgramSelections[(string) $program->id] ?? [],
+            ['enabled' => true, 'mode' => 'include', 'employee_ids' => $ids]
+        );
+        $this->programRosterPreview = [];
+        $this->programRosterFile = null;
+        session()->flash('program_roster_status', $program->name.' roster replaced with '.count($ids).' employees.');
+    }
+
+    public function exportExternalRosterTemplate()
+    {
+        $path = app(EmployeeRosterImportService::class)->template('External employee registry');
+
+        return response()->download($path, 'external_employee_registry.xlsx')->deleteFileAfterSend(true);
+    }
+
+    public function previewExternalRoster(): void
+    {
+        $this->validate(['externalRosterFile' => ['required', 'file', 'mimes:xlsx,xls', 'max:10240']]);
+        $this->externalRosterPreview = app(EmployeeRosterImportService::class)
+            ->preview($this->externalRosterFile->getRealPath());
+    }
+
+    public function confirmExternalRoster(): void
+    {
+        $validRows = collect($this->externalRosterPreview)->where('valid', true);
+        if ($validRows->isEmpty()) {
+            $this->addError('externalRosterFile', 'The workbook has no valid employee rows.');
+
+            return;
+        }
+
+        DB::connection('payroll')->transaction(function () use ($validRows) {
+            PayrollExternalEmployeeOverride::query()->update(['is_active' => false]);
+            foreach ($validRows as $row) {
+                PayrollExternalEmployeeOverride::query()->updateOrCreate(
+                    ['emp_id' => $row['emp_id']],
+                    [
+                        'employee_name' => $row['employee_name'],
+                        'source' => 'excel',
+                        'is_active' => true,
+                        'imported_by' => auth()->user()?->emp_id ?? auth()->user()?->username,
+                    ]
+                );
+            }
+        });
+
+        $this->externalRosterPreview = [];
+        $this->externalRosterFile = null;
+        session()->flash('external_roster_status', 'External employee registry replaced with '.$validRows->count().' employees.');
+    }
+
+    public function removeExternalEmployee(int $overrideId): void
+    {
+        PayrollExternalEmployeeOverride::query()->whereKey($overrideId)->update(['is_active' => false]);
+        session()->flash('external_roster_status', 'Employee removed from the payroll-side external registry.');
     }
 
     public function applyDeductionProgram(int $programId): void
@@ -582,7 +726,7 @@ class PayrollGeneration extends Component
         });
 
         $this->refreshLoanImportCounts($import->id);
-        session()->flash('loan_import_status', "Saved {$saved} ".$this->currentDeductionLabel()."(s).");
+        session()->flash('loan_import_status', "Saved {$saved} ".$this->currentDeductionLabel().'(s).');
         $this->dispatch('loan-deduction-batch-saved');
     }
 
@@ -663,7 +807,6 @@ class PayrollGeneration extends Component
         return $suggestions;
     }
 
-
     public function previewLoanImport(): void
     {
         if (! $this->ensureStepCanBeEdited($this->currentStep)) {
@@ -726,81 +869,43 @@ class PayrollGeneration extends Component
             'taxAnnualizationFile' => ['required', 'file', 'mimes:xlsx,xls,xlsm', 'max:20480'],
         ]);
 
-        $file = $data['taxAnnualizationFile'];
-        $path = $file->getRealPath();
-        $columns = [
-            'IG' => 'gross_withholding_tax_adjustment',
-            'GC' => 'withholding_tax_adjustment',
-            'IX' => 'future_months',
-            'IY' => 'annualization_leave_without_pay_months',
-            'IZ' => 'hazard_subsistence_deduction_months',
-            'JA' => 'previous_basic',
-            'JF' => 'previous_hazard',
-            'JJ' => 'previous_subsistence',
-            'JN' => 'previous_mandatory_deductions',
-            'JO' => 'current_mandatory_deductions',
-            'JU' => 'previous_tax_withheld',
-        ];
-        $readColumns = ['B', ...array_keys($columns)];
-        $reader = IOFactory::createReaderForFile($path);
-        $reader->setReadDataOnly(true);
-        $reader->setReadFilter(new class($readColumns) implements IReadFilter {
-            public function __construct(private array $columns) {}
+        $this->taxInputImportPreview = app(TaxInputImportService::class)
+            ->preview($data['taxAnnualizationFile']->getRealPath());
+        $this->taxAnnualizationImportMessage = collect($this->taxInputImportPreview)->where('valid', true)->count()
+            .' valid employee row(s) ready for confirmation.';
+    }
 
-            public function readCell(string $columnAddress, int $row, string $worksheetName = ''): bool
-            {
-                return $row <= 4 || in_array($columnAddress, $this->columns, true);
-            }
-        });
+    public function exportTaxInputTemplate()
+    {
+        $path = app(TaxInputImportService::class)->template();
 
-        $imported = 0;
-        foreach (['hopss_finance-done', 'SUMMARY SALARY (2)', 'SUMMARY SALARY'] as $sheetName) {
-            try {
-                $reader->setLoadSheetsOnly([$sheetName]);
-                $spreadsheet = $reader->load($path);
-            } catch (\Throwable) {
-                continue;
-            }
+        return response()->download($path, 'payroll_tax_inputs.xlsx')->deleteFileAfterSend(true);
+    }
 
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheetImported = 0;
-            for ($row = 5; $row <= $sheet->getHighestDataRow(); $row++) {
-                $empId = $this->normalizeImportedEmpId($this->spreadsheetCellValue($sheet, "B{$row}"));
-                if ($empId === '') {
-                    continue;
-                }
+    public function confirmTaxInputImport(): void
+    {
+        if (! $this->ensureStepCanBeEdited(8)) {
+            return;
+        }
 
-                $values = [];
-                foreach ($columns as $column => $key) {
-                    $value = $this->spreadsheetCellValue($sheet, "{$column}{$row}");
-                    if ($value === null || $value === '' || ! is_numeric($value)) {
-                        continue;
-                    }
+        $validRows = collect($this->taxInputImportPreview)->where('valid', true);
+        if ($validRows->isEmpty()) {
+            $this->addError('taxAnnualizationFile', 'The workbook has no valid tax input rows.');
 
-                    $values[$key] = round((float) $value, 4);
-                }
+            return;
+        }
 
-                if ($values === []) {
-                    continue;
-                }
-
-                $this->taxAnnualizationOverrides[$empId] = [
-                    ...($this->taxAnnualizationOverrides[$empId] ?? []),
-                    ...$values,
-                ];
-                $sheetImported++;
-            }
-
-            if ($sheetImported > 0) {
-                $imported = $sheetImported;
-                break;
-            }
+        foreach ($validRows as $row) {
+            $empId = (string) $row['emp_id'];
+            $this->taxAnnualizationOverrides[$empId] = [
+                ...app(TaxInputImportService::class)->retainedOverrides($this->taxAnnualizationOverrides[$empId] ?? []),
+                ...$row['values'],
+            ];
         }
 
         $this->taxAnnualizationFile = null;
-        $this->taxAnnualizationImportMessage = $imported > 0
-            ? "Imported annualization lookup values for {$imported} employee(s). Click Save as Draft to keep them in the draft."
-            : 'No annualization lookup rows were found in the selected workbook.';
+        $this->taxInputImportPreview = [];
+        $this->taxAnnualizationImportMessage = "Applied tax inputs for {$validRows->count()} employee(s). Save the step to retain them in the draft.";
     }
 
     public function saveDraft(): void
@@ -1149,9 +1254,10 @@ class PayrollGeneration extends Component
         $this->syncSelectedAdjustmentTypeIds($allAdjustmentTypes);
         $adjustmentTypes = $this->selectedAdjustmentTypes($allAdjustmentTypes);
         $this->syncDeductionProgramSelections($deductionPrograms);
-        $rows = $this->payrollRows($compensations, $deductionPrograms);
+        $allRows = $this->payrollRows($compensations, $deductionPrograms);
+        $rows = $this->visiblePayrollRows($allRows);
         $totals = $this->needsPayrollTotals()
-            ? $this->payrollTotals($rows, $compensations)
+            ? $this->payrollTotals($allRows, $compensations)
             : [];
         $previousMraPeriod = $this->previousMraPeriod();
         $previousMraReport = $this->previousMraReport($previousMraPeriod);
@@ -1165,6 +1271,10 @@ class PayrollGeneration extends Component
             'employeeTypeQueryValue' => Employee::employeeTypeQueryValue($this->employeeTypeFilter),
             'compensations' => $compensations,
             'deductionPrograms' => $deductionPrograms,
+            'programSetupRows' => $deductionPrograms
+                ->filter(fn (PayrollDeduction $program) => $this->programSearch === ''
+                    || str($program->name)->lower()->contains(str($this->programSearch)->lower()->squish()->toString()))
+                ->values(),
             'allAdjustmentTypes' => $allAdjustmentTypes,
             'adjustmentTypes' => $adjustmentTypes,
             'loanTypes' => $this->currentStep === 7 ? $this->loanTypes(false) : collect(),
@@ -1174,7 +1284,36 @@ class PayrollGeneration extends Component
             'previousMraReport' => $previousMraReport,
             'totals' => $totals,
             'payrollGenerationAccess' => $this->payrollGenerationAccess(),
+            'unfilteredRowCount' => $allRows->count(),
+            'externalOverrides' => Schema::connection('payroll')->hasTable('payroll_external_employee_overrides')
+                ? PayrollExternalEmployeeOverride::query()->where('is_active', true)->orderBy('employee_name')->get()
+                : collect(),
         ]);
+    }
+
+    private function visiblePayrollRows(Collection $rows): Collection
+    {
+        $search = str($this->tableSearch)->lower()->squish()->toString();
+        if ($search !== '') {
+            $rows = $rows->filter(function (array $row) use ($search) {
+                return str(implode(' ', [
+                    $row['emp_id'] ?? '',
+                    $row['employee_name'] ?? '',
+                    $row['position'] ?? '',
+                    $row['employee_classification'] ?? '',
+                ]))->lower()->contains($search);
+            });
+        }
+
+        $descending = $this->tableSortDirection === 'desc';
+
+        return $rows->sortBy(
+            fn (array $row) => is_numeric(data_get($row, $this->tableSort))
+                ? (float) data_get($row, $this->tableSort)
+                : str(data_get($row, $this->tableSort, ''))->lower()->toString(),
+            SORT_REGULAR,
+            $descending
+        )->values();
     }
 
     private function needsAdjustmentTypeOptions(): bool
@@ -1266,6 +1405,9 @@ class PayrollGeneration extends Component
                 'pagibig_no',
                 'is_active',
             ])
+            ->when(Schema::connection('hris')->hasColumn('tbl_employee', 'is_external'), fn ($query) => $query->addSelect('is_external'))
+            ->when(Schema::connection('hris')->hasColumn('tbl_employee', 'vacation_leave_credits'), fn ($query) => $query->addSelect('vacation_leave_credits'))
+            ->when(Schema::connection('hris')->hasColumn('tbl_employee', 'sick_leave_credits'), fn ($query) => $query->addSelect('sick_leave_credits'))
             ->with([
                 'position:position_id,position_title,salary_grade,remarks',
                 'department:department_id,department,division_id',
@@ -1273,7 +1415,7 @@ class PayrollGeneration extends Component
             ])
             ->when(true, fn ($query) => $this->applyEmployeeScope($query))
             ->where('is_active', 'Y')
-            ->employeeType($this->employeeTypeFilter)
+            ->when(true, fn ($query) => $this->applyPayrollEmployeeType($query))
             ->when($this->appliedEmployeeFilterIds !== [], fn ($query) => $query->whereIn('emp_id', $this->appliedEmployeeFilterIds))
             ->orderBy('lastname')
             ->orderBy('firstname')
@@ -1290,6 +1432,7 @@ class PayrollGeneration extends Component
         $leavePeriodStart = $previousMraPeriod['start'];
         $leavePeriodEnd = $previousMraPeriod['end'];
         $empIds = $employees->pluck('emp_id')->all();
+        $processedLeaveDates = $this->processedLeaveDatesByEmployee($empIds);
         $loanItems = PayrollLoanImportItem::query()
             ->select([
                 'id',
@@ -1338,6 +1481,15 @@ class PayrollGeneration extends Component
         }
 
         $leaves = $leaveQuery->get()->groupBy('emp_id');
+        $cancelledLeaves = EmployeeLeave::query()
+            ->whereIn('emp_id', $empIds)
+            ->whereNotNull('start_date')
+            ->whereNotNull('end_date')
+            ->whereDate('start_date', '<=', $leavePeriodEnd->toDateString())
+            ->whereDate('end_date', '>=', $leavePeriodStart->toDateString())
+            ->whereHas('logs', fn ($query) => $query->whereIn('action', self::EXCLUDED_LEAVE_LOG_ACTIONS))
+            ->get()
+            ->groupBy('emp_id');
         $excludedLeaveDates = $this->excludedLeaveDates($empIds, $periodStart, $periodEnd);
         $labels = PayrollDtrLabel::query()
             ->whereIn('emp_id', $empIds)
@@ -1359,7 +1511,7 @@ class PayrollGeneration extends Component
             : collect();
         $labelOptions = PayrollDtrLabelOption::query()->get()->keyBy('code');
 
-        return $employees->map(function (Employee $employee) use ($compensations, $deductionPrograms, $adjustmentTypes, $salaryMatrix, $loanReferenceByEntity, $loanReferenceLookup, $leaves, $excludedLeaveDates, $labels, $adjustments, $mraAdjustments, $labelOptions, $loanItems, $previousTaxAnnualization, $periodStart, $periodEnd, $leavePeriodStart, $leavePeriodEnd) {
+        return $employees->map(function (Employee $employee) use ($compensations, $deductionPrograms, $adjustmentTypes, $salaryMatrix, $loanReferenceByEntity, $loanReferenceLookup, $leaves, $cancelledLeaves, $processedLeaveDates, $excludedLeaveDates, $labels, $adjustments, $mraAdjustments, $labelOptions, $loanItems, $previousTaxAnnualization, $periodStart, $leavePeriodStart, $leavePeriodEnd) {
             $payBasis = $this->editablePayBasisFor($employee);
             $salaryGrade = $payBasis['salary_grade'];
             $step = $payBasis['step'];
@@ -1372,6 +1524,7 @@ class PayrollGeneration extends Component
                 $leaves->get($employee->emp_id, collect()),
                 $leavePeriodStart,
                 $leavePeriodEnd,
+                $processedLeaveDates->get($employee->emp_id, collect()),
             );
             $leaveDeduction = $this->editableLeaveDeductionFor($employee->emp_id, $leaveDeduction);
             $fallbackDeductionDays = $this->deductionDays(
@@ -1490,7 +1643,6 @@ class PayrollGeneration extends Component
                 + (float) ($statutoryDeductions['ea_deduction'] ?? 0),
                 2
             );
-            $currentTaxMandatoryDeductions = $this->taxAnnualizationOverrideValue($employee->emp_id, 'current_mandatory_deductions', $currentTaxMandatoryDeductions);
             $monthlyWithholdingTaxableIncome = round($basicSalary + $taxSubsistence - $currentTaxMandatoryDeductions, 2);
             $previousAnnualization = $previousTaxAnnualization[$employee->emp_id] ?? [];
             $fallbackPreviousMonths = max(0, $periodStart->month - 1);
@@ -1520,14 +1672,10 @@ class PayrollGeneration extends Component
             $previousSubsistence = $this->taxAnnualizationOverrideValue($employee->emp_id, 'previous_subsistence', $previousAnnualization['subsistence'] ?? $fallbackPreviousSubsistence);
             $previousMandatoryDeductions = $this->taxAnnualizationOverrideValue($employee->emp_id, 'previous_mandatory_deductions', $previousAnnualization['mandatory_deductions'] ?? $fallbackPreviousMandatoryDeductions);
             $previousTaxWithheld = $this->taxAnnualizationOverrideValue($employee->emp_id, 'previous_tax_withheld', $previousAnnualization['tax_withheld'] ?? $fallbackPreviousTaxWithheld);
-            $futureMonths = $this->taxAnnualizationOverrideValue($employee->emp_id, 'future_months', $this->futureMonthsForTax($employee->date_hired, $periodStart));
-            $annualizationLeaveWithoutPayMonths = $this->taxAnnualizationOverrideValue($employee->emp_id, 'annualization_leave_without_pay_months', 0);
-            $hazardSubsistenceDeductionMonths = $this->taxAnnualizationOverrideValue($employee->emp_id, 'hazard_subsistence_deduction_months', 0);
-            $grossWithholdingTaxAdjustment = $this->taxAnnualizationOverrideValue(
-                $employee->emp_id,
-                'gross_withholding_tax_adjustment',
-                PayrollTaxService::MONTHLY_WITHHOLDING_TAX_ADJUSTMENT
-            );
+            $futureMonths = $this->futureMonthsForTax($employee->date_hired, $periodStart);
+            $annualizationLeaveWithoutPayMonths = $leaveWithoutPayMonths;
+            $hazardSubsistenceDeductionMonths = round($hazardLeaveDays / max(1, $this->workingDays), 4);
+            $grossWithholdingTaxAdjustment = PayrollTaxService::MONTHLY_WITHHOLDING_TAX_ADJUSTMENT;
             $withholdingTaxAdjustment = $this->taxAnnualizationOverrideValue($employee->emp_id, 'withholding_tax_adjustment', 0);
             $tax = $this->taxCalculation(
                 $basicSalary + $regularTaxableCompensation + $compensationAdjustments['total'],
@@ -1600,6 +1748,16 @@ class PayrollGeneration extends Component
                 'last_name' => $employee->lastname,
                 'extension' => $employee->extension,
                 'employee_name' => $this->formatPayrollEmployeeName($employee),
+                'is_part_time' => $isPartTime,
+                'is_external' => $this->isExternalEmployee($employee),
+                'employee_classification' => $isPartTime ? 'Part-time' : ($this->isExternalEmployee($employee) ? 'External' : ''),
+                'vacation_leave_credits' => (float) $employee->vacation_leave_credits,
+                'sick_leave_credits' => (float) $employee->sick_leave_credits,
+                'cancelled_leave_count' => $cancelledLeaves->get($employee->emp_id, collect())->count(),
+                'cto_availed_days' => collect($leaveDeduction['items'] ?? [])
+                    ->filter(fn (array $item) => str_contains(strtolower((string) $item['leave_type']), 'cto')
+                        || str_contains(strtolower((string) $item['leave_type']), 'compensatory'))
+                    ->sum(fn (array $item) => CarbonImmutable::parse($item['start_date'])->diffInDays(CarbonImmutable::parse($item['end_date'])) + 1),
                 'department' => $employee->department?->department,
                 'division' => $employee->department?->division?->division,
                 'department_id' => $employee->department_id,
@@ -1713,7 +1871,9 @@ class PayrollGeneration extends Component
         $this->payBasisOverrides = (array) ($state['pay_basis_overrides'] ?? []);
         $this->compensationAdjustments = (array) ($state['compensation_adjustments'] ?? []);
         $this->mandatoryDeductionAdjustments = (array) ($state['mandatory_deduction_adjustments'] ?? []);
-        $this->taxAnnualizationOverrides = (array) ($state['tax_annualization_overrides'] ?? []);
+        $this->taxAnnualizationOverrides = collect((array) ($state['tax_annualization_overrides'] ?? []))
+            ->map(fn ($values) => app(TaxInputImportService::class)->retainedOverrides((array) $values))
+            ->all();
         $this->selectedAdjustmentTypeIds = array_key_exists('selected_adjustment_type_ids', $state)
             ? array_values((array) $state['selected_adjustment_type_ids'])
             : $this->selectedAdjustmentTypeIdsFromAdjustments($this->compensationAdjustments);
@@ -1757,20 +1917,29 @@ class PayrollGeneration extends Component
             || str_contains($name, 'gsis')
             || str_contains($name, 'philhealth')
             || str_contains($name, 'phic')
-            || $name === 'ea'
-            || str_contains($name, 'ea deduction')
-            || str_contains($name, 'employees association')
             || str_contains($name, 'withholding tax');
     }
 
     private function syncDeductionProgramSelections(Collection $programs): void
     {
+        $members = Schema::connection('payroll')->hasTable('payroll_deduction_program_members')
+            ? PayrollDeductionProgramMember::query()
+                ->whereIn('deduction_program_id', $programs->pluck('id'))
+                ->get()
+                ->groupBy('deduction_program_id')
+            : collect();
+
         foreach ($programs as $program) {
             $id = (string) $program->id;
+            $rosterIds = $members->get($program->id, collect())
+                ->pluck('emp_id')
+                ->map(fn ($empId) => (string) $empId)
+                ->values()
+                ->all();
             $this->deductionProgramSelections[$id] = array_merge([
-                'enabled' => false,
-                'mode' => 'all',
-                'employee_ids' => [],
+                'enabled' => $rosterIds !== [],
+                'mode' => $rosterIds === [] ? 'all' : 'include',
+                'employee_ids' => $rosterIds,
                 'amount_mode' => 'program',
                 'employee_amounts' => [],
             ], $this->deductionProgramSelections[$id] ?? []);
@@ -2142,7 +2311,7 @@ class PayrollGeneration extends Component
         return max(1, min(8, (int) $value));
     }
 
-    private function leaveDeductionDetails(Collection $leaves, CarbonImmutable $periodStart, CarbonImmutable $periodEnd): array
+    private function leaveDeductionDetails(Collection $leaves, CarbonImmutable $periodStart, CarbonImmutable $periodEnd, Collection $processedLeaves): array
     {
         $calendarDates = [];
         $workingDates = [];
@@ -2155,14 +2324,19 @@ class PayrollGeneration extends Component
                 continue;
             }
 
-            $item = $this->editableLeaveDateFor($leave, $periodStart, $periodEnd);
+            $item = $this->editableLeaveDateFor(
+                $leave,
+                $periodStart,
+                $periodEnd,
+                $processedLeaves->get((string) $leave->leave_id, collect()),
+            );
             $items[] = $item;
 
             if ($item['excluded']) {
                 continue;
             }
 
-            $withoutPayDays += (float) ($item['days_without_pay'] ?? 0);
+            $withoutPayDays += (float) ($item['effective_days_without_pay'] ?? 0);
 
             $start = CarbonImmutable::parse($item['start_date']);
             $end = CarbonImmutable::parse($item['end_date']);
@@ -2177,7 +2351,8 @@ class PayrollGeneration extends Component
                 continue;
             }
 
-            for ($date = $start; $date->lessThanOrEqualTo($end); $date = $date->addDay()) {
+            foreach ($item['included_dates'] as $includedDate) {
+                $date = CarbonImmutable::parse($includedDate);
                 $key = $date->toDateString();
                 $calendarDates[$key] = true;
 
@@ -2200,7 +2375,7 @@ class PayrollGeneration extends Component
         ];
     }
 
-    private function editableLeaveDateFor(EmployeeLeave $leave, CarbonImmutable $periodStart, CarbonImmutable $periodEnd): array
+    private function editableLeaveDateFor(EmployeeLeave $leave, CarbonImmutable $periodStart, CarbonImmutable $periodEnd, Collection $processedDates): array
     {
         $key = (string) $leave->leave_id;
         $defaultStart = CarbonImmutable::parse($leave->start_date)->max($periodStart);
@@ -2222,6 +2397,18 @@ class PayrollGeneration extends Component
 
         $this->leaveDateOverrides[$key]['start_date'] = $start->toDateString();
         $this->leaveDateOverrides[$key]['end_date'] = $end->toDateString();
+        $rangeDates = collect();
+        for ($date = $start; $date->lessThanOrEqualTo($end); $date = $date->addDay()) {
+            $rangeDates->push($date->toDateString());
+        }
+        $processedInRange = $rangeDates
+            ->filter(fn (string $date) => $processedDates->has($date))
+            ->map(fn (string $date) => ['date' => $date, ...$processedDates->get($date)])
+            ->values();
+        $includedDates = $rangeDates->reject(fn (string $date) => $processedDates->has($date))->values();
+        $availableRatio = $rangeDates->isEmpty() ? 0 : $includedDates->count() / $rangeDates->count();
+        $daysWithoutPay = $this->numericLeaveDeductionValue($leave->days_wopay ?? 0);
+        $daysWithPay = $this->numericLeaveDeductionValue($leave->days_wpay ?? 0);
 
         return [
             'id' => $leave->leave_id,
@@ -2231,8 +2418,14 @@ class PayrollGeneration extends Component
             'end_date' => $end->toDateString(),
             'period' => $this->formatLeavePeriod($start, $end),
             'excluded' => filter_var($this->leaveDateOverrides[$key]['excluded'] ?? false, FILTER_VALIDATE_BOOL),
-            'days_without_pay' => $this->numericLeaveDeductionValue($leave->days_wopay ?? 0),
-            'days_with_pay' => $this->numericLeaveDeductionValue($leave->days_wpay ?? 0),
+            'days_without_pay' => $daysWithoutPay,
+            'days_with_pay' => $daysWithPay,
+            'effective_days_without_pay' => round($daysWithoutPay * $availableRatio, 3),
+            'effective_days_with_pay' => round($daysWithPay * $availableRatio, 3),
+            'included_dates' => $includedDates->all(),
+            'processed_dates' => $processedInRange->all(),
+            'already_processed' => $processedInRange->isNotEmpty(),
+            'fully_processed' => $includedDates->isEmpty() && $processedInRange->isNotEmpty(),
         ];
     }
 
@@ -2494,6 +2687,61 @@ class PayrollGeneration extends Component
         return $this->statutoryContributionService ??= app(StatutoryContributionService::class);
     }
 
+    private function processedLeaveDatesByEmployee(array $empIds): Collection
+    {
+        if ($empIds === []) {
+            return collect();
+        }
+
+        $entries = [];
+        if (Schema::connection('payroll')->hasTable('payroll_processed_leave_dates')) {
+            foreach (PayrollProcessedLeaveDate::query()->whereIn('emp_id', $empIds)->get() as $processed) {
+                $entries[(string) $processed->emp_id][(string) $processed->leave_id][$processed->leave_date->toDateString()] = [
+                    'payroll_run_id' => $processed->payroll_run_id,
+                    'payroll_batch_id' => $processed->payroll_batch_id,
+                    'payroll_period' => null,
+                ];
+            }
+        }
+
+        if (Schema::connection('payroll')->hasTable('payroll_batch_records')) {
+            $records = PayrollBatchRecord::query()
+                ->with('batch:id,payroll_period')
+                ->whereIn('emp_id', $empIds)
+                ->get(['id', 'payroll_batch_id', 'emp_id', 'snapshot_json']);
+
+            foreach ($records as $record) {
+                $items = data_get($record->snapshot_json, 'pay_basis.leave_deduction.items', []);
+                foreach (is_array($items) ? $items : [] as $item) {
+                    if (filter_var($item['excluded'] ?? false, FILTER_VALIDATE_BOOL) || empty($item['id'])) {
+                        continue;
+                    }
+
+                    $dates = collect($item['included_dates'] ?? []);
+                    if ($dates->isEmpty() && ! empty($item['start_date']) && ! empty($item['end_date'])) {
+                        $start = CarbonImmutable::parse($item['start_date']);
+                        $end = CarbonImmutable::parse($item['end_date']);
+                        for ($date = $start; $date->lessThanOrEqualTo($end); $date = $date->addDay()) {
+                            $dates->push($date->toDateString());
+                        }
+                    }
+
+                    foreach ($dates as $date) {
+                        $entries[(string) $record->emp_id][(string) $item['id']][(string) $date] ??= [
+                            'payroll_run_id' => data_get($record->snapshot_json, 'payroll_run_id'),
+                            'payroll_batch_id' => $record->payroll_batch_id,
+                            'payroll_period' => $record->batch?->payroll_period,
+                        ];
+                    }
+                }
+            }
+        }
+
+        return collect($entries)->map(
+            fn (array $leaves) => collect($leaves)->map(fn (array $dates) => collect($dates))
+        );
+    }
+
     private function excludedLeaveDates(array $empIds, CarbonImmutable $periodStart, CarbonImmutable $periodEnd): Collection
     {
         return EmployeeLeave::query()
@@ -2591,6 +2839,59 @@ class PayrollGeneration extends Component
             'department',
             fn ($departmentQuery) => $departmentQuery->whereIn('division_id', $this->selectedDivisionIds)
         );
+    }
+
+    private function applyPayrollEmployeeType($query)
+    {
+        $types = Employee::normalizeEmployeeTypes($this->employeeTypeFilter);
+        if (in_array(Employee::EMPLOYEE_TYPE_ALL, $types, true)) {
+            return $query;
+        }
+
+        $includesExternal = in_array(Employee::EMPLOYEE_TYPE_EXTERNAL, $types, true);
+        if (! $includesExternal) {
+            $overrideIds = Schema::connection('payroll')->hasTable('payroll_external_employee_overrides')
+                ? PayrollExternalEmployeeOverride::query()->where('is_active', true)->pluck('emp_id')->all()
+                : [];
+
+            return $query
+                ->employeeType($types)
+                ->when($overrideIds !== [], fn ($q) => $q->whereNotIn('emp_id', $overrideIds));
+        }
+
+        $nonExternalTypes = array_values(array_diff($types, [Employee::EMPLOYEE_TYPE_EXTERNAL]));
+        $overrideIds = Schema::connection('payroll')->hasTable('payroll_external_employee_overrides')
+            ? PayrollExternalEmployeeOverride::query()->where('is_active', true)->pluck('emp_id')->all()
+            : [];
+
+        return $query->where(function ($typeQuery) use ($nonExternalTypes, $overrideIds) {
+            if ($nonExternalTypes !== []) {
+                $typeQuery->where(fn ($q) => $q->employeeType($nonExternalTypes));
+            } else {
+                $typeQuery->whereRaw('1 = 0');
+            }
+
+            $typeQuery
+                ->orWhere(fn ($q) => $q->employeeType(Employee::EMPLOYEE_TYPE_EXTERNAL))
+                ->when($overrideIds !== [], fn ($q) => $q->orWhereIn('emp_id', $overrideIds));
+        });
+    }
+
+    private function isExternalEmployee(Employee $employee): bool
+    {
+        if ((int) $employee->empstat_id === Employee::EMPSTAT_EXTERNAL || (bool) $employee->is_external) {
+            return true;
+        }
+
+        if (strtolower(trim((string) $employee->department?->division?->division)) === Employee::EXTERNAL_DIVISION_NAME) {
+            return true;
+        }
+
+        return Schema::connection('payroll')->hasTable('payroll_external_employee_overrides')
+            && PayrollExternalEmployeeOverride::query()
+                ->where('emp_id', $employee->emp_id)
+                ->where('is_active', true)
+                ->exists();
     }
 
     private function departmentOptions(): Collection
@@ -2848,38 +3149,9 @@ class PayrollGeneration extends Component
             return round($default, 2);
         }
 
-        return round((float) $value, 2);
-    }
+        $number = (float) $value;
 
-    private function spreadsheetCellValue($sheet, string $coordinate): mixed
-    {
-        $cell = $sheet->getCell($coordinate);
-        if ($cell->isFormula()) {
-            $cachedValue = $cell->getOldCalculatedValue();
-            if ($cachedValue !== null && $cachedValue !== '') {
-                return $cachedValue;
-            }
-        }
-
-        try {
-            return $cell->getCalculatedValue();
-        } catch (\Throwable) {
-            return $cell->getValue();
-        }
-    }
-
-    private function normalizeImportedEmpId(mixed $value): string
-    {
-        $text = trim((string) $value);
-        if ($text === '') {
-            return '';
-        }
-
-        if (is_numeric($text)) {
-            return str_pad((string) (int) $text, 6, '0', STR_PAD_LEFT);
-        }
-
-        return $text;
+        return round($key === 'withholding_tax_adjustment' ? $number : max(0, $number), 2);
     }
 
     private function futureMonthsForTax(mixed $appointmentDate, CarbonImmutable $periodStart): float
@@ -3436,6 +3708,25 @@ class PayrollGeneration extends Component
             ]);
 
             foreach ($rows as $row) {
+                if (Schema::connection('payroll')->hasTable('payroll_processed_leave_dates')) {
+                    foreach (($row['leave_deduction']['items'] ?? []) as $leaveItem) {
+                        if (filter_var($leaveItem['excluded'] ?? false, FILTER_VALIDATE_BOOL)) {
+                            continue;
+                        }
+
+                        foreach (($leaveItem['included_dates'] ?? []) as $leaveDate) {
+                            PayrollProcessedLeaveDate::create([
+                                'payroll_run_id' => $run->id,
+                                'payroll_batch_id' => $batch->id,
+                                'emp_id' => $row['emp_id'],
+                                'leave_id' => $leaveItem['id'],
+                                'leave_date' => $leaveDate,
+                                'processed_by' => $generatedBy,
+                            ]);
+                        }
+                    }
+                }
+
                 PayrollEmployeeSnapshot::create([
                     'payroll_generate_id' => $run->id,
                     'emp_id' => $row['emp_id'],

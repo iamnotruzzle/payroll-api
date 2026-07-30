@@ -323,6 +323,40 @@
                     </button>
                 </div>
             </div>
+
+            <div class="mt-3 grid gap-3 border-t border-slate-200 pt-3 lg:grid-cols-2">
+                <div>
+                    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">External Employee Registry</div>
+                    <p class="mt-1 text-xs text-slate-500">Replaces the persistent payroll-side registry after validation.</p>
+                    <div class="mt-2 flex flex-wrap items-center gap-2">
+                        <input wire:model="externalRosterFile" type="file" accept=".xlsx,.xls" class="text-xs">
+                        <button wire:click="previewExternalRoster" type="button" class="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium">Validate</button>
+                        <button wire:click="exportExternalRosterTemplate" type="button" class="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium">Template</button>
+                        @if ($externalRosterPreview !== [])
+                            <button wire:click="confirmExternalRoster" type="button" class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">Replace Registry</button>
+                        @endif
+                    </div>
+                    @error('externalRosterFile') <div class="mt-1 text-xs text-red-600">{{ $message }}</div> @enderror
+                    @if (session('external_roster_status')) <div class="mt-1 text-xs text-emerald-700">{{ session('external_roster_status') }}</div> @endif
+                    @if ($externalRosterPreview !== [])
+                        <div class="mt-2 text-xs text-slate-600">
+                            {{ collect($externalRosterPreview)->where('valid', true)->count() }} valid ·
+                            {{ collect($externalRosterPreview)->where('valid', false)->count() }} invalid ·
+                            {{ collect($externalRosterPreview)->where('name_mismatch', true)->count() }} name warnings
+                        </div>
+                    @endif
+                    @if ($externalOverrides->isNotEmpty())
+                        <div class="mt-2 flex max-h-24 flex-wrap gap-1 overflow-auto">
+                            @foreach ($externalOverrides as $override)
+                                <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[11px] text-amber-800">
+                                    {{ $override->emp_id }} · {{ $override->employee_name }}
+                                    <button wire:click="removeExternalEmployee({{ $override->id }})" type="button" class="font-bold" aria-label="Remove external employee">×</button>
+                                </span>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            </div>
         </div>
 
         <div class="grid gap-2 p-3 md:grid-cols-3 lg:grid-cols-9">
@@ -348,6 +382,29 @@
                     <span class="mt-3 block font-medium leading-snug">{{ $label }}</span>
                 </button>
             @endforeach
+        </div>
+
+        <div class="flex flex-wrap items-end gap-3 border-t border-slate-200 bg-slate-50 px-3 py-3">
+            <div class="min-w-64 flex-1">
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Search this step</label>
+                <input wire:model.live.debounce.250ms="tableSearch" type="search" placeholder="Employee ID, name, position, or classification" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Sort rows</label>
+                <select wire:model.live="tableSort" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <option value="employee_name">Employee Name</option>
+                    <option value="emp_id">Employee ID</option>
+                    <option value="position">Position</option>
+                    <option value="basic_salary">Basic Salary</option>
+                    <option value="gross">Gross Pay</option>
+                    <option value="net_compensation">Net Compensation</option>
+                    <option value="net_after_loan_deductions">Final Net Pay</option>
+                </select>
+            </div>
+            <button wire:click="sortTable('{{ $tableSort }}')" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium">
+                {{ $tableSortDirection === 'asc' ? 'Ascending ↑' : 'Descending ↓' }}
+            </button>
+            <div class="pb-2 text-xs text-slate-500">{{ $rows->count() }} of {{ $unfilteredRowCount }} employees</div>
         </div>
     </div>
 
@@ -447,6 +504,12 @@
                                 <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
                                 <td class="payroll-sticky-employee-name-cell px-4 py-3">
                                     <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
+                                    <div class="mt-1 text-[11px] text-slate-500">
+                                        HRIS credits: VL {{ number_format($row['vacation_leave_credits'], 3) }} · SL {{ number_format($row['sick_leave_credits'], 3) }}
+                                    </div>
+                                    <div class="text-[11px] text-slate-500">
+                                        CTO availed {{ number_format($row['cto_availed_days'], 2) }} day(s) · Cancelled leaves {{ $row['cancelled_leave_count'] }}
+                                    </div>
                                 </td>
                                 <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">
@@ -461,21 +524,41 @@
                                             @php
                                                 $leaveId = (string) $leaveItem['id'];
                                             @endphp
-                                            <div class="rounded-md border border-slate-200 bg-white p-2 {{ $leaveItem['excluded'] ? 'opacity-60' : '' }}">
+                                            <div class="rounded-md border bg-white p-2 {{ $leaveItem['already_processed'] ? 'border-amber-300' : 'border-slate-200' }} {{ $leaveItem['excluded'] ? 'opacity-60' : '' }}">
                                                 <div class="flex flex-wrap items-center justify-between gap-2">
                                                     <div>
                                                         <div class="text-xs font-semibold text-slate-700">{{ $leaveItem['leave_type'] }}</div>
                                                         <div class="text-[11px] text-slate-500">HRIS: {{ $leaveItem['original_period'] }}</div>
+                                                        @if ($leaveItem['fully_processed'])
+                                                            <span class="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-800">Already included in earlier payroll</span>
+                                                        @elseif ($leaveItem['already_processed'])
+                                                            <span class="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-800">Partially included earlier</span>
+                                                        @endif
                                                     </div>
                                                     <label class="flex items-center gap-1 text-xs text-slate-600">
-                                                        <input wire:model="leaveDateOverrides.{{ $leaveId }}.excluded" type="checkbox" @disabled(! $canEditStep1HrFields) class="rounded border-slate-300 text-red-600 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-60">
+                                                        <input wire:model.live="leaveDateOverrides.{{ $leaveId }}.excluded" type="checkbox" @disabled(! $canEditStep1HrFields) class="rounded border-slate-300 text-red-600 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-60">
                                                         Exclude
                                                     </label>
                                                 </div>
                                                 <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                                                    <input wire:model="leaveDateOverrides.{{ $leaveId }}.start_date" type="date" @disabled(! $canEditStep1HrFields) class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
-                                                    <input wire:model="leaveDateOverrides.{{ $leaveId }}.end_date" type="date" @disabled(! $canEditStep1HrFields) class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
+                                                    <input wire:model.live.debounce.250ms="leaveDateOverrides.{{ $leaveId }}.start_date" type="date" min="{{ $previousMraPeriod['start']->toDateString() }}" max="{{ $previousMraPeriod['end']->toDateString() }}" aria-label="Inclusive leave start date" @disabled(! $canEditStep1HrFields) class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
+                                                    <input wire:model.live.debounce.250ms="leaveDateOverrides.{{ $leaveId }}.end_date" type="date" min="{{ $previousMraPeriod['start']->toDateString() }}" max="{{ $previousMraPeriod['end']->toDateString() }}" aria-label="Inclusive leave end date" @disabled(! $canEditStep1HrFields) class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
                                                 </div>
+                                                @if ($leaveItem['already_processed'])
+                                                    <div class="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">
+                                                        Excluded from this calculation:
+                                                        @foreach ($leaveItem['processed_dates'] as $processed)
+                                                            <span class="font-medium">
+                                                                {{ \Carbon\CarbonImmutable::parse($processed['date'])->format('M d, Y') }}
+                                                                @if ($processed['payroll_period'] ?? null)
+                                                                    ({{ $processed['payroll_period'] }})
+                                                                @elseif ($processed['payroll_run_id'] ?? null)
+                                                                    (Run #{{ $processed['payroll_run_id'] }})
+                                                                @endif
+                                                            </span>@if (! $loop->last), @endif
+                                                        @endforeach
+                                                    </div>
+                                                @endif
                                             </div>
                                         @empty
                                             <span class="text-slate-400">-</span>
@@ -562,7 +645,12 @@
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}">
                                 <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
-                                <td class="payroll-sticky-employee-name-cell px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
+                                <td class="payroll-sticky-employee-name-cell px-4 py-3 font-medium">
+                                    {{ $row['employee_name'] }}
+                                    @if ($row['is_part_time'])
+                                        <span class="ml-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-violet-700">Part-time</span>
+                                    @endif
+                                </td>
                                 <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['basic_salary'], 2) }}</td>
                                 @forelse ($compensations as $item)
@@ -673,10 +761,11 @@
                                 @foreach (['basic_salary', 'subsistence', 'laundry', 'pera'] as $field)
                                     <td class="px-3 py-2 text-right align-top">
                                         <input
-                                            wire:model="compensationAdjustments.{{ $row['emp_id'] }}.{{ $field }}"
+                                            wire:model.live.debounce.250ms="compensationAdjustments.{{ $row['emp_id'] }}.{{ $field }}"
                                             type="number"
                                             step="0.01"
-                                            class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"
+                                            placeholder="Signed ± adjustment"
+                                            class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"
                                         >
                                     </td>
                                 @endforeach
@@ -840,9 +929,10 @@
                                         $baseSource = $source === 'statutory_deductions' ? 'base_statutory_deductions' : 'base_statutory_government_shares';
                                     @endphp
                                     <td class="px-4 py-3 text-right">
-                                        <div class="font-medium">{{ number_format($row[$source][$deductionKey] ?? 0, 2) }}</div>
+                                        <div class="text-[10px] uppercase text-slate-400">Base {{ number_format($row[$baseSource][$deductionKey] ?? 0, 2) }}</div>
+                                        <div class="font-medium">Result {{ number_format($row[$source][$deductionKey] ?? 0, 2) }}</div>
                                         <input
-                                            wire:model="mandatoryDeductionAdjustments.{{ $row['emp_id'] }}.{{ $deductionKey }}"
+                                            wire:model.live.debounce.250ms="mandatoryDeductionAdjustments.{{ $row['emp_id'] }}.{{ $deductionKey }}"
                                             type="number"
                                             step="0.01"
                                             placeholder="{{ number_format($row[$baseSource][$deductionKey] ?? 0, 2) }}"
@@ -873,6 +963,48 @@
                 @include('livewire.payroll.partials.step-save-button')
             </div>
 
+            <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <h3 class="font-semibold">Import Program Membership</h3>
+                <p class="mt-1 text-sm text-slate-600">Choose one program. Confirming a valid workbook replaces its persistent employee roster.</p>
+                <div class="mt-3 flex flex-wrap items-end gap-2">
+                    <label class="min-w-64 text-xs font-semibold uppercase text-slate-500">
+                        Program
+                        <select wire:model="programRosterProgramId" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case">
+                            <option value="">Choose program</option>
+                            @foreach ($deductionPrograms as $program)
+                                <option value="{{ $program->id }}">{{ $program->name }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <input wire:model="programRosterFile" type="file" accept=".xlsx,.xls" class="pb-2 text-xs">
+                    <button wire:click="previewProgramRoster" type="button" class="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Validate Excel</button>
+                    <button wire:click="exportProgramRosterTemplate" type="button" @disabled(! $programRosterProgramId) class="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-medium disabled:opacity-50">Download Template</button>
+                    @if ($programRosterPreview !== [])
+                        <button wire:click="confirmProgramRoster" type="button" class="rounded bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">Replace Roster</button>
+                    @endif
+                </div>
+                @error('programRosterProgramId') <div class="mt-2 text-xs text-red-600">{{ $message }}</div> @enderror
+                @error('programRosterFile') <div class="mt-2 text-xs text-red-600">{{ $message }}</div> @enderror
+                @if (session('program_roster_status')) <div class="mt-2 text-sm text-emerald-700">{{ session('program_roster_status') }}</div> @endif
+                @if ($programRosterPreview !== [])
+                    <div class="mt-3 max-h-64 overflow-auto rounded border border-slate-200">
+                        <table class="min-w-full text-xs">
+                            <thead class="sticky top-0 bg-slate-100 text-left"><tr><th class="p-2">Row</th><th class="p-2">Employee ID</th><th class="p-2">Employee</th><th class="p-2">Validation</th></tr></thead>
+                            <tbody>
+                                @foreach ($programRosterPreview as $item)
+                                    <tr class="border-t border-slate-100">
+                                        <td class="p-2">{{ $item['row'] }}</td><td class="p-2">{{ $item['emp_id'] ?: '-' }}</td><td class="p-2">{{ $item['employee_name'] ?: '-' }}</td>
+                                        <td class="p-2 {{ $item['valid'] ? 'text-emerald-700' : 'text-red-700' }}">
+                                            {{ $item['valid'] ? ($item['name_mismatch'] ? 'Valid · name differs from HRIS' : 'Valid') : implode(' ', $item['errors']) }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
+
             @php
                 $activeDeductionPrograms = $deductionPrograms->filter(fn ($program) => filter_var($deductionProgramSelections[(string) $program->id]['enabled'] ?? false, FILTER_VALIDATE_BOOL));
                 $programPreviewWidth = max(920, 720 + ($activeDeductionPrograms->count() * 170));
@@ -881,7 +1013,10 @@
             <fieldset @disabled(! $canEditCurrentStep) class="contents">
             <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-4 py-3">
-                    <h3 class="font-semibold">Program Setup</h3>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <h3 class="font-semibold">Program Setup</h3>
+                        <input wire:model.live.debounce.250ms="programSearch" type="search" placeholder="Filter programs" class="w-64 rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </div>
                 </div>
                 <div class="payroll-table-scroll overflow-x-auto">
                     <table class="min-w-[1120px] border-separate border-spacing-0 text-sm">
@@ -897,7 +1032,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse ($deductionPrograms as $program)
+                            @forelse ($programSetupRows as $program)
                                 @php
                                     $selection = $deductionProgramSelections[(string) $program->id] ?? ['enabled' => false, 'mode' => 'all', 'employee_ids' => [], 'amount_mode' => 'program'];
                                     $isEnabled = filter_var($selection['enabled'] ?? false, FILTER_VALIDATE_BOOL);
@@ -1639,6 +1774,14 @@
                 </div>
                 @include('livewire.payroll.partials.step-save-button')
             </div>
+            @include('livewire.payroll.partials.tax-input-import', [
+                'fileModel' => 'taxAnnualizationFile',
+                'preview' => $taxInputImportPreview,
+                'importMessage' => $taxAnnualizationImportMessage,
+                'validateAction' => 'importTaxAnnualizationLookup',
+                'templateAction' => 'exportTaxInputTemplate',
+                'confirmAction' => 'confirmTaxInputImport',
+            ])
             <div class="hidden payroll-table-scroll overflow-x-auto">
                 <table class="min-w-[2720px] divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
@@ -1665,9 +1808,9 @@
                             <th class="px-4 py-3 text-right">TAXABLE INCOME (YEAR)</th>
                             <th class="px-4 py-3 text-right">TOTAL TAX DUE</th>
                             <th class="px-4 py-3 text-right">TAX</th>
-                            <th class="px-4 py-3 text-right">TAX ADJ</th>
+                            <th class="px-4 py-3 text-right">AUTOMATIC TAX ADDITION</th>
                             <th class="px-4 py-3 text-right">WITHHOLDING TAX (GROSS)</th>
-                            <th class="px-4 py-3 text-right">WITHHOLDING TAX (ADJUSTMENT)</th>
+                            <th class="px-4 py-3 text-right">TAX ADJUSTMENT</th>
                             <th class="px-4 py-3 text-right">NET PAY</th>
                             <th class="px-4 py-3 text-right">15th</th>
                             <th class="px-4 py-3 text-right">30th</th>
@@ -1787,9 +1930,9 @@
                             <th class="px-4 py-3 text-right">TOTAL TAX WITHHELD</th>
                             <th class="px-4 py-3 text-right">(UNDER)/OVER WITHHELD</th>
                             <th class="px-4 py-3 text-right">MONTHLY TAX DUE</th>
-                            <th class="px-4 py-3 text-right">TAX ADJ</th>
+                            <th class="px-4 py-3 text-right">AUTOMATIC TAX ADDITION</th>
                             <th class="px-4 py-3 text-right">WITHHOLDING TAX (GROSS)</th>
-                            <th class="px-4 py-3 text-right">WITHHOLDING TAX (ADJUSTMENT)</th>
+                            <th class="px-4 py-3 text-right">TAX ADJUSTMENT</th>
                             <th class="px-4 py-3 text-right">NET PAY</th>
                             <th class="px-4 py-3 text-right">15TH</th>
                             <th class="px-4 py-3 text-right">30TH</th>
@@ -1804,37 +1947,37 @@
                                 <td class="px-4 py-3 text-right">{{ $row['tax']['salary_grade'] ?? '-' }} / {{ $row['step'] ?? '-' }}</td>
                                 <td class="px-4 py-3">{{ $row['tax']['entry_date'] ?? '-' }}</td>
                                 <td class="px-4 py-3">-</td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.future_months" type="number" step="0.0001" placeholder="{{ number_format($row['tax']['future_months'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.annualization_leave_without_pay_months" type="number" step="0.0001" placeholder="{{ number_format($row['tax']['annualization_leave_without_pay_months'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.hazard_subsistence_deduction_months" type="number" step="0.0001" placeholder="{{ number_format($row['tax']['hazard_subsistence_deduction_months'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_basic" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_basic'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_months'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annualization_leave_without_pay_months'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['hazard_subsistence_deduction_months'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right"><input wire:model.live.debounce.250ms="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_basic" type="number" min="0" step="0.01" placeholder="{{ number_format($row['tax']['previous_basic'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_basic'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_basic'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_basic'] ?? 0, 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_hazard" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_hazard'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model.live.debounce.250ms="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_hazard" type="number" min="0" step="0.01" placeholder="{{ number_format($row['tax']['previous_hazard'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_hazard'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_hazard'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_hazard'] ?? 0, 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_subsistence" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_subsistence'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model.live.debounce.250ms="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_subsistence" type="number" min="0" step="0.01" placeholder="{{ number_format($row['tax']['previous_subsistence'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_subsistence'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_subsistence'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_subsistence'] ?? 0, 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_mandatory_deductions" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_mandatory_deductions'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model.live.debounce.250ms="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_mandatory_deductions" type="number" min="0" step="0.01" placeholder="{{ number_format($row['tax']['previous_mandatory_deductions'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_mandatory_deductions'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_mandatory_deductions'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_mandatory_deductions'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_monthly_taxable_income'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_taxable_income'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['annual_tax_due'] ?? 0, 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_tax_withheld" type="number" step="0.01" placeholder="{{ number_format($row['tax']['previous_tax_withheld'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model.live.debounce.250ms="taxAnnualizationOverrides.{{ $row['emp_id'] }}.previous_tax_withheld" type="number" min="0" step="0.01" placeholder="{{ number_format($row['tax']['previous_tax_withheld'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['current_tax_withheld'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['future_tax_withheld'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['total_tax_withheld'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['under_over_withheld'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['monthly_annualized_tax_due'] ?? 0, 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.gross_withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['gross_withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right">{{ number_format(($row['tax']['gross_withholding_tax_adjustment'] ?? 0) + ($row['tax']['supplemental_tax_due'] ?? 0), 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['withholding_tax_gross'] ?? $row['tax']['monthly_tax_due'], 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model="taxAnnualizationOverrides.{{ $row['emp_id'] }}.withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input wire:model.live.debounce.250ms="taxAnnualizationOverrides.{{ $row['emp_id'] }}.withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_loan_deductions'], 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['fifteenth'], 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['thirtieth'], 2) }}</td>

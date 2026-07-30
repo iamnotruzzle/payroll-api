@@ -70,6 +70,9 @@
                             <th class="px-4 py-3">Details</th>
                             <th class="px-4 py-3 text-right">SL</th>
                             <th class="px-4 py-3 text-right">VL</th>
+                            <th class="px-4 py-3 text-right">CTO Availed</th>
+                            <th class="px-4 py-3 text-right">Leave Credits</th>
+                            <th class="px-4 py-3 text-right">Cancelled Leaves</th>
                             <th class="px-4 py-3 text-right">Undertime/Tardy</th>
                             <th class="px-4 py-3 text-right">Day Equiv</th>
                             <th class="px-4 py-3 text-right">Physically Reported</th>
@@ -97,19 +100,28 @@
                                 </td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['sick_leave_days'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['vacation_leave_days'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['cto_days'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">
+                                    <div>VL {{ number_format($row['vl_balance'], 3) }}</div>
+                                    <div>SL {{ number_format($row['sl_balance'], 3) }}</div>
+                                </td>
+                                <td class="px-4 py-3 text-right">{{ $row['cancelled_leave_count'] }}</td>
                                 <td class="px-4 py-3 text-right">{{ $this->formatMinutes($row['undertime_minutes']) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['day_equivalent'], 3) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['physically_reported_hours'], 2) }} hours</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-8 text-center text-slate-500">No active employees found for this department.</td>
+                                <td colspan="10" class="px-4 py-8 text-center text-slate-500">No active employees found for this department.</td>
                             </tr>
                         @endforelse
                     </tbody>
                     <tfoot class="bg-slate-50 text-sm font-semibold">
                         <tr>
                             <td colspan="2" class="px-4 py-3">Totals</td>
+                            <td class="px-4 py-3"></td>
+                            <td class="px-4 py-3"></td>
+                            <td class="px-4 py-3"></td>
                             <td class="px-4 py-3"></td>
                             <td class="px-4 py-3"></td>
                             <td class="px-4 py-3 text-right">{{ $this->formatMinutes($previewRows->sum('undertime_minutes')) }}</td>

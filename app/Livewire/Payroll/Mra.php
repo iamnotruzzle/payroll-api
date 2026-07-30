@@ -168,6 +168,14 @@ class Mra extends Component
             ->whereDoesntHave('logs', fn ($query) => $query->whereIn('action', [2, 3]))
             ->get()
             ->groupBy('emp_id');
+        $cancelledLeaves = EmployeeLeave::query()
+            ->with('leaveType')
+            ->whereIn('emp_id', $empIds)
+            ->whereDate('start_date', '<=', $this->to)
+            ->whereDate('end_date', '>=', $this->from)
+            ->whereHas('logs', fn ($query) => $query->whereIn('action', [2, 3]))
+            ->get()
+            ->groupBy('emp_id');
         $labels = PayrollDtrLabel::query()->whereIn('emp_id', $empIds)->whereBetween('dtr_date', [$this->from, $this->to])->get()->groupBy('emp_id');
         $adjustments = PayrollDtrAdjustment::query()->whereIn('emp_id', $empIds)->whereBetween('dtr_date', [$this->from, $this->to])->get()->groupBy('emp_id');
         $schedules = PayrollDtrScheduleEncoding::query()->whereIn('emp_id', $empIds)->whereBetween('dtr_date', [$this->from, $this->to])->get()->groupBy('emp_id');
@@ -185,7 +193,7 @@ class Mra extends Component
             ->get()
             ->groupBy('employee_id');
 
-        return $employees->map(function (Employee $employee) use ($dtrs, $leaves, $labels, $adjustments, $schedules, $templates, $labelOptions, $holidays, $holidaysByDate, $assignments) {
+        return $employees->map(function (Employee $employee) use ($dtrs, $leaves, $cancelledLeaves, $labels, $adjustments, $schedules, $templates, $labelOptions, $holidays, $holidaysByDate, $assignments) {
             return $this->buildMraRow(
                 $employee,
                 $dtrs->get($employee->emp_id, collect()),
@@ -197,16 +205,18 @@ class Mra extends Component
                 $labelOptions,
                 $holidaysByDate,
                 $assignments->get($employee->emp_id, collect()),
+                $cancelledLeaves->get($employee->emp_id, collect()),
             );
         });
     }
 
-    private function buildMraRow(Employee $employee, $dtrs, $leaves, $labels, $adjustments, $schedules, $templates, $labelOptions, $holidaysByDate, $assignments): array
+    private function buildMraRow(Employee $employee, $dtrs, $leaves, $labels, $adjustments, $schedules, $templates, $labelOptions, $holidaysByDate, $assignments, $cancelledLeaves): array
     {
         $details = [];
         $sickLeaveDays = 0.0;
         $vacationLeaveDays = 0.0;
         $undertimeMinutes = 0;
+        $ctoDays = 0.0;
 
         foreach ($leaves as $leave) {
             $leaveName = $leave->leave_type_name;
@@ -217,6 +227,9 @@ class Mra extends Component
                 $sickLeaveDays += $leaveDays;
             } elseif (str_contains(strtolower($leaveName), 'vacation') || str_contains(strtolower($leaveName), 'forced')) {
                 $vacationLeaveDays += $leaveDays;
+            }
+            if (str_contains(strtolower($leaveName), 'cto') || str_contains(strtolower($leaveName), 'compensatory')) {
+                $ctoDays += $leaveDays;
             }
 
             foreach ($leaveDates as $date) {
@@ -273,10 +286,13 @@ class Mra extends Component
             'position' => $employee->position?->position_title,
             'sick_leave_days' => round($sickLeaveDays, 2),
             'vacation_leave_days' => round($vacationLeaveDays, 2),
+            'cto_days' => round($ctoDays, 2),
+            'cancelled_leave_count' => $cancelledLeaves->count(),
             'undertime_minutes' => $undertimeMinutes,
             'day_equivalent' => round($undertimeMinutes / 480, 3),
             'physically_reported_hours' => round($physicallyReportedHours, 2),
             'vl_balance' => (float) $employee->vacation_leave_credits,
+            'sl_balance' => (float) $employee->sick_leave_credits,
             'ending_balance' => max(0, (float) $employee->vacation_leave_credits - round($undertimeMinutes / 480, 3)),
             'details' => collect($details)->sortBy('date')->values()->all(),
         ];

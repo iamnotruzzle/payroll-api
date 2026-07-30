@@ -7,12 +7,17 @@ use App\Models\Hris\Division;
 use App\Models\Hris\Employee;
 use App\Models\Hris\SalaryGrade;
 use App\Services\Payroll\PayrollTaxService;
+use App\Services\Payroll\StatutoryContributionService;
+use App\Services\Payroll\TaxInputImportService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class HazardPayrollGeneration extends Component
 {
+    use WithFileUploads;
+
     public ?int $divisionId = null;
 
     public ?int $departmentId = null;
@@ -28,6 +33,14 @@ class HazardPayrollGeneration extends Component
     public array $adjustments = [];
 
     public array $overpayments = [];
+
+    public array $taxOverrides = [];
+
+    public $taxInputFile;
+
+    public array $taxInputImportPreview = [];
+
+    public ?string $taxInputImportMessage = null;
 
     public int $currentStep = 1;
 
@@ -80,7 +93,7 @@ class HazardPayrollGeneration extends Component
                 'adjustments' => $rows->sum('adjustment'),
                 'overpayments' => $rows->sum('overpayment'),
                 'adjusted_gross_hazard_pay' => $rows->sum('adjusted_gross_hazard_pay'),
-                'withholding_tax' => $rows->sum('tax.monthly_tax_due'),
+                'withholding_tax' => $rows->sum('tax.hazard_withholding_tax'),
                 'net_after_tax' => $rows->sum('net_after_tax'),
             ],
         ]);
@@ -99,6 +112,46 @@ class HazardPayrollGeneration extends Component
     public function previousStep(): void
     {
         $this->goToStep($this->currentStep - 1);
+    }
+
+    public function previewTaxInputImport(): void
+    {
+        $data = $this->validate([
+            'taxInputFile' => ['required', 'file', 'mimes:xlsx,xls,xlsm', 'max:20480'],
+        ]);
+        $this->taxInputImportPreview = app(TaxInputImportService::class)
+            ->preview($data['taxInputFile']->getRealPath());
+        $this->taxInputImportMessage = collect($this->taxInputImportPreview)->where('valid', true)->count()
+            .' valid employee row(s) ready for confirmation.';
+    }
+
+    public function exportTaxInputTemplate()
+    {
+        $path = app(TaxInputImportService::class)->template();
+
+        return response()->download($path, 'hazard_payroll_tax_inputs.xlsx')->deleteFileAfterSend(true);
+    }
+
+    public function confirmTaxInputImport(): void
+    {
+        $validRows = collect($this->taxInputImportPreview)->where('valid', true);
+        if ($validRows->isEmpty()) {
+            $this->addError('taxInputFile', 'The workbook has no valid tax input rows.');
+
+            return;
+        }
+
+        foreach ($validRows as $row) {
+            $empId = (string) $row['emp_id'];
+            $this->taxOverrides[$empId] = [
+                ...app(TaxInputImportService::class)->retainedOverrides($this->taxOverrides[$empId] ?? []),
+                ...$row['values'],
+            ];
+        }
+
+        $this->taxInputFile = null;
+        $this->taxInputImportPreview = [];
+        $this->taxInputImportMessage = "Applied tax inputs for {$validRows->count()} employee(s).";
     }
 
     private function hazardRows(): Collection
@@ -138,17 +191,39 @@ class HazardPayrollGeneration extends Component
                 $adjustment = round((float) ($this->adjustments[$employee->emp_id] ?? 0), 2);
                 $overpayment = round((float) ($this->overpayments[$employee->emp_id] ?? 0), 2);
                 $adjustedGrossHazardPay = round($grossHazardPay + $adjustment - $overpayment, 2);
+                $taxInputs = app(TaxInputImportService::class)->retainedOverrides($this->taxOverrides[$employee->emp_id] ?? []);
+                $contributions = app(StatutoryContributionService::class)->calculate($basicSalary, $this->period.'-01');
+                $currentMandatoryDeductions = round((float) ($contributions['employee_total'] ?? 0), 2);
+                $currentSubsistence = PayrollTaxService::PROJECTED_MONTHLY_SUBSISTENCE;
+                $futureMonths = $this->futureMonthsForTax($employee->date_hired, CarbonImmutable::createFromFormat('Y-m', $this->period)->startOfMonth());
+                $annualization = app(PayrollTaxService::class)->annualization([
+                    'current_basic' => $basicSalary,
+                    'current_hazard' => $adjustedGrossHazardPay,
+                    'current_subsistence' => $currentSubsistence,
+                    'current_mandatory_deductions' => $currentMandatoryDeductions,
+                    'previous_basic' => $this->taxInputValue($taxInputs, 'previous_basic'),
+                    'previous_hazard' => $this->taxInputValue($taxInputs, 'previous_hazard'),
+                    'previous_subsistence' => $this->taxInputValue($taxInputs, 'previous_subsistence'),
+                    'previous_mandatory_deductions' => $this->taxInputValue($taxInputs, 'previous_mandatory_deductions'),
+                    'previous_tax_withheld' => $this->taxInputValue($taxInputs, 'previous_tax_withheld'),
+                    'future_months' => $futureMonths,
+                    'hazard_rate' => $hazardRate,
+                    'withholding_tax_adjustment' => $this->taxInputValue($taxInputs, 'withholding_tax_adjustment'),
+                ]);
+                $hazardWithholdingTax = app(PayrollTaxService::class)->hazardWithholdingTax($annualization);
                 $tax = [
                     'entry_date' => $employee->date_hired?->format('Y-m-d'),
                     'salary_grade' => $salaryGrade ?: null,
                     'salary' => $basicSalary,
-                    'subsistence' => 0.0,
+                    'subsistence' => $currentSubsistence,
                     'hazard' => $adjustedGrossHazardPay,
-                    'tax_adjustment' => 0.0,
+                    'tax_adjustment' => $this->taxInputValue($taxInputs, 'withholding_tax_adjustment'),
                     'total_months' => PayrollTaxService::ANNUALIZED_MONTHS,
                     'leave_without_pay_months' => 0.0,
-                    ...app(PayrollTaxService::class)->calculation($adjustedGrossHazardPay, 0),
-                    'monthly_net_income' => $adjustedGrossHazardPay,
+                    ...$annualization,
+                    'monthly_mandatory_deductions' => $currentMandatoryDeductions,
+                    'monthly_net_income' => round($basicSalary + $currentSubsistence + $adjustedGrossHazardPay - $currentMandatoryDeductions, 2),
+                    'hazard_withholding_tax' => $hazardWithholdingTax,
                 ];
 
                 return [
@@ -166,9 +241,50 @@ class HazardPayrollGeneration extends Component
                     'overpayment' => $overpayment,
                     'adjusted_gross_hazard_pay' => $adjustedGrossHazardPay,
                     'tax' => $tax,
-                    'net_after_tax' => round($adjustedGrossHazardPay - $tax['monthly_tax_due'], 2),
+                    'net_after_tax' => round($adjustedGrossHazardPay - $hazardWithholdingTax, 2),
                 ];
             });
+    }
+
+    private function taxInputValue(array $inputs, string $key): float
+    {
+        $value = $inputs[$key] ?? 0;
+
+        if (! is_numeric($value)) {
+            return 0.0;
+        }
+
+        $number = (float) $value;
+
+        return round($key === 'withholding_tax_adjustment' ? $number : max(0, $number), 2);
+    }
+
+    private function futureMonthsForTax(mixed $appointmentDate, CarbonImmutable $periodStart): float
+    {
+        if ($periodStart->month >= 12) {
+            return 0.0;
+        }
+
+        $futureStart = $periodStart->addMonthNoOverflow()->startOfMonth();
+        $futureEnd = $periodStart->endOfYear();
+        if ($appointmentDate) {
+            $appointment = CarbonImmutable::parse($appointmentDate)->startOfDay();
+            if ($appointment->greaterThan($futureEnd)) {
+                return 0.0;
+            }
+            if ($appointment->greaterThan($futureStart)) {
+                $futureStart = $appointment;
+            }
+        }
+
+        $weekdays = 0;
+        for ($date = $futureStart; $date->lessThanOrEqualTo($futureEnd); $date = $date->addDay()) {
+            if ($date->isWeekday()) {
+                $weekdays++;
+            }
+        }
+
+        return round(min(12 - $periodStart->month, max(0, $weekdays / 22)), 4);
     }
 
     private function salaryMatrix(): array
