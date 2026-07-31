@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Hris\Employee;
 use App\Models\Hris\EmployeeDtr;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class TimePunchController extends Controller
@@ -39,54 +41,62 @@ class TimePunchController extends Controller
         $employeeId = (string) auth()->user()->emp_id;
         $today = CarbonImmutable::today()->toDateString();
         $now = CarbonImmutable::now();
-        $todayDtr = $this->dtrForDate($employeeId, $today);
-        $openPreviousDtr = $this->openPreviousDtr($employeeId);
-        $dtr = $todayDtr ?: new EmployeeDtr([
-            'emp_id' => $employeeId,
-            'dtr_date' => $today,
-            'machine_id' => '103',
-        ]);
 
-        if ($data['punch'] === 'time_in') {
-            if ($openPreviousDtr) {
-                return back()->with('warning', 'Record your pending time out before starting a new DTR day.');
-            }
+        $result = DB::connection('hris')->transaction(function () use ($data, $employeeId, $today, $now): array {
+            // Serialize punches for this employee. Without this lock, two simultaneous
+            // Time In requests can both pass the existence check and insert a row.
+            Employee::query()
+                ->whereKey($employeeId)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-            if (filled($dtr->timein_am)) {
-                return back()->with('warning', 'Time in has already been recorded for today.');
-            }
+            $todayDtr = $this->dtrForDate($employeeId, $today);
+            $openPreviousDtr = $this->openPreviousDtr($employeeId);
+            $dtr = $todayDtr ?: new EmployeeDtr([
+                'emp_id' => $employeeId,
+                'dtr_date' => $today,
+                'machine_id' => '103',
+            ]);
 
-            $dtr->timein_am = $now->toTimeString();
-            $message = 'Time in recorded at '.$now->format('h:i A').'.';
-        } else {
-            $dtr = $todayDtr ?: $openPreviousDtr;
+            if ($data['punch'] === 'time_in') {
+                if ($openPreviousDtr) {
+                    return ['warning', 'Record your pending time out before starting a new DTR day.'];
+                }
 
-            if (! $dtr) {
-                return back()->with('warning', 'Record your time in before timing out.');
-            }
+                if (filled($dtr->timein_am)) {
+                    return ['warning', 'Time in has already been recorded for today.'];
+                }
 
-            if (blank($dtr->timein_am)) {
-                return back()->with('warning', 'Record your time in before timing out.');
-            }
-
-            if (filled($dtr->timeout_pm) || filled($dtr->timeout_nextday)) {
-                return back()->with('warning', 'Time out has already been recorded for today.');
-            }
-
-            $dtrDate = $dtr->dtr_date->toDateString();
-            if ($dtrDate !== $today) {
-                $dtr->timeout_nextday = $now->toDateTimeString();
+                $dtr->timein_am = $now->toTimeString();
+                $message = 'Time in recorded at '.$now->format('h:i A').'.';
             } else {
-                $dtr->timeout_pm = $now->toTimeString();
+                $dtr = $todayDtr ?: $openPreviousDtr;
+
+                if (! $dtr || blank($dtr->timein_am)) {
+                    return ['warning', 'Record your time in before timing out.'];
+                }
+
+                if (filled($dtr->timeout_pm) || filled($dtr->timeout_nextday)) {
+                    return ['warning', 'Time out has already been recorded for today.'];
+                }
+
+                $dtrDate = $dtr->dtr_date->toDateString();
+                if ($dtrDate !== $today) {
+                    $dtr->timeout_nextday = $now->toDateTimeString();
+                } else {
+                    $dtr->timeout_pm = $now->toTimeString();
+                }
+
+                $message = 'Time out recorded at '.$now->format('h:i A').'.';
             }
 
-            $message = 'Time out recorded at '.$now->format('h:i A').'.';
-        }
+            $dtr->machine_id = $dtr->machine_id ?: '103';
+            $dtr->save();
 
-        $dtr->machine_id = $dtr->machine_id ?: '103';
-        $dtr->save();
+            return ['status', $message];
+        });
 
-        return back()->with('status', $message);
+        return back()->with($result[0], $result[1]);
     }
 
     private function dtrForDate(string $employeeId, string $date): ?EmployeeDtr
