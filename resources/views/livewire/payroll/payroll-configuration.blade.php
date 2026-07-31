@@ -109,6 +109,23 @@
                 </div>
 
                 <div class="rounded-md border border-slate-200 p-3">
+                    <div class="text-sm font-medium">Inclusive Dates for Leaves</div>
+                    <p class="mt-1 text-xs text-slate-500">Only HRIS leave dates within this range will be processed. Dates finalized in an earlier payroll run remain blocked.</p>
+                    <div class="mt-2 grid gap-3 sm:grid-cols-2">
+                        <div>
+                            <label class="text-xs font-medium text-slate-600">From</label>
+                            <input wire:model="leavePeriodStart" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            @error('leavePeriodStart') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-600">To</label>
+                            <input wire:model="leavePeriodEnd" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            @error('leavePeriodEnd') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rounded-md border border-slate-200 p-3">
                     <div class="text-sm font-medium">Inclusive Leave Types</div>
                     <p class="mt-1 text-xs text-slate-500">Checked leave types are included in this payroll run.</p>
                     <div class="mt-2 grid gap-x-3 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">

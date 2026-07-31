@@ -52,4 +52,34 @@ class LeavePeriodHistoryValidationTest extends TestCase
         $this->assertFalse($result['items'][0]['fully_processed']);
         $this->assertSame('2026-06-02', $result['items'][0]['processed_dates'][0]['date']);
     }
+
+    public function test_configured_inclusive_range_splits_a_longer_hris_leave(): void
+    {
+        $leave = new EmployeeLeave([
+            'emp_id' => '000742',
+            'leave_type' => 1,
+            'start_date' => '2026-07-01',
+            'end_date' => '2026-07-15',
+            'days_wpay' => 15,
+            'days_wopay' => 0,
+            'status' => 0,
+        ]);
+        $leave->leave_id = 100;
+        $leave->setRelation('leaveType', new LeaveType(['leave_name' => 'Vacation Leave']));
+
+        $component = new PayrollGeneration;
+        $method = new ReflectionMethod(PayrollGeneration::class, 'leaveDeductionDetails');
+        $result = $method->invoke(
+            $component,
+            new Collection([$leave]),
+            CarbonImmutable::parse('2026-07-01'),
+            CarbonImmutable::parse('2026-07-10'),
+            collect(),
+        );
+
+        $this->assertSame(10, $result['calendar_days']);
+        $this->assertSame('2026-07-01', $result['items'][0]['start_date']);
+        $this->assertSame('2026-07-10', $result['items'][0]['end_date']);
+        $this->assertNotContains('2026-07-11', $result['items'][0]['included_dates']);
+    }
 }

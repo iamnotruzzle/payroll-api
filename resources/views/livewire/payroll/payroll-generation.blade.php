@@ -15,7 +15,7 @@
 @endphp
 
 <section
-    class="space-y-4 pb-24"
+    class="flex h-screen min-h-0 flex-col"
     x-data="{
         stepDirty: false,
         filtersOpen: @js(! empty($employeeFilterIds)),
@@ -32,17 +32,23 @@
                 return;
             }
 
-            this.stepDirty = true;
-            this.recordUnsavedChange(event);
+            if (this.recordUnsavedChange(event)) {
+                this.stepDirty = true;
+            }
         },
         recordUnsavedChange(event) {
             const target = event.target;
             const model = target?.getAttribute('wire:model')
                 || target?.getAttribute('wire:model.live')
+                || target?.getAttribute('wire:model.blur')
                 || target?.getAttribute('wire:model.defer')
-                || target?.name
-                || target?.id
-                || `step-${Date.now()}`;
+                || target?.getAttribute('data-model')
+                || target?.closest?.('[data-model]')?.getAttribute('data-model');
+
+            if (!model) {
+                return false;
+            }
+
             const row = target?.closest('tr');
             const cells = row ? Array.from(row.querySelectorAll('td')) : [];
             const employeeNo = (row?.dataset?.unsavedEmployeeNo || cells[0]?.innerText || '').trim();
@@ -57,8 +63,19 @@
                 field: this.unsavedFieldLabel(model),
                 value: value || '-',
             };
+
+            return true;
         },
         unsavedFieldLabel(model) {
+            const labels = {
+                leavePeriodStart: 'Inclusive Leave Date From',
+                leavePeriodEnd: 'Inclusive Leave Date To',
+            };
+
+            if (labels[model]) {
+                return labels[model];
+            }
+
             const parts = String(model || '').split('.');
             const field = parts[parts.length - 1] || 'field';
 
@@ -133,57 +150,57 @@
         },
     }"
 >
-    <div class="flex flex-wrap items-end justify-between gap-3">
-        <div>
-            <div class="flex flex-wrap items-center gap-2">
-                <h2 class="text-xl font-semibold">Payroll Generation</h2>
-                @if (session('draft_success') || $draftNotice)
-                    @php
-                        $draftBadgeIsSuccess = (bool) session('draft_success');
-                        $draftBadgeLabel = $draftBadgeIsSuccess ? 'Draft saved' : 'Draft restored';
-                        $draftBadgeTitle = $draftBadgeIsSuccess ? session('draft_success') : $draftNotice;
-                    @endphp
-                    <span
-                        class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold {{ $draftBadgeIsSuccess ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-blue-200 bg-blue-50 text-blue-800' }}"
-                        title="{{ trim($draftBadgeTitle . ($draftSavedAt ? ' Last saved ' . $draftSavedAt . '.' : '')) }}"
-                    >
-                        <span class="h-1.5 w-1.5 rounded-full {{ $draftBadgeIsSuccess ? 'bg-emerald-500' : 'bg-blue-500' }}"></span>
-                        <span>{{ $draftBadgeLabel }}</span>
-                        @if ($draftSavedAt)
-                            <span class="font-medium opacity-80">{{ $draftSavedAt }}</span>
-                        @endif
-                    </span>
-                @endif
+    <header class="shrink-0 border-b border-[#e4e6ef] bg-white px-4 py-3 sm:px-5 lg:ml-[300px]">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <h2 class="text-xl font-semibold">Payroll Generation</h2>
+                    @if (session('draft_success') || $draftNotice)
+                        @php
+                            $draftBadgeIsSuccess = (bool) session('draft_success');
+                            $draftBadgeLabel = $draftBadgeIsSuccess ? 'Draft saved' : 'Draft restored';
+                            $draftBadgeTitle = $draftBadgeIsSuccess ? session('draft_success') : $draftNotice;
+                        @endphp
+                        <span
+                            class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold {{ $draftBadgeIsSuccess ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-blue-200 bg-blue-50 text-blue-800' }}"
+                            title="{{ trim($draftBadgeTitle . ($draftSavedAt ? ' Last saved ' . $draftSavedAt . '.' : '')) }}"
+                        >
+                            <span class="h-1.5 w-1.5 rounded-full {{ $draftBadgeIsSuccess ? 'bg-emerald-500' : 'bg-blue-500' }}"></span>
+                            <span>{{ $draftBadgeLabel }}</span>
+                            @if ($draftSavedAt)
+                                <span class="font-medium opacity-80">{{ $draftSavedAt }}</span>
+                            @endif
+                        </span>
+                    @endif
+                </div>
+                <p class="text-sm text-slate-600">
+                    {{ $scopeLabel }} · {{ \Carbon\CarbonImmutable::createFromFormat('!Y-m', $period)->format('F Y') }} · {{ $employeeTypeLabel }}
+                </p>
             </div>
-            <p class="text-sm text-slate-600">
-                {{ $scopeLabel }} · {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }} · {{ $employeeTypeLabel }}
-            </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-            <a href="{{ route('payroll.generation.configuration', ['division_ids' => implode(',', $selectedDivisionIds ?? []), 'department_ids' => implode(',', $selectedDepartmentIds ?? []), 'division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'gsis_days' => $gsisDays, 'leave_type_ids' => $selectedLeaveTypeIds === [] ? 'none' : implode(',', $selectedLeaveTypeIds), 'employee_type' => $employeeTypeQueryValue]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+            <a href="{{ route('payroll.generation.configuration', ['division_ids' => implode(',', $selectedDivisionIds ?? []), 'department_ids' => implode(',', $selectedDepartmentIds ?? []), 'division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'gsis_days' => $gsisDays, 'leave_type_ids' => $selectedLeaveTypeIds === [] ? 'none' : implode(',', $selectedLeaveTypeIds), 'leave_period_start' => $leavePeriodStart, 'leave_period_end' => $leavePeriodEnd, 'employee_type' => $employeeTypeQueryValue]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                 Change Configuration
             </a>
         </div>
-    </div>
+        @error('draft')
+            <div class="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $message }}</div>
+        @enderror
+    </header>
 
-    @error('draft')
-        <div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {{ $message }}
-        </div>
-    @enderror
-
+    <div class="min-h-0 flex-1 lg:grid lg:grid-cols-[300px_minmax(0,1fr)]">
+    <aside class="overflow-x-hidden border-b border-[#e4e6ef] bg-white lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:h-screen lg:w-[300px] lg:overflow-y-auto lg:border-b-0 lg:border-r">
+        <div class="space-y-4 p-4">
     <div
         x-cloak
         x-show="unsavedStepModalOpen"
         x-transition.opacity
-        class="fixed inset-0 z-40 bg-black bg-opacity-50 backdrop-blur-sm"
+        class="fixed inset-0 z-[90] bg-black bg-opacity-50 backdrop-blur-sm"
     ></div>
 
     <div
         x-cloak
         x-show="unsavedStepModalOpen"
         x-transition.opacity
-        class="fixed inset-0 z-50 flex items-center justify-center px-4 py-6"
+        class="fixed inset-0 z-[100] flex items-center justify-center px-4 py-6"
         role="dialog"
         aria-modal="true"
         aria-labelledby="unsaved-step-title"
@@ -252,7 +269,7 @@
         </div>
     </div>
 
-    <div class="rounded-lg border border-slate-200 bg-white shadow-sm">
+    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-3 py-2">
             <div>
                 <h3 class="text-sm font-semibold text-slate-900">Payroll Steps</h3>
@@ -279,8 +296,8 @@
         </div>
 
         <div x-cloak x-show="filtersOpen" x-transition class="border-b border-slate-200 bg-slate-50 px-3 py-3">
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-end">
-                <div class="w-full min-w-0 sm:max-w-xl sm:flex-1">
+            <div class="grid min-w-0 gap-2">
+                <div class="w-full min-w-0">
                     <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="payroll-employee-filter">
                         Employee Filter
                     </label>
@@ -302,13 +319,13 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="flex shrink-0 gap-2">
+                <div class="grid grid-cols-2 gap-2">
                     <button
                         type="button"
                         wire:click="applyEmployeeFilter"
                         wire:loading.attr="disabled"
                         wire:target="{{ $payrollLoadingTargets }}"
-                        class="rounded-md bg-[#5f61e6] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#5254d9] disabled:cursor-wait disabled:opacity-60"
+                        class="w-full rounded-md bg-[#5f61e6] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#5254d9] disabled:cursor-wait disabled:opacity-60"
                     >
                         Filter
                     </button>
@@ -317,23 +334,25 @@
                         wire:click="clearEmployeeFilter"
                         wire:loading.attr="disabled"
                         wire:target="{{ $payrollLoadingTargets }}"
-                        class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+                        class="w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
                     >
                         Clear
                     </button>
                 </div>
             </div>
 
-            <div class="mt-3 grid gap-3 border-t border-slate-200 pt-3 lg:grid-cols-2">
+            <div class="mt-3 grid gap-3 border-t border-slate-200 pt-3">
                 <div>
                     <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">External Employee Registry</div>
                     <p class="mt-1 text-xs text-slate-500">Replaces the persistent payroll-side registry after validation.</p>
-                    <div class="mt-2 flex flex-wrap items-center gap-2">
-                        <input wire:model="externalRosterFile" type="file" accept=".xlsx,.xls" class="text-xs">
-                        <button wire:click="previewExternalRoster" type="button" class="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium">Validate</button>
-                        <button wire:click="exportExternalRosterTemplate" type="button" class="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium">Template</button>
+                    <div class="mt-2 grid min-w-0 gap-2">
+                        <input wire:model="externalRosterFile" type="file" accept=".xlsx,.xls" class="block w-full min-w-0 rounded-md border border-slate-200 bg-white p-2 text-xs">
+                        <div class="grid grid-cols-2 gap-2">
+                        <button wire:click="previewExternalRoster" type="button" class="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium">Validate</button>
+                        <button wire:click="exportExternalRosterTemplate" type="button" class="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium">Template</button>
+                        </div>
                         @if ($externalRosterPreview !== [])
-                            <button wire:click="confirmExternalRoster" type="button" class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">Replace Registry</button>
+                            <button wire:click="confirmExternalRoster" type="button" class="w-full rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">Replace Registry</button>
                         @endif
                     </div>
                     @error('externalRosterFile') <div class="mt-1 text-xs text-red-600">{{ $message }}</div> @enderror
@@ -357,9 +376,28 @@
                     @endif
                 </div>
             </div>
+
+            <div class="mt-3 border-t border-slate-200 pt-3">
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Sort rows</label>
+                <div class="grid gap-2">
+                    <select wire:model.live="tableSort" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <option value="employee_name">Employee Name</option>
+                        <option value="emp_id">Employee ID</option>
+                        <option value="position">Position</option>
+                        <option value="basic_salary">Basic Salary</option>
+                        <option value="gross">Gross Pay</option>
+                        <option value="net_compensation">Net Compensation</option>
+                        <option value="net_after_loan_deductions">Final Net Pay</option>
+                    </select>
+                    <button wire:click="sortTable('{{ $tableSort }}')" type="button" class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium">
+                        {{ $tableSortDirection === 'asc' ? 'Ascending ↑' : 'Descending ↓' }}
+                    </button>
+                </div>
+                <div class="mt-2 text-xs text-slate-500">{{ $rows->count() }} of {{ $unfilteredRowCount }} employees</div>
+            </div>
         </div>
 
-        <div class="grid gap-2 p-3 md:grid-cols-3 lg:grid-cols-9">
+        <div class="grid gap-2 p-3">
             @foreach ($steps as $number => $label)
                 @php
                     $stepCanEdit = (bool) ($payrollGenerationAccess['steps'][$number]['can_edit'] ?? false);
@@ -384,30 +422,35 @@
             @endforeach
         </div>
 
-        <div class="flex flex-wrap items-end gap-3 border-t border-slate-200 bg-slate-50 px-3 py-3">
-            <div class="min-w-64 flex-1">
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Search this step</label>
-                <input wire:model.live.debounce.250ms="tableSearch" type="search" placeholder="Employee ID, name, position, or classification" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-            </div>
-            <div>
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Sort rows</label>
-                <select wire:model.live="tableSort" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
-                    <option value="employee_name">Employee Name</option>
-                    <option value="emp_id">Employee ID</option>
-                    <option value="position">Position</option>
-                    <option value="basic_salary">Basic Salary</option>
-                    <option value="gross">Gross Pay</option>
-                    <option value="net_compensation">Net Compensation</option>
-                    <option value="net_after_loan_deductions">Final Net Pay</option>
-                </select>
-            </div>
-            <button wire:click="sortTable('{{ $tableSort }}')" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium">
-                {{ $tableSortDirection === 'asc' ? 'Ascending ↑' : 'Descending ↓' }}
-            </button>
-            <div class="pb-2 text-xs text-slate-500">{{ $rows->count() }} of {{ $unfilteredRowCount }} employees</div>
-        </div>
     </div>
 
+    <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        <button
+            type="button"
+            x-on:click="leaveStep({{ $currentStep }}, {{ $currentStep - 1 }})"
+            wire:loading.attr="disabled"
+            wire:target="{{ $payrollLoadingTargets }}"
+            @disabled($currentStep === 1)
+            class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+            Previous
+        </button>
+        <div class="text-center text-xs font-medium text-slate-500">{{ $currentStep }} / {{ count($steps) }}</div>
+        <button
+            type="button"
+            x-on:click="leaveStep({{ $currentStep }}, {{ $currentStep + 1 }})"
+            wire:loading.attr="disabled"
+            wire:target="{{ $payrollLoadingTargets }}"
+            @disabled($currentStep === count($steps))
+            class="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+            Next
+        </button>
+    </div>
+        </div>
+    </aside>
+
+    <main class="payroll-generation-main h-full min-h-0 min-w-0 overflow-hidden px-3 py-4 sm:px-5 lg:col-start-2">
     <div
         wire:loading.class.remove="hidden"
         wire:target="{{ $payrollLoadingTargets }}"
@@ -451,6 +494,7 @@
         wire:target="{{ $payrollLoadingTargets }}"
         x-on:input="markStepDirty({{ $currentStep }}, $event)"
         x-on:change="markStepDirty({{ $currentStep }}, $event)"
+        class="payroll-step-body h-full min-h-0"
     >
     @if ($currentStep === 1)
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -468,6 +512,36 @@
                     </p>
                 </div>
                 @include('livewire.payroll.partials.step-save-button')
+            </div>
+            <div class="grid gap-3 border-b border-slate-200 bg-blue-50/50 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_180px_180px_auto] sm:items-end">
+                <div>
+                    <div class="text-sm font-medium text-slate-800">Inclusive Dates for Leaves</div>
+                    <p class="text-xs text-slate-600">Overrides the MRA leave coverage. Previously finalized leave dates are automatically blocked.</p>
+                    @if ($leavePeriodAppliedMessage)
+                        <p class="mt-1 text-xs font-medium text-blue-700">{{ $leavePeriodAppliedMessage }}</p>
+                    @endif
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-slate-600">From</label>
+                    <input wire:model.defer="leavePeriodStart" type="date" @disabled(! $canEditStep1HrFields) class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100">
+                    @error('leavePeriodStart') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-slate-600">To</label>
+                    <input wire:model.defer="leavePeriodEnd" type="date" @disabled(! $canEditStep1HrFields) class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100">
+                    @error('leavePeriodEnd') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <button
+                    type="button"
+                    wire:click="applyLeavePeriod"
+                    wire:loading.attr="disabled"
+                    wire:target="applyLeavePeriod"
+                    @disabled(! $canEditStep1HrFields)
+                    class="rounded-md border border-blue-300 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <span wire:loading.remove wire:target="applyLeavePeriod">Apply Date Range</span>
+                    <span wire:loading wire:target="applyLeavePeriod">Applying...</span>
+                </button>
             </div>
             <div class="payroll-table-scroll overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
@@ -954,20 +1028,12 @@
             </fieldset>
         </div>
     @elseif ($currentStep === 5)
-        <div class="space-y-4">
-            <div class="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                <div>
-                    <h3 class="font-semibold">Deduction Programs</h3>
-                    <p class="text-sm text-slate-600">Turn recurring deductions on for this payroll run and choose who they apply to.</p>
-                </div>
-                @include('livewire.payroll.partials.step-save-button')
-            </div>
-
-            <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(460px,0.9fr)_minmax(0,1.4fr)] xl:grid-rows-[auto_minmax(0,1fr)]">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:col-start-1 xl:row-start-1">
                 <h3 class="font-semibold">Import Program Membership</h3>
                 <p class="mt-1 text-sm text-slate-600">Choose one program. Confirming a valid workbook replaces its persistent employee roster.</p>
-                <div class="mt-3 flex flex-wrap items-end gap-2">
-                    <label class="min-w-64 text-xs font-semibold uppercase text-slate-500">
+                <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                    <label class="text-xs font-semibold uppercase text-slate-500">
                         Program
                         <select wire:model="programRosterProgramId" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case">
                             <option value="">Choose program</option>
@@ -976,11 +1042,14 @@
                             @endforeach
                         </select>
                     </label>
-                    <input wire:model="programRosterFile" type="file" accept=".xlsx,.xls" class="pb-2 text-xs">
-                    <button wire:click="previewProgramRoster" type="button" class="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Validate Excel</button>
-                    <button wire:click="exportProgramRosterTemplate" type="button" @disabled(! $programRosterProgramId) class="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-medium disabled:opacity-50">Download Template</button>
+                    <label class="text-xs font-semibold uppercase text-slate-500">
+                        Membership file
+                        <input wire:model="programRosterFile" type="file" accept=".xlsx,.xls" class="mt-1 block w-full min-w-0 rounded-md border border-slate-300 bg-white text-xs text-slate-600 file:mr-2 file:border-0 file:border-r file:border-slate-200 file:bg-slate-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-100">
+                    </label>
+                    <button wire:click="previewProgramRoster" type="button" class="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-medium">Validate Excel</button>
+                    <button wire:click="exportProgramRosterTemplate" type="button" @disabled(! $programRosterProgramId) class="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-medium disabled:opacity-50">Download Template</button>
                     @if ($programRosterPreview !== [])
-                        <button wire:click="confirmProgramRoster" type="button" class="rounded bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">Replace Roster</button>
+                        <button wire:click="confirmProgramRoster" type="button" class="rounded bg-emerald-600 px-3 py-2 text-xs font-semibold text-white sm:col-span-2">Replace Roster</button>
                     @endif
                 </div>
                 @error('programRosterProgramId') <div class="mt-2 text-xs text-red-600">{{ $message }}</div> @enderror
@@ -1011,49 +1080,48 @@
             @endphp
 
             <fieldset @disabled(! $canEditCurrentStep) class="contents">
-            <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:col-start-1 xl:row-start-2">
                 <div class="border-b border-slate-200 px-4 py-3">
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <h3 class="font-semibold">Program Setup</h3>
                         <input wire:model.live.debounce.250ms="programSearch" type="search" placeholder="Filter programs" class="w-64 rounded-md border border-slate-300 px-3 py-2 text-sm">
                     </div>
                 </div>
-                <div class="payroll-table-scroll overflow-x-auto">
-                    <table class="min-w-[1120px] border-separate border-spacing-0 text-sm">
-                        <thead class="bg-slate-100 text-left text-xs uppercase text-slate-600">
-                            <tr>
-                                <th class="border-b border-r border-slate-300 px-3 py-2">Program</th>
-                                <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Default</th>
-                                <th class="border-b border-r border-slate-300 px-3 py-2">Applies To</th>
-                                <th class="border-b border-r border-slate-300 px-3 py-2">Employees</th>
-                                <th class="border-b border-r border-slate-300 px-3 py-2">Amount Source</th>
-                                <th class="border-b border-r border-slate-300 px-3 py-2">Status</th>
-                                <th class="border-b border-slate-300 px-3 py-2 text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
                             @forelse ($programSetupRows as $program)
                                 @php
                                     $selection = $deductionProgramSelections[(string) $program->id] ?? ['enabled' => false, 'mode' => 'all', 'employee_ids' => [], 'amount_mode' => 'program'];
                                     $isEnabled = filter_var($selection['enabled'] ?? false, FILTER_VALIDATE_BOOL);
                                     $selectedEmployeeIds = collect($selection['employee_ids'] ?? [])->map(fn ($id) => (string) $id)->all();
                                 @endphp
-                                <tr wire:key="deduction-program-row-{{ $program->id }}" class="hover:bg-slate-50">
-                                    <td class="border-b border-r border-slate-200 px-3 py-2">
-                                        <div class="font-semibold text-slate-900">{{ $program->name }}</div>
-                                        <div class="text-xs text-slate-500">{{ $program->is_percentage ? 'Percentage of basic salary' : 'Fixed amount' }}</div>
-                                    </td>
-                                    <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-medium">
-                                        {{ number_format((float) $program->value, 4) }}
-                                    </td>
-                                    <td class="border-b border-r border-slate-200 px-3 py-2">
+                                <article wire:key="deduction-program-row-{{ $program->id }}" class="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div>
+                                            <div class="font-semibold text-slate-900">{{ $program->name }}</div>
+                                            <div class="text-xs text-slate-500">{{ $program->is_percentage ? 'Percentage of basic salary' : 'Fixed amount' }} · Default {{ number_format((float) $program->value, 4) }}</div>
+                                        </div>
+                                        <span class="shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold {{ $isEnabled ? 'bg-blue-50 text-blue-700' : 'bg-slate-200 text-slate-600' }}">
+                                            {{ $isEnabled ? 'Applied' : 'Not applied' }}
+                                        </span>
+                                    </div>
+                                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                                    <label class="text-xs font-semibold uppercase text-slate-500">
+                                        Applies to
                                         <select wire:model="deductionProgramSelections.{{ $program->id }}.mode" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
                                             <option value="all">All employees</option>
                                             <option value="include">Specific employees only</option>
                                             <option value="exclude">All except specific employees</option>
                                         </select>
-                                    </td>
-                                    <td class="border-b border-r border-slate-200 px-3 py-2">
+                                    </label>
+                                    <label class="text-xs font-semibold uppercase text-slate-500">
+                                        Amount source
+                                        <select wire:model="deductionProgramSelections.{{ $program->id }}.amount_mode" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+                                            <option value="program">Use program value</option>
+                                            <option value="employee">Employee-specific</option>
+                                        </select>
+                                    </label>
+                                    </div>
+                                    <div class="mt-3">
                                         @if (($selection['mode'] ?? 'all') !== 'all')
                                             <div wire:ignore wire:key="program-employee-picker-{{ $program->id }}-{{ $selection['mode'] ?? 'all' }}">
                                                 <select
@@ -1073,20 +1141,8 @@
                                         @else
                                             <span class="text-xs text-slate-500">No employee picker needed</span>
                                         @endif
-                                    </td>
-                                    <td class="border-b border-r border-slate-200 px-3 py-2">
-                                        <select wire:model="deductionProgramSelections.{{ $program->id }}.amount_mode" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
-                                            <option value="program">Use program value</option>
-                                            <option value="employee">Employee-specific</option>
-                                        </select>
-                                    </td>
-                                    <td class="border-b border-r border-slate-200 px-3 py-2">
-                                        <span class="rounded-full px-2 py-1 text-[11px] font-semibold {{ $isEnabled ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500' }}">
-                                            {{ $isEnabled ? 'Applied' : 'Not applied' }}
-                                        </span>
-                                    </td>
-                                    <td class="border-b border-slate-200 px-3 py-2 text-right">
-                                        <div class="flex justify-end gap-2">
+                                    </div>
+                                    <div class="mt-3 flex justify-end gap-2 border-t border-slate-200 pt-3">
                                             @if ($isEnabled)
                                                 <button wire:click="removeDeductionProgram({{ $program->id }})" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
                                                     Remove
@@ -1099,28 +1155,26 @@
                                                     Apply
                                                 </button>
                                             @endif
-                                        </div>
-                                    </td>
-                                </tr>
+                                    </div>
+                                </article>
                             @empty
-                                <tr>
-                                    <td colspan="7" class="px-4 py-8 text-center text-slate-500">
-                                        No active deduction programs. Create one from Deduction Programs management.
-                                    </td>
-                                </tr>
+                                <div class="rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+                                    No active deduction programs. Create one from Deduction Programs management.
+                                </div>
                             @endforelse
-                        </tbody>
-                    </table>
                 </div>
             </div>
-            </div>
 
-            <div class="grid gap-3">
-                <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                    <div class="border-b border-slate-200 px-4 py-3">
-                        <h3 class="font-semibold">Program Deduction Preview</h3>
+            <div class="grid min-h-0 gap-3 xl:col-start-2 xl:row-start-1 xl:row-span-2">
+                <div class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                        <div>
+                            <h3 class="font-semibold">Program Deduction Preview</h3>
+                            <p class="text-sm text-slate-600">Turn recurring deductions on for this payroll run and choose who they apply to.</p>
+                        </div>
+                        @include('livewire.payroll.partials.step-save-button')
                     </div>
-                    <div class="payroll-table-scroll max-h-[640px] overflow-auto">
+                    <div class="payroll-table-scroll min-h-0 flex-1 overflow-auto">
                         <table class="border-separate border-spacing-0 text-sm" style="min-width: {{ $programPreviewWidth }}px;">
                             <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
                                 <tr>
@@ -2073,29 +2127,6 @@
     @endif
     </div>
 
-    <div class="pointer-events-none fixed inset-x-0 bottom-5 z-30 flex justify-center px-4">
-        <div class="pointer-events-auto flex items-center gap-3 rounded-lg border border-white/50 bg-white/70 px-3 py-2 shadow-lg shadow-slate-900/10 backdrop-blur-md">
-            <button
-                type="button"
-                x-on:click="leaveStep({{ $currentStep }}, {{ $currentStep - 1 }})"
-                wire:loading.attr="disabled"
-                wire:target="{{ $payrollLoadingTargets }}"
-                @disabled($currentStep === 1)
-                class="rounded-md border border-slate-300/70 bg-white/60 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-                Previous
-            </button>
-            <div class="min-w-20 text-center text-sm text-slate-700">Step {{ $currentStep }} of {{ count($steps) }}</div>
-            <button
-                type="button"
-                x-on:click="leaveStep({{ $currentStep }}, {{ $currentStep + 1 }})"
-                wire:loading.attr="disabled"
-                wire:target="{{ $payrollLoadingTargets }}"
-                @disabled($currentStep === count($steps))
-                class="rounded-md bg-blue-600/90 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-                Next
-            </button>
-        </div>
+    </main>
     </div>
 </section>

@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Services\Payroll\TaxInputImportService;
+use App\Models\Hris\Employee;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
@@ -68,6 +69,23 @@ class TaxInputImportServiceTest extends TestCase
             'previous_tax_withheld' => 500,
             'withholding_tax_adjustment' => -25,
         ], $values);
+    }
+
+    public function test_template_contains_only_the_configured_employees(): void
+    {
+        $employee = Employee::query()->findOrFail('000742');
+        $path = (new TaxInputImportService)->template(collect([$employee]));
+
+        try {
+            $book = \PhpOffice\PhpSpreadsheet\IOFactory::load($path);
+            $sheet = $book->getSheetByName('Tax Inputs');
+
+            $this->assertSame('000742', $sheet->getCell('A2')->getFormattedValue());
+            $this->assertSame($employee->full_name, $sheet->getCell('B2')->getFormattedValue());
+            $this->assertSame('', $sheet->getCell('A3')->getFormattedValue());
+        } finally {
+            @unlink($path);
+        }
     }
 
     public function test_it_previews_the_dedicated_template_and_validates_signed_fields(): void

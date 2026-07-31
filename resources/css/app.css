@@ -382,6 +382,25 @@ input[type="number"] {
     max-height: min(70vh, 42rem);
 }
 
+/* The dedicated payroll-generation workspace owns the viewport. Its primary
+   step card and table should consume all remaining height beside the step rail. */
+.erp-content .payroll-generation-main .payroll-step-body > .overflow-hidden {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.erp-content
+    .payroll-generation-main
+    .payroll-step-body
+    > .overflow-hidden
+    .payroll-table-scroll:not([class*="max-h-"]) {
+    min-height: 0;
+    max-height: none;
+    flex: 1 1 auto;
+}
+
 .erp-content .payroll-table-scroll > table {
     border-collapse: separate;
     border-spacing: 0;

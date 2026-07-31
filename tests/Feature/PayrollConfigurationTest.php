@@ -173,6 +173,8 @@ class PayrollConfigurationTest extends TestCase
         $component->workingDays = 22;
         $component->gsisDays = 30;
         $component->selectedLeaveTypeIds = [];
+        $component->leavePeriodStart = '2026-05-01';
+        $component->leavePeriodEnd = '2026-05-31';
         $component->employeeTypeFilter = ['plantilla'];
 
         return $component;

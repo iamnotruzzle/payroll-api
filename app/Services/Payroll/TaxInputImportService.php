@@ -3,8 +3,10 @@
 namespace App\Services\Payroll;
 
 use App\Models\Hris\Employee;
+use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class TaxInputImportService
@@ -27,7 +29,7 @@ class TaxInputImportService
         'GC' => 'withholding_tax_adjustment',
     ];
 
-    public function template(): string
+    public function template(?Collection $configuredEmployees = null): string
     {
         $book = new Spreadsheet;
         $sheet = $book->getActiveSheet();
@@ -35,7 +37,6 @@ class TaxInputImportService
         $headers = ['Employee ID', 'Employee Name', ...array_values(self::FIELDS)];
         $sheet->fromArray([$headers], null, 'A1');
         $sheet->freezePane('A2');
-        $sheet->setAutoFilter('A1:H201');
         $sheet->getStyle('A1:H1')->getFont()->setBold(true);
         $sheet->getColumnDimension('A')->setWidth(20);
         $sheet->getColumnDimension('B')->setWidth(42);
@@ -44,11 +45,21 @@ class TaxInputImportService
             $sheet->getStyle("{$column}2:{$column}201")->getNumberFormat()->setFormatCode('#,##0.00');
         }
 
-        $employees = Employee::query()
+        $employees = $configuredEmployees ?? Employee::query()
             ->where('is_active', 'Y')
             ->orderBy('lastname')
             ->orderBy('firstname')
             ->get(['emp_id', 'firstname', 'middlename', 'lastname', 'extension', 'suffix']);
+        $employees = $employees->values();
+        $lastRow = max(2, $employees->count() + 1);
+        $sheet->setAutoFilter("A1:H{$lastRow}");
+
+        foreach ($employees as $index => $employee) {
+            $row = $index + 2;
+            $sheet->setCellValueExplicit("A{$row}", (string) $employee->emp_id, DataType::TYPE_STRING);
+            $sheet->setCellValue("B{$row}", $employee->full_name);
+        }
+
         $reference = $book->createSheet();
         $reference->setTitle('Employee Records');
         $reference->fromArray([['Employee ID', 'Employee Name']], null, 'A1');
@@ -56,10 +67,6 @@ class TaxInputImportService
             $reference->fromArray([[(string) $employee->emp_id, $employee->full_name]], null, 'A'.($index + 2));
         }
         $reference->setSheetState(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::SHEETSTATE_HIDDEN);
-
-        for ($row = 2; $row <= 201; $row++) {
-            $sheet->setCellValue("B{$row}", '=IFERROR(VLOOKUP(A'.$row.',\'Employee Records\'!$A:$B,2,FALSE),"")');
-        }
 
         $path = tempnam(sys_get_temp_dir(), 'tax_inputs_').'.xlsx';
         (new Xlsx($book))->save($path);

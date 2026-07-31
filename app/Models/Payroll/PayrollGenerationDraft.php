@@ -84,7 +84,9 @@ class PayrollGenerationDraft extends Model
         int $workingDays,
         string $employeeType,
         int $gsisDays = 30,
-        array $includedLeaveTypeIds = []
+        array $includedLeaveTypeIds = [],
+        ?string $leavePeriodStart = null,
+        ?string $leavePeriodEnd = null,
     ): string {
         return self::configurationKeyForScope(
             $divisionId ? [$divisionId] : [],
@@ -95,6 +97,8 @@ class PayrollGenerationDraft extends Model
             $employeeType,
             $gsisDays,
             $includedLeaveTypeIds,
+            $leavePeriodStart,
+            $leavePeriodEnd,
         );
     }
 
@@ -106,7 +110,9 @@ class PayrollGenerationDraft extends Model
         int $workingDays,
         string $employeeType,
         int $gsisDays = 30,
-        array $includedLeaveTypeIds = []
+        array $includedLeaveTypeIds = [],
+        ?string $leavePeriodStart = null,
+        ?string $leavePeriodEnd = null,
     ): string {
         $divisionIds = collect($divisionIds)
             ->map(fn ($id) => (int) $id)
@@ -138,6 +144,8 @@ class PayrollGenerationDraft extends Model
             $employeeType,
             $gsisDays,
             $includedLeaveTypeIds,
+            $leavePeriodStart ?: 'default',
+            $leavePeriodEnd ?: 'default',
         ]));
     }
 }

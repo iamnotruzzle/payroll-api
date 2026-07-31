@@ -35,6 +35,10 @@ class PayrollConfiguration extends Component
 
     public array $selectedLeaveTypeIds = [];
 
+    public string $leavePeriodStart;
+
+    public string $leavePeriodEnd;
+
     public array $employeeTypeFilter = [Employee::EMPLOYEE_TYPE_PLANTILLA];
 
     public bool $showExistingGenerationNotice = false;
@@ -75,6 +79,9 @@ class PayrollConfiguration extends Component
         }
 
         $this->period = request()->query('period', CarbonImmutable::today()->format('Y-m'));
+        $defaultLeaveMonth = CarbonImmutable::createFromFormat('!Y-m', $this->period)->subMonthNoOverflow();
+        $this->leavePeriodStart = (string) request()->query('leave_period_start', $defaultLeaveMonth->startOfMonth()->toDateString());
+        $this->leavePeriodEnd = (string) request()->query('leave_period_end', $defaultLeaveMonth->endOfMonth()->toDateString());
         $this->workingDays = max(1, min(31, request()->integer('working_days') ?: 22));
         $this->gsisDays = max(0, min(31, request()->integer('gsis_days') ?: 30));
         $this->selectedLeaveTypeIds = $this->hasExplicitLeaveTypeSelection(request()->query('leave_type_ids'))
@@ -133,6 +140,8 @@ class PayrollConfiguration extends Component
             'gsisDays' => ['required', 'integer', 'min:0', 'max:31'],
             'selectedLeaveTypeIds' => ['array'],
             'selectedLeaveTypeIds.*' => ['integer', 'exists:hris.tbl_leave_type,leave_type_id'],
+            'leavePeriodStart' => ['required', 'date'],
+            'leavePeriodEnd' => ['required', 'date', 'after_or_equal:leavePeriodStart'],
             'employeeTypeFilter' => ['required', 'array', 'min:1'],
             'employeeTypeFilter.*' => ['required', Rule::in(array_keys(Employee::employeeTypeOptions()))],
         ]);
@@ -174,6 +183,8 @@ class PayrollConfiguration extends Component
             'working_days' => $data['workingDays'],
             'gsis_days' => $data['gsisDays'],
             'leave_type_ids' => $this->leaveTypeIdsQueryValue($data['selectedLeaveTypeIds'] ?? []),
+            'leave_period_start' => $data['leavePeriodStart'],
+            'leave_period_end' => $data['leavePeriodEnd'],
             'employee_type' => Employee::employeeTypeQueryValue($data['employeeTypeFilter']),
         ]);
     }
@@ -357,6 +368,8 @@ class PayrollConfiguration extends Component
             Employee::employeeTypeQueryValue($data['employeeTypeFilter']),
             (int) $data['gsisDays'],
             $this->normalizedLeaveTypeIds($data['selectedLeaveTypeIds'] ?? []),
+            (string) $data['leavePeriodStart'],
+            (string) $data['leavePeriodEnd'],
         );
     }
 

@@ -92,6 +92,12 @@ class PayrollGeneration extends Component
 
     public array $selectedLeaveTypeIds = [];
 
+    public string $leavePeriodStart = '';
+
+    public string $leavePeriodEnd = '';
+
+    public ?string $leavePeriodAppliedMessage = null;
+
     public array $employeeFilterIds = [];
 
     public array $appliedEmployeeFilterIds = [];
@@ -215,6 +221,9 @@ class PayrollGeneration extends Component
         }
 
         $this->period = request()->query('period', CarbonImmutable::today()->format('Y-m'));
+        $defaultLeavePeriod = $this->previousMraPeriod();
+        $this->leavePeriodStart = (string) request()->query('leave_period_start', $defaultLeavePeriod['start']->toDateString());
+        $this->leavePeriodEnd = (string) request()->query('leave_period_end', $defaultLeavePeriod['end']->toDateString());
         $this->workingDays = max(1, min(31, request()->integer('working_days') ?: $this->workingDays));
         $this->gsisDays = max(0, min(31, request()->integer('gsis_days') ?: $this->gsisDays));
         $this->selectedLeaveTypeIds = $this->hasExplicitLeaveTypeSelection(request()->query('leave_type_ids'))
@@ -877,7 +886,16 @@ class PayrollGeneration extends Component
 
     public function exportTaxInputTemplate()
     {
-        $path = app(TaxInputImportService::class)->template();
+        $employees = Employee::query()
+            ->when(true, fn ($query) => $this->applyEmployeeScope($query))
+            ->where('is_active', 'Y')
+            ->when(true, fn ($query) => $this->applyPayrollEmployeeType($query))
+            ->when($this->appliedEmployeeFilterIds !== [], fn ($query) => $query->whereIn('emp_id', $this->appliedEmployeeFilterIds))
+            ->orderBy('lastname')
+            ->orderBy('firstname')
+            ->get(['emp_id', 'firstname', 'middlename', 'lastname', 'extension', 'suffix']);
+
+        $path = app(TaxInputImportService::class)->template($employees);
 
         return response()->download($path, 'payroll_tax_inputs.xlsx')->deleteFileAfterSend(true);
     }
@@ -921,6 +939,10 @@ class PayrollGeneration extends Component
         }
 
         $this->resetValidation('draft');
+        $this->validate([
+            'leavePeriodStart' => ['required', 'date'],
+            'leavePeriodEnd' => ['required', 'date', 'after_or_equal:leavePeriodStart'],
+        ]);
 
         $draft = PayrollGenerationDraft::query()->updateOrCreate(
             ['configuration_key' => $this->draftConfigurationKey()],
@@ -950,6 +972,25 @@ class PayrollGeneration extends Component
     public function saveStepChanges(): void
     {
         $this->saveDraft();
+    }
+
+    public function applyLeavePeriod(): void
+    {
+        if (! $this->canEditStep1HrFields()) {
+            $this->addError('authorization', 'You do not have permission to edit the inclusive leave dates.');
+
+            return;
+        }
+
+        $this->validate([
+            'leavePeriodStart' => ['required', 'date'],
+            'leavePeriodEnd' => ['required', 'date', 'after_or_equal:leavePeriodStart'],
+        ]);
+
+        // Rebuild date-derived defaults for the newly applied range.
+        $this->leaveDateOverrides = [];
+        $this->leaveDeductionOverrides = [];
+        $this->leavePeriodAppliedMessage = 'Inclusive leave dates applied. Save Step 1 to retain this range.';
     }
 
     public function saveStepChangesAndGoToStep(int $step): bool
@@ -983,6 +1024,8 @@ class PayrollGeneration extends Component
             'wizard_step_count' => count($this->steps),
             'selected_division_ids' => $this->selectedDivisionIds,
             'selected_department_ids' => $this->selectedDepartmentIds,
+            'leave_period_start' => $this->leavePeriodStart,
+            'leave_period_end' => $this->leavePeriodEnd,
         ];
 
         return match ($this->currentStep) {
@@ -1429,8 +1472,12 @@ class PayrollGeneration extends Component
         $periodEnd = $periodStart->endOfMonth();
         $previousMraPeriod = $this->previousMraPeriod();
         $previousMraReport = $this->previousMraReport($previousMraPeriod);
-        $leavePeriodStart = $previousMraPeriod['start'];
-        $leavePeriodEnd = $previousMraPeriod['end'];
+        $leavePeriodStart = $this->leavePeriodStart !== ''
+            ? CarbonImmutable::parse($this->leavePeriodStart)
+            : $previousMraPeriod['start'];
+        $leavePeriodEnd = $this->leavePeriodEnd !== ''
+            ? CarbonImmutable::parse($this->leavePeriodEnd)
+            : $previousMraPeriod['end'];
         $empIds = $employees->pluck('emp_id')->all();
         $processedLeaveDates = $this->processedLeaveDatesByEmployee($empIds);
         $loanItems = PayrollLoanImportItem::query()
@@ -1863,6 +1910,8 @@ class PayrollGeneration extends Component
         $this->currentStep = PayrollGenerationDraft::restoredWizardStep((int) $draft->current_step, $state);
         $this->selectedDivisionIds = $this->normalizedIds($state['selected_division_ids'] ?? $this->selectedDivisionIds);
         $this->selectedDepartmentIds = $this->normalizedIds($state['selected_department_ids'] ?? $this->selectedDepartmentIds);
+        $this->leavePeriodStart = (string) ($state['leave_period_start'] ?? $this->leavePeriodStart);
+        $this->leavePeriodEnd = (string) ($state['leave_period_end'] ?? $this->leavePeriodEnd);
         $this->syncLegacyScopeIds();
         $this->deductionDayOverrides = (array) ($state['deduction_day_overrides'] ?? []);
         $this->logbookLwopDayOverrides = (array) ($state['logbook_lwop_day_overrides'] ?? []);
@@ -1894,6 +1943,8 @@ class PayrollGeneration extends Component
             Employee::employeeTypeQueryValue($this->employeeTypeFilter),
             $this->gsisDays,
             $this->selectedLeaveTypeIds,
+            $this->leavePeriodStart,
+            $this->leavePeriodEnd,
         );
     }
 
@@ -2229,7 +2280,7 @@ class PayrollGeneration extends Component
 
     private function selectedPeriodStart(): CarbonImmutable
     {
-        return CarbonImmutable::createFromFormat('Y-m', $this->period)->startOfMonth();
+        return CarbonImmutable::createFromFormat('!Y-m', $this->period)->startOfMonth();
     }
 
     private function previousMraPeriod(): array
@@ -2378,8 +2429,10 @@ class PayrollGeneration extends Component
     private function editableLeaveDateFor(EmployeeLeave $leave, CarbonImmutable $periodStart, CarbonImmutable $periodEnd, Collection $processedDates): array
     {
         $key = (string) $leave->leave_id;
-        $defaultStart = CarbonImmutable::parse($leave->start_date)->max($periodStart);
-        $defaultEnd = CarbonImmutable::parse($leave->end_date)->min($periodEnd);
+        $originalStart = CarbonImmutable::parse($leave->start_date);
+        $originalEnd = CarbonImmutable::parse($leave->end_date);
+        $defaultStart = $originalStart->max($periodStart);
+        $defaultEnd = $originalEnd->min($periodEnd);
         $this->leaveDateOverrides[$key]['start_date'] ??= $defaultStart->toDateString();
         $this->leaveDateOverrides[$key]['end_date'] ??= $defaultEnd->toDateString();
         $this->leaveDateOverrides[$key]['excluded'] ??= false;
@@ -2413,7 +2466,7 @@ class PayrollGeneration extends Component
         return [
             'id' => $leave->leave_id,
             'leave_type' => $leave->leave_type_name ?: $leave->leaveType?->leave_name ?: 'Leave',
-            'original_period' => $this->formatLeavePeriod($defaultStart, $defaultEnd),
+            'original_period' => $this->formatLeavePeriod($originalStart, $originalEnd),
             'start_date' => $start->toDateString(),
             'end_date' => $end->toDateString(),
             'period' => $this->formatLeavePeriod($start, $end),
@@ -3991,6 +4044,8 @@ class PayrollGeneration extends Component
                 'working_days' => $this->workingDays,
                 'gsis_days' => $this->gsisDays,
                 'included_leave_type_ids' => $this->selectedLeaveTypeIds,
+                'leave_period_start' => $this->leavePeriodStart,
+                'leave_period_end' => $this->leavePeriodEnd,
                 'leave_deduction' => $row['leave_deduction'] ?? [],
             ],
             'earnings' => [
