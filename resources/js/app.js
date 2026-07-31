@@ -9,6 +9,28 @@ window.jQuery = $;
 
 select2(window, $);
 
+const initThemeToggle = () => {
+    const root = document.documentElement;
+    const update = () => {
+        const isDark = root.dataset.theme === 'dark';
+        document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+            button.setAttribute('aria-label', `Switch to ${isDark ? 'light' : 'dark'} mode`);
+            button.setAttribute('aria-pressed', String(isDark));
+        });
+    };
+
+    document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+        if (button.dataset.bound) return;
+        button.dataset.bound = 'true';
+        button.addEventListener('click', () => {
+            root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('erp-theme', root.dataset.theme);
+            update();
+        });
+    });
+    update();
+};
+
 const initPayrollEmployeePickers = () => {
     document.querySelectorAll('select[data-select2-employee-picker], select[data-select2-searchable]').forEach((select) => {
         const $select = $(select);
@@ -272,11 +294,13 @@ window.addEventListener('resize', initPayrollTableScrollbars);
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
+            initThemeToggle();
             installLivewireHooks();
             initPayrollEmployeePickers();
             initPayrollTableScrollbars();
         });
     } else {
+        initThemeToggle();
         installLivewireHooks();
         initPayrollEmployeePickers();
         initPayrollTableScrollbars();

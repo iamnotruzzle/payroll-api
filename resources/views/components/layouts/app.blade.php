@@ -4,6 +4,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title ?? 'Payroll Scheduler' }}</title>
+    <script>
+        (() => {
+            const saved = localStorage.getItem('erp-theme');
+            document.documentElement.dataset.theme = saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        })();
+    </script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
@@ -188,11 +194,11 @@
         <aside class="erp-sidebar border-b border-[#e4e6ef] bg-white lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto lg:border-b-0 lg:border-r">
             <div class="flex min-h-full flex-col">
                 <div class="border-b border-[#eceef6] px-4 py-4">
-                    <div class="flex items-center gap-3">
-                        <div class="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[#696cff] text-sm font-bold text-white shadow-sm shadow-[#696cff]/25">PM</div>
+                    <div class="erp-brand flex items-center gap-3">
+                        <div class="erp-brand-mark grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-black text-white">PM</div>
                         <div class="min-w-0">
-                            <p class="text-[11px] font-semibold uppercase text-[#8a8d93]">MMMHMC ERP</p>
-                            <h1 class="truncate text-base font-semibold text-[#2f3349]">Payroll Scheduler</h1>
+                            <p class="erp-brand-eyebrow text-[10px] font-bold uppercase">MMMHMC / ERP</p>
+                            <h1 class="erp-brand-title truncate text-base font-bold">Payroll Scheduler</h1>
                         </div>
                     </div>
                 </div>
@@ -283,32 +289,63 @@
                     @endforeach
                 </nav>
 
-                <div class="mt-auto border-t border-[#eceef6] px-4 py-4">
-                    <div class="rounded-md bg-[#f7f7fb] p-3">
-                        <p class="text-[11px] font-semibold uppercase text-[#8a8d93]">Signed In</p>
-                        <p class="mt-1 truncate text-sm font-semibold text-[#2f3349]">{{ $employeeName }}</p>
-                        <p class="truncate text-xs text-[#697a8d]">{{ $account?->emp_id }}</p>
-                    </div>
-
-                    <form method="POST" action="{{ route('logout') }}" class="mt-3">
-                        @csrf
-                        <button class="w-full rounded-md border border-[#d9dee8] bg-white px-3 py-2 text-sm font-medium text-[#566a7f] hover:bg-[#f5f5f9]">
-                            Logout
-                        </button>
-                    </form>
-                </div>
             </div>
         </aside>
 
         <section class="min-w-0">
             <header class="sticky top-0 z-30 border-b border-[#e4e6ef] bg-white/90 px-4 py-2 backdrop-blur sm:px-5">
-                <div class="flex w-full items-center justify-end">
+                <div class="flex w-full items-center justify-between">
+                    <div class="erp-system-status hidden items-center gap-2 text-xs font-semibold sm:flex">
+                        <span class="erp-status-dot"></span>
+                        <span class="erp-subtle"><span class="erp-system-label">System online</span> · Workforce operations</span>
+                    </div>
                     <div class="flex items-center gap-3 text-right">
-                        <div class="hidden sm:block">
-                            <p class="text-sm font-semibold leading-tight text-[#2f3349]">{{ $employeeName }}</p>
-                            <p class="text-xs leading-tight text-[#697a8d]">{{ $account?->emp_id }}</p>
+                        <button type="button" class="erp-theme-toggle" data-theme-toggle aria-label="Switch to dark mode" title="Switch theme">
+                            <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+                            <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                        </button>
+                        <div class="relative" x-data="{ userMenuOpen: false }" x-on:keydown.escape.window="userMenuOpen = false">
+                            <button
+                                type="button"
+                                class="erp-user-trigger flex items-center gap-2 rounded-xl px-1.5 py-1 text-right"
+                                x-on:click="userMenuOpen = ! userMenuOpen"
+                                :aria-expanded="userMenuOpen.toString()"
+                                aria-haspopup="menu"
+                            >
+                                <span class="hidden sm:block">
+                                    <span class="block text-sm font-semibold leading-tight text-[#2f3349]">{{ $employeeName }}</span>
+                                    <span class="block text-xs leading-tight text-[#697a8d]">{{ $account?->emp_id }}</span>
+                                </span>
+                                <span class="grid h-8 w-8 place-items-center rounded-full bg-[#f1f2ff] text-xs font-bold text-[#696cff]">{{ $initial }}</span>
+                                <svg class="h-3.5 w-3.5 text-slate-500 transition-transform" :class="{ 'rotate-180': userMenuOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <path d="m6 9 6 6 6-6"></path>
+                                </svg>
+                            </button>
+
+                            <div
+                                x-cloak
+                                x-show="userMenuOpen"
+                                x-transition.origin.top.right
+                                x-on:click.outside="userMenuOpen = false"
+                                class="erp-user-menu absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-xl border p-2 text-left"
+                                role="menu"
+                            >
+                                <div class="border-b border-slate-200 px-3 py-2.5">
+                                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Signed in as</p>
+                                    <p class="mt-1 truncate text-sm font-semibold text-slate-900">{{ $employeeName }}</p>
+                                    <p class="truncate text-xs text-slate-500">Employee ID {{ $account?->emp_id }}</p>
+                                </div>
+                                <form method="POST" action="{{ route('logout') }}" class="mt-1">
+                                    @csrf
+                                    <button type="submit" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50" role="menuitem">
+                                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                            <path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                                        </svg>
+                                        Log out
+                                    </button>
+                                </form>
+                            </div>
                         </div>
-                        <div class="grid h-8 w-8 place-items-center rounded-full bg-[#f1f2ff] text-xs font-bold text-[#696cff]">{{ $initial }}</div>
                     </div>
                 </div>
             </header>

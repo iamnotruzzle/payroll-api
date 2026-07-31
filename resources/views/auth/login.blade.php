@@ -4,14 +4,24 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Login | Payroll Scheduler</title>
+    <script>
+        (() => {
+            const saved = localStorage.getItem('erp-theme');
+            document.documentElement.dataset.theme = saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        })();
+    </script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="erp-body min-h-screen bg-[#f5f5f9] text-[#2f3349] antialiased">
-    <main class="grid min-h-screen place-items-center px-4 py-8">
-        <section class="w-full max-w-[420px] overflow-hidden rounded-lg border border-[#e4e6ef] bg-white shadow-sm shadow-slate-900/5">
+    <button type="button" class="erp-theme-toggle erp-theme-toggle-floating" data-theme-toggle aria-label="Switch to dark mode" title="Switch theme">
+        <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <main class="erp-login grid min-h-screen place-items-center px-4 py-8">
+        <section class="erp-login-card w-full max-w-[420px] overflow-hidden rounded-2xl border border-[#e4e6ef] bg-white">
             <div class="border-b border-[#eceef6] px-5 py-4">
                 <div class="flex items-center gap-3">
-                    <div class="grid h-10 w-10 place-items-center rounded-md bg-[#696cff] text-sm font-bold text-white shadow-sm shadow-[#696cff]/25">PM</div>
+                    <div class="erp-brand-mark grid h-11 w-11 place-items-center rounded-xl text-sm font-black text-white">PM</div>
                     <div>
                         <p class="text-[11px] font-semibold uppercase text-[#8a8d93]">MMMHMC ERP</p>
                         <h1 class="text-lg font-semibold text-[#2f3349]">Payroll Scheduler</h1>

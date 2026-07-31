@@ -177,9 +177,26 @@
                     {{ $scopeLabel }} · {{ \Carbon\CarbonImmutable::createFromFormat('!Y-m', $period)->format('F Y') }} · {{ $employeeTypeLabel }}
                 </p>
             </div>
-            <a href="{{ route('payroll.generation.configuration', ['division_ids' => implode(',', $selectedDivisionIds ?? []), 'department_ids' => implode(',', $selectedDepartmentIds ?? []), 'division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'gsis_days' => $gsisDays, 'leave_type_ids' => $selectedLeaveTypeIds === [] ? 'none' : implode(',', $selectedLeaveTypeIds), 'leave_period_start' => $leavePeriodStart, 'leave_period_end' => $leavePeriodEnd, 'employee_type' => $employeeTypeQueryValue]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
-                Change Configuration
-            </a>
+            <div class="flex items-center gap-2">
+                <a
+                    href="{{ url('/') }}"
+                    class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    x-on:click="if (stepDirty && !window.confirm('You have unsaved payroll changes. Leave this page and discard them?')) $event.preventDefault()"
+                    title="Exit payroll generation"
+                >
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="m15 18-6-6 6-6"></path>
+                    </svg>
+                    <span class="hidden sm:inline">Back to Home</span>
+                </a>
+                <button type="button" class="erp-theme-toggle shrink-0" data-theme-toggle aria-label="Switch to dark mode" title="Switch theme">
+                    <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+                    <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                </button>
+                <a href="{{ route('payroll.generation.configuration', ['division_ids' => implode(',', $selectedDivisionIds ?? []), 'department_ids' => implode(',', $selectedDepartmentIds ?? []), 'division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'gsis_days' => $gsisDays, 'leave_type_ids' => $selectedLeaveTypeIds === [] ? 'none' : implode(',', $selectedLeaveTypeIds), 'leave_period_start' => $leavePeriodStart, 'leave_period_end' => $leavePeriodEnd, 'employee_type' => $employeeTypeQueryValue]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                    Change Configuration
+                </a>
+            </div>
         </div>
         @error('draft')
             <div class="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $message }}</div>
