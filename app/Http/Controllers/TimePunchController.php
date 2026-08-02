@@ -104,7 +104,7 @@ class TimePunchController extends Controller
         return EmployeeDtr::query()
             ->where('emp_id', $employeeId)
             ->whereDate('dtr_date', $date)
-            ->orderBy('dtr_id')
+            ->orderBy('created_at')
             ->first();
     }
 
@@ -116,7 +116,7 @@ class TimePunchController extends Controller
             ->whereNotNull('timein_am')
             ->whereNull('timeout_pm')
             ->whereNull('timeout_nextday')
-            ->orderBy('dtr_id')
+            ->orderBy('created_at')
             ->first();
     }
 }
