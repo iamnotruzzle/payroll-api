@@ -67,21 +67,6 @@ class StatutoryContributionService
             'employee_cap' => null,
             'employer_cap' => null,
         ],
-        'ea_deduction' => [
-            'employee_label' => 'ea_deduction',
-            'employer_label' => null,
-            'name' => 'EA Deduction',
-            'effective_start' => '2016-04-19',
-            'effective_end' => null,
-            'min_salary' => 0,
-            'max_salary' => null,
-            'employee_rate' => 0,
-            'employer_rate' => 0,
-            'employee_fixed_amount' => 50,
-            'employer_fixed_amount' => null,
-            'employee_cap' => null,
-            'employer_cap' => null,
-        ],
     ];
 
     private const EMPLOYEE_LABELS = [
@@ -89,7 +74,6 @@ class StatutoryContributionService
         'philhealth' => 'phic',
         'pagibig' => 'mandatory_pagibig',
         'ec' => null,
-        'ea_deduction' => 'ea_deduction',
     ];
 
     private const EMPLOYER_LABELS = [
@@ -97,7 +81,6 @@ class StatutoryContributionService
         'philhealth' => 'government_phic',
         'pagibig' => 'government_pagibig',
         'ec' => 'ec',
-        'ea_deduction' => null,
     ];
 
     public function calculate(float $monthlySalary, CarbonInterface|string|null $effectiveDate = null): array
@@ -111,8 +94,6 @@ class StatutoryContributionService
             'life_retirement' => 0.0,
             'phic' => 0.0,
             'mandatory_pagibig' => 0.0,
-            'hdmf_ps_2_ms' => 0.0,
-            'ea_deduction' => 0.0,
         ];
         $employer = [
             'government_life_retirement' => 0.0,

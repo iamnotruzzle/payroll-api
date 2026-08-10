@@ -1,7 +1,11 @@
 <?php
 
+use App\Http\Controllers\SelfService\MyLeaveController;
+use App\Http\Controllers\SelfService\MyProfileController;
 use App\Http\Controllers\Admin\AdminPageController;
 use App\Http\Controllers\Auth\WebLoginController;
+use App\Http\Controllers\Employees\EmployeePageController;
+use App\Http\Controllers\Leave\LeavePageController;
 use App\Http\Controllers\Payroll\PayrollLoanImportController;
 use App\Http\Controllers\Payroll\PayrollPageController;
 use App\Http\Controllers\Schedule\SchedulePageController;
@@ -37,6 +41,55 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/time-punch', [TimePunchController::class, 'index'])->name('time-punch.index');
     Route::post('/time-punch', [TimePunchController::class, 'store'])->name('time-punch.store');
+
+    Route::middleware('permission:self-service.profile|self-service.access')->group(function () {
+        Route::get('/self-service/profile', [MyProfileController::class, 'show'])->name('self-service.profile');
+        Route::get('/self-service/profile/print', [MyProfileController::class, 'print'])->name('self-service.profile.print');
+    });
+
+    Route::middleware('permission:self-service.leave|leave.request|leave.view')->group(function () {
+        Route::get('/self-service/leave', [MyLeaveController::class, 'index'])->name('self-service.leave');
+    });
+
+    Route::middleware('permission:leave.view|leave.request|leave.approve|self-service.leave')->group(function () {
+        Route::get('/leave/requests/{leaveId}/print', [LeavePageController::class, 'printRequest'])
+            ->whereNumber('leaveId')
+            ->name('leave.requests.print');
+    });
+
+    Route::middleware('permission:leave.view|leave.request|leave.approve')->group(function () {
+        Route::get('/leave/requests', [LeavePageController::class, 'requests'])->name('leave.requests');
+    });
+
+    Route::middleware('permission:leave.approve|leave.view')->group(function () {
+        Route::get('/leave/approvals', [LeavePageController::class, 'approvals'])->name('leave.approvals');
+    });
+
+    Route::middleware('permission:leave.credits|leave.view')->group(function () {
+        Route::get('/leave/credits', [LeavePageController::class, 'credits'])->name('leave.credits');
+        Route::get('/leave/card', [LeavePageController::class, 'card'])->name('leave.card');
+        Route::get('/leave/card/{empId}/print', [LeavePageController::class, 'printCard'])
+            ->where('empId', '[A-Za-z0-9\-]+')
+            ->name('leave.card.print');
+    });
+
+    Route::middleware('permission:leave.reports|leave.view')->group(function () {
+        Route::get('/leave/reports', [LeavePageController::class, 'reports'])->name('leave.reports');
+    });
+
+    Route::middleware('permission:employees.view|employees.manage')->group(function () {
+        Route::get('/employees', [EmployeePageController::class, 'index'])->name('employees.index');
+        Route::get('/employees/{empId}/print', [EmployeePageController::class, 'print'])
+            ->where('empId', '[A-Za-z0-9\-]+')
+            ->name('employees.print');
+        Route::get('/employees/{empId}/documents/{documentId}/download', [EmployeePageController::class, 'downloadDocument'])
+            ->where('empId', '[A-Za-z0-9\-]+')
+            ->whereNumber('documentId')
+            ->name('employees.documents.download');
+        Route::get('/employees/{empId}', [EmployeePageController::class, 'show'])
+            ->where('empId', '[A-Za-z0-9\-]+')
+            ->name('employees.show');
+    });
 
     Route::middleware('permission:admin.users.view')->group(function () {
         Route::get('/admin/user-accounts', [AdminPageController::class, 'userAccounts'])->name('admin.user-accounts');

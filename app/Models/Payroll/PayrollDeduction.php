@@ -16,6 +16,7 @@ class PayrollDeduction extends Model
         'value',
         'is_active',
         'sort_order',
+        'insert_after_column',
     ];
 
     protected $casts = [

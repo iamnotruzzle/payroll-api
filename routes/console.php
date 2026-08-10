@@ -102,3 +102,6 @@ Artisan::command('rbac:backfill-legacy-accounts
 })->purpose('Safely infer RBAC roles for existing HRIS accounts from legacy user_level and pims_role values.');
 
 Schedule::command('schedule:generate-next-month-draft')->dailyAt('00:15');
+
+// Monthly leave credit accrual on the 1st (legacy tbl_employee VL/SL). Use --apply manually first in new environments.
+Schedule::command('hris:accrue-leave-credits --apply --vl=1.25 --sl=1.25')->monthlyOn(1, '01:30');

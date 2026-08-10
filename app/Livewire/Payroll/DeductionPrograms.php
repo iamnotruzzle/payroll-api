@@ -12,6 +12,7 @@ class DeductionPrograms extends Component
     public string $computationType = 'fixed';
     public float $value = 0;
     public int $sortOrder = 0;
+    public string $insertAfterColumn = '';
     public bool $isActive = true;
 
     public function render()
@@ -31,6 +32,7 @@ class DeductionPrograms extends Component
             'computationType' => ['required', 'in:fixed,percentage'],
             'value' => ['required', 'numeric', 'min:0'],
             'sortOrder' => ['required', 'integer', 'min:0', 'max:999'],
+            'insertAfterColumn' => ['nullable', 'string', 'max:80'],
             'isActive' => ['boolean'],
         ]);
 
@@ -40,6 +42,7 @@ class DeductionPrograms extends Component
             'is_percentage' => $data['computationType'] === 'percentage',
             'value' => $data['value'],
             'sort_order' => $data['sortOrder'],
+            'insert_after_column' => $data['insertAfterColumn'] ?: null,
             'is_active' => $data['isActive'],
         ]);
         $item->save();
@@ -57,6 +60,7 @@ class DeductionPrograms extends Component
         $this->computationType = $item->is_percentage ? 'percentage' : 'fixed';
         $this->value = (float) $item->value;
         $this->sortOrder = (int) ($item->sort_order ?? 0);
+        $this->insertAfterColumn = (string) ($item->insert_after_column ?? '');
         $this->isActive = (bool) $item->is_active;
     }
 
@@ -74,6 +78,7 @@ class DeductionPrograms extends Component
         $this->computationType = 'fixed';
         $this->value = 0;
         $this->sortOrder = 0;
+        $this->insertAfterColumn = '';
         $this->isActive = true;
     }
 }

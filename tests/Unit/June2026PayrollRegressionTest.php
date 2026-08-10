@@ -53,9 +53,9 @@ class June2026PayrollRegressionTest extends TestCase
                 'subsistence' => 1400.0,
                 'laundry' => 136.36,
                 'pera' => 1818.18,
-                'tax' => 303.64,
-                'fifteenth' => 12254.09,
-                'thirtieth' => 12254.09,
+                'tax' => 311.14,
+                'fifteenth' => 12275.34,
+                'thirtieth' => 12275.34,
             ],
             '001415' => [
                 'case' => 'Unauthorized leave',
@@ -64,8 +64,8 @@ class June2026PayrollRegressionTest extends TestCase
                 'laundry' => 139.77,
                 'pera' => 1863.64,
                 'tax' => 0.0,
-                'fifteenth' => 10797.42,
-                'thirtieth' => 10797.41,
+                'fifteenth' => 10822.42,
+                'thirtieth' => 10822.41,
             ],
             '002039' => [
                 'case' => 'TEV',
@@ -73,9 +73,9 @@ class June2026PayrollRegressionTest extends TestCase
                 'subsistence' => 1350.0,
                 'laundry' => 150.0,
                 'pera' => 2000.0,
-                'tax' => 269.73,
-                'fifteenth' => 12255.72,
-                'thirtieth' => 12255.72,
+                'tax' => 277.23,
+                'fifteenth' => 12276.97,
+                'thirtieth' => 12276.97,
             ],
             '009999' => [
                 'case' => 'Part-time basic pay',
@@ -84,8 +84,8 @@ class June2026PayrollRegressionTest extends TestCase
                 'laundry' => 75.0,
                 'pera' => 1000.0,
                 'tax' => 0.0,
-                'fifteenth' => 6170.29,
-                'thirtieth' => 6170.29,
+                'fifteenth' => 6195.29,
+                'thirtieth' => 6195.29,
             ],
         ];
 

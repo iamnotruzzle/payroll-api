@@ -162,6 +162,11 @@ class Employee extends Authenticatable
         return $this->belongsTo(Department::class, 'department_id', 'department_id');
     }
 
+    public function employmentStatus(): BelongsTo
+    {
+        return $this->belongsTo(EmploymentStatus::class, 'empstat_id', 'empstat_id');
+    }
+
     public function userAccount(): HasOne
     {
         return $this->hasOne(UserAccount::class, 'emp_id', 'emp_id');

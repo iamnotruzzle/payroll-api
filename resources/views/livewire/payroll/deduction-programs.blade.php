@@ -44,6 +44,18 @@
                         Active
                     </label>
                 </div>
+                <div>
+                    <label class="text-sm font-medium">Generated column position</label>
+                    <select wire:model.change="insertAfterColumn" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <option value="">Deduction Programs section (default)</option>
+                        <option value="life_retirement">After GSIS (PS)</option>
+                        <option value="government_life_retirement">After GSIS (GS)</option>
+                        <option value="phic">After PHIC (PS)</option>
+                        <option value="government_phic">After PHIC (GS)</option>
+                        <option value="mandatory_pagibig">After HDMF (PS) 1</option>
+                        <option value="government_pagibig">After HDMF (GS)</option>
+                    </select>
+                </div>
             </div>
 
             <div class="mt-4 flex gap-2">
@@ -84,6 +96,15 @@
                                             <span>Sort</span>
                                             <input wire:model.blur="sortOrder" type="number" min="0" class="w-20 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs">
                                         </div>
+                                        <select wire:model.change="insertAfterColumn" class="mt-2 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs">
+                                            <option value="">Default section</option>
+                                            <option value="life_retirement">After GSIS (PS)</option>
+                                            <option value="government_life_retirement">After GSIS (GS)</option>
+                                            <option value="phic">After PHIC (PS)</option>
+                                            <option value="government_phic">After PHIC (GS)</option>
+                                            <option value="mandatory_pagibig">After HDMF (PS) 1</option>
+                                            <option value="government_pagibig">After HDMF (GS)</option>
+                                        </select>
                                     </td>
                                     <td class="px-4 py-3 align-top">
                                         <select wire:model.change="computationType" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm">
@@ -111,6 +132,9 @@
                                     <td class="px-4 py-3">
                                         <div class="font-medium">{{ $item->name }}</div>
                                         <div class="text-xs text-slate-500">Sort {{ (int) ($item->sort_order ?? 0) }}</div>
+                                        @if ($item->insert_after_column)
+                                            <div class="text-xs text-blue-600">Placed after {{ str($item->insert_after_column)->replace('_', ' ')->title() }}</div>
+                                        @endif
                                     </td>
                                     <td class="px-4 py-3">{{ $item->is_percentage ? 'Percentage' : 'Fixed amount' }}</td>
                                     <td class="px-4 py-3 text-right">{{ number_format((float) $item->value, 4) }}</td>

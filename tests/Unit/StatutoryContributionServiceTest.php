@@ -26,9 +26,9 @@ class StatutoryContributionServiceTest extends TestCase
         $this->assertSame(1800.0, $result['employee']['life_retirement']);
         $this->assertSame(500.0, $result['employee']['phic']);
         $this->assertSame(200.0, $result['employee']['mandatory_pagibig']);
-        $this->assertSame(0.0, $result['employee']['hdmf_ps_2_ms']);
-        $this->assertSame(50.0, $result['employee']['ea_deduction']);
-        $this->assertSame(2550.0, $result['employee_total']);
+        $this->assertArrayNotHasKey('hdmf_ps_2_ms', $result['employee']);
+        $this->assertArrayNotHasKey('ea_deduction', $result['employee']);
+        $this->assertSame(2500.0, $result['employee_total']);
 
         $this->assertSame(2400.0, $result['employer']['government_life_retirement']);
         $this->assertSame(100.0, $result['employer']['ec']);
@@ -49,7 +49,7 @@ class StatutoryContributionServiceTest extends TestCase
 
         $this->assertSame(792.62, $result['employee']['phic']);
         $this->assertSame(792.63, $result['employer']['government_phic']);
-        $this->assertSame(3896.07, $result['employee_total']);
+        $this->assertSame(3846.07, $result['employee_total']);
     }
 
     public function test_philhealth_splits_the_rounded_total_premium_like_rf1(): void
@@ -78,7 +78,7 @@ class StatutoryContributionServiceTest extends TestCase
 
         $this->assertSame(608.22, $result['employee']['phic']);
         $this->assertSame(608.23, $result['employer']['government_phic']);
-        $this->assertSame(3047.83, $result['employee_total']);
+        $this->assertSame(2997.83, $result['employee_total']);
 
         $grossCompensation = 27410.82;
         $totalOtherDeductions = 50.0;
@@ -93,7 +93,7 @@ class StatutoryContributionServiceTest extends TestCase
             2
         );
 
-        $this->assertSame(23995.76, $finalNetPay);
+        $this->assertSame(24045.76, $finalNetPay);
     }
 
     public function test_it_does_not_apply_salary_floor_to_zero_salary(): void

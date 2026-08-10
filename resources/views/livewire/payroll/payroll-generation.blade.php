@@ -22,6 +22,8 @@
         unsavedStepModalOpen: false,
         pendingStep: null,
         modalBusy: false,
+        activeStep: @js($currentStep),
+        mandatoryDeductionAdjustments: @js($mandatoryDeductionAdjustments),
         unsavedChanges: {},
         get unsavedChangeRows() {
             return Object.values(this.unsavedChanges).slice(0, 10);
@@ -83,7 +85,26 @@
                 .replace(/_/g, ' ')
                 .replace(/\b\w/g, (letter) => letter.toUpperCase());
         },
+        syncMandatoryDeductions() {
+            if (this.activeStep === 4) {
+                $wire.set('mandatoryDeductionAdjustments', this.mandatoryDeductionAdjustments, false);
+            }
+        },
+        mandatoryAdjustment(employeeId, key) {
+            return Number(this.mandatoryDeductionAdjustments?.[employeeId]?.[key] || 0);
+        },
+        mandatoryResult(employeeId, key, base) {
+            return Math.max(0, Number(base || 0) + this.mandatoryAdjustment(employeeId, key));
+        },
+        mandatoryEmployeeTotal(employeeId, bases) {
+            return ['life_retirement', 'phic', 'mandatory_pagibig']
+                .reduce((total, key) => total + this.mandatoryResult(employeeId, key, bases?.[key]), 0);
+        },
+        money(value) {
+            return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        },
         saveStep() {
+            this.syncMandatoryDeductions();
             return $wire.saveStepChanges().then(() => {
                 this.stepDirty = false;
                 this.unsavedChanges = {};
@@ -135,6 +156,7 @@
             }
 
             this.modalBusy = true;
+            this.syncMandatoryDeductions();
             return $wire.saveStepChangesAndGoToStep(this.pendingStep).then((changedStep) => {
                 if (changedStep === false) {
                     return;
@@ -210,7 +232,7 @@
         x-cloak
         x-show="unsavedStepModalOpen"
         x-transition.opacity
-        class="fixed inset-0 z-[90] bg-black bg-opacity-50 backdrop-blur-sm"
+        class="fixed inset-0 z-[90] bg-slate-900/20 backdrop-blur-sm backdrop-saturate-50"
     ></div>
 
     <div
@@ -266,6 +288,14 @@
                 </p>
             </div>
             <div class="flex flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:justify-end">
+                <button
+                    type="button"
+                    x-on:click="closeUnsavedStepModal()"
+                    x-bind:disabled="modalBusy"
+                    class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+                >
+                    Cancel
+                </button>
                 <button
                     type="button"
                     x-on:click="discardStepChanges()"
@@ -974,6 +1004,7 @@
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
                 <h3 class="font-semibold">Mandatory Deductions</h3>
+                <p class="text-xs text-slate-500">Enter a positive adjustment to add a deduction or a negative adjustment to refund/reduce it.</p>
                 @include('livewire.payroll.partials.step-save-button')
             </div>
             <fieldset @disabled(! $canEditCurrentStep) class="contents">
@@ -990,16 +1021,23 @@
                             <th class="px-4 py-3 text-right">PHIC (PS)</th>
                             <th class="px-4 py-3 text-right">PHIC (GS)</th>
                             <th class="px-4 py-3 text-right">HDMF (PS) 1</th>
-                            <th class="px-4 py-3 text-right">HDMF (PS) 2 MS</th>
                             <th class="px-4 py-3 text-right">HDMF (GS)</th>
-                            <th class="px-4 py-3 text-right">EA Deduction</th>
                             <th class="px-4 py-3 text-right">Total Mandatory Deductions</th>
                             <th class="px-4 py-3 text-right">Net Pay</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
-                            <tr class="hover:bg-slate-50" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}">
+                            <tr
+                                class="hover:bg-slate-50"
+                                data-unsaved-employee-no="{{ $row['emp_id'] }}"
+                                data-unsaved-employee-name="{{ $row['employee_name'] }}"
+                                x-data="{
+                                    employeeId: @js($row['emp_id']),
+                                    employeeBases: @js($row['base_statutory_deductions']),
+                                    netCompensation: @js($row['net_compensation']),
+                                }"
+                            >
                                 <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
                                 <td class="payroll-sticky-employee-name-cell px-4 py-3 font-medium">{{ $row['employee_name'] }}</td>
                                 <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
@@ -1010,9 +1048,7 @@
                                     ['key' => 'phic', 'source' => 'statutory_deductions'],
                                     ['key' => 'government_phic', 'source' => 'statutory_government_shares'],
                                     ['key' => 'mandatory_pagibig', 'source' => 'statutory_deductions'],
-                                    ['key' => 'hdmf_ps_2_ms', 'source' => 'statutory_deductions'],
                                     ['key' => 'government_pagibig', 'source' => 'statutory_government_shares'],
-                                    ['key' => 'ea_deduction', 'source' => 'statutory_deductions'],
                                 ] as $deductionColumn)
                                     @php
                                         $deductionKey = $deductionColumn['key'];
@@ -1021,9 +1057,12 @@
                                     @endphp
                                     <td class="px-4 py-3 text-right">
                                         <div class="text-[10px] uppercase text-slate-400">Base {{ number_format($row[$baseSource][$deductionKey] ?? 0, 2) }}</div>
-                                        <div class="font-medium">Result {{ number_format($row[$source][$deductionKey] ?? 0, 2) }}</div>
+                                        <div class="font-medium">
+                                            Result <span x-text="money(mandatoryResult(employeeId, @js($deductionKey), @js($row[$baseSource][$deductionKey] ?? 0)))"></span>
+                                        </div>
                                         <input
-                                            wire:model.live.debounce.250ms="mandatoryDeductionAdjustments.{{ $row['emp_id'] }}.{{ $deductionKey }}"
+                                            x-model.number="mandatoryDeductionAdjustments[employeeId][@js($deductionKey)]"
+                                            data-model="mandatoryDeductionAdjustments.{{ $row['emp_id'] }}.{{ $deductionKey }}"
                                             type="number"
                                             step="0.01"
                                             placeholder="{{ number_format($row[$baseSource][$deductionKey] ?? 0, 2) }}"
@@ -1031,8 +1070,8 @@
                                         >
                                     </td>
                                 @endforeach
-                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['total_mandatory_deductions'], 2) }}</td>
-                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_before_other_deductions'], 2) }}</td>
+                                <td class="px-4 py-3 text-right font-semibold" x-text="money(mandatoryEmployeeTotal(employeeId, employeeBases))"></td>
+                                <td class="px-4 py-3 text-right font-semibold" x-text="money(netCompensation - mandatoryEmployeeTotal(employeeId, employeeBases))"></td>
                             </tr>
                         @empty
                             <tr>

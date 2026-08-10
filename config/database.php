@@ -82,6 +82,26 @@ return [
             ]) : [],
         ],
 
+        'hris_v2' => [
+            'driver' => 'mysql',
+            'url' => env('DB_URL_HRIS_V2', env('DB_URL_HRIS', env('DB_URL'))),
+            'host' => env('DB_HOST_HRIS_V2', env('DB_HOST_HRIS', env('DB_HOST', '10.13.3.233'))),
+            'port' => env('DB_PORT_HRIS_V2', env('DB_PORT_HRIS', env('DB_PORT', '3306'))),
+            'database' => env('DB_DATABASE_HRIS_V2', 'hris_v2'),
+            'username' => env('DB_USERNAME_HRIS_V2', env('DB_USERNAME_HRIS', env('DB_USERNAME', 'remote_user'))),
+            'password' => env('DB_PASSWORD_HRIS_V2', env('DB_PASSWORD_HRIS', env('DB_PASSWORD', 'P@ssw)rd'))),
+            'unix_socket' => env('DB_SOCKET_HRIS_V2', env('DB_SOCKET_HRIS', env('DB_SOCKET', ''))),
+            'charset' => env('DB_CHARSET_HRIS_V2', env('DB_CHARSET_HRIS', env('DB_CHARSET', 'utf8mb4'))),
+            'collation' => env('DB_COLLATION_HRIS_V2', env('DB_COLLATION_HRIS', env('DB_COLLATION', 'utf8mb4_unicode_ci'))),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA_HRIS_V2', env('MYSQL_ATTR_SSL_CA_HRIS', env('MYSQL_ATTR_SSL_CA'))),
+            ]) : [],
+        ],
+
         'payroll' => [
             'driver' => 'mysql',
             'url' => env('DB_URL_PAYROLL'),

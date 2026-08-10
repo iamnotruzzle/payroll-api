@@ -17,6 +17,7 @@ class PayrollLoanType extends Model
         'review_group',
         'review_column_key',
         'review_column_label',
+        'insert_after_column',
         'match_keywords',
         'sort_order',
         'is_active',

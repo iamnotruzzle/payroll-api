@@ -427,6 +427,9 @@
                                             {{ number_format($programs['total'] ?? 0, 2) }}
                                         @elseif ($columnKey === 'additional_premium_total')
                                             {{ number_format($additionalPremiums['total'] ?? 0, 2) }}
+                                        @elseif (str_starts_with($columnKey, 'premium_type_'))
+                                            @php $premiumTypeId = str_replace('premium_type_', '', $columnKey); @endphp
+                                            {{ number_format(collect($additionalPremiums['items'] ?? [])->where('loan_type_id', (string) $premiumTypeId)->sum('amount_due'), 2) }}
                                         {{-- COMPENSATION COLUMNS --}}
                                         @elseif (str_starts_with($columnKey, 'compensation_'))
                                             @php

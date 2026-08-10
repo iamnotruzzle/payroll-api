@@ -166,6 +166,42 @@ class UserAccounts extends Component
         session()->flash('status', 'User account saved.');
     }
 
+    public function resetPassword(int $id): void
+    {
+        abort_unless(auth()->user()?->can('admin.users.manage'), 403);
+
+        $account = UserAccount::query()->findOrFail($id);
+        $temporary = 'ChangeMe'.random_int(1000, 9999).'!';
+        $account->password = $temporary;
+        $account->login_attempt = 0;
+        $account->save();
+
+        session()->flash('status', "Password reset for {$account->username}. Temporary password: {$temporary}");
+    }
+
+    public function deleteAccount(int $id): void
+    {
+        abort_unless(auth()->user()?->can('admin.users.manage'), 403);
+
+        $account = UserAccount::query()->findOrFail($id);
+
+        if ((int) auth()->id() === (int) $account->userid) {
+            session()->flash('status', 'You cannot delete your own account while signed in.');
+
+            return;
+        }
+
+        $account->syncRoles([]);
+        $account->syncPermissions([]);
+        $account->delete();
+
+        if ($this->editingId === $id) {
+            $this->closeDrawer();
+        }
+
+        session()->flash('status', 'User account deleted. Spatie role/permission links were cleared first.');
+    }
+
     public function closeDrawer(): void
     {
         $this->drawerOpen = false;

@@ -59,8 +59,6 @@ class PayrollGeneration extends Component
         'life_retirement',
         'phic',
         'mandatory_pagibig',
-        'hdmf_ps_2_ms',
-        'ea_deduction',
     ];
 
     private const GOVERNMENT_MANDATORY_DEDUCTION_KEYS = [
@@ -1382,8 +1380,6 @@ class PayrollGeneration extends Component
                 'life_retirement' => $rows->sum('statutory_deductions.life_retirement'),
                 'phic' => $rows->sum('statutory_deductions.phic'),
                 'mandatory_pagibig' => $rows->sum('statutory_deductions.mandatory_pagibig'),
-                'hdmf_ps_2_ms' => $rows->sum('statutory_deductions.hdmf_ps_2_ms'),
-                'ea_deduction' => $rows->sum('statutory_deductions.ea_deduction'),
             ],
             'statutory_government_shares' => [
                 'government_life_retirement' => $rows->sum('statutory_government_shares.government_life_retirement'),
@@ -1679,15 +1675,13 @@ class PayrollGeneration extends Component
                     (float) ($statutoryDeductions['life_retirement'] ?? 0)
                     + (float) ($statutoryDeductions['phic'] ?? 0)
                     + (float) ($statutoryDeductions['mandatory_pagibig'] ?? 0)
-                    + (float) ($statutoryDeductions['ea_deduction'] ?? 0)
                 ),
                 2
             );
             $currentTaxMandatoryDeductions = round(
                 (float) ($statutoryDeductions['life_retirement'] ?? 0)
                 + (float) ($statutoryDeductions['phic'] ?? 0)
-                + (float) ($statutoryDeductions['mandatory_pagibig'] ?? 0)
-                + (float) ($statutoryDeductions['ea_deduction'] ?? 0),
+                + (float) ($statutoryDeductions['mandatory_pagibig'] ?? 0),
                 2
             );
             $monthlyWithholdingTaxableIncome = round($basicSalary + $taxSubsistence - $currentTaxMandatoryDeductions, 2);
@@ -1988,7 +1982,7 @@ class PayrollGeneration extends Component
                 ->values()
                 ->all();
             $this->deductionProgramSelections[$id] = array_merge([
-                'enabled' => $rosterIds !== [],
+                'enabled' => $rosterIds !== [] || strcasecmp($program->name, 'EA Deduction') === 0,
                 'mode' => $rosterIds === [] ? 'all' : 'include',
                 'employee_ids' => $rosterIds,
                 'amount_mode' => 'program',
@@ -4094,7 +4088,7 @@ class PayrollGeneration extends Component
                 $this->selectedAdjustmentTypes()->map(fn ($type) => 'adjustment_type_'.$type->id)->all(),
                 ['adjustment_remarks', 'net_compensation'],
             )],
-            ['label' => 'Mandatory Deductions', 'columns' => ['life_retirement', 'government_life_retirement', 'ec', 'phic', 'government_phic', 'mandatory_pagibig', 'hdmf_ps_2_ms', 'government_pagibig', 'ea_deduction', 'total_mandatory_deductions']],
+            ['label' => 'Mandatory Deductions', 'columns' => $this->positionedMandatoryDeductionColumns($deductionPrograms)],
             ['label' => 'Tax Calculation', 'columns' => [
                 'entry_date',
                 'tax_salary_grade',
@@ -4123,8 +4117,8 @@ class PayrollGeneration extends Component
                 'fifteenth',
                 'thirtieth',
             ]],
-            ['label' => 'Deduction Programs', 'columns' => array_merge($deductionPrograms->map(fn ($program) => 'program_'.$program->id)->all(), ['program_total'])],
-            ['label' => 'Additional Premiums', 'columns' => ['additional_premium_total']],
+            ['label' => 'Deduction Programs', 'columns' => array_merge($deductionPrograms->whereNull('insert_after_column')->map(fn ($program) => 'program_'.$program->id)->all(), ['program_total'])],
+            ['label' => 'Additional Premiums', 'columns' => array_merge($this->additionalPremiumTypes()->whereNull('insert_after_column')->map(fn ($type) => 'premium_type_'.$type->id)->all(), ['additional_premium_total'])],
             ...collect($this->loanColumnGroups)->map(fn (array $columns, string $label) => ['label' => $label, 'columns' => array_keys($columns)])->values()->all(),
             ['label' => 'Net Pay Distribution', 'columns' => ['net_before_other_deductions', 'loan_total']],
         ];
@@ -4157,9 +4151,7 @@ class PayrollGeneration extends Component
             'phic' => ['label' => 'PHIC (PS)', 'enabled' => true],
             'government_phic' => ['label' => 'PHIC (GS)', 'enabled' => true],
             'mandatory_pagibig' => ['label' => 'HDMF (PS) 1', 'enabled' => true],
-            'hdmf_ps_2_ms' => ['label' => 'HDMF (PS) 2 MS', 'enabled' => true],
             'government_pagibig' => ['label' => 'HDMF (GS)', 'enabled' => true],
-            'ea_deduction' => ['label' => 'EA Deduction', 'enabled' => true],
             'total_mandatory_deductions' => ['label' => 'Total Mandatory Deductions', 'enabled' => true],
             'annual_taxable_income' => ['label' => 'Taxable Income (Year)', 'enabled' => true],
             'annual_tax_due' => ['label' => 'Tax Due (Year)', 'enabled' => true],
@@ -4206,6 +4198,10 @@ class PayrollGeneration extends Component
             $columns['program_'.$program->id] = ['label' => $program->name, 'enabled' => true];
         }
 
+        foreach ($this->additionalPremiumTypes() as $type) {
+            $columns['premium_type_'.$type->id] = ['label' => $type->review_column_label ?: $type->name, 'enabled' => true];
+        }
+
         foreach ($this->loanColumnGroups as $group) {
             foreach ($group as $key => $label) {
                 $columns[$key] = ['label' => $label, 'enabled' => true];
@@ -4213,6 +4209,36 @@ class PayrollGeneration extends Component
         }
 
         return $columns;
+    }
+
+    private function positionedMandatoryDeductionColumns(Collection $deductionPrograms): array
+    {
+        $columns = ['life_retirement', 'government_life_retirement', 'ec', 'phic', 'government_phic', 'mandatory_pagibig', 'government_pagibig'];
+        $positioned = $deductionPrograms
+            ->filter(fn ($program) => filled($program->insert_after_column))
+            ->map(fn ($program) => ['key' => 'program_'.$program->id, 'after' => $program->insert_after_column])
+            ->concat($this->additionalPremiumTypes()
+                ->filter(fn ($type) => filled($type->insert_after_column))
+                ->map(fn ($type) => ['key' => 'premium_type_'.$type->id, 'after' => $type->insert_after_column]));
+
+        foreach ($positioned->groupBy('after') as $after => $items) {
+            $index = array_search($after, $columns, true);
+            if ($index !== false) {
+                array_splice($columns, $index + 1, 0, $items->pluck('key')->all());
+            }
+        }
+
+        $columns[] = 'total_mandatory_deductions';
+
+        return $columns;
+    }
+
+    private function additionalPremiumTypes(): Collection
+    {
+        return PayrollLoanType::query()
+            ->where('is_active', true)
+            ->whereHas('entity', fn ($query) => $query->whereIn('code', self::ADDITIONAL_PREMIUM_ENTITY_CODES))
+            ->orderBy('sort_order')->orderBy('name')->get();
     }
 
     private function loanColumnLabel(string $key): string

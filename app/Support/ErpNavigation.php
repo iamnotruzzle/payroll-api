@@ -26,15 +26,18 @@ class ErpNavigation
                 'label' => 'Self Service',
                 'accent' => 'sky',
                 'icon' => 'user',
-                'href' => route('time-punch.index'),
+                'href' => route('self-service.profile'),
                 'available' => true,
                 'active' => request()->routeIs('time-punch.*')
+                    || request()->routeIs('self-service.*')
                     || (request()->routeIs('coming-soon') && request()->route('module') === 'self-service'),
                 'menu' => [
                     ['label' => 'Time Punch', 'route' => 'time-punch.index', 'icon' => 'clock-3', 'active' => request()->routeIs('time-punch.*')],
-                    ['label' => 'My Profile', 'href' => $soon('self-service', 'my-profile'), 'icon' => 'id-card', 'coming_soon' => true, 'active' => self::isSoon('self-service', 'my-profile')],
+                    ['label' => 'My Profile', 'route' => 'self-service.profile', 'icon' => 'id-card', 'active' => request()->routeIs('self-service.profile*')],
                     ['label' => 'My Schedule', 'href' => $soon('self-service', 'my-schedule'), 'icon' => 'calendar-range', 'coming_soon' => true, 'active' => self::isSoon('self-service', 'my-schedule')],
-                    ['label' => 'My Leave', 'href' => $soon('self-service', 'my-leave'), 'icon' => 'calendar-off', 'coming_soon' => true, 'active' => self::isSoon('self-service', 'my-leave')],
+                    ($user?->can('self-service.leave') || $user?->can('leave.request') || $user?->can('leave.view'))
+                        ? ['label' => 'My Leave', 'route' => 'self-service.leave', 'icon' => 'calendar-off', 'active' => request()->routeIs('self-service.leave')]
+                        : ['label' => 'My Leave', 'href' => $soon('self-service', 'my-leave'), 'icon' => 'calendar-off', 'coming_soon' => true, 'active' => self::isSoon('self-service', 'my-leave')],
                     ['label' => 'My DTR', 'href' => $soon('self-service', 'my-dtr'), 'icon' => 'file-clock', 'coming_soon' => true, 'active' => self::isSoon('self-service', 'my-dtr')],
                     ['label' => 'My Payslip', 'href' => $soon('self-service', 'my-payslip'), 'icon' => 'banknote', 'coming_soon' => true, 'active' => self::isSoon('self-service', 'my-payslip')],
                 ],
@@ -44,13 +47,20 @@ class ErpNavigation
                 'label' => 'Employees',
                 'accent' => 'violet',
                 'icon' => 'users',
-                'href' => $soon('employees', 'directory'),
-                'available' => false,
-                'active' => request()->routeIs('coming-soon') && request()->route('module') === 'employees',
+                'href' => ($user?->can('employees.view') || $user?->can('employees.manage'))
+                    ? route('employees.index')
+                    : $soon('employees', 'directory'),
+                'available' => (bool) ($user?->can('employees.view') || $user?->can('employees.manage')),
+                'visible' => true,
+                'active' => request()->routeIs('employees.*')
+                    || (request()->routeIs('coming-soon') && request()->route('module') === 'employees'),
                 'menu' => [
-                    ['label' => 'Employee Directory', 'href' => $soon('employees', 'directory'), 'icon' => 'users', 'coming_soon' => true, 'active' => self::isSoon('employees', 'directory')],
-                    ['label' => 'Personal Data Sheet', 'href' => $soon('employees', 'pds'), 'icon' => 'id-card', 'coming_soon' => true, 'active' => self::isSoon('employees', 'pds')],
-                    ['label' => 'Dependents', 'href' => $soon('employees', 'dependents'), 'icon' => 'users', 'coming_soon' => true, 'active' => self::isSoon('employees', 'dependents')],
+                    ($user?->can('employees.view') || $user?->can('employees.manage'))
+                        ? ['label' => 'Employee Directory', 'route' => 'employees.index', 'icon' => 'users', 'active' => request()->routeIs('employees.index')]
+                        : ['label' => 'Employee Directory', 'href' => $soon('employees', 'directory'), 'icon' => 'users', 'coming_soon' => true, 'active' => self::isSoon('employees', 'directory')],
+                    ($user?->can('employees.view') || $user?->can('employees.manage'))
+                        ? ['label' => 'Personal Data Sheet', 'route' => 'employees.index', 'icon' => 'id-card', 'active' => request()->routeIs('employees.show')]
+                        : ['label' => 'Personal Data Sheet', 'href' => $soon('employees', 'pds'), 'icon' => 'id-card', 'coming_soon' => true, 'active' => self::isSoon('employees', 'pds')],
                 ],
             ],
             [
@@ -58,15 +68,40 @@ class ErpNavigation
                 'label' => 'Leave',
                 'accent' => 'amber',
                 'icon' => 'umbrella',
-                'href' => $soon('leave', 'requests'),
-                'available' => false,
-                'active' => request()->routeIs('coming-soon') && request()->route('module') === 'leave',
-                'menu' => [
-                    ['label' => 'Leave Requests', 'href' => $soon('leave', 'requests'), 'icon' => 'calendar-off', 'coming_soon' => true, 'active' => self::isSoon('leave', 'requests')],
-                    ['label' => 'Leave Approvals', 'href' => $soon('leave', 'approvals'), 'icon' => 'user-check', 'coming_soon' => true, 'active' => self::isSoon('leave', 'approvals')],
-                    ['label' => 'Leave Credits', 'href' => $soon('leave', 'credits'), 'icon' => 'coins', 'coming_soon' => true, 'active' => self::isSoon('leave', 'credits')],
-                    ['label' => 'Leave Card', 'href' => $soon('leave', 'leave-card'), 'icon' => 'book-text', 'coming_soon' => true, 'active' => self::isSoon('leave', 'leave-card')],
-                ],
+                'href' => ($user?->can('leave.view') || $user?->can('leave.request') || $user?->can('leave.approve'))
+                    ? route('leave.requests')
+                    : ($user?->can('leave.credits')
+                        ? route('leave.credits')
+                        : ($user?->can('leave.reports')
+                            ? route('leave.reports')
+                            : $soon('leave', 'requests'))),
+                'available' => (bool) (
+                    $user?->can('leave.view')
+                    || $user?->can('leave.request')
+                    || $user?->can('leave.approve')
+                    || $user?->can('leave.credits')
+                    || $user?->can('leave.reports')
+                ),
+                'visible' => true,
+                'active' => request()->routeIs('leave.*')
+                    || (request()->routeIs('coming-soon') && request()->route('module') === 'leave'),
+                'menu' => array_values(array_filter([
+                    ($user?->can('leave.view') || $user?->can('leave.request') || $user?->can('leave.approve'))
+                        ? ['label' => 'Leave Requests', 'route' => 'leave.requests', 'icon' => 'calendar-off', 'active' => request()->routeIs('leave.requests*')]
+                        : null,
+                    ($user?->can('leave.approve') || $user?->can('leave.view'))
+                        ? ['label' => 'Leave Approvals', 'route' => 'leave.approvals', 'icon' => 'user-check', 'active' => request()->routeIs('leave.approvals')]
+                        : null,
+                    ($user?->can('leave.credits') || $user?->can('leave.view'))
+                        ? ['label' => 'Leave Credits', 'route' => 'leave.credits', 'icon' => 'coins', 'active' => request()->routeIs('leave.credits')]
+                        : null,
+                    ($user?->can('leave.credits') || $user?->can('leave.view'))
+                        ? ['label' => 'Leave Card', 'route' => 'leave.card', 'icon' => 'book-text', 'active' => request()->routeIs('leave.card*')]
+                        : null,
+                    ($user?->can('leave.reports') || $user?->can('leave.view'))
+                        ? ['label' => 'Leave Reports', 'route' => 'leave.reports', 'icon' => 'clipboard-list', 'active' => request()->routeIs('leave.reports')]
+                        : null,
+                ])),
             ],
             [
                 'key' => 'scheduling',

@@ -42,6 +42,7 @@ class WorkspaceController extends Controller
             'approvals' => 'Leave Approvals',
             'credits' => 'Leave Credits',
             'leave-card' => 'Leave Card',
+            'reports' => 'Leave Reports',
             'my-profile' => 'My Profile',
             'my-leave' => 'My Leave',
             'my-schedule' => 'My Schedule',

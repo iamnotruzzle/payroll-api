@@ -67,9 +67,11 @@
                             <span class="mx-1 text-slate-300">/</span>
                             <span>PIMS {{ $account->pims_role ?? '-' }}</span>
                         </td>
-                        <td class="px-4 py-3 text-right">
+                        <td class="px-4 py-3 text-right whitespace-nowrap">
                             @can('admin.users.manage')
                                 <button wire:click="edit({{ $account->userid }})" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Edit</button>
+                                <button wire:click="resetPassword({{ $account->userid }})" wire:confirm="Reset password for {{ $account->username }}?" type="button" class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100">Reset</button>
+                                <button wire:click="deleteAccount({{ $account->userid }})" wire:confirm="Delete account {{ $account->username }}? Roles will be cleared." type="button" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100">Delete</button>
                             @else
                                 <span class="text-xs text-slate-400">View only</span>
                             @endcan

@@ -100,6 +100,9 @@
                                         <td class="px-4 py-3">
                                             <div class="font-medium">{{ $type->review_group }} / {{ $type->review_column_label }}</div>
                                             <div class="font-mono text-xs text-slate-500">{{ $type->review_column_key }}</div>
+                                            @if ($type->insert_after_column)
+                                                <div class="text-xs text-blue-600">After {{ str($type->insert_after_column)->replace('_', ' ')->title() }}</div>
+                                            @endif
                                         </td>
                                         <td class="px-4 py-3 text-xs text-slate-600">{{ implode(', ', $type->match_keywords ?: []) ?: '-' }}</td>
                                         <td class="px-4 py-3">
@@ -213,6 +216,19 @@
                         <label class="text-sm font-medium">Match Keywords</label>
                         <input wire:model="matchKeywords" type="text" placeholder="MPL, CONSO, MULTI-PURPOSE" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                         <p class="mt-1 text-xs text-slate-500">Comma-separated words used to classify imported rows into Review columns.</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Generated column position</label>
+                        <select wire:model="insertAfterColumn" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            <option value="">Own section (default)</option>
+                            <option value="life_retirement">After GSIS (PS)</option>
+                            <option value="government_life_retirement">After GSIS (GS)</option>
+                            <option value="phic">After PHIC (PS)</option>
+                            <option value="government_phic">After PHIC (GS)</option>
+                            <option value="mandatory_pagibig">After HDMF (PS) 1</option>
+                            <option value="government_pagibig">After HDMF (GS)</option>
+                        </select>
+                        <p class="mt-1 text-xs text-slate-500">Moves this premium/deduction column beside the selected generated-payroll column.</p>
                     </div>
                     <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
                         @if ($editingTypeId)

@@ -28,6 +28,7 @@ class LoanReferences extends Component
     public string $reviewGroup = 'Bank Loans';
     public string $reviewColumnKey = '';
     public string $reviewColumnLabel = '';
+    public string $insertAfterColumn = '';
     public string $matchKeywords = '';
     public int $typeSortOrder = 0;
     public bool $typeIsActive = true;
@@ -169,6 +170,7 @@ class LoanReferences extends Component
             'reviewGroup' => ['required', 'string', 'max:80'],
             'reviewColumnKey' => ['required', 'string', 'max:80', 'regex:/^[A-Za-z_][A-Za-z0-9_]*$/'],
             'reviewColumnLabel' => ['required', 'string', 'max:120'],
+            'insertAfterColumn' => ['nullable', 'string', 'max:80'],
             'matchKeywords' => ['nullable', 'string', 'max:1000'],
             'typeSortOrder' => ['required', 'integer', 'min:0', 'max:9999'],
             'typeIsActive' => ['boolean'],
@@ -183,6 +185,7 @@ class LoanReferences extends Component
             'review_group' => $data['reviewGroup'],
             'review_column_key' => $data['reviewColumnKey'],
             'review_column_label' => $data['reviewColumnLabel'],
+            'insert_after_column' => $data['insertAfterColumn'] ?: null,
             'match_keywords' => collect(explode(',', (string) $data['matchKeywords']))
                 ->map(fn ($keyword) => trim($keyword))
                 ->filter()
@@ -209,6 +212,7 @@ class LoanReferences extends Component
         $this->reviewGroup = $item->review_group;
         $this->reviewColumnKey = $item->review_column_key;
         $this->reviewColumnLabel = $item->review_column_label;
+        $this->insertAfterColumn = (string) ($item->insert_after_column ?? '');
         $this->matchKeywords = implode(', ', $item->match_keywords ?: []);
         $this->typeSortOrder = (int) $item->sort_order;
         $this->typeIsActive = (bool) $item->is_active;
@@ -242,6 +246,7 @@ class LoanReferences extends Component
         $this->reviewGroup = $this->isAdditionalPremiumMode() ? 'Additional Premiums' : 'Bank Loans';
         $this->reviewColumnKey = $this->isAdditionalPremiumMode() ? 'additional_premium' : '';
         $this->reviewColumnLabel = $this->isAdditionalPremiumMode() ? 'Additional Premium' : '';
+        $this->insertAfterColumn = '';
         $this->matchKeywords = '';
         $this->typeSortOrder = 0;
         $this->typeIsActive = true;
