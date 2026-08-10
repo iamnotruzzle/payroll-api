@@ -6,20 +6,12 @@ use App\Http\Controllers\Payroll\PayrollLoanImportController;
 use App\Http\Controllers\Payroll\PayrollPageController;
 use App\Http\Controllers\Schedule\SchedulePageController;
 use App\Http\Controllers\TimePunchController;
+use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    $user = auth()->user();
-
-    return $user
-        ? redirect()->route(match (true) {
-            $user->can('schedule.view') => 'schedule.dashboard',
-            $user->can('payroll.view') => 'payroll.generation.configuration',
-            $user->can('timekeeping.view') => 'payroll.dtr-encoding',
-            $user->can('admin.users.view') => 'admin.user-accounts',
-            $user->can('admin.roles.view') => 'admin.roles-permissions',
-            default => 'access.pending',
-        })
+    return auth()->check()
+        ? redirect()->route('home')
         : redirect()->route('login');
 });
 
@@ -37,6 +29,12 @@ Route::get('/access-pending', fn () => view('auth.access-pending'))
     ->name('access.pending');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/home', [WorkspaceController::class, 'home'])->name('home');
+    Route::get('/coming-soon/{module}/{feature?}', [WorkspaceController::class, 'comingSoon'])
+        ->where('module', '[a-z0-9\-]+')
+        ->where('feature', '[a-z0-9\-]+')
+        ->name('coming-soon');
+
     Route::get('/time-punch', [TimePunchController::class, 'index'])->name('time-punch.index');
     Route::post('/time-punch', [TimePunchController::class, 'store'])->name('time-punch.store');
 

@@ -42,14 +42,7 @@ class WebLoginController extends Controller
                 ->onlyInput('emp_id');
         }
 
-        return redirect()->intended(route(match (true) {
-            $user->can('schedule.view') => 'schedule.dashboard',
-            $user->can('payroll.view') => 'payroll.generation.configuration',
-            $user->can('timekeeping.view') => 'payroll.dtr-encoding',
-            $user->can('admin.users.view') => 'admin.user-accounts',
-            $user->can('admin.roles.view') => 'admin.roles-permissions',
-            default => 'access.pending',
-        }));
+        return redirect()->intended(route('home'));
     }
 
     public function destroy(Request $request): RedirectResponse

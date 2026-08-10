@@ -1,114 +1,242 @@
-# HRIS Integration Todo List
+# HRIS & Schedule Integration — Phased Plan
 
-Track legacy HRIS (`reference projects/hris`) integration into this app (payroll-api → HRIS & Payroll).
+Track work to grow this app into **HRIS & Payroll**, using:
+
+- `reference projects/hris` — legacy people ops (read-only)
+- `reference projects/schedulev2` — nursing Schedule Manager (read-only)
 
 **Rules**
 
-- Treat `reference projects/` as **read-only** reference (see `AGENTS.md`).
-- Implement all work in this repository.
-- Update checkboxes here when items complete so progress survives across chats and tools.
+- Treat `reference projects/` as **read-only** (see `AGENTS.md`).
+- Implement in this repository only.
+- Check off items here so progress survives across chats and tools.
 
-**Recommended build order:** Phase 0 → Employees → Leave → Self-service → biometric APIs → Training / IPCR → cutover.
+**Default data stance:** Keep shared **HRIS MySQL** as people / leave / raw DTR source of truth unless Phase 1 chooses a new schema. Own scheduling on `payroll_scheduler` and payroll ops on `payroll`. Preserve stable **`emp_id`** for all dependents.
+
+**Schedule stance:** One Schedule module for all departments. Port schedulev2 capabilities as **optional department features**; never bypass approve → lock → DTR sync.
+
+---
+
+## Phase roadmap
+
+| Phase | Name | Outcome |
+|-------|------|---------|
+| **1** | Foundation | Decisions, RBAC, nav, API hardening plan |
+| **2** | Employees | Employee master + PDS in this app |
+| **3** | Leave | Filing, approvals, credits, leave reports |
+| **4** | Self-service + payslip | Employee hub beyond time punch |
+| **5** | Schedule for all departments | Generalize module; absorb schedulev2; Nursing pilot |
+| **6** | Attendance bridges | Biometrics / sync APIs secured |
+| **7** | Training + performance | TARF + IPCR |
+| **8** | Payroll & reports polish | Medicare, consume API fate, leftover reports |
+| **9** | Cutover | Dual-run, retire legacy HRIS + schedulev2 usage |
+
+Optional parallel track under Phase 1: **schema modernization** (new HRIS DB + employee ETL). Do not block Phases 2–4 on it if you choose strategy A (UI on legacy `tbl_*`).
+
+```mermaid
+flowchart LR
+  p1[Phase1 Foundation]
+  p2[Phase2 Employees]
+  p3[Phase3 Leave]
+  p4[Phase4 SelfService]
+  p5[Phase5 Schedule]
+  p6[Phase6 Attendance]
+  p7[Phase7 TrainingIPCR]
+  p8[Phase8 PayrollReports]
+  p9[Phase9 Cutover]
+  p1 --> p2 --> p3 --> p4
+  p1 --> p5
+  p3 --> p5
+  p4 --> p6
+  p4 --> p7
+  p5 --> p9
+  p2 --> p9
+  p3 --> p9
+  p6 --> p9
+  p7 --> p8 --> p9
+```
 
 ---
 
 ## Context (gap summary)
 
-| Domain | Legacy HRIS | This project today |
-|--------|-------------|--------------------|
-| Employees / PDS | Full CRUD + print | Mostly read API |
-| Leave | Apply / approve / credits / reports | Consume only |
-| Training (TARF) | Full LDI workflow | Profile training read only |
-| IPCR / OPCR | Full module | Absent |
-| Self-service | Profile, leave, DTR, payslip | Time punch only |
-| Biometrics sync | `dtr/new`, client sync, sub-HRIS | Punch UI only |
-| Scheduling | Limited schedules | Full module |
-| Timekeeping ops | Manual DTR + reports | Encoding, corrections, MRA, holidays |
-| Payroll | Consume API + payslip viewer | Generation engine (Medicare still thin) |
-| Auth / RBAC | `user_level` 1–4 + dept gates | Spatie roles/permissions |
-
-**Data stance:** Keep shared **HRIS MySQL** as people/leave/raw DTR source of truth unless explicitly decided otherwise. Own scheduling on `payroll_scheduler` and payroll ops on `payroll`.
+| Domain | Legacy / schedulev2 | This project today |
+|--------|---------------------|--------------------|
+| Employees / PDS | Full CRUD + print (hris) | Mostly read API |
+| Leave | Apply / approve / credits (hris) | Consume only |
+| Training / IPCR | Full modules (hris) | Absent / read-only |
+| Self-service | Profile, leave, DTR, payslip (hris) | Time punch only |
+| Scheduling | Nursing-rich (schedulev2) | Dept-generic + strong payroll DTR link |
+| Payroll | Consume + payslip viewer (hris) | Generation engine (Medicare thin) |
+| Auth | `user_level` / Jetstream+Spatie | Spatie on HRIS accounts |
 
 ---
 
-## Phase 0 — Foundation
+## Phase 1 — Foundation
 
-- [ ] Document legacy→new module map, data ownership (HRIS DB vs payroll/scheduler), and cutover order; freeze what stays read-only vs becomes owned UI
-- [ ] Expand Spatie permissions/roles to cover HRIS domains (employee, leave, training, IPCR, reports, self-service) and map legacy `user_level` 1–4 + dept gates
-- [ ] Restructure app shell nav for HRIS & Payroll (Employees, Leave, Training, Performance, Self-Service) alongside existing Schedule / Timekeeping / Payroll
+**Goal:** Agree ownership, permissions, and navigation before building modules.
 
----
+- [ ] Document legacy→new module map, data ownership (HRIS vs payroll vs scheduler), and cutover order
+- [ ] **Decide schema strategy:** (A) keep legacy `tbl_*` + better UI, or (B) new normalized HRIS schema + migrate employees
+- [ ] If (B): design target model + ID policy (`emp_id` preserved vs map table)
+- [ ] If (B): plan ETL for `tbl_employee` + section tables (checksums / row counts) and dual-read period
+- [ ] Expand Spatie permissions/roles for employee, leave, training, IPCR, reports, self-service; map legacy `user_level` 1–4 + dept gates
+- [ ] Restructure app shell nav: Employees, Leave, Training, Performance, Self-Service + existing Schedule / Timekeeping / Payroll
+- [ ] Confirm Schedule strategy: enhance this module for all depts; schedulev2 is reference only
+- [ ] Define department **schedule profiles** (flags: `uses_units`, `uses_floaters`, `uses_on_call`, `uses_swaps`)
+- [ ] Plan API auth standard (Sanctum and/or API keys) for later biometric/schedule consumers
 
-## Employees
-
-- [ ] Build Livewire employee directory (search / dept / active) replacing `AdminController@viewAdminMenu`
-- [ ] Port PDS profile CRUD (basic, address, family, education, eligibility, work exp, L&D, other info, refs, gov IDs) with Spatie-gated edit
-- [ ] Port dependents management, activate/deactivate (resignation flows), and file uploads
-- [ ] Port PDS view/print (DomPDF/FPDF equivalent) for admin and self-service
-
----
-
-## Leave
-
-- [ ] Port leave apply / edit / cancel / print + leave card UI writing `tbl_employee_leave` / leave logs
-- [ ] Port approval queue (approve / disapprove / request / log) with role-based approvers replacing `user_level` checks
-- [ ] Port leave credits maintenance, undertime, and queued `LeaveCreditsUpdater` jobs
-- [ ] Port leave reports (monthly / type APIs + UI) into References / Reports
+**Exit:** Strategy chosen; RBAC + nav scaffolding ready; schedule profile model agreed.
 
 ---
 
-## Attendance / DTR bridge
+## Phase 2 — Employees
 
-- [ ] Port biometric punch API (`POST dtr/new`) and client/batch sync (`api/dtr/client/sync`) into this app with auth
-- [ ] Evaluate / port sub-HRIS DTR replication (`mysql_sub_hris` + `ReplicateToSubHRIS`) or replace with a modern sync strategy
-- [ ] Surface fingerprint registration status and manual DTR admin parity where not covered by DTR Encoding
+**Goal:** This app owns day-to-day employee master / PDS (on chosen schema).
 
----
+- [ ] Livewire employee directory (search / dept / active)
+- [ ] PDS profile CRUD (basic, address, family, education, eligibility, work exp, L&D, other info, refs, gov IDs)
+- [ ] Dependents, activate/deactivate (resignation), file uploads
+- [ ] PDS view/print for admin and self-service
+- [ ] User Accounts parity with legacy create/reset/delete without breaking Spatie roles
+- [ ] If schema (B): run employee ETL + validate; point Employee models at new schema behind a flag
 
-## Training
-
-- [ ] Port TARF / LDI module (requests, PETU/OMCC approvals, calendar, employee list, reschedule, invites)
-- [ ] Port TARF PDFs (assessment, re-entry, acknowledgement) and uploaded training reports
-
----
-
-## Performance
-
-- [ ] Port IPCR / OPCR / MFO module (periods, targets, ratings, calibration, print)
+**Exit:** HR can manage employees here without opening legacy HRIS for core PDS work.
 
 ---
 
-## Self-service
+## Phase 3 — Leave
 
-- [ ] Employee hub — My Profile (read/edit), My Leave, My DTR, My IPCR, My Payslip (beyond Time Punch)
+**Goal:** Leave lifecycle lives here; schedule/payroll keep consuming the same leave data.
 
----
+- [ ] Apply / edit / cancel / print + leave card (`tbl_employee_leave` / logs or v2 equivalents)
+- [ ] Approval queue with Spatie roles (replace `user_level` checks)
+- [ ] Leave credits maintenance, undertime, credit updater jobs
+- [ ] Leave reports (monthly / type) in Reports
 
-## Payroll bridge
-
-- [ ] Port employee payslip index / print from `tbl_employee_payrolls` / payroll consume snapshots
-- [ ] Decide fate of legacy `POST payroll/consume` — keep for external systems or reverse so this app is source of payslips
-- [ ] Complete Medicare generation beyond `placeholderRows` for full payroll module parity
-
----
-
-## Reports & admin
-
-- [ ] Port legacy report hub pieces still needed (DTR bulk print, statistics/charts, appointment/PSS/exam if still used)
-- [ ] Ensure User Accounts covers legacy `AccountController` flows (create / reset / delete) without regressing Spatie assignments
+**Exit:** Staff can file leave and approvers can act in this app; schedule availability still works.
 
 ---
 
-## Platform
+## Phase 4 — Self-service + payslip
 
-- [ ] Lock down `/api/*` with Sanctum (or API keys) matching legacy intent of `APIRequestChecker`; secure biometric endpoints
+**Goal:** Employees use one hub instead of legacy menus.
+
+- [ ] Self-service hub: My Profile, My Leave, My DTR, My Payslip (Time Punch already exists — open beyond super-admin as appropriate)
+- [ ] Payslip index/print from stored payroll snapshots / runs
+- [ ] Decide legacy `POST payroll/consume`: keep for external systems vs this app as payslip source
+
+**Exit:** Typical employee no longer needs legacy HRIS for profile / leave / payslip / punch.
 
 ---
 
-## Cutover
+## Phase 5 — Schedule for all departments
 
-- [ ] Pilot one department on new HRIS modules while reading the same HRIS DB; dual-run leave/DTR against legacy
-- [ ] Feature-flag retire legacy HRIS routes once Employees + Leave + Self-service reach parity; archive reference project usage
+**Goal:** One scheduler; nursing features optional; every dept can use the same product; payroll DTR path preserved.
+
+### 5a — Core generalization
+
+- [ ] Implement department schedule profile flags and gate UI accordingly
+- [ ] Optional **schedule units** under `department_id` (ward/section/clinic/office)
+- [ ] Scheduler scope via handled units (generalize schedulev2 `handled_locations`)
+- [ ] My Schedule self-service for any employee with assignments
+- [ ] Update Schedule User Manual (office vs clinical setup examples)
+
+### 5b — Port from schedulev2 (flagged capabilities)
+
+- [ ] Floater pool + temporary floater on assignments
+- [ ] On-call / second on-call pools
+- [ ] Duty census (headcount by day × shift)
+- [ ] Shift swap workflow after approval
+- [ ] Pattern-fill UX improvements where they beat current draft tools
+- [ ] PDF/email distribution only if still required beyond current print settings
+- [ ] Week/attendance API patterns if external consumers need them (secured)
+
+### 5c — Pilots
+
+- [ ] Pilot **Nursing** with full flags (units, floaters, on-call, swaps) + verify lock → DTR sync
+- [ ] Pilot **one non-clinical department** with simple profile (units off; My Schedule ± swaps on)
+- [ ] Roll out org-wide; stop dual-maintaining schedulev2
+
+**Do not:** fork a second schedule DB, bypass lock→DTR, or copy hard-coded shift/dept IDs from schedulev2.
+
+**Exit:** Nursing can retire schedulev2; other departments use the same module with a simpler profile.
+
+---
+
+## Phase 6 — Attendance bridges
+
+**Goal:** Devices and satellite systems talk to this app securely.
+
+- [ ] Port biometric punch API (`POST dtr/new`) with auth
+- [ ] Port client/batch sync (`api/dtr/client/sync`) with auth
+- [ ] Decide sub-HRIS replication: port, replace, or drop
+- [ ] Fingerprint registration status + any manual DTR admin gaps vs DTR Encoding
+- [ ] Lock down `/api/*` (Sanctum / API keys)
+
+**Exit:** Clocks and sync clients no longer depend on legacy HRIS endpoints.
+
+---
+
+## Phase 7 — Training + performance
+
+**Goal:** Remaining major HRIS modules.
+
+- [ ] TARF / LDI (requests, approvals, calendar, reschedule, invites)
+- [ ] TARF PDFs + uploaded training reports
+- [ ] IPCR / OPCR / MFO (periods, targets, ratings, calibration, print)
+- [ ] Self-service: My IPCR / My Training where applicable
+
+**Exit:** Training and performance no longer require legacy HRIS.
+
+---
+
+## Phase 8 — Payroll & reports polish
+
+**Goal:** Close gaps in the ops stack already centered here.
+
+- [ ] Complete Medicare generation beyond `placeholderRows`
+- [ ] Port remaining legacy reports still needed (DTR bulk print, statistics, appointment/PSS/exam if used)
+- [ ] Final payslip/consume alignment from Phase 4 decision
+
+**Exit:** Payroll/reporting parity for production use without legacy crutches.
+
+---
+
+## Phase 9 — Cutover
+
+**Goal:** Dual-run then retire reference systems’ production use.
+
+- [ ] Pilot one dept on Employees + Leave + Self-service against shared HRIS data; dual-run vs legacy HRIS
+- [ ] Feature-flag / redirect traffic off legacy HRIS for completed modules
+- [ ] Nursing (+ others) fully on Phase 5 Schedule; archive schedulev2 usage
+- [ ] If schema (B): freeze legacy writes; decommission dual-read
+- [ ] Update manuals; mark reference projects as historical only
+
+**Exit:** This app is the operational HRIS & Payroll + Schedule system.
+
+---
+
+## Reference notes (non-todo)
+
+### schedulev2 vs this Schedule module
+
+| | This app | schedulev2 |
+|--|----------|------------|
+| Purpose | Dept-generic roster → **payroll DTR** | Nursing Schedule Manager |
+| Scope | `department_id` + rotation groups | Locations + clinics + groups |
+| Workflow | draft → reviewed → approved → **locked** → DTR | P→S→C→R→A + PDF/email |
+| Extras | Conflict/staffing engine | Floaters, on-call, swaps, My Schedule |
+
+### All-department capability matrix
+
+| Capability | Default for all depts | Optional via profile |
+|------------|----------------------|----------------------|
+| Grid, shifts, draft/approve/lock→DTR | Yes | — |
+| Rotations, templates, staffing, conflicts | Yes | — |
+| My Schedule | Yes | — |
+| Units / clinics | — | Yes |
+| Floaters, on-call, swaps, census | — | Yes |
 
 ---
 
@@ -116,4 +244,7 @@ Track legacy HRIS (`reference projects/hris`) integration into this app (payroll
 
 | Date | Notes |
 |------|-------|
-| 2026-08-10 | Initial todo list created from legacy vs payroll-api gap analysis. |
+| 2026-08-10 | Initial todo list from legacy vs payroll-api gap analysis. |
+| 2026-08-10 | Schema modernization track added. |
+| 2026-08-10 | schedulev2 applicability + all-department schedule generalization documented. |
+| 2026-08-10 | Reorganized into Phases 1–9 (Foundation → Cutover). |
