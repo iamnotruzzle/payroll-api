@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $title ?? 'Payroll Scheduler' }}</title>
+    <title>{{ $title ?? 'HRIS & Payroll' }}</title>
     <script>
         (() => {
             const saved = localStorage.getItem('erp-theme');
@@ -195,10 +195,10 @@
             <div class="flex min-h-full flex-col">
                 <div class="border-b border-[#eceef6] px-4 py-4">
                     <div class="erp-brand flex items-center gap-3">
-                        <div class="erp-brand-mark grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-black text-white">PM</div>
+                        <div class="erp-brand-mark grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-black text-white">HP</div>
                         <div class="min-w-0">
-                            <p class="erp-brand-eyebrow text-[10px] font-bold uppercase">MMMHMC / ERP</p>
-                            <h1 class="erp-brand-title truncate text-base font-bold">Payroll Scheduler</h1>
+                            <p class="erp-brand-eyebrow text-[10px] font-bold uppercase">MMMHMC</p>
+                            <h1 class="erp-brand-title truncate text-base font-bold">HRIS &amp; Payroll</h1>
                         </div>
                     </div>
                 </div>

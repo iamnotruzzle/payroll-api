@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "daisyui";
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -202,18 +203,286 @@ html[data-theme="dark"] .theme-icon-moon { display: none; }
     backdrop-filter: blur(22px) saturate(135%);
 }
 
-.erp-login { position: relative; overflow: hidden; }
-.erp-login::after { content: "MMMHMC • PEOPLE OPERATIONS"; position: fixed; bottom: 1.5rem; color: var(--erp-faint); font-size: .65rem; font-weight: 700; letter-spacing: .2em; }
-.erp-login::before {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    content: "";
-    background:
-        radial-gradient(circle at 15% 15%, color-mix(in srgb, var(--erp-primary) 30%, transparent), transparent 25rem),
-        radial-gradient(circle at 90% 80%, color-mix(in srgb, var(--erp-accent) 24%, transparent), transparent 28rem);
+.erp-login {
+    position: relative;
+    background: var(--erp-bg);
 }
-.erp-login-card { border-color: var(--erp-line) !important; background: var(--erp-shell) !important; box-shadow: 0 28px 70px -38px var(--erp-shadow); backdrop-filter: blur(22px) saturate(130%); }
+
+.erp-login-hero {
+    color: var(--erp-text);
+    background:
+        radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--erp-primary) 28%, transparent), transparent 28rem),
+        radial-gradient(circle at 88% 78%, color-mix(in srgb, var(--erp-accent) 22%, transparent), transparent 30rem),
+        linear-gradient(160deg, color-mix(in srgb, var(--erp-surface) 88%, var(--erp-bg)), var(--erp-bg));
+    border-right: 1px solid var(--erp-line);
+    animation: erp-login-hero-in 520ms ease-out both;
+}
+
+.erp-login-hero::before {
+    position: absolute;
+    inset: 0;
+    content: "";
+    pointer-events: none;
+    background-image:
+        linear-gradient(color-mix(in srgb, var(--erp-primary) 7%, transparent) 1px, transparent 1px),
+        linear-gradient(90deg, color-mix(in srgb, var(--erp-primary) 7%, transparent) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent 88%);
+}
+
+.erp-login-brand-row {
+    animation: erp-login-rise 480ms ease-out both;
+}
+
+.erp-login-product {
+    color: var(--erp-text);
+    letter-spacing: -0.04em;
+    animation: erp-login-rise 560ms ease-out 60ms both;
+}
+
+.erp-login-lead {
+    color: var(--erp-muted);
+    animation: erp-login-rise 620ms ease-out 110ms both;
+}
+
+.erp-login-visual {
+    min-height: 15rem;
+    animation: erp-login-rise 700ms ease-out 160ms both;
+}
+
+.erp-login-orbit {
+    position: absolute;
+    border: 1px solid color-mix(in srgb, var(--erp-primary) 22%, transparent);
+    border-radius: 999px;
+    pointer-events: none;
+}
+
+.erp-login-orbit-a {
+    left: 8%;
+    bottom: 1.5rem;
+    width: 14rem;
+    height: 14rem;
+    animation: erp-login-orbit-spin 28s linear infinite;
+}
+
+.erp-login-orbit-b {
+    left: 18%;
+    bottom: 4rem;
+    width: 9.5rem;
+    height: 9.5rem;
+    border-color: color-mix(in srgb, var(--erp-accent) 28%, transparent);
+    animation: erp-login-orbit-spin 18s linear infinite reverse;
+}
+
+.erp-login-panel-stack {
+    position: relative;
+    display: grid;
+    gap: 0.75rem;
+    max-width: 22rem;
+    margin-left: auto;
+}
+
+.erp-login-stack-card {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--erp-line);
+    border-radius: 1rem;
+    background: color-mix(in srgb, var(--erp-surface-raised) 92%, transparent);
+    box-shadow: 0 18px 40px -28px var(--erp-shadow);
+    backdrop-filter: blur(16px) saturate(130%);
+}
+
+.erp-login-stack-card-a { transform: translateX(0); }
+.erp-login-stack-card-b { transform: translateX(1.25rem); }
+.erp-login-stack-card-c { transform: translateX(0.4rem); }
+
+.erp-login-stack-label {
+    color: var(--erp-accent);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.erp-login-stack-value {
+    color: var(--erp-text);
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.erp-login-panel {
+    background:
+        radial-gradient(circle at 90% 8%, color-mix(in srgb, var(--erp-primary) 10%, transparent), transparent 18rem),
+        var(--erp-bg);
+    animation: erp-login-panel-in 480ms ease-out both;
+}
+
+.erp-login-card {
+    border: 1px solid var(--erp-line);
+    border-radius: 1.25rem;
+    background: var(--erp-shell);
+    box-shadow: 0 28px 70px -38px var(--erp-shadow);
+    backdrop-filter: blur(22px) saturate(130%);
+    padding: 1.65rem 1.5rem 1.4rem;
+}
+
+@media (min-width: 640px) {
+    .erp-login-card {
+        padding: 1.9rem 1.75rem 1.55rem;
+    }
+}
+
+.erp-login-form-title {
+    color: var(--erp-text);
+}
+
+.erp-login-label,
+.erp-login-remember {
+    color: var(--erp-muted);
+}
+
+.erp-login-input.input {
+    min-height: 2.75rem;
+    border-color: var(--erp-line-strong) !important;
+    border-radius: 0.7rem !important;
+    background: var(--erp-surface-raised) !important;
+    color: var(--erp-text) !important;
+    box-shadow: none;
+}
+
+.erp-login-input.input:focus,
+.erp-login-input.input:focus-within {
+    border-color: var(--erp-primary) !important;
+    outline: none;
+    box-shadow:
+        0 0 0 0.2rem color-mix(in srgb, var(--erp-primary) 13%, transparent),
+        0 8px 22px -18px color-mix(in srgb, var(--erp-primary) 55%, transparent);
+}
+
+.erp-login-reveal {
+    color: var(--erp-faint);
+    transition: color 140ms ease;
+}
+
+.erp-login-reveal:hover {
+    color: var(--erp-primary);
+}
+
+.erp-login-checkbox {
+    appearance: none;
+    display: inline-grid;
+    place-items: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    min-height: 0 !important;
+    margin: 0;
+    flex-shrink: 0;
+    border: 1.5px solid var(--erp-line-strong) !important;
+    border-radius: 0.3rem !important;
+    background-color: var(--erp-surface) !important;
+    background-image: none !important;
+    color: transparent !important;
+    box-shadow: none !important;
+    cursor: pointer;
+    transition:
+        border-color 140ms ease,
+        background-color 140ms ease,
+        box-shadow 140ms ease;
+}
+
+.erp-login-checkbox:hover {
+    border-color: var(--erp-primary) !important;
+}
+
+.erp-login-checkbox:focus,
+.erp-login-checkbox:focus-visible,
+.erp-login-checkbox:active {
+    outline: none !important;
+    border-color: var(--erp-primary) !important;
+    box-shadow: 0 0 0 0.18rem color-mix(in srgb, var(--erp-primary) 18%, transparent) !important;
+}
+
+.erp-login-checkbox:checked {
+    border-color: var(--erp-primary) !important;
+    background-color: var(--erp-primary) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.5 8.2 6.4 11l6.1-6.2' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+    background-size: 0.72rem !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+.erp-login-checkbox::before {
+    content: none !important;
+    display: none !important;
+}
+
+.erp-login-submit.btn {
+    min-height: 2.85rem;
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, var(--erp-primary), color-mix(in srgb, var(--erp-primary) 68%, var(--erp-accent))) !important;
+    box-shadow: 0 12px 28px -14px color-mix(in srgb, var(--erp-primary) 70%, transparent);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+}
+
+.erp-login-submit.btn:hover {
+    filter: brightness(1.05) saturate(1.05);
+    transform: translateY(-1px);
+}
+
+.erp-login-alert {
+    border-color: #fda4af;
+    background: #fff1f2;
+    color: #b42318;
+}
+
+html[data-theme="dark"] .erp-login-alert {
+    border-color: #9f3446;
+    background: #3a151d;
+    color: #fda4af;
+}
+
+.erp-login-footnote {
+    color: var(--erp-faint);
+}
+
+@keyframes erp-login-hero-in {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes erp-login-panel-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes erp-login-rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes erp-login-orbit-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .erp-login-hero,
+    .erp-login-panel,
+    .erp-login-brand-row,
+    .erp-login-product,
+    .erp-login-lead,
+    .erp-login-visual,
+    .erp-login-orbit-a,
+    .erp-login-orbit-b {
+        animation: none !important;
+    }
+
+    .erp-login-submit.btn {
+        transition-duration: 0ms !important;
+    }
+}
 
 .erp-body .bg-\[\#5f61e6\],
 .erp-body .bg-\[\#696cff\] { background-color: var(--erp-primary) !important; }
@@ -386,10 +655,10 @@ html[data-theme="dark"] .theme-icon-moon { display: none; }
     font-weight: 600;
 }
 
-.erp-content input,
+.erp-content input:not([type="checkbox"]):not([type="radio"]),
 .erp-content select,
 .erp-content textarea,
-.erp-body input,
+.erp-body input:not([type="checkbox"]):not([type="radio"]),
 .erp-body select,
 .erp-body textarea {
     min-height: 2.25rem;
@@ -402,19 +671,19 @@ html[data-theme="dark"] .theme-icon-moon { display: none; }
         background-color 140ms ease;
 }
 
-.erp-content input:not([class*="bg-"]),
+.erp-content input:not([type="checkbox"]):not([type="radio"]):not([class*="bg-"]),
 .erp-content select:not([class*="bg-"]),
 .erp-content textarea:not([class*="bg-"]),
-.erp-body input:not([class*="bg-"]),
+.erp-body input:not([type="checkbox"]):not([type="radio"]):not([class*="bg-"]),
 .erp-body select:not([class*="bg-"]),
 .erp-body textarea:not([class*="bg-"]) {
     background-color: #ffffff;
 }
 
-.erp-content input:not(.erp-formula-editor-input),
+.erp-content input:not([type="checkbox"]):not([type="radio"]):not(.erp-formula-editor-input),
 .erp-content select,
 .erp-content textarea:not(.erp-formula-editor-input),
-.erp-body input,
+.erp-body input:not([type="checkbox"]):not([type="radio"]),
 .erp-body select,
 .erp-body textarea {
     color: var(--erp-text);
@@ -430,10 +699,10 @@ html[data-theme="dark"] .theme-icon-moon { display: none; }
     padding-right: 2.5rem !important;
 }
 
-.erp-content input:focus,
+.erp-content input:not([type="checkbox"]):not([type="radio"]):focus,
 .erp-content select:focus,
 .erp-content textarea:focus,
-.erp-body input:focus,
+.erp-body input:not([type="checkbox"]):not([type="radio"]):focus,
 .erp-body select:focus,
 .erp-body textarea:focus {
     border-color: var(--erp-primary) !important;
@@ -1012,10 +1281,10 @@ html[data-theme="dark"] .theme-icon-moon { display: none; }
     backdrop-filter: blur(16px) saturate(125%);
 }
 
-.erp-content input:not([class*="bg-"]),
+.erp-content input:not([type="checkbox"]):not([type="radio"]):not([class*="bg-"]),
 .erp-content select:not([class*="bg-"]),
 .erp-content textarea:not([class*="bg-"]),
-.erp-body input:not([class*="bg-"]),
+.erp-body input:not([type="checkbox"]):not([type="radio"]):not([class*="bg-"]),
 .erp-body select:not([class*="bg-"]),
 .erp-body textarea:not([class*="bg-"]) {
     background-color: var(--erp-surface-raised) !important;
@@ -1262,10 +1531,10 @@ html[data-theme="dark"] .erp-body [class*="hover:bg-indigo-"]:not([class*="bg-in
     transform: translateY(-1px);
 }
 
-.erp-content input:focus,
+.erp-content input:not([type="checkbox"]):not([type="radio"]):focus,
 .erp-content select:focus,
 .erp-content textarea:focus,
-.erp-body input:focus,
+.erp-body input:not([type="checkbox"]):not([type="radio"]):focus,
 .erp-body select:focus,
 .erp-body textarea:focus {
     box-shadow:
