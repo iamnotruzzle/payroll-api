@@ -32,7 +32,6 @@ class EmployeeDirectory extends Component
 
         return view('livewire.employees.employee-directory', [
             'employees' => EmployeeDirectoryQuery::paginate($this->search, $this->status, $this->perPage),
-            'usesV2' => EmployeeDirectoryQuery::usesV2(),
         ]);
     }
 }

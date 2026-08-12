@@ -153,8 +153,71 @@ html[data-theme="dark"] .erp-body {
     border: 1px solid rgba(255,255,255,.26);
     border-radius: .55rem;
 }
+.erp-brand-mark--image {
+    background: #ffffff;
+    border: 1px solid color-mix(in srgb, var(--erp-primary) 22%, var(--erp-line));
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--erp-primary) 22%, transparent),
+        0 10px 28px color-mix(in srgb, var(--erp-primary) 18%, transparent),
+        inset 0 1px rgba(255, 255, 255, .9);
+    padding: 0;
+}
+
+.erp-brand-mark--image::after {
+    display: none;
+}
+
+.erp-brand-mark--image img,
+.erp-brand-mark-img {
+    display: block;
+}
+
+.erp-brand-mark-img--light {
+    filter:
+        drop-shadow(0 0 0.6px color-mix(in srgb, var(--erp-primary) 55%, #0f172a)) drop-shadow(0 0 0.6px color-mix(in srgb, var(--erp-primary) 55%, #0f172a));
+}
+
+.erp-brand-mark-img--dark {
+    display: none;
+}
+
+html[data-theme="dark"] .erp-brand-mark-img--light {
+    display: none;
+}
+
+html[data-theme="dark"] .erp-brand-mark-img--dark {
+    display: block;
+    object-fit: cover;
+    padding: 0;
+    mix-blend-mode: normal;
+    filter:
+        drop-shadow(0 0 0.7px color-mix(in srgb, var(--erp-accent) 85%, white)) drop-shadow(0 0 0.7px color-mix(in srgb, var(--erp-accent) 85%, white)) drop-shadow(0 0 6px color-mix(in srgb, var(--erp-primary) 45%, transparent));
+}
+
+html[data-theme="dark"] .erp-brand-mark--image {
+    background:
+        radial-gradient(circle at 28% 22%, color-mix(in srgb, var(--erp-accent) 28%, transparent), transparent 52%),
+        linear-gradient(160deg, #0a1628, #07101c 55%, #0b1a2e);
+    border-color: color-mix(in srgb, var(--erp-accent) 45%, transparent);
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--erp-primary) 38%, transparent),
+        0 12px 30px rgba(0, 0, 0, .45),
+        inset 0 1px rgba(255, 255, 255, .1);
+}
 
 .erp-brand-eyebrow { color: var(--erp-accent); letter-spacing: .14em !important; }
+.erp-login-hero .erp-brand-eyebrow {
+    color: color-mix(in srgb, var(--erp-primary) 72%, #0f172a);
+    font-weight: 800;
+}
+
+.erp-login-panel .erp-brand-eyebrow {
+    color: color-mix(in srgb, var(--erp-primary) 72%, #0f172a);
+}
+
+html[data-theme="dark"] .erp-login-panel .erp-brand-eyebrow {
+    color: var(--erp-accent);
+}
 .erp-brand-title { color: var(--erp-text); }
 .erp-subtle { color: var(--erp-muted); }
 .erp-status-dot { width: .45rem; height: .45rem; border-radius: 999px; background: #22c55e; box-shadow: 0 0 0 4px rgba(34,197,94,.12), 0 0 12px rgba(34,197,94,.5); animation: erp-status-pulse 2.4s ease-in-out infinite; }
@@ -232,6 +295,10 @@ html[data-theme="dark"] .theme-icon-moon { display: none; }
 
 .erp-login-brand-row {
     animation: erp-login-rise 480ms ease-out both;
+}
+.erp-login-brand-row .erp-brand-mark--image {
+    width: 3.75rem;
+    height: 3.75rem;
 }
 
 .erp-login-product {

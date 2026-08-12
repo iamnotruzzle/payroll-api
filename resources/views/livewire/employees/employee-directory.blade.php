@@ -4,21 +4,10 @@
             <h2 class="text-xl font-semibold">Employees</h2>
             <p class="text-sm text-slate-600">
                 Directory of workforce records
-                @if ($usesV2)
-                    <span class="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">hris_v2</span>
-                @else
-                    <span class="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">legacy</span>
-                @endif
             </p>
         </div>
         <a href="{{ route('home') }}" class="text-sm font-semibold text-[#696cff] hover:underline">All apps</a>
     </div>
-
-    @unless ($usesV2)
-        <div class="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Reading legacy HRIS. Run <code class="rounded bg-white px-1">php artisan hris:migrate-employees --apply</code>, validate, then set <code class="rounded bg-white px-1">HRIS_USE_V2=true</code>.
-        </div>
-    @endunless
 
     <section class="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center">

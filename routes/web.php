@@ -181,10 +181,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/admin/roles-permissions', [AdminPageController::class, 'rolesPermissions'])->name('admin.roles-permissions');
     });
 
-    Route::middleware('permission:admin.cutover.view')->group(function () {
-        Route::get('/admin/cutover', [AdminPageController::class, 'cutoverStatus'])->name('admin.cutover');
-    });
-
     Route::middleware('permission:schedule.view')->group(function () {
         Route::get('/schedule', [SchedulePageController::class, 'dashboard'])->name('schedule.dashboard');
         Route::get('/schedule/months/{schedule}', [SchedulePageController::class, 'show'])->name('schedule.show');

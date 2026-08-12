@@ -9,7 +9,10 @@
         </div>
 
         <div class="erp-launcher-intro">
-            <p class="erp-brand-eyebrow text-[11px] font-bold uppercase">MMMHMC</p>
+            <div class="mb-3 flex items-center gap-3">
+                <x-brand.mark size="lg" />
+                <p class="erp-brand-eyebrow text-[11px] font-bold uppercase">MMMHMC</p>
+            </div>
             <h2 class="mt-1 font-bold tracking-tight text-[color:var(--erp-text)]">
                 HRIS &amp; Payroll
             </h2>

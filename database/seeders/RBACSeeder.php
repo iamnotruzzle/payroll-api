@@ -72,7 +72,6 @@ class RBACSeeder extends Seeder
                 'admin.users.manage' => 'Manage user accounts and assigned roles',
                 'admin.roles.view' => 'View roles and permissions',
                 'admin.roles.manage' => 'Manage roles and permissions',
-                'admin.cutover.view' => 'View HRIS cutover status and Phase 9 flags',
             ],
             'Self Service' => [
                 'self-service.access' => 'Access self-service workspace',
@@ -148,7 +147,6 @@ class RBACSeeder extends Seeder
                     'admin.users.view',
                     'admin.users.manage',
                     'admin.roles.view',
-                    'admin.cutover.view',
                     'self-service.access',
                     'self-service.profile',
                     'self-service.leave',

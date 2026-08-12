@@ -4,8 +4,6 @@ namespace App\Livewire\Employees;
 
 use App\Services\Hris\EmployeeProfileWriteService;
 use App\Support\Hris\EmployeeDirectoryQuery;
-use Illuminate\Validation\ValidationException;
-use InvalidArgumentException;
 use Livewire\Component;
 
 class EmployeeProfile extends Component
@@ -119,8 +117,6 @@ class EmployeeProfile extends Component
         $employee = EmployeeDirectoryQuery::findForProfile($this->empId);
         abort_unless($employee, 404);
 
-        $usesV2 = EmployeeDirectoryQuery::usesV2();
-
         $this->firstname = (string) $employee->firstname;
         $this->middlename = (string) ($employee->middlename ?? '');
         $this->lastname = (string) $employee->lastname;
@@ -128,82 +124,42 @@ class EmployeeProfile extends Component
         $this->prefix = (string) ($employee->prefix ?? '');
         $this->suffix = (string) ($employee->suffix ?? '');
         $this->date_hired = optional($employee->date_hired)->format('Y-m-d') ?? '';
-
-        if ($usesV2) {
-            $this->email = (string) ($employee->contact?->email ?? '');
-            $this->mobile_no = (string) ($employee->contact?->mobile_no ?? '');
-            $this->telephone_no = (string) ($employee->contact?->telephone_no ?? '');
-            $this->emergency_contact_name = (string) ($employee->contact?->emergency_contact_name ?? '');
-            $this->emergency_contact_no = (string) ($employee->contact?->emergency_contact_no ?? '');
-            $this->birthdate = optional($employee->personal?->birthdate)->format('Y-m-d') ?? '';
-            $this->birthplace = (string) ($employee->personal?->birthplace ?? '');
-            $this->sex = (string) ($employee->personal?->sex ?? '');
-            $this->civil_status = (string) ($employee->personal?->civil_status ?? '');
-            $this->blood_type = (string) ($employee->personal?->blood_type ?? '');
-            $this->citizenship = (string) ($employee->personal?->citizenship ?? '');
-            $this->religion = (string) ($employee->personal?->religion ?? '');
-            $this->height = $employee->personal?->height !== null ? (string) $employee->personal->height : '';
-            $this->weight = $employee->personal?->weight !== null ? (string) $employee->personal->weight : '';
-            $this->residential_address = (string) ($employee->personal?->residential_address ?? '');
-            $this->permanent_address = (string) ($employee->personal?->permanent_address ?? '');
-            $this->tin_no = (string) ($employee->governmentIds?->tin_no ?? '');
-            $this->gsis_no = (string) ($employee->governmentIds?->gsis_no ?? '');
-            $this->pagibig_no = (string) ($employee->governmentIds?->pagibig_no ?? '');
-            $this->phic_no = (string) ($employee->governmentIds?->phic_no ?? '');
-            $this->sss_no = (string) ($employee->governmentIds?->sss_no ?? '');
-            $this->issued_id_type = (string) ($employee->governmentIds?->issued_id_type ?? '');
-            $this->issued_id_no = (string) ($employee->governmentIds?->issued_id_no ?? '');
-            $this->issued_id_date_place = (string) ($employee->governmentIds?->issued_id_date_place ?? '');
-            $this->is_related_third_degree = $this->boolToYn($employee->personal?->is_related_third_degree);
-            $this->is_related_fourth_degree = $this->boolToYn($employee->personal?->is_related_fourth_degree);
-            $this->is_admin_offense = $this->boolToYn($employee->personal?->is_admin_offense);
-            $this->is_criminally_charged = $this->boolToYn($employee->personal?->is_criminally_charged);
-            $this->is_convicted = $this->boolToYn($employee->personal?->is_convicted);
-            $this->is_separated_service = $this->boolToYn($employee->personal?->is_separated_service);
-            $this->is_election_candidate = $this->boolToYn($employee->personal?->is_election_candidate);
-            $this->is_resigned_for_campaign = $this->boolToYn($employee->personal?->is_resigned_for_campaign);
-            $this->is_immigrant = $this->boolToYn($employee->personal?->is_immigrant);
-            $this->is_indigenous = $this->boolToYn($employee->personal?->is_indigenous);
-            $this->is_pwd = $this->boolToYn($employee->personal?->is_pwd);
-            $this->is_solo_parent = $this->boolToYn($employee->personal?->is_solo_parent);
-        } else {
-            $this->email = (string) ($employee->email ?? '');
-            $this->mobile_no = (string) ($employee->mobile_no ?? '');
-            $this->telephone_no = (string) ($employee->tel_no ?? '');
-            $this->emergency_contact_name = '';
-            $this->emergency_contact_no = '';
-            $this->birthdate = optional($employee->birthdate)->format('Y-m-d') ?? '';
-            $this->birthplace = (string) ($employee->birthplace ?? '');
-            $this->sex = (string) ($employee->gender ?? '');
-            $this->civil_status = (string) ($employee->civil_stat ?? '');
-            $this->blood_type = (string) ($employee->blood_type ?? '');
-            $this->citizenship = (string) ($employee->citizenship_id ?? '');
-            $this->religion = (string) ($employee->religion_id ?? '');
-            $this->height = $employee->height !== null ? (string) $employee->height : '';
-            $this->weight = $employee->weight !== null ? (string) $employee->weight : '';
-            $this->residential_address = '';
-            $this->permanent_address = '';
-            $this->tin_no = (string) ($employee->tin_no ?? '');
-            $this->gsis_no = (string) ($employee->gsis_no ?? '');
-            $this->pagibig_no = (string) ($employee->pagibig_no ?? '');
-            $this->phic_no = (string) ($employee->phic_no ?? '');
-            $this->sss_no = (string) ($employee->sss_no ?? '');
-            $this->issued_id_type = (string) ($employee->gov_id ?? '');
-            $this->issued_id_no = (string) ($employee->govid_no ?? '');
-            $this->issued_id_date_place = (string) ($employee->govid_dateplace ?? '');
-            $this->is_related_third_degree = $this->legacyYn($employee->is_degree3 ?? null);
-            $this->is_related_fourth_degree = $this->legacyYn($employee->is_degree4 ?? null);
-            $this->is_admin_offense = $this->legacyYn($employee->is_adminoffense ?? null);
-            $this->is_criminally_charged = $this->legacyYn($employee->is_criminallycharged ?? null);
-            $this->is_convicted = $this->legacyYn($employee->is_convictedtocourt ?? null);
-            $this->is_separated_service = $this->legacyYn($employee->is_separated ?? null);
-            $this->is_election_candidate = $this->legacyYn($employee->is_candidate ?? null);
-            $this->is_resigned_for_campaign = $this->legacyYn($employee->is_campaign ?? null);
-            $this->is_immigrant = $this->legacyYn($employee->is_immigrant ?? null);
-            $this->is_indigenous = $this->legacyYn($employee->is_indigenous ?? null);
-            $this->is_pwd = $this->legacyYn($employee->is_pwd ?? null);
-            $this->is_solo_parent = $this->legacyYn($employee->is_soloparent ?? null);
-        }
+        $this->email = (string) ($employee->email ?? '');
+        $this->mobile_no = (string) ($employee->mobile_no ?? '');
+        $this->telephone_no = (string) ($employee->tel_no ?? '');
+        $this->emergency_contact_name = '';
+        $this->emergency_contact_no = '';
+        $this->birthdate = optional($employee->birthdate)->format('Y-m-d') ?? '';
+        $this->birthplace = (string) ($employee->birthplace ?? '');
+        $this->sex = (string) ($employee->gender ?? '');
+        $this->civil_status = (string) ($employee->civil_stat ?? '');
+        $this->blood_type = (string) ($employee->blood_type ?? '');
+        $this->citizenship = (string) ($employee->citizenship_id ?? '');
+        $this->religion = (string) ($employee->religion_id ?? '');
+        $this->height = $employee->height !== null ? (string) $employee->height : '';
+        $this->weight = $employee->weight !== null ? (string) $employee->weight : '';
+        $this->residential_address = '';
+        $this->permanent_address = '';
+        $this->tin_no = (string) ($employee->tin_no ?? '');
+        $this->gsis_no = (string) ($employee->gsis_no ?? '');
+        $this->pagibig_no = (string) ($employee->pagibig_no ?? '');
+        $this->phic_no = (string) ($employee->phic_no ?? '');
+        $this->sss_no = (string) ($employee->sss_no ?? '');
+        $this->issued_id_type = (string) ($employee->gov_id ?? '');
+        $this->issued_id_no = (string) ($employee->govid_no ?? '');
+        $this->issued_id_date_place = (string) ($employee->govid_dateplace ?? '');
+        $this->is_related_third_degree = $this->legacyYn($employee->is_degree3 ?? null);
+        $this->is_related_fourth_degree = $this->legacyYn($employee->is_degree4 ?? null);
+        $this->is_admin_offense = $this->legacyYn($employee->is_adminoffense ?? null);
+        $this->is_criminally_charged = $this->legacyYn($employee->is_criminallycharged ?? null);
+        $this->is_convicted = $this->legacyYn($employee->is_convictedtocourt ?? null);
+        $this->is_separated_service = $this->legacyYn($employee->is_separated ?? null);
+        $this->is_election_candidate = $this->legacyYn($employee->is_candidate ?? null);
+        $this->is_resigned_for_campaign = $this->legacyYn($employee->is_campaign ?? null);
+        $this->is_immigrant = $this->legacyYn($employee->is_immigrant ?? null);
+        $this->is_indigenous = $this->legacyYn($employee->is_indigenous ?? null);
+        $this->is_pwd = $this->legacyYn($employee->is_pwd ?? null);
+        $this->is_solo_parent = $this->legacyYn($employee->is_soloparent ?? null);
 
         $this->editing = true;
     }
@@ -289,14 +245,10 @@ class EmployeeProfile extends Component
 
         $meta = $this->validate([
             'date_separated' => ['nullable', 'date'],
-            'separation_reason' => [EmployeeDirectoryQuery::usesV2() ? 'required' : 'nullable', 'string', 'max:255'],
+            'separation_reason' => ['nullable', 'string', 'max:255'],
         ]);
 
-        try {
-            $writer->setActive($this->empId, false, $meta);
-        } catch (InvalidArgumentException $e) {
-            throw ValidationException::withMessages(['separation_reason' => $e->getMessage()]);
-        }
+        $writer->setActive($this->empId, false, $meta);
 
         $this->showDeactivateModal = false;
         session()->flash('status', 'Employee deactivated.');
@@ -318,7 +270,6 @@ class EmployeeProfile extends Component
 
         return view('livewire.employees.employee-profile', [
             'employee' => $employee,
-            'usesV2' => EmployeeDirectoryQuery::usesV2(),
             'departmentName' => EmployeeDirectoryQuery::departmentName($employee),
             'positionName' => EmployeeDirectoryQuery::positionName($employee),
             'isActive' => EmployeeDirectoryQuery::isActive($employee),
@@ -336,15 +287,6 @@ class EmployeeProfile extends Component
     private function canManage(): bool
     {
         return (bool) auth()->user()?->can('employees.manage');
-    }
-
-    private function boolToYn(mixed $value): string
-    {
-        if ($value === null) {
-            return '';
-        }
-
-        return $value ? 'Y' : 'N';
     }
 
     private function legacyYn(mixed $value): string

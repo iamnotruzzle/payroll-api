@@ -8,6 +8,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }}</title>
+    <link rel="icon" type="image/png" href="{{ asset('assets/brand/mmmhmc-hris-icon-transparent.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/brand/mmmhmc-hris-icon-transparent.png') }}">
     <script>
         (() => {
             const saved = localStorage.getItem('erp-theme');
@@ -36,7 +38,7 @@
                 <div class="flex min-h-full flex-col">
                     <div class="border-b border-[#eceef6] px-4 py-4">
                         <a href="{{ route('home') }}" class="erp-brand flex items-center gap-3">
-                            <div class="erp-brand-mark grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-black text-white">HP</div>
+                            <x-brand.mark size="md" />
                             <div class="min-w-0">
                                 <p class="erp-brand-eyebrow text-[10px] font-bold uppercase">MMMHMC</p>
                                 <h1 class="erp-brand-title truncate text-base font-bold">HRIS &amp; Payroll</h1>
@@ -116,7 +118,7 @@
                     <div class="flex min-w-0 items-center gap-3">
                         @if ($isLauncher)
                             <a href="{{ route('home') }}" class="erp-brand flex items-center gap-3">
-                                <div class="erp-brand-mark grid h-9 w-9 shrink-0 place-items-center rounded-xl text-xs font-black text-white">HP</div>
+                                <x-brand.mark size="sm" />
                                 <div class="min-w-0 hidden sm:block">
                                     <p class="erp-brand-eyebrow text-[10px] font-bold uppercase">MMMHMC</p>
                                     <p class="erp-brand-title truncate text-sm font-bold">HRIS &amp; Payroll</p>
@@ -192,13 +194,6 @@
                     </div>
                 </div>
             </header>
-
-            @php($cutoverBanner = \App\Support\Hris\HrisCutover::bannerMessage())
-            @if ($cutoverBanner)
-                <div class="border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-900 sm:px-5" role="status">
-                    <p class="font-medium">{{ $cutoverBanner }}</p>
-                </div>
-            @endif
 
             <main class="erp-content w-full px-3 py-4 sm:px-5 {{ $isLauncher ? 'erp-content-launcher' : '' }}">
                 {{ $slot }}

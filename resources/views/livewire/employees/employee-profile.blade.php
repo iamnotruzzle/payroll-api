@@ -7,14 +7,7 @@
         <div>
             <a href="{{ route('employees.index') }}" class="text-sm font-semibold text-[#696cff] hover:underline">← Employees</a>
             <h2 class="mt-2 text-xl font-semibold">{{ $employee->full_name }}</h2>
-            <p class="text-sm text-slate-600">
-                {{ $employee->emp_id }}
-                @if ($usesV2)
-                    <span class="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">hris_v2</span>
-                @else
-                    <span class="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">legacy</span>
-                @endif
-            </p>
+            <p class="text-sm text-slate-600">{{ $employee->emp_id }}</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             @if ($isActive)
@@ -98,16 +91,6 @@
                         <label class="text-sm font-medium">Telephone</label>
                         <input wire:model="telephone_no" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     </div>
-                    @if ($usesV2)
-                        <div>
-                            <label class="text-sm font-medium">Emergency contact</label>
-                            <input wire:model="emergency_contact_name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                        </div>
-                        <div>
-                            <label class="text-sm font-medium">Emergency number</label>
-                            <input wire:model="emergency_contact_no" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                        </div>
-                    @endif
                 </div>
             </section>
 
@@ -154,16 +137,6 @@
                         <label class="text-sm font-medium">Weight (kg)</label>
                         <input wire:model="weight" type="number" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     </div>
-                    @if ($usesV2)
-                        <div class="sm:col-span-2">
-                            <label class="text-sm font-medium">Residential address</label>
-                            <textarea wire:model="residential_address" rows="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label class="text-sm font-medium">Permanent address</label>
-                            <textarea wire:model="permanent_address" rows="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
-                        </div>
-                    @endif
                 </div>
             </section>
 
@@ -247,66 +220,34 @@
                     <div class="flex justify-between gap-3"><dt class="text-slate-500">Department</dt><dd class="font-medium text-slate-800">{{ $departmentName ?: '—' }}</dd></div>
                     <div class="flex justify-between gap-3"><dt class="text-slate-500">Position</dt><dd class="font-medium text-slate-800">{{ $positionName ?: '—' }}</dd></div>
                     <div class="flex justify-between gap-3"><dt class="text-slate-500">Date hired</dt><dd class="font-medium text-slate-800">{{ optional($employee->date_hired)->format('Y-m-d') ?: '—' }}</dd></div>
-                    @if ($usesV2 && ! $isActive)
-                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Separated</dt><dd class="font-medium text-slate-800">{{ optional($employee->date_separated)->format('Y-m-d') ?: '—' }}</dd></div>
-                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Reason</dt><dd class="font-medium text-slate-800">{{ $employee->separation_reason ?: '—' }}</dd></div>
-                    @endif
                 </dl>
             </section>
 
             <section class="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
                 <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Contact</h3>
                 <dl class="mt-3 space-y-2 text-sm">
-                    @if ($usesV2)
-                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Email</dt><dd class="font-medium text-slate-800">{{ $employee->contact?->email ?: '—' }}</dd></div>
-                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Mobile</dt><dd class="font-medium text-slate-800">{{ $employee->contact?->mobile_no ?: '—' }}</dd></div>
-                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Telephone</dt><dd class="font-medium text-slate-800">{{ $employee->contact?->telephone_no ?: '—' }}</dd></div>
-                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Emergency</dt><dd class="font-medium text-slate-800">{{ $employee->contact?->emergency_contact_name ?: '—' }} {{ $employee->contact?->emergency_contact_no ? '(' . $employee->contact->emergency_contact_no . ')' : '' }}</dd></div>
-                    @else
-                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Email</dt><dd class="font-medium text-slate-800">{{ $employee->email ?: '—' }}</dd></div>
-                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Mobile</dt><dd class="font-medium text-slate-800">{{ $employee->mobile_no ?: '—' }}</dd></div>
-                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Telephone</dt><dd class="font-medium text-slate-800">{{ $employee->tel_no ?: '—' }}</dd></div>
-                    @endif
+                    <div class="flex justify-between gap-3"><dt class="text-slate-500">Email</dt><dd class="font-medium text-slate-800">{{ $employee->email ?: '—' }}</dd></div>
+                    <div class="flex justify-between gap-3"><dt class="text-slate-500">Mobile</dt><dd class="font-medium text-slate-800">{{ $employee->mobile_no ?: '—' }}</dd></div>
+                    <div class="flex justify-between gap-3"><dt class="text-slate-500">Telephone</dt><dd class="font-medium text-slate-800">{{ $employee->tel_no ?: '—' }}</dd></div>
                 </dl>
             </section>
 
             <section class="rounded-md border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">
                 <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Personal / government IDs</h3>
                 <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
-                    @if ($usesV2)
-                        <div><p class="text-slate-500">Birthdate</p><p class="font-medium">{{ optional($employee->personal?->birthdate)->format('Y-m-d') ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Birthplace</p><p class="font-medium">{{ $employee->personal?->birthplace ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Sex</p><p class="font-medium">{{ $employee->personal?->sex ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Civil status</p><p class="font-medium">{{ $employee->personal?->civil_status ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Citizenship</p><p class="font-medium">{{ $employee->personal?->citizenship ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Religion</p><p class="font-medium">{{ $employee->personal?->religion ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Blood type</p><p class="font-medium">{{ $employee->personal?->blood_type ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Height</p><p class="font-medium">{{ $employee->personal?->height !== null ? $employee->personal->height.' m' : '—' }}</p></div>
-                        <div><p class="text-slate-500">Weight</p><p class="font-medium">{{ $employee->personal?->weight !== null ? $employee->personal->weight.' kg' : '—' }}</p></div>
-                        <div class="sm:col-span-2"><p class="text-slate-500">Residential</p><p class="font-medium">{{ $employee->personal?->residential_address ?: '—' }}</p></div>
-                        <div class="sm:col-span-2"><p class="text-slate-500">Permanent</p><p class="font-medium">{{ $employee->personal?->permanent_address ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">TIN</p><p class="font-medium">{{ $employee->governmentIds?->tin_no ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">GSIS</p><p class="font-medium">{{ $employee->governmentIds?->gsis_no ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Pag-IBIG</p><p class="font-medium">{{ $employee->governmentIds?->pagibig_no ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">PhilHealth</p><p class="font-medium">{{ $employee->governmentIds?->phic_no ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">SSS</p><p class="font-medium">{{ $employee->governmentIds?->sss_no ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Issued ID</p><p class="font-medium">{{ $employee->governmentIds?->issued_id_type ?: '—' }} {{ $employee->governmentIds?->issued_id_no ? '(' . $employee->governmentIds->issued_id_no . ')' : '' }}</p></div>
-                        <div><p class="text-slate-500">ID date/place</p><p class="font-medium">{{ $employee->governmentIds?->issued_id_date_place ?: '—' }}</p></div>
-                    @else
-                        <div><p class="text-slate-500">Birthdate</p><p class="font-medium">{{ optional($employee->birthdate)->format('Y-m-d') ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Birthplace</p><p class="font-medium">{{ $employee->birthplace ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Sex</p><p class="font-medium">{{ $employee->gender ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Civil status</p><p class="font-medium">{{ $employee->civil_stat ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Height</p><p class="font-medium">{{ $employee->height !== null ? $employee->height.' m' : '—' }}</p></div>
-                        <div><p class="text-slate-500">Weight</p><p class="font-medium">{{ $employee->weight !== null ? $employee->weight.' kg' : '—' }}</p></div>
-                        <div><p class="text-slate-500">Blood type</p><p class="font-medium">{{ $employee->blood_type ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">TIN</p><p class="font-medium">{{ $employee->tin_no ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">GSIS</p><p class="font-medium">{{ $employee->gsis_no ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Pag-IBIG</p><p class="font-medium">{{ $employee->pagibig_no ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">PhilHealth</p><p class="font-medium">{{ $employee->phic_no ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">SSS</p><p class="font-medium">{{ $employee->sss_no ?: '—' }}</p></div>
-                        <div><p class="text-slate-500">Issued ID</p><p class="font-medium">{{ $employee->gov_id ?: '—' }} {{ $employee->govid_no ? '(' . $employee->govid_no . ')' : '' }}</p></div>
-                    @endif
+                    <div><p class="text-slate-500">Birthdate</p><p class="font-medium">{{ optional($employee->birthdate)->format('Y-m-d') ?: '—' }}</p></div>
+                    <div><p class="text-slate-500">Birthplace</p><p class="font-medium">{{ $employee->birthplace ?: '—' }}</p></div>
+                    <div><p class="text-slate-500">Sex</p><p class="font-medium">{{ $employee->gender ?: '—' }}</p></div>
+                    <div><p class="text-slate-500">Civil status</p><p class="font-medium">{{ $employee->civil_stat ?: '—' }}</p></div>
+                    <div><p class="text-slate-500">Height</p><p class="font-medium">{{ $employee->height !== null ? $employee->height.' m' : '—' }}</p></div>
+                    <div><p class="text-slate-500">Weight</p><p class="font-medium">{{ $employee->weight !== null ? $employee->weight.' kg' : '—' }}</p></div>
+                    <div><p class="text-slate-500">Blood type</p><p class="font-medium">{{ $employee->blood_type ?: '—' }}</p></div>
+                    <div><p class="text-slate-500">TIN</p><p class="font-medium">{{ $employee->tin_no ?: '—' }}</p></div>
+                    <div><p class="text-slate-500">GSIS</p><p class="font-medium">{{ $employee->gsis_no ?: '—' }}</p></div>
+                    <div><p class="text-slate-500">Pag-IBIG</p><p class="font-medium">{{ $employee->pagibig_no ?: '—' }}</p></div>
+                    <div><p class="text-slate-500">PhilHealth</p><p class="font-medium">{{ $employee->phic_no ?: '—' }}</p></div>
+                    <div><p class="text-slate-500">SSS</p><p class="font-medium">{{ $employee->sss_no ?: '—' }}</p></div>
+                    <div><p class="text-slate-500">Issued ID</p><p class="font-medium">{{ $employee->gov_id ?: '—' }} {{ $employee->govid_no ? '(' . $employee->govid_no . ')' : '' }}</p></div>
                 </div>
             </section>
         </div>
@@ -327,20 +268,6 @@
             <div class="w-full max-w-md rounded-lg border border-slate-200 bg-white p-4 shadow-lg">
                 <h3 class="text-lg font-semibold text-slate-900">Deactivate employee</h3>
                 <p class="mt-1 text-sm text-slate-600">Marks {{ $employee->full_name }} inactive for HRIS workflows.</p>
-
-                <div class="mt-4 space-y-3">
-                    @if ($usesV2)
-                        <div>
-                            <label class="text-sm font-medium">Separation date</label>
-                            <input wire:model="date_separated" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                        </div>
-                        <div>
-                            <label class="text-sm font-medium">Reason</label>
-                            <input wire:model="separation_reason" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Resignation, end of contract, …">
-                            @error('separation_reason') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                        </div>
-                    @endif
-                </div>
 
                 <div class="mt-4 flex justify-end gap-2">
                     <button type="button" wire:click="closeDeactivateModal" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">Cancel</button>

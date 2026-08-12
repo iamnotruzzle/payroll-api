@@ -198,13 +198,16 @@
                     <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">5. Cutover</p>
                     <h3 class="mt-1 text-lg font-semibold">Retiring NDOS / legacy HRIS usage</h3>
                     <p class="mt-2 text-sm leading-6 text-slate-600">
-                        Phase 9 dual-run and freeze steps are documented in
-                        <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">docs/hris-cutover.md</code>.
-                        Admins with cutover permission can open
-                        <a href="{{ route('admin.cutover') }}" class="font-semibold text-blue-700 hover:underline">Settings → Cutover Status</a>
-                        for live flag / sync status. Do not set
-                        <code class="rounded bg-slate-100 px-1 text-xs">HRIS_CUTOVER_SCHEDULE</code>
-                        until a Nursing (and optional non-CNO) lock→DTR pilot is evidenced.
+                        People master stays on legacy MySQL
+                        <code class="rounded bg-slate-100 px-1 text-xs">hris</code>
+                        (schema strategy A). The parallel
+                        <code class="rounded bg-slate-100 px-1 text-xs">hris_v2</code>
+                        path was retired — see
+                        <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">docs/hris-cutover.md</code>
+                        and the enhancement backlog in
+                        <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">docs/hris-schema-enhancements.md</code>.
+                        Schedule / NDOS import tooling is unchanged. Do not treat NDOS as production
+                        after a Nursing (and optional non-CNO) lock→DTR pilot is evidenced.
                         <code class="rounded bg-slate-100 px-1 text-xs">reference projects/</code>
                         remain historical / read-only.
                     </p>

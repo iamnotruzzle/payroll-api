@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    protected $connection = 'hris_v2';
+    protected $connection = 'hris';
 
     public function up(): void
     {
@@ -16,7 +16,6 @@ return new class extends Migration
 
         Schema::connection($this->connection)->create('employee_documents', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
             $table->string('emp_id', 32)->index();
             $table->string('category', 64)->default('general')->index();
             $table->string('title');

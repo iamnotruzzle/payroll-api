@@ -45,17 +45,15 @@ class MyProfile extends Component
         $employee = EmployeeDirectoryQuery::findForProfile($this->empId);
         abort_unless($employee, 404);
 
-        $usesV2 = EmployeeDirectoryQuery::usesV2();
         $rows = $sections->list($this->empId, $this->section);
 
         return view('livewire.self-service.my-profile', [
             'employee' => $employee,
-            'usesV2' => $usesV2,
             'departmentName' => EmployeeDirectoryQuery::departmentName($employee),
             'positionName' => EmployeeDirectoryQuery::positionName($employee),
             'isActive' => EmployeeDirectoryQuery::isActive($employee),
-            'sexLabel' => PdsFieldMaps::sexLabel($usesV2 ? $employee->personal?->sex : $employee->gender),
-            'civilStatusLabel' => PdsFieldMaps::civilStatusLabel($usesV2 ? $employee->personal?->civil_status : $employee->civil_stat),
+            'sexLabel' => PdsFieldMaps::sexLabel($employee->gender),
+            'civilStatusLabel' => PdsFieldMaps::civilStatusLabel($employee->civil_stat),
             'rows' => $rows,
             'otherInfoGroups' => $this->section === 'other_infos' ? $this->groupOtherInfos($rows) : [],
             'sectionLabels' => [

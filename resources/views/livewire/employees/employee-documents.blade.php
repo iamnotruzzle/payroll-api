@@ -3,13 +3,7 @@
         <div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('docs_status') }}</div>
     @endif
 
-    @unless ($usesV2)
-        <div class="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Document uploads require <code class="rounded bg-white px-1">HRIS_USE_V2=true</code>.
-        </div>
-    @endunless
-
-    @if ($canManage && $usesV2)
+    @if ($canManage)
         <form wire:submit="save" class="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-4">
             <div class="grid gap-3 sm:grid-cols-3">
                 <div>

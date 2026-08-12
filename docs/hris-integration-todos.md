@@ -11,7 +11,7 @@ Track work to grow this app into **HRIS & Payroll**, using:
 - Implement in this repository only.
 - Check off items here so progress survives across chats and tools.
 
-**Default data stance:** **Schema strategy B selected (2026-08-10).** Build normalized `hris_v2` and migrate employee records from legacy `tbl_*`. Preserve stable `**emp_id`**. Legacy `hris` remains available during dual-read. Own scheduling on `payroll_scheduler` and payroll ops on `payroll`. See `[docs/hris-foundation.md](hris-foundation.md)`.
+**Default data stance:** **Schema strategy A (updated 2026-08-12).** People master / PDS / leave / TARF / IPCR stay on legacy `hris` (`tbl_*`). Parallel `hris_v2` + ETL + cutover flags were removed. In-place schema ideas: [`docs/hris-schema-enhancements.md`](hris-schema-enhancements.md). Own scheduling on `payroll_scheduler` and payroll ops on `payroll`. See [`docs/hris-foundation.md`](hris-foundation.md).
 
 **Schedule stance:** One Schedule module for all departments. Port NDOS capabilities as **optional department features**; never bypass approve → lock → DTR sync.
 
@@ -33,7 +33,7 @@ Track work to grow this app into **HRIS & Payroll**, using:
 | **9** | Cutover                      | Dual-run, retire legacy HRIS + NDOS usage     |
 
 
-Optional parallel track under Phase 1: **schema modernization** (new HRIS DB + employee ETL). Do not block Phases 2–4 on it if you choose strategy A (UI on legacy `tbl_`*).
+Optional parallel track under Phase 1: ~~schema modernization (new HRIS DB + employee ETL)~~ **cancelled** — stay on legacy `tbl_*`; backlog in `docs/hris-schema-enhancements.md`.
 
 ```mermaid
 flowchart LR
@@ -98,23 +98,23 @@ flowchart LR
 
 ## Phase 2 — Employees
 
-**Goal:** This app owns day-to-day employee master / PDS (on chosen schema).
+**Goal:** This app owns day-to-day employee master / PDS on legacy `hris`.
 
-- [x] ETL command `hris:migrate-employees` (`--dry-run` / `--apply`) for `tbl_employee` → `hris_v2`
-- [x] Livewire employee directory (search / status) with legacy↔v2 switch via `HRIS_USE_V2`
+- [x] ~~ETL command `hris:migrate-employees`~~ **cancelled 2026-08-12** (no `hris_v2`)
+- [x] Livewire employee directory (search / status) on legacy `tbl_employee`
 - [x] Basic employee profile view (employment, contact, personal/gov IDs)
-- [x] Core PDS edit (identity, contact, personal, gov IDs) on active source (legacy or v2)
-- [x] Activate / deactivate (v2 stores separation date + reason)
+- [x] Core PDS edit (identity, contact, personal, gov IDs) on legacy
+- [x] Activate / deactivate
 - [x] Basic PDS print view (`/employees/{empId}/print`)
 - [x] Full PDS section editors (family, education, eligibility, work, L&D, voluntary, other info, refs)
 - [x] Dependents CRUD (included in PDS sections)
-- [x] Section-table ETL (dependents + education + eligibility + work + training + volwork + other + refs)
-- [x] File uploads (`employee_documents` on hris_v2 + profile UI)
+- [x] ~~Section-table ETL~~ **cancelled 2026-08-12**
+- [x] File uploads (`employee_documents` on `hris` + profile UI)
 - [x] Self-service PDS print/view (`/self-service/profile`)
 - [x] User Accounts create/edit + reset/delete without breaking Spatie roles
-- [x] Run employee ETL + validate; set `HRIS_USE_V2=true` after validation
+- [x] ~~Run employee ETL + `HRIS_USE_V2=true`~~ **cancelled 2026-08-12** — strategy A
 
-**Exit:** HR can browse and edit core employee master + PDS sections here; v2 populated and optionally active.
+**Exit:** HR can browse and edit core employee master + PDS sections here against legacy `hris`.
 
 ---
 
@@ -122,7 +122,7 @@ flowchart LR
 
 **Goal:** Leave lifecycle lives here; schedule/payroll keep consuming the same leave data.
 
-**Data choice (2026-08-10):** Phase 3 ships on **legacy** `hris` leave tables (`tbl_employee_leave`, `tbl_leave_log`, `tbl_leave_type`, `tbl_leave_status`, employee VL/SL columns) keyed by `emp_id`. No `hris_v2` leave tables yet — ETL for leave is deferred so payroll/schedule leave consumption is unchanged.
+**Data choice (2026-08-10):** Phase 3 ships on **legacy** `hris` leave tables (`tbl_employee_leave`, `tbl_leave_log`, `tbl_leave_type`, `tbl_leave_status`, employee VL/SL columns) keyed by `emp_id`.
 
 - [x] Apply / edit / cancel / print + leave card (`tbl_employee_leave` / logs; legacy tables)
 - [x] Approval queue with Spatie roles (replace `user_level` checks)
@@ -303,30 +303,25 @@ php artisan route:list --name=self-service.payslip
 
 ## Phase 9 — Cutover
 
-**Goal:** Dual-run then retire reference systems’ production use.
+**Goal:** Dual-run then retire reference systems’ production use (legacy HRIS UI / NDOS), without a parallel `hris_v2` DB.
 
-**Tooling shipped (2026-08-11):** runbook + flags + freeze guard + admin status UI. Live pilots remain **awaiting ops** — do not tick pilot boxes without dual-run evidence.
+**Update (2026-08-12):** Schema B cutover tooling (`HRIS_USE_V2`, `HRIS_CUTOVER_*`, freeze guard, `/admin/cutover`) was **removed**. People data stays on legacy `hris`. See retired note in [`docs/hris-cutover.md`](hris-cutover.md) and backlog [`docs/hris-schema-enhancements.md`](hris-schema-enhancements.md).
 
-- [ ] Pilot one dept on Employees + Leave + Self-service against shared HRIS data; dual-run vs legacy HRIS
-  - **Runbook ready / awaiting ops:** see ordered steps in [`docs/hris-cutover.md`](hris-cutover.md) §A. Status: `/admin/cutover`.
-- [x] Feature-flag / redirect traffic off legacy HRIS for completed modules
-  - **Shipped:** per-module `HRIS_CUTOVER_*` flags (default `false`) in `config/hris.php` + `.env.example`; optional ERP shell banner when any module is flagged complete. Flags are ops signals + banner (no auto HTTP redirect of legacy apps).
+- [ ] Pilot one dept on Employees + Leave + Self-service against shared HRIS data; dual-run vs legacy HRIS UI
+- [x] ~~Feature-flag / redirect traffic off legacy HRIS~~ **cancelled** (flags removed; ops process only)
 - [ ] Nursing (+ others) fully on Phase 5 Schedule; archive NDOS usage
-  - **Runbook ready / awaiting ops:** §B in cutover doc + Phase 5c pilot checklist. Set `HRIS_CUTOVER_SCHEDULE` only after lock→DTR evidence.
-- [x] If schema (B): freeze legacy writes; decommission dual-read
-  - **Shipped:** `HRIS_FREEZE_LEGACY_WRITES` (default `false`) via `LegacyEmployeeMasterWriteGuard` on employee master / PDS legacy writers only — leave / TARF / IPCR / DTR untouched. Dual-read decommission = keep `HRIS_USE_V2=true` after freeze; do not delete `hris` connection (leave/DTR still need it). Ops enables freeze after Employees cutover signoff.
+- [x] ~~If schema (B): freeze legacy writes; decommission dual-read~~ **cancelled** — strategy A; no freeze flag
 - [x] Update manuals; mark reference projects as historical only
-  - **Shipped:** [`docs/hris-cutover.md`](hris-cutover.md), foundation cutover section, Schedule User Manual link; reinforced historical/read-only for `reference projects/` (also `AGENTS.md`).
+  - **Shipped:** foundation/cutover docs updated for strategy A; Schedule User Manual notes; `reference projects/` read-only (`AGENTS.md`).
 
-**Exit:** This app is the operational HRIS & Payroll + Schedule system.
+**Exit:** This app is the operational HRIS & Payroll + Schedule system on legacy `hris` people data.
 
 **Verify:**
 
 ```bash
 php artisan db:seed --class=RBACSeeder
-php artisan route:list --name=admin.cutover
-# UI: Settings → Cutover Status (/admin/cutover) — flags, freeze, NDOS reachability, last sync run
-# After dual-run signoff only: set HRIS_CUTOVER_* / HRIS_FREEZE_LEGACY_WRITES in .env, then config:clear
+# Confirm no admin.cutover route; employees documents download still registered
+php artisan route:list --name=employees
 ```
 
 ---
@@ -396,5 +391,6 @@ Non-CNO multi-area: enable `uses_units` only (UI: Areas). Do not force nursing e
 | 2026-08-11 | Backfill harden: unique rotation group names with `#{groups.id}`; continue-on-row-error (no full abort); unmatched locations → fuzzy/CNO/`SCHEDULEV2_BACKFILL_*` fallback. |
 | 2026-08-11 | Schedule UX restructure: `/schedule` list + Generate New Schedule modal (non-CNO); grid at `/schedule/months/{id}`; CNO draft generate blocked (UI + `ScheduleDraftGenerationService`); NDOS import stays separate page. |
 | 2026-08-11 | Non-CNO generate modes: Automated (Beta) = weekly-duty/template allocation; Manual = blank OFF shifts per employee/day for hand-fill. |
+| 2026-08-12 | Schema strategy **A**: removed `hris_v2` models/migrations/ETL/cutover flags/UI; Employees + documents on legacy `hris`; backlog `docs/hris-schema-enhancements.md`. |
 
 

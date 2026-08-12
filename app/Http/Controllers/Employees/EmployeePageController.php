@@ -3,8 +3,7 @@
 namespace App\Http\Controllers\Employees;
 
 use App\Http\Controllers\Controller;
-use App\Models\HrisV2\EmployeeDocument;
-use App\Support\Hris\EmployeeDirectoryQuery;
+use App\Models\Hris\EmployeeDocument;
 use App\Support\Hris\PdsPrintPresenter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
@@ -35,7 +34,6 @@ class EmployeePageController extends Controller
     public function downloadDocument(string $empId, int $documentId): StreamedResponse
     {
         abort_unless(auth()->user()?->can('employees.view') || auth()->user()?->can('employees.manage'), 403);
-        abort_unless(EmployeeDirectoryQuery::usesV2(), 404);
 
         $document = EmployeeDocument::query()
             ->where('emp_id', $empId)

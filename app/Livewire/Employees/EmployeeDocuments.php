@@ -2,9 +2,8 @@
 
 namespace App\Livewire\Employees;
 
-use App\Models\HrisV2\Employee as V2Employee;
-use App\Models\HrisV2\EmployeeDocument;
-use App\Support\Hris\EmployeeDirectoryQuery;
+use App\Models\Hris\Employee;
+use App\Models\Hris\EmployeeDocument;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -30,7 +29,6 @@ class EmployeeDocuments extends Component
     public function save(): void
     {
         abort_unless($this->canManage(), 403);
-        abort_unless(EmployeeDirectoryQuery::usesV2(), 422);
 
         $data = $this->validate([
             'title' => ['required', 'string', 'max:255'],
@@ -38,11 +36,10 @@ class EmployeeDocuments extends Component
             'upload' => ['required', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,doc,docx'],
         ]);
 
-        $employee = V2Employee::query()->where('emp_id', $this->empId)->firstOrFail();
+        $employee = Employee::query()->where('emp_id', $this->empId)->firstOrFail();
         $path = $this->upload->store("employee-documents/{$employee->emp_id}", 'local');
 
         EmployeeDocument::query()->create([
-            'employee_id' => $employee->id,
             'emp_id' => $employee->emp_id,
             'category' => $data['category'],
             'title' => $data['title'],
@@ -62,7 +59,6 @@ class EmployeeDocuments extends Component
     public function deleteDocument(int $documentId): void
     {
         abort_unless($this->canManage(), 403);
-        abort_unless(EmployeeDirectoryQuery::usesV2(), 422);
 
         $document = EmployeeDocument::query()
             ->where('emp_id', $this->empId)
@@ -79,16 +75,13 @@ class EmployeeDocuments extends Component
     {
         abort_unless($this->canView(), 403);
 
-        $documents = EmployeeDirectoryQuery::usesV2()
-            ? EmployeeDocument::query()
-                ->where('emp_id', $this->empId)
-                ->orderByDesc('id')
-                ->get()
-            : collect();
+        $documents = EmployeeDocument::query()
+            ->where('emp_id', $this->empId)
+            ->orderByDesc('id')
+            ->get();
 
         return view('livewire.employees.employee-documents', [
             'documents' => $documents,
-            'usesV2' => EmployeeDirectoryQuery::usesV2(),
             'canManage' => $this->canManage(),
         ]);
     }

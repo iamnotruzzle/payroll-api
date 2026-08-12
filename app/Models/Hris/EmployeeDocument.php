@@ -1,15 +1,17 @@
 <?php
 
-namespace App\Models\HrisV2;
+namespace App\Models\Hris;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class EmployeeDocument extends HrisV2Model
+class EmployeeDocument extends Model
 {
+    protected $connection = 'hris';
+
     protected $table = 'employee_documents';
 
     protected $fillable = [
-        'employee_id',
         'emp_id',
         'category',
         'title',
@@ -30,6 +32,6 @@ class EmployeeDocument extends HrisV2Model
 
     public function employee(): BelongsTo
     {
-        return $this->belongsTo(Employee::class);
+        return $this->belongsTo(Employee::class, 'emp_id', 'emp_id');
     }
 }

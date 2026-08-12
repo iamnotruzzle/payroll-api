@@ -4,11 +4,6 @@
             <h2 class="text-xl font-semibold">My Profile</h2>
             <p class="text-sm text-slate-600">
                 {{ $employee->full_name }} · {{ $employee->emp_id }}
-                @if ($usesV2)
-                    <span class="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">hris_v2</span>
-                @else
-                    <span class="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">legacy</span>
-                @endif
             </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -37,34 +32,20 @@
         <section class="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
             <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Contact</h3>
             <dl class="mt-3 space-y-2 text-sm">
-                @if ($usesV2)
-                    <div class="flex justify-between gap-3"><dt class="text-slate-500">Email</dt><dd class="font-medium text-slate-800">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->contact?->email) }}</dd></div>
-                    <div class="flex justify-between gap-3"><dt class="text-slate-500">Mobile</dt><dd class="font-medium text-slate-800">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->contact?->mobile_no) }}</dd></div>
-                @else
-                    <div class="flex justify-between gap-3"><dt class="text-slate-500">Email</dt><dd class="font-medium text-slate-800">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->email) }}</dd></div>
-                    <div class="flex justify-between gap-3"><dt class="text-slate-500">Mobile</dt><dd class="font-medium text-slate-800">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->mobile_no) }}</dd></div>
-                @endif
+                <div class="flex justify-between gap-3"><dt class="text-slate-500">Email</dt><dd class="font-medium text-slate-800">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->email) }}</dd></div>
+                <div class="flex justify-between gap-3"><dt class="text-slate-500">Mobile</dt><dd class="font-medium text-slate-800">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->mobile_no) }}</dd></div>
             </dl>
         </section>
 
         <section class="rounded-md border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">
             <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Personal / government IDs</h3>
             <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
-                @if ($usesV2)
-                    <div><p class="text-slate-500">Birthdate</p><p class="font-medium">{{ \App\Livewire\SelfService\MyProfile::displayDate($employee->personal?->birthdate) }}</p></div>
-                    <div><p class="text-slate-500">Sex</p><p class="font-medium">{{ $sexLabel !== '' ? $sexLabel : '—' }}</p></div>
-                    <div><p class="text-slate-500">Civil status</p><p class="font-medium">{{ $civilStatusLabel !== '' ? $civilStatusLabel : '—' }}</p></div>
-                    <div><p class="text-slate-500">TIN</p><p class="font-medium">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->governmentIds?->tin_no) }}</p></div>
-                    <div><p class="text-slate-500">GSIS</p><p class="font-medium">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->governmentIds?->gsis_no) }}</p></div>
-                    <div><p class="text-slate-500">PhilHealth</p><p class="font-medium">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->governmentIds?->phic_no) }}</p></div>
-                @else
-                    <div><p class="text-slate-500">Birthdate</p><p class="font-medium">{{ \App\Livewire\SelfService\MyProfile::displayDate($employee->birthdate ?? null) }}</p></div>
-                    <div><p class="text-slate-500">Sex</p><p class="font-medium">{{ $sexLabel !== '' ? $sexLabel : '—' }}</p></div>
-                    <div><p class="text-slate-500">Civil status</p><p class="font-medium">{{ $civilStatusLabel !== '' ? $civilStatusLabel : '—' }}</p></div>
-                    <div><p class="text-slate-500">TIN</p><p class="font-medium">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->tin_no) }}</p></div>
-                    <div><p class="text-slate-500">GSIS</p><p class="font-medium">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->gsis_no) }}</p></div>
-                    <div><p class="text-slate-500">PhilHealth</p><p class="font-medium">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->phic_no) }}</p></div>
-                @endif
+                <div><p class="text-slate-500">Birthdate</p><p class="font-medium">{{ \App\Livewire\SelfService\MyProfile::displayDate($employee->birthdate ?? null) }}</p></div>
+                <div><p class="text-slate-500">Sex</p><p class="font-medium">{{ $sexLabel !== '' ? $sexLabel : '—' }}</p></div>
+                <div><p class="text-slate-500">Civil status</p><p class="font-medium">{{ $civilStatusLabel !== '' ? $civilStatusLabel : '—' }}</p></div>
+                <div><p class="text-slate-500">TIN</p><p class="font-medium">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->tin_no) }}</p></div>
+                <div><p class="text-slate-500">GSIS</p><p class="font-medium">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->gsis_no) }}</p></div>
+                <div><p class="text-slate-500">PhilHealth</p><p class="font-medium">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->phic_no) }}</p></div>
             </div>
             <p class="mt-4 text-xs text-slate-500">Contact HR if any of this information needs correction.</p>
         </section>

@@ -4,6 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Sign In | MMMHMC HRIS &amp; Payroll</title>
+    <link rel="icon" type="image/png" href="{{ asset('assets/brand/mmmhmc-hris-icon-transparent.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/brand/mmmhmc-hris-icon-transparent.png') }}">
     <script>
         (() => {
             const saved = localStorage.getItem('erp-theme');
@@ -22,7 +24,7 @@
         <aside class="erp-login-hero relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-between lg:px-12 lg:py-12 xl:px-16">
             <div class="erp-login-hero-copy relative z-10 max-w-xl">
                 <div class="erp-login-brand-row flex items-center gap-3">
-                    <div class="erp-brand-mark grid h-12 w-12 place-items-center rounded-xl text-sm font-black text-white">HP</div>
+                    <x-brand.mark size="xl" />
                     <p class="erp-brand-eyebrow text-xs font-bold uppercase">MMMHMC</p>
                 </div>
 
@@ -58,7 +60,7 @@
             <div class="erp-login-card w-full max-w-[26rem]">
                 <div class="mb-7 lg:mb-8">
                     <div class="mb-5 flex items-center gap-3 lg:hidden">
-                        <div class="erp-brand-mark grid h-11 w-11 place-items-center rounded-xl text-sm font-black text-white">HP</div>
+                        <x-brand.mark size="lg" />
                         <div>
                             <p class="erp-brand-eyebrow text-[10px] font-bold uppercase">MMMHMC</p>
                             <p class="erp-brand-title text-base font-bold">HRIS &amp; Payroll</p>

@@ -455,24 +455,21 @@ class ErpNavigation
                 'label' => 'Settings',
                 'accent' => 'slate',
                 'icon' => 'settings',
-                'href' => $user?->can('admin.cutover.view')
-                    ? route('admin.cutover')
-                    : ($user?->can('admin.users.view')
+                'href' => $user?->can('admin.users.view')
                     ? route('admin.user-accounts')
                     : ($user?->can('admin.roles.view')
                         ? route('admin.roles-permissions')
                         : ($user?->can('references.view')
                             ? route('schedule.user-manual')
-                            : $soon('administration', 'access')))),
-                'available' => (bool) ($user?->can('admin.users.view') || $user?->can('admin.roles.view') || $user?->can('admin.cutover.view') || $user?->can('references.view')),
-                'visible' => (bool) ($user?->can('admin.users.view') || $user?->can('admin.roles.view') || $user?->can('admin.cutover.view') || $user?->can('references.view')),
+                            : $soon('administration', 'access'))),
+                'available' => (bool) ($user?->can('admin.users.view') || $user?->can('admin.roles.view') || $user?->can('references.view')),
+                'visible' => (bool) ($user?->can('admin.users.view') || $user?->can('admin.roles.view') || $user?->can('references.view')),
                 'active' => request()->routeIs('admin.*', 'schedule.employee-references', 'schedule.user-manual', 'payroll.user-manual', 'references.*')
                     || (request()->routeIs('coming-soon') && request()->route('module') === 'administration'),
                 'menu_sections' => self::menuSections([
                     [
                         'label' => 'Access',
                         'items' => [
-                            $user?->can('admin.cutover.view') ? ['label' => 'Cutover Status', 'route' => 'admin.cutover', 'icon' => 'list-checks', 'active' => request()->routeIs('admin.cutover')] : null,
                             $user?->can('admin.users.view') ? ['label' => 'User Accounts', 'route' => 'admin.user-accounts', 'icon' => 'users', 'active' => request()->routeIs('admin.user-accounts')] : null,
                             $user?->can('admin.roles.view') ? ['label' => 'Roles and Permissions', 'route' => 'admin.roles-permissions', 'icon' => 'shield-check', 'active' => request()->routeIs('admin.roles-permissions')] : null,
                         ],
