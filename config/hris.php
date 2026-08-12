@@ -23,6 +23,43 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Phase 9 cutover — canonical app flags
+    |--------------------------------------------------------------------------
+    |
+    | When true for a module, this app is the operational system of record for
+    | that module (legacy HRIS UI retired for that scope). Defaults stay false
+    | until ops completes dual-run and flips env. See docs/hris-cutover.md.
+    |
+    | These flags drive the Cutover status page and optional ERP banner; they
+    | do not auto-redirect legacy apps.
+    |
+    */
+
+    'cutover' => [
+        'employees' => (bool) env('HRIS_CUTOVER_EMPLOYEES', false),
+        'leave' => (bool) env('HRIS_CUTOVER_LEAVE', false),
+        'self_service' => (bool) env('HRIS_CUTOVER_SELF_SERVICE', false),
+        'schedule' => (bool) env('HRIS_CUTOVER_SCHEDULE', false),
+        'training' => (bool) env('HRIS_CUTOVER_TRAINING', false),
+        'performance' => (bool) env('HRIS_CUTOVER_PERFORMANCE', false),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Freeze legacy employee-master writes
+    |--------------------------------------------------------------------------
+    |
+    | When true (and typically only with HRIS_USE_V2=true), block writes to
+    | legacy tbl_employee / PDS section tables via Employees UI services.
+    | Does NOT freeze leave credits, TARF, IPCR, or DTR — those still use
+    | intentional legacy tables. See LegacyEmployeeMasterWriteGuard.
+    |
+    */
+
+    'freeze_legacy_writes' => (bool) env('HRIS_FREEZE_LEGACY_WRITES', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Leave credit computation (legacy hris tables)
     |--------------------------------------------------------------------------
     |

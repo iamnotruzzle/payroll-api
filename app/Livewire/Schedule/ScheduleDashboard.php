@@ -11,13 +11,15 @@ use App\Models\Schedule\ShiftCode;
 use App\Services\Schedule\ScheduleApprovalService;
 use App\Services\Schedule\ScheduleAssignmentService;
 use App\Services\Schedule\ScheduleConflictValidator;
-use App\Services\Schedule\ScheduleDraftGenerationService;
 use App\Services\Schedule\ScheduleLockService;
+use App\Services\Schedule\SchedulePatternFillService;
+use App\Services\Schedule\ScheduleScopeService;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Component;
+use RuntimeException;
 
 class ScheduleDashboard extends Component
 {
@@ -35,6 +37,8 @@ class ScheduleDashboard extends Component
 
     public ?string $shift_filter = null;
 
+    public ?string $unit_filter = null;
+
     public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
 
     public string $viewMode = 'table';
@@ -43,29 +47,80 @@ class ScheduleDashboard extends Component
 
     public array $conflicts = [];
 
-    public function mount(): void
+    public bool $showPatternPanel = true;
+
+    public ?int $pattern_fill_template_id = null;
+
+    public string $pattern_fill_date_from = '';
+
+    public string $pattern_fill_date_to = '';
+
+    public string $pattern_fill_scope = 'selected';
+
+    /** @var list<string> */
+    public array $selectedEmployeeIds = [];
+
+    /** @var list<array<string, mixed>> */
+    public array $patternPreviewChanges = [];
+
+    /** @var array{total?: int, changed?: int, unchanged?: int, employees?: int} */
+    public array $patternPreviewSummary = [];
+
+    public function mount(MonthlySchedule $schedule): void
     {
-        $nextMonth = now()->addMonth();
-        $this->year = (int) $nextMonth->format('Y');
-        $this->month = (int) $nextMonth->format('n');
-        $this->department_id = auth()->user()?->employee?->department_id;
+        $departmentId = auth()->user()?->employee?->department_id;
+        abort_unless($departmentId && (int) $schedule->department_id === (int) $departmentId, 403);
+
+        $this->department_id = (int) $schedule->department_id;
+        $this->selectedScheduleId = (int) $schedule->id;
+        $this->year = (int) $schedule->year;
+        $this->month = (int) $schedule->month;
+        $this->schedule_template_id = $schedule->schedule_template_id ? (int) $schedule->schedule_template_id : null;
+        $this->syncPatternFillDates();
     }
 
-    public function render()
+    public function updatedYear(): void
     {
-        $schedule = $this->selectedScheduleId
-            ? MonthlySchedule::with('assignments.shiftCode', 'assignments.employee.department.division')
-                ->where('department_id', $this->department_id)
-                ->find($this->selectedScheduleId)
-            : MonthlySchedule::with('assignments.shiftCode', 'assignments.employee.department.division')
-                ->where('year', $this->year)
-                ->where('month', $this->month)
-                ->when($this->department_id, fn ($query) => $query->where('department_id', $this->department_id))
-                ->latest('id')
-                ->first();
+        $this->syncPatternFillDates();
+    }
+
+    public function updatedMonth(): void
+    {
+        $this->syncPatternFillDates();
+    }
+
+    public function updatedSelectedScheduleId(): void
+    {
+        $schedule = $this->currentSchedule();
+        if ($schedule) {
+            $this->year = (int) $schedule->year;
+            $this->month = (int) $schedule->month;
+            $this->syncPatternFillDates();
+        }
+        $this->clearPatternPreview();
+        $this->selectedEmployeeIds = [];
+    }
+
+    public function render(ScheduleScopeService $scopeService)
+    {
+        $schedule = MonthlySchedule::with('assignments.shiftCode', 'assignments.employee.department.division', 'assignments.unit')
+            ->where('department_id', $this->department_id)
+            ->find($this->selectedScheduleId);
+
+        $profile = $scopeService->profileForDepartment($this->department_id);
+        $handledUnitIds = $scopeService->handledUnitIds(auth()->user()?->emp_id, $this->department_id);
+        $unitOptions = $scopeService->unitsForDepartment($this->department_id);
+        $isCno = $scopeService->isCnoDepartment($this->department_id);
 
         return view('livewire.schedule.schedule-dashboard', [
             'department' => auth()->user()?->employee?->department,
+            'profile' => $profile,
+            'isCno' => $isCno,
+            'modeLabel' => $scopeService->modeLabelForDepartment($this->department_id),
+            'unitNoun' => $scopeService->unitNoun($this->department_id),
+            'unitNounPlural' => $scopeService->unitNoun($this->department_id, true),
+            'unitOptions' => $unitOptions,
+            'handledUnitIds' => $handledUnitIds,
             'templates' => ScheduleTemplate::where('is_active', true)
                 ->where(function ($query) {
                     $query->whereNull('department_id')->orWhere('department_id', $this->department_id);
@@ -79,11 +134,6 @@ class ScheduleDashboard extends Component
                 })
                 ->orderBy('name')
                 ->get(),
-            'schedules' => MonthlySchedule::where('department_id', $this->department_id)
-                ->orderByDesc('year')
-                ->orderByDesc('month')
-                ->limit(12)
-                ->get(),
             'schedule' => $schedule,
             'employeeOptions' => $this->employeeOptions($schedule),
             'shiftOptions' => $this->shiftOptions($schedule),
@@ -96,19 +146,11 @@ class ScheduleDashboard extends Component
         ]);
     }
 
-    public function generate(ScheduleDraftGenerationService $service): void
+    public function generate(): void
     {
-        $data = $this->validate([
-            'year' => ['required', 'integer', 'min:2020', 'max:2100'],
-            'month' => ['required', 'integer', 'between:1,12'],
-            'schedule_template_id' => ['nullable', 'integer'],
-            'employeeTypeFilter' => ['required', Rule::in(array_keys(Employee::employeeTypeOptions()))],
+        throw ValidationException::withMessages([
+            'generate' => 'Draft generation is only available from the Schedules list. CNO departments must import from NDOS.',
         ]);
-
-        $result = $service->generate($data['year'], $data['month'], $this->department_id, $data['schedule_template_id'], auth()->user()?->emp_id ?? 'web', $data['employeeTypeFilter']);
-        $this->selectedScheduleId = $result['schedule']->id;
-        $this->conflicts = $result['conflicts'];
-        session()->flash('status', 'Draft schedule generated.');
     }
 
     public function validateSchedule(ScheduleConflictValidator $validator): void
@@ -141,6 +183,8 @@ class ScheduleDashboard extends Component
             ->whereHas('monthlySchedule', fn ($query) => $query->where('department_id', $this->department_id))
             ->findOrFail($assignmentId);
 
+        $this->assertAssignmentInScope($assignment);
+
         if ($assignment->monthlySchedule->isLocked()) {
             session()->flash('status', 'Locked schedules cannot be changed.');
 
@@ -159,63 +203,236 @@ class ScheduleDashboard extends Component
         session()->flash('status', 'Schedule shift updated.');
     }
 
+    public function updateAssignmentUnit(int $assignmentId, mixed $unitId, ScheduleAssignmentService $service, ScheduleScopeService $scopeService): void
+    {
+        $profile = $scopeService->profileForDepartment($this->department_id);
+        if (! $profile->uses_units) {
+            return;
+        }
+
+        $assignment = ScheduleAssignment::with('monthlySchedule')
+            ->whereHas('monthlySchedule', fn ($query) => $query->where('department_id', $this->department_id))
+            ->findOrFail($assignmentId);
+
+        $this->assertAssignmentInScope($assignment);
+
+        if ($assignment->monthlySchedule->isLocked()) {
+            session()->flash('status', 'Locked schedules cannot be changed.');
+
+            return;
+        }
+
+        $normalizedUnitId = $unitId === '' || $unitId === null ? null : (int) $unitId;
+        if ($normalizedUnitId !== null) {
+            $allowed = $scopeService->unitsForDepartment($this->department_id)->pluck('id')->all();
+            abort_unless(in_array($normalizedUnitId, $allowed, true), 404);
+
+            $handled = $scopeService->handledUnitIds(auth()->user()?->emp_id, $this->department_id);
+            if ($handled !== null) {
+                abort_unless(in_array($normalizedUnitId, $handled, true), 403);
+            }
+        }
+
+        $service->update($assignment, ['unit_id' => $normalizedUnitId], auth()->user()?->emp_id ?? 'web');
+        $this->selectedScheduleId = $assignment->monthly_schedule_id;
+        session()->flash('status', 'Assignment unit updated.');
+    }
+
+    public function toggleTemporaryFloater(int $assignmentId, ScheduleAssignmentService $service, ScheduleScopeService $scopeService): void
+    {
+        $profile = $scopeService->profileForDepartment($this->department_id);
+        if (! $profile->uses_floaters) {
+            return;
+        }
+
+        $assignment = ScheduleAssignment::with('monthlySchedule')
+            ->whereHas('monthlySchedule', fn ($query) => $query->where('department_id', $this->department_id))
+            ->findOrFail($assignmentId);
+
+        $this->assertAssignmentInScope($assignment);
+
+        if ($assignment->monthlySchedule->isLocked()) {
+            session()->flash('status', 'Locked schedules cannot be changed.');
+
+            return;
+        }
+
+        $service->update(
+            $assignment,
+            ['is_temporary_floater' => ! $assignment->is_temporary_floater],
+            auth()->user()?->emp_id ?? 'web'
+        );
+        $this->selectedScheduleId = $assignment->monthly_schedule_id;
+        session()->flash('status', $assignment->fresh()->is_temporary_floater ? 'Marked as temporary floater.' : 'Temporary floater cleared.');
+    }
+
     public function toggleConflicts(): void
     {
         $this->showConflicts = ! $this->showConflicts;
     }
 
-    public function applyEmployeePattern(string $employeeId, mixed $templateId): void
+    public function toggleEmployeeSelection(string $employeeId): void
     {
+        if (in_array($employeeId, $this->selectedEmployeeIds, true)) {
+            $this->selectedEmployeeIds = array_values(array_filter(
+                $this->selectedEmployeeIds,
+                fn (string $id) => $id !== $employeeId
+            ));
+        } else {
+            $this->selectedEmployeeIds[] = $employeeId;
+        }
+    }
+
+    public function selectVisibleEmployees(): void
+    {
+        $schedule = $this->currentSchedule();
+        if (! $schedule) {
+            return;
+        }
+
+        $this->selectedEmployeeIds = collect($this->scheduleTable($schedule))
+            ->pluck('employee_id')
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function clearEmployeeSelection(): void
+    {
+        $this->selectedEmployeeIds = [];
+    }
+
+    public function clearPatternPreview(): void
+    {
+        $this->patternPreviewChanges = [];
+        $this->patternPreviewSummary = [];
+    }
+
+    public function previewPatternFill(SchedulePatternFillService $service): void
+    {
+        abort_unless(auth()->user()?->can('schedule.manage'), 403);
+
+        try {
+            [$schedule, $template, $employeeIds] = $this->patternFillContext();
+            $result = $service->preview(
+                $schedule,
+                $template,
+                $employeeIds,
+                $this->pattern_fill_date_from ?: null,
+                $this->pattern_fill_date_to ?: null,
+            );
+            $this->patternPreviewChanges = array_values(array_filter(
+                $result['changes'],
+                fn (array $change) => $change['will_change']
+            ));
+            $this->patternPreviewSummary = $result['summary'];
+            session()->flash(
+                'status',
+                sprintf(
+                    'Pattern preview: %d change(s) across %d employee(s) (%d already matched).',
+                    $result['summary']['changed'],
+                    $result['summary']['employees'],
+                    $result['summary']['unchanged']
+                )
+            );
+        } catch (RuntimeException $e) {
+            session()->flash('status', $e->getMessage());
+        }
+    }
+
+    public function applyPatternFill(SchedulePatternFillService $service): void
+    {
+        abort_unless(auth()->user()?->can('schedule.manage'), 403);
+
+        try {
+            [$schedule, $template, $employeeIds] = $this->patternFillContext();
+            $result = $service->apply(
+                $schedule,
+                $template,
+                $employeeIds,
+                $this->pattern_fill_date_from ?: null,
+                $this->pattern_fill_date_to ?: null,
+                auth()->user()?->emp_id ?? 'web',
+            );
+            $this->selectedScheduleId = $schedule->id;
+            $this->conflicts = [];
+            $this->clearPatternPreview();
+            session()->flash(
+                'status',
+                sprintf('Pattern applied: %d assignment(s) updated (%d unchanged).', $result['applied'], $result['unchanged'])
+            );
+        } catch (RuntimeException $e) {
+            session()->flash('status', $e->getMessage());
+        }
+    }
+
+    /**
+     * Quick row action: load employee into pattern panel and preview.
+     */
+    public function applyEmployeePattern(string $employeeId, mixed $templateId, SchedulePatternFillService $service): void
+    {
+        abort_unless(auth()->user()?->can('schedule.manage'), 403);
+
         if (! $templateId) {
             return;
         }
 
-        $service = app(ScheduleAssignmentService::class);
-        $schedule = $this->currentSchedule();
-        if (! $schedule || $schedule->isLocked()) {
-            session()->flash('status', 'Locked schedules cannot be changed.');
+        $this->pattern_fill_template_id = (int) $templateId;
+        $this->pattern_fill_scope = 'selected';
+        $this->selectedEmployeeIds = [$employeeId];
+        $this->showPatternPanel = true;
+        $this->syncPatternFillDates();
+        $this->previewPatternFill($service);
+    }
 
-            return;
+    /**
+     * @return array{0: MonthlySchedule, 1: ScheduleTemplate, 2: list<string>|null}
+     */
+    private function patternFillContext(): array
+    {
+        $schedule = $this->currentSchedule();
+        if (! $schedule) {
+            throw new RuntimeException('Select or generate a schedule first.');
         }
+        if ($schedule->isLocked()) {
+            throw new RuntimeException('Locked schedules cannot be changed.');
+        }
+
+        $data = $this->validate([
+            'pattern_fill_template_id' => ['required', 'integer'],
+            'pattern_fill_date_from' => ['nullable', 'date'],
+            'pattern_fill_date_to' => ['nullable', 'date'],
+            'pattern_fill_scope' => ['required', Rule::in(['selected', 'filtered', 'all'])],
+        ]);
 
         $template = ScheduleTemplate::with('days.shiftCode')
             ->where('is_active', true)
             ->where(function ($query) {
                 $query->whereNull('department_id')->orWhere('department_id', $this->department_id);
             })
-            ->findOrFail((int) $templateId);
+            ->findOrFail((int) $data['pattern_fill_template_id']);
 
-        $patternDays = $template->days->values();
-        if ($patternDays->isEmpty()) {
-            session()->flash('status', 'Selected pattern has no days.');
+        $employeeIds = match ($data['pattern_fill_scope']) {
+            'selected' => $this->selectedEmployeeIds === []
+                ? throw new RuntimeException('Select one or more employees (checkboxes) or change scope to Filtered / All.')
+                : $this->selectedEmployeeIds,
+            'filtered' => collect($this->scheduleTable($schedule))->pluck('employee_id')->map(fn ($id) => (string) $id)->unique()->values()->all(),
+            default => null,
+        };
 
+        return [$schedule, $template, $employeeIds];
+    }
+
+    private function syncPatternFillDates(): void
+    {
+        if ($this->year < 2020 || $this->month < 1 || $this->month > 12) {
             return;
         }
 
-        DB::connection('payroll_scheduler')->transaction(function () use ($employeeId, $patternDays, $schedule, $service): void {
-            $assignments = ScheduleAssignment::with('monthlySchedule')
-                ->where('monthly_schedule_id', $schedule->id)
-                ->where('employee_id', $employeeId)
-                ->orderBy('schedule_date')
-                ->get();
-
-            foreach ($assignments as $assignment) {
-                $dayIndex = $patternDays->count() === 7
-                    ? ((int) $assignment->schedule_date->isoWeekday()) - 1
-                    : ((int) $assignment->schedule_date->format('j')) - 1;
-                $patternDay = $patternDays[$dayIndex % $patternDays->count()];
-
-                if ((int) $assignment->shift_code_id === (int) $patternDay->shift_code_id) {
-                    continue;
-                }
-
-                $service->update($assignment, ['shift_code_id' => $patternDay->shift_code_id], auth()->user()?->emp_id ?? 'web');
-            }
-        });
-
-        $this->selectedScheduleId = $schedule->id;
-        $this->conflicts = [];
-        session()->flash('status', 'Employee shift pattern applied.');
+        $start = CarbonImmutable::create($this->year, $this->month, 1);
+        $this->pattern_fill_date_from = $start->toDateString();
+        $this->pattern_fill_date_to = $start->endOfMonth()->toDateString();
     }
 
     private function calendar(?MonthlySchedule $schedule): array
@@ -350,6 +567,9 @@ class ScheduleDashboard extends Component
                         ->map(fn ($assignment) => [
                             'id' => $assignment->id,
                             'shift_code_id' => $assignment->shift_code_id,
+                            'unit_id' => $assignment->unit_id,
+                            'unit_code' => $assignment->unit?->code,
+                            'is_temporary_floater' => (bool) $assignment->is_temporary_floater,
                             'code' => $assignment->shiftCode?->code,
                             'night' => (bool) $assignment->shiftCode?->is_night_shift,
                         ])
@@ -437,8 +657,38 @@ class ScheduleDashboard extends Component
 
     private function filteredAssignments(MonthlySchedule $schedule)
     {
+        $handledUnitIds = app(ScheduleScopeService::class)
+            ->handledUnitIds(auth()->user()?->emp_id, $this->department_id);
+
         return $schedule->assignments
-            ->filter(fn ($assignment) => $this->employeeMatchesType($assignment->employee));
+            ->filter(fn ($assignment) => $this->employeeMatchesType($assignment->employee))
+            ->when($handledUnitIds !== null, function ($assignments) use ($handledUnitIds) {
+                return $assignments->filter(function ($assignment) use ($handledUnitIds) {
+                    if ($assignment->unit_id === null) {
+                        return true;
+                    }
+
+                    return in_array((int) $assignment->unit_id, $handledUnitIds, true);
+                });
+            })
+            ->when($this->unit_filter !== null && $this->unit_filter !== '', function ($assignments) {
+                return $assignments->where('unit_id', (int) $this->unit_filter);
+            });
+    }
+
+    private function assertAssignmentInScope(ScheduleAssignment $assignment): void
+    {
+        $handledUnitIds = app(ScheduleScopeService::class)
+            ->handledUnitIds(auth()->user()?->emp_id, $this->department_id);
+
+        if ($handledUnitIds === null || $assignment->unit_id === null) {
+            return;
+        }
+
+        abort_unless(
+            in_array((int) $assignment->unit_id, $handledUnitIds, true),
+            403
+        );
     }
 
     private function employeeMatchesType(?Employee $employee): bool

@@ -16,4 +16,9 @@ class AdminPageController extends Controller
     {
         return view('admin.roles-permissions');
     }
+
+    public function cutoverStatus(): View
+    {
+        return view('admin.cutover-status');
+    }
 }

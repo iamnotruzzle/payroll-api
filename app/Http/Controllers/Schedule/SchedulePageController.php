@@ -21,7 +21,17 @@ class SchedulePageController extends Controller
 
     public function dashboard()
     {
-        return view('schedule.dashboard');
+        return view('schedule.index');
+    }
+
+    public function show(MonthlySchedule $schedule)
+    {
+        $departmentId = auth()->user()?->employee?->department_id;
+        abort_unless($departmentId && (int) $schedule->department_id === (int) $departmentId, 403);
+
+        return view('schedule.show', [
+            'schedule' => $schedule,
+        ]);
     }
 
     public function employees()
@@ -66,6 +76,41 @@ class SchedulePageController extends Controller
     public function printSettings()
     {
         return view('schedule.print-settings');
+    }
+
+    public function departmentProfiles()
+    {
+        return view('schedule.department-profiles');
+    }
+
+    public function units()
+    {
+        return view('schedule.schedule-units');
+    }
+
+    public function floaters()
+    {
+        return view('schedule.floaters');
+    }
+
+    public function onCall()
+    {
+        return view('schedule.on-call');
+    }
+
+    public function dutyCensus()
+    {
+        return view('schedule.duty-census');
+    }
+
+    public function swaps()
+    {
+        return view('schedule.swaps');
+    }
+
+    public function schedulev2Sync()
+    {
+        return view('schedule.schedulev2-sync');
     }
 
     public function printable(MonthlySchedule $schedule)
@@ -125,6 +170,23 @@ class SchedulePageController extends Controller
             'days' => $days,
             'rows' => $rows,
             'legend' => $legend,
+        ]);
+    }
+
+    public function pdf(MonthlySchedule $schedule, \App\Services\Schedule\ScheduleDistributionService $distribution)
+    {
+        abort_unless(
+            auth()->user()?->can('schedule.view') || auth()->user()?->can('schedule.manage'),
+            403
+        );
+        abort_unless($schedule->department_id === auth()->user()?->employee?->department_id, 404);
+
+        $unitId = request()->filled('unit_id') ? (int) request('unit_id') : null;
+        $pdf = $distribution->buildPdf($schedule, $unitId);
+
+        return response($pdf['binary'], 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$pdf['filename'].'"',
         ]);
     }
 
@@ -190,6 +252,20 @@ class SchedulePageController extends Controller
                 ['label' => 'Staffing Requirements', 'route' => 'schedule.staffing-requirements'],
                 ['label' => 'Schedule Templates', 'route' => 'schedule.templates'],
                 ['label' => 'Print and Export Settings', 'route' => 'schedule.print-settings'],
+                ['label' => 'Department Schedule Profile', 'route' => 'schedule.department-profiles'],
+                ['label' => 'Schedule Units', 'route' => 'schedule.units'],
+                ['label' => 'Floaters', 'route' => 'schedule.floaters'],
+                ['label' => 'On Call', 'route' => 'schedule.on-call'],
+                ['label' => 'Duty Census', 'route' => 'schedule.census'],
+                ['label' => 'Shift Swaps', 'route' => 'schedule.swaps'],
+                ['label' => 'Import from NDOS', 'route' => 'schedule.schedulev2-sync'],
+            ],
+            'schedule.manage' => [
+                ['label' => 'Import from NDOS', 'route' => 'schedule.schedulev2-sync'],
+            ],
+            'self-service.schedule' => [
+                ['label' => 'My Schedule', 'route' => 'self-service.schedule'],
+                ['label' => 'My Shift Swaps', 'route' => 'self-service.swaps'],
             ],
             'references.view' => [
                 ['label' => 'Employee References', 'route' => 'schedule.employee-references'],

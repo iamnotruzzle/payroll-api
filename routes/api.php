@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\Attendance\BiometricPunchController;
+use App\Http\Controllers\Api\Attendance\DtrClientSyncController;
 use App\Http\Controllers\Api\DtrLabelOptionController;
 use App\Http\Controllers\Api\DtrCorrectionRequestController;
 use App\Http\Controllers\Api\EmployeeController;
@@ -14,6 +16,7 @@ use App\Http\Controllers\Api\PositionController;
 use App\Http\Controllers\Api\ReferenceDataController;
 use App\Http\Controllers\Api\SalaryGradeController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Api\Schedule\ScheduleWeekController;
 use App\Http\Controllers\Api\ScheduleModuleController;
 use App\Http\Controllers\Api\ShiftCodeController;
 use App\Http\Controllers\Api\TimeTemplateController;
@@ -26,6 +29,16 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/logout', [AuthController::class, 'logout']);
+});
+
+/*
+| Biometric / offline DTR bridges (Phase 6).
+| Always require a device API key (API_DEVICE_KEYS) — not open.
+| Compatible shapes with legacy POST dtr/new and POST api/dtr/client/sync.
+*/
+Route::middleware('api.device')->prefix('dtr')->group(function () {
+    Route::post('/new', [BiometricPunchController::class, 'store'])->name('api.dtr.new');
+    Route::post('/client/sync', [DtrClientSyncController::class, 'store'])->name('api.dtr.client.sync');
 });
 
 Route::get('/users', [UserAccountController::class, 'index']);
@@ -160,6 +173,14 @@ Route::prefix('schedule')->group(function () {
     Route::post('/staffing-requirements', [ScheduleModuleController::class, 'saveStaffingRequirement']);
     Route::get('/templates', [ScheduleModuleController::class, 'templates']);
     Route::post('/templates', [ScheduleModuleController::class, 'saveTemplate']);
+
+    /*
+    | Week / attendance presence APIs (Phase 5b).
+    | Auth: api.access (device API key, Sanctum, or web session when API_REQUIRE_AUTH=true).
+    | Attendance presence reads approved/locked assignments only — not biometric DTR.
+    */
+    Route::get('/week', [ScheduleWeekController::class, 'week'])->name('api.schedule.week');
+    Route::get('/attendance', [ScheduleWeekController::class, 'attendance'])->name('api.schedule.attendance');
 
     Route::post('/monthly/generate-draft', [ScheduleModuleController::class, 'generateDraft']);
     Route::get('/monthly/{schedule}', [ScheduleModuleController::class, 'showSchedule']);

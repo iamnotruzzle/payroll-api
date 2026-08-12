@@ -1,17 +1,35 @@
 <?php
 
+use App\Http\Controllers\SelfService\MyDtrController;
+use App\Http\Controllers\SelfService\MyIpcrController;
 use App\Http\Controllers\SelfService\MyLeaveController;
+use App\Http\Controllers\SelfService\MyPayslipController;
 use App\Http\Controllers\SelfService\MyProfileController;
+use App\Http\Controllers\SelfService\MyScheduleController;
+use App\Http\Controllers\SelfService\MyShiftSwapsController;
+use App\Http\Controllers\SelfService\MyTrainingController;
 use App\Http\Controllers\Admin\AdminPageController;
 use App\Http\Controllers\Auth\WebLoginController;
 use App\Http\Controllers\Employees\EmployeePageController;
 use App\Http\Controllers\Leave\LeavePageController;
 use App\Http\Controllers\Payroll\PayrollLoanImportController;
 use App\Http\Controllers\Payroll\PayrollPageController;
+use App\Http\Controllers\Performance\PerformancePageController;
 use App\Http\Controllers\Schedule\SchedulePageController;
+use App\Http\Controllers\Training\TrainingPageController;
+use App\Http\Controllers\Api\Attendance\BiometricPunchController;
 use App\Http\Controllers\TimePunchController;
 use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Route;
+
+/*
+| Legacy-compatible biometric punch path (devices often POST /dtr/new).
+| CSRF excluded in bootstrap/app.php; device API key still required.
+*/
+Route::post('/dtr/new', [BiometricPunchController::class, 'store'])
+    ->middleware('api.device')
+    ->name('dtr.new');
+
 
 Route::get('/', function () {
     return auth()->check()
@@ -39,8 +57,10 @@ Route::middleware('auth')->group(function () {
         ->where('feature', '[a-z0-9\-]+')
         ->name('coming-soon');
 
-    Route::get('/time-punch', [TimePunchController::class, 'index'])->name('time-punch.index');
-    Route::post('/time-punch', [TimePunchController::class, 'store'])->name('time-punch.store');
+    Route::middleware('permission:self-service.dtr|self-service.access')->group(function () {
+        Route::get('/time-punch', [TimePunchController::class, 'index'])->name('time-punch.index');
+        Route::post('/time-punch', [TimePunchController::class, 'store'])->name('time-punch.store');
+    });
 
     Route::middleware('permission:self-service.profile|self-service.access')->group(function () {
         Route::get('/self-service/profile', [MyProfileController::class, 'show'])->name('self-service.profile');
@@ -49,6 +69,31 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('permission:self-service.leave|leave.request|leave.view')->group(function () {
         Route::get('/self-service/leave', [MyLeaveController::class, 'index'])->name('self-service.leave');
+    });
+
+    Route::middleware('permission:self-service.dtr|self-service.access')->group(function () {
+        Route::get('/self-service/dtr', [MyDtrController::class, 'index'])->name('self-service.dtr');
+        Route::get('/self-service/dtr/print', [MyDtrController::class, 'print'])->name('self-service.dtr.print');
+    });
+
+    Route::middleware('permission:self-service.payslip|self-service.access')->group(function () {
+        Route::get('/self-service/payslip', [MyPayslipController::class, 'index'])->name('self-service.payslip');
+        Route::get('/self-service/payslip/{recordId}/print', [MyPayslipController::class, 'print'])
+            ->whereNumber('recordId')
+            ->name('self-service.payslip.print');
+    });
+
+    Route::middleware('permission:self-service.schedule|self-service.access')->group(function () {
+        Route::get('/self-service/schedule', [MyScheduleController::class, 'index'])->name('self-service.schedule');
+        Route::get('/self-service/swaps', [MyShiftSwapsController::class, 'index'])->name('self-service.swaps');
+    });
+
+    Route::middleware('permission:self-service.training|training.manage|training.view')->group(function () {
+        Route::get('/self-service/training', [MyTrainingController::class, 'index'])->name('self-service.training');
+    });
+
+    Route::middleware('permission:self-service.ipcr|performance.view|performance.manage')->group(function () {
+        Route::get('/self-service/ipcr', [MyIpcrController::class, 'index'])->name('self-service.ipcr');
     });
 
     Route::middleware('permission:leave.view|leave.request|leave.approve|self-service.leave')->group(function () {
@@ -77,6 +122,43 @@ Route::middleware('auth')->group(function () {
         Route::get('/leave/reports', [LeavePageController::class, 'reports'])->name('leave.reports');
     });
 
+    Route::middleware('permission:training.view|training.manage|training.approve|self-service.training')->group(function () {
+        Route::get('/training/tarf/{tarfNo}/print', [TrainingPageController::class, 'print'])
+            ->where('tarfNo', '[A-Za-z0-9\-]+')
+            ->name('training.print');
+        Route::get('/training/tarf/{tarfNo}/files/{fileId}', [TrainingPageController::class, 'download'])
+            ->where('tarfNo', '[A-Za-z0-9\-]+')
+            ->whereNumber('fileId')
+            ->name('training.download');
+        Route::get('/training/tarf/{tarfNo}', [TrainingPageController::class, 'show'])
+            ->where('tarfNo', '[A-Za-z0-9\-]+')
+            ->name('training.show');
+    });
+
+    Route::middleware('permission:training.view|training.manage|training.approve')->group(function () {
+        Route::get('/training/requests', [TrainingPageController::class, 'requests'])->name('training.requests');
+        Route::get('/training/calendar', [TrainingPageController::class, 'calendar'])->name('training.calendar');
+    });
+
+    Route::middleware('permission:training.approve|training.view')->group(function () {
+        Route::get('/training/approvals', [TrainingPageController::class, 'approvals'])->name('training.approvals');
+    });
+
+    Route::middleware('permission:performance.view|performance.manage|performance.approve|self-service.ipcr')->group(function () {
+        Route::get('/performance/ipcr/{empId}/{periodId}/print', [PerformancePageController::class, 'print'])
+            ->where('empId', '[A-Za-z0-9\-]+')
+            ->whereNumber('periodId')
+            ->name('performance.print');
+        Route::get('/performance/ipcr/{empId}/{periodId}', [PerformancePageController::class, 'employee'])
+            ->where('empId', '[A-Za-z0-9\-]+')
+            ->whereNumber('periodId')
+            ->name('performance.employee');
+    });
+
+    Route::middleware('permission:performance.view|performance.manage|performance.approve')->group(function () {
+        Route::get('/performance/periods', [PerformancePageController::class, 'periods'])->name('performance.periods');
+    });
+
     Route::middleware('permission:employees.view|employees.manage')->group(function () {
         Route::get('/employees', [EmployeePageController::class, 'index'])->name('employees.index');
         Route::get('/employees/{empId}/print', [EmployeePageController::class, 'print'])
@@ -99,15 +181,28 @@ Route::middleware('auth')->group(function () {
         Route::get('/admin/roles-permissions', [AdminPageController::class, 'rolesPermissions'])->name('admin.roles-permissions');
     });
 
+    Route::middleware('permission:admin.cutover.view')->group(function () {
+        Route::get('/admin/cutover', [AdminPageController::class, 'cutoverStatus'])->name('admin.cutover');
+    });
+
     Route::middleware('permission:schedule.view')->group(function () {
         Route::get('/schedule', [SchedulePageController::class, 'dashboard'])->name('schedule.dashboard');
+        Route::get('/schedule/months/{schedule}', [SchedulePageController::class, 'show'])->name('schedule.show');
         Route::get('/schedule/shift-codes', [SchedulePageController::class, 'shiftCodes'])->name('schedule.shift-codes');
         Route::get('/schedule/employees', [SchedulePageController::class, 'employees'])->name('schedule.employees');
         Route::get('/schedule/rotation-groups', [SchedulePageController::class, 'rotationGroups'])->name('schedule.rotation-groups');
         Route::get('/schedule/staffing-requirements', [SchedulePageController::class, 'staffingRequirements'])->name('schedule.staffing-requirements');
         Route::get('/schedule/templates', [SchedulePageController::class, 'scheduleTemplates'])->name('schedule.templates');
         Route::get('/schedule/print-settings', [SchedulePageController::class, 'printSettings'])->name('schedule.print-settings');
+        Route::get('/schedule/department-profile', [SchedulePageController::class, 'departmentProfiles'])->name('schedule.department-profiles');
+        Route::get('/schedule/units', [SchedulePageController::class, 'units'])->name('schedule.units');
+        Route::get('/schedule/floaters', [SchedulePageController::class, 'floaters'])->name('schedule.floaters');
+        Route::get('/schedule/on-call', [SchedulePageController::class, 'onCall'])->name('schedule.on-call');
+        Route::get('/schedule/census', [SchedulePageController::class, 'dutyCensus'])->name('schedule.census');
+        Route::get('/schedule/swaps', [SchedulePageController::class, 'swaps'])->name('schedule.swaps');
+        Route::get('/schedule/schedulev2-sync', [SchedulePageController::class, 'schedulev2Sync'])->name('schedule.schedulev2-sync');
         Route::get('/schedule/{schedule}/print', [SchedulePageController::class, 'printable'])->name('schedule.print');
+        Route::get('/schedule/{schedule}/pdf', [SchedulePageController::class, 'pdf'])->name('schedule.pdf');
     });
 
     Route::middleware('permission:references.view')->group(function () {
@@ -123,8 +218,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/payroll/dtr', [PayrollPageController::class, 'dtr'])->name('payroll.dtr');
         Route::get('/payroll/dtr-encoding', [PayrollPageController::class, 'dtrEncoding'])->name('payroll.dtr-encoding');
         Route::get('/payroll/dtr-encoding/print', [PayrollPageController::class, 'dtrPrintable'])->name('payroll.dtr-encoding.print');
+        Route::get('/payroll/dtr-encoding/print-bulk', [PayrollPageController::class, 'dtrPrintableBulk'])->name('payroll.dtr-encoding.print-bulk');
         Route::get('/payroll/dtr-correction-requests', [PayrollPageController::class, 'dtrCorrectionRequests'])->name('payroll.dtr-correction-requests');
         Route::get('/payroll/dtr-correction-approvers', [PayrollPageController::class, 'dtrCorrectionApprovers'])->name('payroll.dtr-correction-approvers');
+        Route::get('/payroll/fingerprint-registration', [PayrollPageController::class, 'fingerprintRegistration'])->name('payroll.fingerprint-registration');
         Route::get('/payroll/mra', [PayrollPageController::class, 'mra'])->name('payroll.mra');
         Route::get('/payroll/holidays', [PayrollPageController::class, 'holidays'])->name('payroll.holidays');
     });
@@ -143,5 +240,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/payroll/deduction-programs', [PayrollPageController::class, 'deductionPrograms'])->name('payroll.deduction-programs');
         Route::get('/payroll/statutory-contributions', [PayrollPageController::class, 'statutoryContributions'])->name('payroll.statutory-contributions');
         Route::get('/payroll/history', [PayrollPageController::class, 'history'])->name('payroll.history');
+        Route::get('/payroll/history/payslip/{recordId}/print', [PayrollPageController::class, 'historyPayslipPrint'])
+            ->whereNumber('recordId')
+            ->name('payroll.history.payslip.print');
     });
 });

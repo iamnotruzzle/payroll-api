@@ -83,7 +83,7 @@ class PayrollConfiguration extends Component
         $this->leavePeriodStart = (string) request()->query('leave_period_start', $defaultLeaveMonth->startOfMonth()->toDateString());
         $this->leavePeriodEnd = (string) request()->query('leave_period_end', $defaultLeaveMonth->endOfMonth()->toDateString());
         $this->workingDays = max(1, min(31, request()->integer('working_days') ?: 22));
-        $this->gsisDays = max(0, min(31, request()->integer('gsis_days') ?: 30));
+        $this->gsisDays = $this->daysInPayrollMonth($this->period);
         $this->selectedLeaveTypeIds = $this->hasExplicitLeaveTypeSelection(request()->query('leave_type_ids'))
             ? $this->parseSelectedLeaveTypeIds(request()->query('leave_type_ids', []))
             : $this->defaultSelectedLeaveTypeIds();
@@ -129,6 +129,7 @@ class PayrollConfiguration extends Component
 
     private function validatedConfiguration(): array
     {
+        $this->gsisDays = $this->daysInPayrollMonth($this->period);
         $data = $this->validate([
             'selectedDivisionIds' => ['required', 'array', 'min:1'],
             'selectedDivisionIds.*' => ['integer', 'exists:hris.tbl_division,division_id'],
@@ -169,6 +170,20 @@ class PayrollConfiguration extends Component
         $this->syncLegacyScopeIds();
 
         return $data;
+    }
+
+    public function updatedPeriod(): void
+    {
+        $this->gsisDays = $this->daysInPayrollMonth($this->period);
+    }
+
+    private function daysInPayrollMonth(string $period): int
+    {
+        try {
+            return CarbonImmutable::createFromFormat('!Y-m', $period)->daysInMonth;
+        } catch (\Throwable) {
+            return 30;
+        }
     }
 
     private function redirectToGeneration(array $data)

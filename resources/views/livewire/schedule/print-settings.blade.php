@@ -299,4 +299,94 @@
         </div>
         </div>
     </div>
+
+    <div id="distribution" class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <h3 class="font-semibold">PDF / email distribution</h3>
+                <p class="mt-1 text-sm text-slate-600">
+                    Download a monthly schedule PDF (uses branding/signatories above) or queue it to a list and/or handled-unit supervisors.
+                    Existing Print / Export HTML is unchanged.
+                </p>
+            </div>
+            @if ($mailConfigured)
+                <span class="rounded-md bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">Mail configured</span>
+            @else
+                <span class="rounded-md bg-amber-50 px-3 py-1 text-xs font-medium text-amber-900">Mail not configured</span>
+            @endif
+        </div>
+
+        @unless ($mailConfigured)
+            <p class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{{ $mailMessage }}</p>
+        @endunless
+
+        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div>
+                <label class="text-sm font-medium">Month / schedule</label>
+                <select wire:model="distribute_schedule_id" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <option value="">Select…</option>
+                    @foreach ($schedules as $item)
+                        <option value="{{ $item->id }}">
+                            {{ $item->year }}-{{ str_pad($item->month, 2, '0', STR_PAD_LEFT) }} · {{ $item->status }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            @if (!empty($usesUnits))
+                <div>
+                    <label class="text-sm font-medium">{{ $unitNoun ?? 'Unit' }} (optional)</label>
+                    <select wire:model="distribute_unit_id" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <option value="">Entire department</option>
+                        @foreach ($unitOptions as $unit)
+                            <option value="{{ $unit->id }}">{{ $unit->code }} — {{ $unit->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
+            <div class="{{ !empty($usesUnits) ? 'xl:col-span-2' : 'xl:col-span-3' }}">
+                <label class="text-sm font-medium">Extra recipient emails</label>
+                <input
+                    wire:model="distribute_emails"
+                    placeholder="name@example.com, other@example.com"
+                    class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                >
+            </div>
+        </div>
+
+        <div class="mt-3 grid gap-3 md:grid-cols-2">
+            <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input wire:model="distribute_to_handled_supervisors" type="checkbox" class="rounded border-slate-300">
+                Include handled-unit supervisors (employees assigned in Schedule Units with an email on file)
+            </label>
+            <div>
+                <label class="text-sm font-medium">Note (optional)</label>
+                <input wire:model="distribute_note" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" maxlength="500">
+            </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+            @can('schedule.view')
+                <button
+                    type="button"
+                    wire:click="downloadDistributedPdf"
+                    wire:loading.attr="disabled"
+                    class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                >
+                    Download PDF
+                </button>
+            @endcan
+            @can('schedule.manage')
+                <button
+                    type="button"
+                    wire:click="emailDistributedPdf"
+                    wire:confirm="Queue the schedule PDF email to the resolved recipients?"
+                    wire:loading.attr="disabled"
+                    class="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-60"
+                    @disabled(! $mailConfigured)
+                >
+                    Email PDF
+                </button>
+            @endcan
+        </div>
+    </div>
 </section>

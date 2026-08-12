@@ -1,5 +1,13 @@
 <x-layouts.app :title="$title" mode="launcher">
     <section class="erp-launcher">
+        <div class="erp-launcher-atmosphere" aria-hidden="true">
+            <span class="erp-launcher-orb erp-launcher-orb-a"></span>
+            <span class="erp-launcher-orb erp-launcher-orb-b"></span>
+            <span class="erp-launcher-orb erp-launcher-orb-c"></span>
+            <span class="erp-launcher-ring erp-launcher-ring-a"></span>
+            <span class="erp-launcher-ring erp-launcher-ring-b"></span>
+        </div>
+
         <div class="erp-launcher-intro">
             <p class="erp-brand-eyebrow text-[11px] font-bold uppercase">MMMHMC</p>
             <h2 class="mt-1 font-bold tracking-tight text-[color:var(--erp-text)]">
@@ -16,7 +24,7 @@
                     href="{{ $module['href'] }}"
                     class="erp-launcher-app group"
                     data-accent="{{ $module['accent'] }}"
-                    title="{{ ($module['available'] ?? false) ? $module['label'] : $module['label'].' (coming soon)' }}"
+                    title="{{ ($module['available'] ?? false) ? $module['label'] : $module['label'].' (module under construction)' }}"
                 >
                     <span class="erp-launcher-icon" aria-hidden="true">
                         @php($icon = $module['icon'])
@@ -51,6 +59,7 @@
                                     @break
                             @endswitch
                         </svg>
+                        {{-- SOON = unfinished module only. Built apps without permission are hidden via ErpNavigation::visible. --}}
                         @unless ($module['available'] ?? false)
                             <span class="erp-launcher-soon">Soon</span>
                         @endunless

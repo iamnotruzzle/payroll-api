@@ -129,18 +129,26 @@ class ScheduleModuleController extends Controller
     {
         $data = $request->validate([
             'year' => ['required', 'integer', 'min:2020', 'max:2100'],
-            'month' => ['required', 'integer', 'between:1,12'],
             'department_id' => ['nullable', 'integer'],
+            'month' => ['required', 'integer', 'between:1,12'],
             'schedule_template_id' => ['nullable', 'exists:payroll_scheduler.schedule_templates,id'],
+            'mode' => ['nullable', 'in:automated,manual'],
+            'employee_type' => ['nullable', 'string'],
         ]);
 
-        return response()->json($service->generate(
-            $data['year'],
-            $data['month'],
-            $data['department_id'] ?? null,
-            $data['schedule_template_id'] ?? null,
-            $request->user()?->getAuthIdentifier()
-        ));
+        try {
+            return response()->json($service->generate(
+                $data['year'],
+                $data['month'],
+                $data['department_id'] ?? null,
+                ($data['mode'] ?? 'automated') === 'manual' ? null : ($data['schedule_template_id'] ?? null),
+                $request->user()?->getAuthIdentifier(),
+                $data['employee_type'] ?? \App\Models\Hris\Employee::EMPLOYEE_TYPE_PLANTILLA,
+                $data['mode'] ?? ScheduleDraftGenerationService::MODE_AUTOMATED,
+            ));
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
     }
 
     public function updateAssignment(Request $request, ScheduleAssignment $assignment, ScheduleAssignmentService $service): JsonResponse

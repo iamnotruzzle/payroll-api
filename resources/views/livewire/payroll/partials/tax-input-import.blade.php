@@ -1,7 +1,7 @@
 <div class="border-b border-slate-200 bg-slate-50 px-4 py-3">
     <div class="flex flex-wrap items-end gap-2">
         <label class="min-w-72 flex-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Import tax inputs
+            {{ $importLabel ?? 'Import tax inputs' }}
             <input wire:model="{{ $fileModel }}" type="file" accept=".xlsx,.xls,.xlsm" class="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case">
         </label>
         <button wire:click="{{ $validateAction }}" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Validate Import</button>

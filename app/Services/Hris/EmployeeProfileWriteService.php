@@ -5,6 +5,7 @@ namespace App\Services\Hris;
 use App\Models\Hris\Employee as LegacyEmployee;
 use App\Models\HrisV2\Employee as V2Employee;
 use App\Support\Hris\EmployeeDirectoryQuery;
+use App\Support\Hris\LegacyEmployeeMasterWriteGuard;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -60,6 +61,8 @@ class EmployeeProfileWriteService
      */
     private function updateLegacy(string $empId, array $data): LegacyEmployee
     {
+        LegacyEmployeeMasterWriteGuard::assertWritable('employee core profile');
+
         $employee = LegacyEmployee::query()->where('emp_id', $empId)->firstOrFail();
 
         $employee->fill([
@@ -187,6 +190,8 @@ class EmployeeProfileWriteService
 
     private function setActiveLegacy(string $empId, bool $isActive): LegacyEmployee
     {
+        LegacyEmployeeMasterWriteGuard::assertWritable('employee activate/deactivate');
+
         $employee = LegacyEmployee::query()->where('emp_id', $empId)->firstOrFail();
         $employee->is_active = $isActive ? 'Y' : 'N';
         $employee->save();

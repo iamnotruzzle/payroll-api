@@ -88,10 +88,10 @@
                     <h3 class="text-sm font-semibold uppercase text-slate-500">Run Details</h3>
                 </div>
 
-                <div class="grid gap-3 md:grid-cols-3">
+                <div class="grid gap-3 md:grid-cols-3" x-data="{ payrollMonth: @entangle('period'), gsisDays: @entangle('gsisDays') }" x-effect="if (payrollMonth) { const [year, month] = payrollMonth.split('-').map(Number); gsisDays = new Date(year, month, 0).getDate(); }">
                     <div>
                         <label class="text-sm font-medium">Payroll Month</label>
-                        <input wire:model="period" type="month" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <input x-model="payrollMonth" type="month" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                         @error('period') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
 
@@ -103,7 +103,8 @@
 
                     <div>
                         <label class="text-sm font-medium">GSIS No. of Days</label>
-                        <input wire:model="gsisDays" type="number" min="0" max="31" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <input x-model="gsisDays" type="number" readonly class="mt-1 w-full cursor-not-allowed rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-600">
+                        <p class="mt-1 text-xs text-slate-500">Automatically based on the selected payroll month.</p>
                         @error('gsisDays') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
                 </div>

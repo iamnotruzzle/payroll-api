@@ -24,7 +24,7 @@
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
             <label class="min-w-0 flex-1">
                 <span class="sr-only">Search employees</span>
-                <input wire:model.live.debounce.300ms="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search name or employee ID">
+                <input wire:model.live.debounce.500ms="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search name or employee ID">
             </label>
             <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
                 Status

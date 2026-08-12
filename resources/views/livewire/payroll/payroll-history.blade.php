@@ -7,7 +7,7 @@
     <div class="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-5">
         <div class="md:col-span-2">
             <label class="text-sm font-medium">Search</label>
-            <input type="search" wire:model.live.debounce.300ms="search" placeholder="Period, type, or user" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <input type="search" wire:model.live.debounce.500ms="search" placeholder="Period, type, or user" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
         </div>
         <div>
             <label class="text-sm font-medium">Payroll Period</label>
@@ -306,7 +306,16 @@
                                     <td class="px-4 py-3 text-right whitespace-nowrap {{ $isGovernmentGroup ? 'bg-indigo-50 text-indigo-900' : '' }} {{ $isGovernmentGroup && $loop->first ? 'border-l-4 border-l-indigo-500' : '' }}">
                                         {{-- EMPLOYEE INFORMATION --}}
                                         @if ($columnKey === 'emp_id')
-                                            {{ $employee['emp_id'] ?? '-' }}
+                                            <div class="flex items-center justify-end gap-2">
+                                                <span>{{ $employee['emp_id'] ?? $record->emp_id }}</span>
+                                                <a
+                                                    href="{{ route('payroll.history.payslip.print', $record->id) }}"
+                                                    target="_blank"
+                                                    class="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 hover:bg-slate-100"
+                                                >
+                                                    Payslip
+                                                </a>
+                                            </div>
                                         @elseif ($columnKey === 'employee_name')
                                             <div class="text-left font-medium">
                                                 {{ $employee['employee_name'] ?? '-' }}

@@ -24,7 +24,7 @@
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
             <label class="min-w-0 flex-1">
                 <span class="sr-only">Search leave</span>
-                <input wire:model.live.debounce.300ms="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employee, ID, or remarks">
+                <input wire:model.live.debounce.500ms="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employee, ID, or remarks">
             </label>
             <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
                 Status
@@ -127,7 +127,7 @@
                     <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
                         <label class="block">
                             <span class="text-xs font-semibold uppercase text-slate-500">Employee</span>
-                            <input wire:model.live.debounce.300ms="employeeSearch" type="search" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Filter employees">
+                            <input wire:model.live.debounce.500ms="employeeSearch" type="search" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Filter employees">
                             <select wire:model="empId" class="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" @disabled($editingId)>
                                 <option value="">Select employee</option>
                                 @foreach ($employees as $employee)

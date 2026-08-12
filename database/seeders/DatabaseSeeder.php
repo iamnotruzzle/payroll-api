@@ -14,6 +14,8 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             RBACSeeder::class,
+            // Optional: seed CNO nursing schedule profiles (requires HRIS connection).
+            // ScheduleDepartmentProfileSeeder::class,
         ]);
     }
 }

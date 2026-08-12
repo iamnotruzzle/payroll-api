@@ -11,6 +11,7 @@ class EmployeeScheduleSetting extends PayrollSchedulerModel
     protected $fillable = [
         'employee_id',
         'default_shift_code_id',
+        'default_unit_id',
         'can_rotate_shift',
         'uses_regular_weekday_schedule',
         'max_consecutive_duty_days',
@@ -21,6 +22,7 @@ class EmployeeScheduleSetting extends PayrollSchedulerModel
     protected function casts(): array
     {
         return [
+            'default_unit_id' => 'integer',
             'can_rotate_shift' => 'boolean',
             'uses_regular_weekday_schedule' => 'boolean',
             'max_consecutive_duty_days' => 'integer',
@@ -32,5 +34,10 @@ class EmployeeScheduleSetting extends PayrollSchedulerModel
     public function defaultShiftCode(): BelongsTo
     {
         return $this->belongsTo(ShiftCode::class, 'default_shift_code_id');
+    }
+
+    public function defaultUnit(): BelongsTo
+    {
+        return $this->belongsTo(ScheduleUnit::class, 'default_unit_id');
     }
 }

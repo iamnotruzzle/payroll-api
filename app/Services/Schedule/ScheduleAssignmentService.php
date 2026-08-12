@@ -17,11 +17,24 @@ class ScheduleAssignmentService
         }
 
         $before = $assignment->toArray();
-        $assignment->fill([
-            'shift_code_id' => $data['shift_code_id'],
+        $payload = [
             'notes' => $data['notes'] ?? $assignment->notes,
             'source' => 'manual',
-        ]);
+        ];
+
+        if (array_key_exists('shift_code_id', $data)) {
+            $payload['shift_code_id'] = $data['shift_code_id'];
+        }
+
+        if (array_key_exists('unit_id', $data)) {
+            $payload['unit_id'] = $data['unit_id'];
+        }
+
+        if (array_key_exists('is_temporary_floater', $data)) {
+            $payload['is_temporary_floater'] = (bool) $data['is_temporary_floater'];
+        }
+
+        $assignment->fill($payload);
         $assignment->save();
 
         $this->auditLogService->record(

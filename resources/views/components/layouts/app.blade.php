@@ -30,7 +30,7 @@
         $navHref = fn (array $item): string => \App\Support\ErpNavigation::href($item);
     @endphp
 
-    <div class="{{ $isLauncher ? 'min-h-screen' : 'min-h-screen lg:grid lg:grid-cols-[248px_minmax(0,1fr)]' }}">
+    <div class="{{ $isLauncher ? 'erp-launcher-scene min-h-screen' : 'min-h-screen lg:grid lg:grid-cols-[248px_minmax(0,1fr)]' }}">
         @unless ($isLauncher)
             <aside class="erp-sidebar border-b border-[#e4e6ef] bg-white lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto lg:border-b-0 lg:border-r">
                 <div class="flex min-h-full flex-col">
@@ -55,30 +55,37 @@
                         </a>
                     </div>
 
-                    <nav class="space-y-1 px-3 py-3 text-sm">
+                    <nav class="space-y-3 px-3 py-3 text-sm">
                         @if ($currentApp)
                             <div class="erp-nav-group">
-                                <p class="px-2.5 pb-2 text-[11px] font-semibold uppercase tracking-wide text-[#8a8d93]">
+                                <p class="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-[#8a8d93]">
                                     {{ $currentApp['label'] }}
                                 </p>
-                                <div class="space-y-0.5">
-                                    @foreach ($currentApp['menu'] ?? [] as $item)
-                                        <a
-                                            class="erp-nav-link erp-nav-link-depth-1 {{ ($item['active'] ?? false) ? 'erp-nav-link-active' : '' }}"
-                                            href="{{ $navHref($item) }}"
-                                        >
-                                            <span class="erp-nav-item-icon" aria-hidden="true">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                    <path d="{{ $icons[$item['icon']] ?? $icons['grid'] }}"></path>
-                                                </svg>
-                                            </span>
-                                            <span class="min-w-0 truncate">{{ $item['label'] }}</span>
-                                            @if ($item['coming_soon'] ?? false)
-                                                <span class="erp-nav-soon">Soon</span>
-                                            @endif
-                                        </a>
-                                    @endforeach
-                                </div>
+                                @foreach ($currentApp['menu_sections'] ?? [] as $section)
+                                    <div class="space-y-0.5 {{ ! $loop->first ? 'mt-3' : '' }}">
+                                        @if (! empty($section['label']))
+                                            <p class="px-2.5 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-[#a1a5b7]">
+                                                {{ $section['label'] }}
+                                            </p>
+                                        @endif
+                                        @foreach ($section['items'] ?? [] as $item)
+                                            <a
+                                                class="erp-nav-link erp-nav-link-depth-1 {{ ($item['active'] ?? false) ? 'erp-nav-link-active' : '' }}"
+                                                href="{{ $navHref($item) }}"
+                                            >
+                                                <span class="erp-nav-item-icon" aria-hidden="true">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path d="{{ $icons[$item['icon']] ?? $icons['grid'] }}"></path>
+                                                    </svg>
+                                                </span>
+                                                <span class="min-w-0 truncate">{{ $item['label'] }}</span>
+                                                @if ($item['coming_soon'] ?? false)
+                                                    <span class="erp-nav-soon">Soon</span>
+                                                @endif
+                                            </a>
+                                        @endforeach
+                                    </div>
+                                @endforeach
                             </div>
                         @else
                             <div class="erp-nav-group space-y-0.5">
@@ -185,6 +192,13 @@
                     </div>
                 </div>
             </header>
+
+            @php($cutoverBanner = \App\Support\Hris\HrisCutover::bannerMessage())
+            @if ($cutoverBanner)
+                <div class="border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-900 sm:px-5" role="status">
+                    <p class="font-medium">{{ $cutoverBanner }}</p>
+                </div>
+            @endif
 
             <main class="erp-content w-full px-3 py-4 sm:px-5 {{ $isLauncher ? 'erp-content-launcher' : '' }}">
                 {{ $slot }}

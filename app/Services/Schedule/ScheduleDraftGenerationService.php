@@ -17,14 +17,33 @@ use RuntimeException;
 
 class ScheduleDraftGenerationService
 {
+    public const MODE_AUTOMATED = 'automated';
+
+    public const MODE_MANUAL = 'manual';
+
     public function __construct(
         private AuditLogService $auditLogService,
         private ScheduleAvailabilityService $availabilityService,
         private ScheduleConflictValidator $validator,
     ) {}
 
-    public function generate(int $year, int $month, ?int $departmentId = null, ?int $templateId = null, ?string $performedBy = null, string $employeeType = Employee::EMPLOYEE_TYPE_PLANTILLA): array
-    {
+    public function generate(
+        int $year,
+        int $month,
+        ?int $departmentId = null,
+        ?int $templateId = null,
+        ?string $performedBy = null,
+        string $employeeType = Employee::EMPLOYEE_TYPE_PLANTILLA,
+        string $mode = self::MODE_AUTOMATED,
+    ): array {
+        if (app(ScheduleScopeService::class)->isCnoDepartment($departmentId)) {
+            throw new RuntimeException('CNO schedules must be imported from NDOS. Draft generation is not available for Nursing Service departments.');
+        }
+
+        $mode = in_array($mode, [self::MODE_AUTOMATED, self::MODE_MANUAL], true)
+            ? $mode
+            : self::MODE_AUTOMATED;
+
         $template = $templateId ? ScheduleTemplate::with('days.shiftCode')->findOrFail($templateId) : null;
         $existing = MonthlySchedule::query()
             ->where('department_id', $departmentId)
@@ -81,7 +100,23 @@ class ScheduleDraftGenerationService
             $defaultWorkShift = $workShifts->first() ?? $defaultWorkShift;
         }
 
-        $schedule = DB::connection('payroll_scheduler')->transaction(function () use ($year, $month, $departmentId, $template, $restShift, $defaultWorkShift, $regularWeekdayShift, $workShifts, $performedBy, $employeeType) {
+        if ($mode === self::MODE_MANUAL && ! $restShift) {
+            throw new RuntimeException('Manual generation needs an active OFF/O rest shift code for this department (or global).');
+        }
+
+        $schedule = DB::connection('payroll_scheduler')->transaction(function () use (
+            $year,
+            $month,
+            $departmentId,
+            $template,
+            $restShift,
+            $defaultWorkShift,
+            $regularWeekdayShift,
+            $workShifts,
+            $performedBy,
+            $employeeType,
+            $mode,
+        ) {
             $schedule = MonthlySchedule::query()->updateOrCreate(
                 [
                     'department_id' => $departmentId,
@@ -121,7 +156,10 @@ class ScheduleDraftGenerationService
                 ->values();
             $employees = Employee::query()
                 ->when($departmentId, fn ($query) => $query->where('department_id', $departmentId))
-                ->when($rotationMemberIds->isNotEmpty(), fn ($query) => $query->whereIn('emp_id', $eligibleEmployeeIds->all()))
+                ->when(
+                    $mode === self::MODE_AUTOMATED && $rotationMemberIds->isNotEmpty(),
+                    fn ($query) => $query->whereIn('emp_id', $eligibleEmployeeIds->all())
+                )
                 ->where('is_active', 'Y')
                 ->employeeType($employeeType)
                 ->orderBy('lastname')
@@ -133,99 +171,31 @@ class ScheduleDraftGenerationService
                 ->get()
                 ->keyBy('employee_id');
 
-            $date = CarbonImmutable::create($year, $month, 1);
-            $lastDate = $date->endOfMonth();
-            $exceptions = $this->availabilityService->exceptionShiftCodes($employees->pluck('emp_id'), $date, $lastDate);
-            $rotationOrders = $template?->rotation_group_id
-                ? RotationGroupMember::query()
-                    ->where('rotation_group_id', $template->rotation_group_id)
-                    ->pluck('rotation_order', 'employee_id')
-                : collect();
-            $monthSeed = (($year * 12) + $month) % max(1, $template?->days->count() ?: $workShifts->count() ?: 1);
-            $staffingAssignments = $this->staffingRequirementAssignments(
-                $departmentId,
-                $employees->pluck('emp_id'),
-                $date,
-                $lastDate,
-                $monthSeed,
-                $restShift,
-            );
-            $dutyStreaks = $employees
-                ->pluck('emp_id')
-                ->mapWithKeys(fn ($employeeId) => [$employeeId => 0])
-                ->all();
-
-            while ($date <= $lastDate) {
-                foreach ($employees as $index => $employee) {
-                    $setting = $settings->get($employee->emp_id);
-                    $hasException = isset($exceptions[$employee->emp_id][$date->toDateString()]);
-                    $generatedShift = $this->resolveShift(
-                        $date,
-                        (int) ($rotationOrders[$employee->emp_id] ?? $index),
-                        $monthSeed,
-                        $setting,
-                        $template,
-                        $workShifts,
-                        $restShift,
-                        $defaultWorkShift,
-                        $regularWeekdayShift
-                    );
-                    $exceptionShift = $hasException ? $exceptions[$employee->emp_id][$date->toDateString()] : null;
-                    $exceptionWasApplied = $this->isAutoAssignableShift($exceptionShift);
-                    $usesRegularWeekdaySchedule = ! $setting || $setting->uses_regular_weekday_schedule;
-                    $staffingShift = $usesRegularWeekdaySchedule
-                        ? null
-                        : ($staffingAssignments[$employee->emp_id][$date->toDateString()] ?? null);
-                    $shift = $exceptionWasApplied ? $exceptionShift : ($staffingShift ?? $generatedShift);
-                    if (! $this->shouldPreserveTemplateShift($template, $exceptionWasApplied, $staffingShift)) {
-                        $shift = $this->normalizeAutoAllocatedShift($shift, $defaultWorkShift, $restShift);
-                    }
-
-                    if (! $shift) {
-                        continue;
-                    }
-
-                    $maxConsecutiveDutyDays = (int) ($setting?->max_consecutive_duty_days ?: 5);
-                    $forcedConsecutiveRest = false;
-
-                    if (
-                        ! $exceptionWasApplied
-                        && ! $usesRegularWeekdaySchedule
-                        && $restShift
-                        && $shift->is_work_shift
-                        && $dutyStreaks[$employee->emp_id] >= $maxConsecutiveDutyDays
-                    ) {
-                        $shift = $restShift;
-                        $forcedConsecutiveRest = true;
-                    }
-
-                    $source = $exceptionWasApplied
-                        ? 'protected_exception'
-                        : ($staffingShift
-                            ? 'staffing_requirement'
-                            : ($usesRegularWeekdaySchedule
-                                ? 'regular_weekday'
-                                : ($shift->is_work_shift
-                                ? ($setting?->can_rotate_shift ? 'generated_rotation' : 'default_schedule')
-                                : ($forcedConsecutiveRest ? 'max_consecutive_rest' : ($setting?->can_rotate_shift ? 'generated_rotation' : 'default_schedule')))));
-
-                    ScheduleAssignment::create([
-                        'monthly_schedule_id' => $schedule->id,
-                        'employee_id' => $employee->emp_id,
-                        'schedule_date' => $date->toDateString(),
-                        'shift_code_id' => $shift->id,
-                        'source' => $source,
-                    ]);
-
-                    $dutyStreaks[$employee->emp_id] = $shift->is_work_shift
-                        ? $dutyStreaks[$employee->emp_id] + 1
-                        : 0;
-                }
-
-                $date = $date->addDay();
+            if ($mode === self::MODE_MANUAL) {
+                $this->fillManualBlankAssignments($schedule, $employees, $settings, $year, $month, $restShift);
+            } else {
+                $this->fillAutomatedAssignments(
+                    $schedule,
+                    $employees,
+                    $settings,
+                    $template,
+                    $year,
+                    $month,
+                    $departmentId,
+                    $restShift,
+                    $defaultWorkShift,
+                    $regularWeekdayShift,
+                    $workShifts,
+                );
             }
 
-            $this->auditLogService->record('schedule.generated', $schedule, null, $schedule->fresh()->toArray(), $performedBy);
+            $this->auditLogService->record(
+                $mode === self::MODE_MANUAL ? 'schedule.generated_manual' : 'schedule.generated',
+                $schedule,
+                null,
+                $schedule->fresh()->toArray(),
+                $performedBy
+            );
 
             return $schedule->fresh('assignments.shiftCode');
         });
@@ -234,6 +204,141 @@ class ScheduleDraftGenerationService
             'schedule' => $schedule,
             'conflicts' => $this->validator->validate($schedule),
         ];
+    }
+
+    private function fillManualBlankAssignments(
+        MonthlySchedule $schedule,
+        Collection $employees,
+        Collection $settings,
+        int $year,
+        int $month,
+        ShiftCode $blankShift,
+    ): void {
+        $date = CarbonImmutable::create($year, $month, 1);
+        $lastDate = $date->endOfMonth();
+
+        while ($date <= $lastDate) {
+            foreach ($employees as $employee) {
+                $setting = $settings->get($employee->emp_id);
+                ScheduleAssignment::create([
+                    'monthly_schedule_id' => $schedule->id,
+                    'employee_id' => $employee->emp_id,
+                    'unit_id' => $setting?->default_unit_id,
+                    'schedule_date' => $date->toDateString(),
+                    'shift_code_id' => $blankShift->id,
+                    'source' => 'manual_blank',
+                ]);
+            }
+
+            $date = $date->addDay();
+        }
+    }
+
+    private function fillAutomatedAssignments(
+        MonthlySchedule $schedule,
+        Collection $employees,
+        Collection $settings,
+        ?ScheduleTemplate $template,
+        int $year,
+        int $month,
+        ?int $departmentId,
+        ?ShiftCode $restShift,
+        ShiftCode $defaultWorkShift,
+        ShiftCode $regularWeekdayShift,
+        Collection $workShifts,
+    ): void {
+        $date = CarbonImmutable::create($year, $month, 1);
+        $lastDate = $date->endOfMonth();
+        $exceptions = $this->availabilityService->exceptionShiftCodes($employees->pluck('emp_id'), $date, $lastDate);
+        $rotationOrders = $template?->rotation_group_id
+            ? RotationGroupMember::query()
+                ->where('rotation_group_id', $template->rotation_group_id)
+                ->pluck('rotation_order', 'employee_id')
+            : collect();
+        $monthSeed = (($year * 12) + $month) % max(1, $template?->days->count() ?: $workShifts->count() ?: 1);
+        $staffingAssignments = $this->staffingRequirementAssignments(
+            $departmentId,
+            $employees->pluck('emp_id'),
+            $date,
+            $lastDate,
+            $monthSeed,
+            $restShift,
+        );
+        $dutyStreaks = $employees
+            ->pluck('emp_id')
+            ->mapWithKeys(fn ($employeeId) => [$employeeId => 0])
+            ->all();
+
+        while ($date <= $lastDate) {
+            foreach ($employees as $index => $employee) {
+                $setting = $settings->get($employee->emp_id);
+                $hasException = isset($exceptions[$employee->emp_id][$date->toDateString()]);
+                $generatedShift = $this->resolveShift(
+                    $date,
+                    (int) ($rotationOrders[$employee->emp_id] ?? $index),
+                    $monthSeed,
+                    $setting,
+                    $template,
+                    $workShifts,
+                    $restShift,
+                    $defaultWorkShift,
+                    $regularWeekdayShift
+                );
+                $exceptionShift = $hasException ? $exceptions[$employee->emp_id][$date->toDateString()] : null;
+                $exceptionWasApplied = $this->isAutoAssignableShift($exceptionShift);
+                $usesRegularWeekdaySchedule = ! $setting || $setting->uses_regular_weekday_schedule;
+                $staffingShift = $usesRegularWeekdaySchedule
+                    ? null
+                    : ($staffingAssignments[$employee->emp_id][$date->toDateString()] ?? null);
+                $shift = $exceptionWasApplied ? $exceptionShift : ($staffingShift ?? $generatedShift);
+                if (! $this->shouldPreserveTemplateShift($template, $exceptionWasApplied, $staffingShift)) {
+                    $shift = $this->normalizeAutoAllocatedShift($shift, $defaultWorkShift, $restShift);
+                }
+
+                if (! $shift) {
+                    continue;
+                }
+
+                $maxConsecutiveDutyDays = (int) ($setting?->max_consecutive_duty_days ?: 5);
+                $forcedConsecutiveRest = false;
+
+                if (
+                    ! $exceptionWasApplied
+                    && ! $usesRegularWeekdaySchedule
+                    && $restShift
+                    && $shift->is_work_shift
+                    && $dutyStreaks[$employee->emp_id] >= $maxConsecutiveDutyDays
+                ) {
+                    $shift = $restShift;
+                    $forcedConsecutiveRest = true;
+                }
+
+                $source = $exceptionWasApplied
+                    ? 'protected_exception'
+                    : ($staffingShift
+                        ? 'staffing_requirement'
+                        : ($usesRegularWeekdaySchedule
+                            ? 'regular_weekday'
+                            : ($shift->is_work_shift
+                            ? ($setting?->can_rotate_shift ? 'generated_rotation' : 'default_schedule')
+                            : ($forcedConsecutiveRest ? 'max_consecutive_rest' : ($setting?->can_rotate_shift ? 'generated_rotation' : 'default_schedule')))));
+
+                ScheduleAssignment::create([
+                    'monthly_schedule_id' => $schedule->id,
+                    'employee_id' => $employee->emp_id,
+                    'unit_id' => $setting?->default_unit_id,
+                    'schedule_date' => $date->toDateString(),
+                    'shift_code_id' => $shift->id,
+                    'source' => $source,
+                ]);
+
+                $dutyStreaks[$employee->emp_id] = $shift->is_work_shift
+                    ? $dutyStreaks[$employee->emp_id] + 1
+                    : 0;
+            }
+
+            $date = $date->addDay();
+        }
     }
 
     private function staffingRequirementAssignments(

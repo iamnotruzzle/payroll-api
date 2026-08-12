@@ -88,4 +88,27 @@ class PayrollTaxServiceTest extends TestCase
         $this->assertSame(880.02, $result['monthly_annualized_tax_due']);
         $this->assertSame(5280.10, $result['future_tax_withheld']);
     }
+
+    public function test_net_future_months_are_not_reduced_twice_for_lwop(): void
+    {
+        $input = [
+            'current_basic' => 30000,
+            'current_hazard' => 7500,
+            'current_subsistence' => 1500,
+            'current_mandatory_deductions' => 3500,
+            'future_months' => 5.5,
+            'leave_without_pay_months' => 0.5,
+            'future_months_are_net' => true,
+            'hazard_subsistence_deduction_months' => 0.25,
+            'hazard_rate' => 0.25,
+        ];
+
+        $result = app(PayrollTaxService::class)->annualization($input);
+
+        $this->assertSame(5.5, $result['future_basic_months']);
+        $this->assertSame(5.25, $result['future_hazard_subsistence_months']);
+        $this->assertSame($result['regular_monthly_tax_due'], $result['tax_on_basic']);
+        $this->assertSame($result['current_hazard_tax_due'], $result['tax_on_hazard']);
+        $this->assertArrayHasKey('tax_adjustments', $result);
+    }
 }

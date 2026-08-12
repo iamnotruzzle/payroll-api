@@ -652,14 +652,161 @@ html[data-theme="dark"] .erp-login-alert {
 }
 
 .erp-content-launcher {
+    position: relative;
+    z-index: 1;
     min-height: auto;
     padding-top: 1.25rem;
     padding-bottom: 2.5rem;
 }
 
+.erp-launcher-scene {
+    position: relative;
+    isolation: isolate;
+}
+
+.erp-launcher-scene::before {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    content: "";
+    pointer-events: none;
+    background:
+        radial-gradient(ellipse 55% 42% at 12% -4%, color-mix(in srgb, var(--erp-primary) 34%, transparent), transparent 70%),
+        radial-gradient(ellipse 48% 38% at 92% 6%, color-mix(in srgb, var(--erp-accent) 28%, transparent), transparent 68%),
+        radial-gradient(ellipse 42% 36% at 78% 92%, color-mix(in srgb, #0ea5e9 18%, transparent), transparent 70%),
+        radial-gradient(ellipse 36% 30% at 8% 88%, color-mix(in srgb, var(--erp-primary) 14%, transparent), transparent 72%),
+        linear-gradient(165deg, color-mix(in srgb, var(--erp-surface) 92%, #dbeafe), var(--erp-bg) 55%, color-mix(in srgb, var(--erp-bg) 88%, #e0f2fe));
+}
+
+.erp-launcher-scene::after {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    content: "";
+    pointer-events: none;
+    opacity: 0.55;
+    background-image:
+        radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--erp-primary) 16%, transparent) 1px, transparent 0),
+        linear-gradient(color-mix(in srgb, var(--erp-primary) 6%, transparent) 1px, transparent 1px),
+        linear-gradient(90deg, color-mix(in srgb, var(--erp-primary) 6%, transparent) 1px, transparent 1px);
+    background-size: 22px 22px, 56px 56px, 56px 56px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 28%, #000 20%, transparent 78%);
+}
+
+html[data-theme="dark"] .erp-launcher-scene::before {
+    background:
+        radial-gradient(ellipse 55% 42% at 12% -4%, color-mix(in srgb, var(--erp-primary) 28%, transparent), transparent 70%),
+        radial-gradient(ellipse 48% 38% at 92% 6%, color-mix(in srgb, var(--erp-accent) 22%, transparent), transparent 68%),
+        radial-gradient(ellipse 42% 36% at 78% 92%, color-mix(in srgb, #0ea5e9 14%, transparent), transparent 70%),
+        radial-gradient(ellipse 36% 30% at 8% 88%, color-mix(in srgb, var(--erp-primary) 12%, transparent), transparent 72%),
+        linear-gradient(165deg, color-mix(in srgb, var(--erp-surface) 90%, #0b1a33), var(--erp-bg) 58%, color-mix(in srgb, var(--erp-bg) 86%, #0a2238));
+}
+
 .erp-launcher {
+    position: relative;
     width: min(100%, 72rem);
     margin-inline: auto;
+}
+
+.erp-launcher-atmosphere {
+    position: absolute;
+    inset: -4rem -2rem -2rem;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.erp-launcher-intro,
+.erp-launcher-grid {
+    position: relative;
+    z-index: 1;
+}
+
+.erp-launcher-orb {
+    position: absolute;
+    border-radius: 999px;
+    filter: blur(42px);
+    opacity: 0.55;
+    will-change: transform;
+}
+
+.erp-launcher-orb-a {
+    top: -2rem;
+    left: 8%;
+    width: 18rem;
+    height: 18rem;
+    background: color-mix(in srgb, var(--erp-primary) 42%, transparent);
+    animation: erp-launcher-drift-a 18s ease-in-out infinite;
+}
+
+.erp-launcher-orb-b {
+    top: 18%;
+    right: -4%;
+    width: 15rem;
+    height: 15rem;
+    background: color-mix(in srgb, var(--erp-accent) 38%, transparent);
+    animation: erp-launcher-drift-b 22s ease-in-out infinite;
+}
+
+.erp-launcher-orb-c {
+    bottom: -1rem;
+    left: 38%;
+    width: 20rem;
+    height: 12rem;
+    background: color-mix(in srgb, #38bdf8 30%, transparent);
+    animation: erp-launcher-drift-c 26s ease-in-out infinite;
+}
+
+.erp-launcher-ring {
+    position: absolute;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--erp-primary) 22%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 35%, transparent);
+    opacity: 0.45;
+}
+
+.erp-launcher-ring-a {
+    top: 2.5rem;
+    right: 12%;
+    width: 9.5rem;
+    height: 9.5rem;
+    animation: erp-launcher-ring-pulse 10s ease-in-out infinite;
+}
+
+.erp-launcher-ring-b {
+    bottom: 1rem;
+    left: 6%;
+    width: 7rem;
+    height: 7rem;
+    opacity: 0.32;
+    animation: erp-launcher-ring-pulse 14s ease-in-out 1.2s infinite;
+}
+
+@keyframes erp-launcher-drift-a {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(2.5rem, 1.25rem, 0) scale(1.08); }
+}
+
+@keyframes erp-launcher-drift-b {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(-2rem, 1.75rem, 0) scale(1.1); }
+}
+
+@keyframes erp-launcher-drift-c {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(1.5rem, -1.25rem, 0) scale(1.06); }
+}
+
+@keyframes erp-launcher-ring-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.4; }
+    50% { transform: scale(1.08); opacity: 0.22; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .erp-launcher-orb,
+    .erp-launcher-ring {
+        animation: none !important;
+    }
 }
 
 .erp-launcher-intro {

@@ -23,6 +23,7 @@ use App\Models\HrisV2\EmployeeTraining as V2Training;
 use App\Models\HrisV2\EmployeeVoluntaryWork as V2VoluntaryWork;
 use App\Models\HrisV2\EmployeeWorkExperience as V2WorkExperience;
 use App\Support\Hris\EmployeeDirectoryQuery;
+use App\Support\Hris\LegacyEmployeeMasterWriteGuard;
 use App\Support\Hris\PdsFieldMaps;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
@@ -407,6 +408,8 @@ class EmployeePdsSectionService
      */
     private function saveLegacy(string $empId, string $section, array $data, ?int $recordId): object
     {
+        LegacyEmployeeMasterWriteGuard::assertWritable("PDS section {$section}");
+
         $model = match ($section) {
             'dependents' => tap(
                 $recordId
@@ -718,6 +721,8 @@ class EmployeePdsSectionService
 
     private function deleteLegacy(string $empId, string $section, int $recordId): void
     {
+        LegacyEmployeeMasterWriteGuard::assertWritable("PDS section {$section}");
+
         match ($section) {
             'dependents' => LegacyDependent::query()->where('emp_id', $empId)->where('dependent_id', $recordId)->delete(),
             'educations' => LegacyEducation::query()->where('emp_id', $empId)->where('education_id', $recordId)->delete(),

@@ -142,6 +142,30 @@ return [
             ]) : [],
         ],
 
+        /*
+         * NDOS (Nursing Division Online Scheduling) — read-only sync source.
+         * Connection key remains "schedulev2". Point DB_*_SCHEDULEV2 at the NDOS app DB.
+         */
+        'schedulev2' => [
+            'driver' => 'mysql',
+            'url' => env('DB_URL_SCHEDULEV2'),
+            'host' => env('DB_HOST_SCHEDULEV2', '127.0.0.1'),
+            'port' => env('DB_PORT_SCHEDULEV2', '3306'),
+            'database' => env('DB_DATABASE_SCHEDULEV2', 'schedulev2'),
+            'username' => env('DB_USERNAME_SCHEDULEV2', 'root'),
+            'password' => env('DB_PASSWORD_SCHEDULEV2', ''),
+            'unix_socket' => env('DB_SOCKET_SCHEDULEV2', ''),
+            'charset' => env('DB_CHARSET_SCHEDULEV2', 'utf8mb4'),
+            'collation' => env('DB_COLLATION_SCHEDULEV2', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA_SCHEDULEV2'),
+            ]) : [],
+        ],
+
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),

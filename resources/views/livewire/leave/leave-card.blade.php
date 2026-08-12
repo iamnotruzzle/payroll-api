@@ -10,7 +10,7 @@
     <section class="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
         <label class="block">
             <span class="text-xs font-semibold uppercase text-slate-500">Find employee</span>
-            <input wire:model.live.debounce.300ms="search" type="search" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Name or emp_id" @disabled($empId !== '')>
+            <input wire:model.live.debounce.500ms="search" type="search" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Name or emp_id" @disabled($empId !== '')>
         </label>
         @if ($empId !== '')
             <button wire:click="$set('empId', '')" type="button" class="mt-2 text-sm font-semibold text-[#696cff] hover:underline">Clear selection</button>

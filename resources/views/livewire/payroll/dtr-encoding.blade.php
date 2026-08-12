@@ -174,6 +174,14 @@
             >
                 Save
             </button>
+            <a
+                href="{{ route('payroll.dtr-encoding.print-bulk', ['month' => $monthFilter, 'year' => $yearFilter, 'employee_type' => $employeeTypeFilter]) }}"
+                target="_blank"
+                class="inline-flex min-w-[96px] items-center justify-center rounded-md border border-slate-300/70 bg-white/60 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-white/90"
+                title="Print CS Form 48 for all active employees in this department for the selected month"
+            >
+                Bulk PDF
+            </a>
             @if (filled($selectedEmpId))
                 <a
                     href="{{ route('payroll.dtr-encoding.print', ['emp_id' => $selectedEmpId, 'month' => $monthFilter, 'year' => $yearFilter]) }}"

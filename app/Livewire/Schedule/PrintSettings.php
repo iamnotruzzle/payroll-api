@@ -2,12 +2,18 @@
 
 namespace App\Livewire\Schedule;
 
+use App\Models\Schedule\MonthlySchedule;
 use App\Models\Schedule\SchedulePrintLogo;
 use App\Models\Schedule\SchedulePrintSetting;
 use App\Models\Schedule\ScheduleSignatory;
+use App\Services\Schedule\ScheduleDistributionService;
+use App\Services\Schedule\ScheduleMailConfig;
+use App\Services\Schedule\ScheduleScopeService;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use RuntimeException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PrintSettings extends Component
 {
@@ -25,6 +31,12 @@ class PrintSettings extends Component
     public int $display_order = 1;
     public bool $is_active = true;
 
+    public ?int $distribute_schedule_id = null;
+    public ?int $distribute_unit_id = null;
+    public string $distribute_emails = '';
+    public bool $distribute_to_handled_supervisors = true;
+    public string $distribute_note = '';
+
     public function mount(): void
     {
         $setting = $this->settingsRecord();
@@ -34,17 +46,36 @@ class PrintSettings extends Component
             $this->schedule_heading = $setting->schedule_heading;
             $this->area_label = $setting->area_label;
         }
+
+        $latest = MonthlySchedule::where('department_id', $this->departmentId())
+            ->orderByDesc('year')
+            ->orderByDesc('month')
+            ->first();
+        $this->distribute_schedule_id = $latest?->id;
     }
 
-    public function render()
+    public function render(ScheduleScopeService $scopeService)
     {
+        $departmentId = $this->departmentId();
+        $profile = $scopeService->profileForDepartment($departmentId);
+
         return view('livewire.schedule.print-settings', [
             'department' => auth()->user()?->employee?->department,
             'printLogos' => $this->printLogos(),
-            'signatories' => ScheduleSignatory::where('department_id', $this->departmentId())
+            'signatories' => ScheduleSignatory::where('department_id', $departmentId)
                 ->orderBy('display_order')
                 ->orderBy('purpose')
                 ->get(),
+            'schedules' => MonthlySchedule::where('department_id', $departmentId)
+                ->orderByDesc('year')
+                ->orderByDesc('month')
+                ->limit(24)
+                ->get(),
+            'unitOptions' => $scopeService->unitsForDepartment($departmentId),
+            'usesUnits' => (bool) $profile->uses_units,
+            'unitNoun' => $scopeService->unitNoun($departmentId),
+            'mailConfigured' => ScheduleMailConfig::isConfigured(),
+            'mailMessage' => ScheduleMailConfig::notConfiguredMessage(),
         ]);
     }
 
@@ -172,6 +203,74 @@ class PrintSettings extends Component
         $this->designation = null;
         $this->display_order = 1;
         $this->is_active = true;
+    }
+
+    public function downloadDistributedPdf(ScheduleDistributionService $distribution): StreamedResponse
+    {
+        abort_unless(auth()->user()?->can('schedule.view') || auth()->user()?->can('schedule.manage'), 403);
+
+        $schedule = $this->distributionSchedule();
+        $unitId = $this->distribute_unit_id ?: null;
+        $pdf = $distribution->buildPdf($schedule, $unitId);
+
+        return response()->streamDownload(
+            function () use ($pdf) {
+                echo $pdf['binary'];
+            },
+            $pdf['filename'],
+            ['Content-Type' => 'application/pdf']
+        );
+    }
+
+    public function emailDistributedPdf(ScheduleDistributionService $distribution): void
+    {
+        abort_unless(auth()->user()?->can('schedule.manage'), 403);
+
+        if (! ScheduleMailConfig::isConfigured()) {
+            session()->flash('status', ScheduleMailConfig::notConfiguredMessage());
+
+            return;
+        }
+
+        $this->validate([
+            'distribute_schedule_id' => ['required', 'integer'],
+            'distribute_unit_id' => ['nullable', 'integer'],
+            'distribute_emails' => ['nullable', 'string', 'max:2000'],
+            'distribute_to_handled_supervisors' => ['boolean'],
+            'distribute_note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $schedule = $this->distributionSchedule();
+        $explicit = preg_split('/[\s,;]+/', $this->distribute_emails) ?: [];
+
+        try {
+            $recipients = $distribution->resolveRecipients(
+                (int) $schedule->department_id,
+                $explicit,
+                $this->distribute_to_handled_supervisors,
+                $this->distribute_unit_id ?: null,
+            );
+
+            $result = $distribution->emailPdf(
+                $schedule,
+                $recipients,
+                $this->distribute_unit_id ?: null,
+                $this->distribute_note ?: null,
+            );
+
+            session()->flash(
+                'status',
+                sprintf('Queued schedule PDF to %d recipient(s): %s', $result['queued'], implode(', ', $result['recipients']))
+            );
+        } catch (RuntimeException $e) {
+            session()->flash('status', $e->getMessage());
+        }
+    }
+
+    private function distributionSchedule(): MonthlySchedule
+    {
+        return MonthlySchedule::where('department_id', $this->departmentId())
+            ->findOrFail($this->distribute_schedule_id);
     }
 
     private function settingsRecord(): ?SchedulePrintSetting

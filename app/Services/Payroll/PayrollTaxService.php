@@ -103,8 +103,9 @@ class PayrollTaxService
         $futureMonths = max(0, (float) ($input['future_months'] ?? 0));
         $leaveWithoutPayMonths = max(0, (float) ($input['leave_without_pay_months'] ?? 0));
         $hazardSubsistenceDeductionMonths = max(0, (float) ($input['hazard_subsistence_deduction_months'] ?? 0));
-        $futureBasicMonths = max(0, $futureMonths - $leaveWithoutPayMonths);
-        $futureHazardSubsistenceMonths = max(0, $futureMonths - $leaveWithoutPayMonths - $hazardSubsistenceDeductionMonths);
+        $futureMonthsAreNet = (bool) ($input['future_months_are_net'] ?? false);
+        $futureBasicMonths = max(0, $futureMonths - ($futureMonthsAreNet ? 0 : $leaveWithoutPayMonths));
+        $futureHazardSubsistenceMonths = max(0, $futureBasicMonths - $hazardSubsistenceDeductionMonths);
         $hazardRate = max(0, (float) ($input['hazard_rate'] ?? 0));
         $projectedMonthlyMandatoryDeductions = max(
             0,
@@ -188,12 +189,15 @@ class PayrollTaxService
             'annual_taxable_income' => $annualTaxableIncome,
             'annual_tax_due' => $annualTaxDue,
             'regular_monthly_tax_due' => $regularMonthlyTaxDue,
+            'tax_on_basic' => $regularMonthlyTaxDue,
             'gross_withholding_tax_adjustment' => $grossTaxAdjustment,
             'supplemental_tax_due' => $supplementalTaxDue,
             'withholding_tax_gross' => $withholdingTaxGross,
             'withholding_tax_adjustment' => $withholdingTaxAdjustment,
             'monthly_tax_due' => $salaryWithholdingTax,
             'current_hazard_tax_due' => $currentHazardTaxDue,
+            'tax_on_hazard' => $currentHazardTaxDue,
+            'tax_adjustments' => round($grossTaxAdjustment + $supplementalTaxDue + $withholdingTaxAdjustment, 2),
             'previous_tax_withheld' => $previousTaxWithheld,
             'current_tax_withheld' => $currentTaxWithheld,
             'future_tax_withheld' => $futureTaxWithheld,
