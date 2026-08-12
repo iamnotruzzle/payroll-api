@@ -16,6 +16,7 @@ use App\Models\Payroll\PayrollTimeTemplate;
 use App\Models\Schedule\MonthlySchedule;
 use App\Models\Schedule\ScheduleAssignment;
 use App\Services\Payroll\SchedulerDtrSyncService;
+use App\Support\Hris\LeaveDates;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -320,17 +321,14 @@ class Mra extends Component
 
     private function leaveDatesFor(EmployeeLeave $leave): array
     {
-        $dates = [];
         $from = CarbonImmutable::parse($this->from);
         $to = CarbonImmutable::parse($this->to);
 
-        for ($date = CarbonImmutable::parse($leave->start_date); $date->lessThanOrEqualTo(CarbonImmutable::parse($leave->end_date)); $date = $date->addDay()) {
-            if ($date->betweenIncluded($from, $to)) {
-                $dates[] = $date;
-            }
-        }
-
-        return $dates;
+        return collect(LeaveDates::for($leave))
+            ->map(fn (string $date) => CarbonImmutable::parse($date)->startOfDay())
+            ->filter(fn (CarbonImmutable $date) => $date->betweenIncluded($from, $to))
+            ->values()
+            ->all();
     }
 
     private function labelDayValue(PayrollDtrLabel $label, $holidaysByDate): float

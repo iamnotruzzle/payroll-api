@@ -17,6 +17,18 @@
         <div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('status') }}</div>
     @endif
 
+    <section class="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 class="text-sm font-semibold uppercase text-slate-500">Weighted summary</h3>
+        <div class="mt-2 flex flex-wrap gap-4 text-sm">
+            <div><span class="text-slate-500">Average</span> <span class="font-semibold">{{ $summary['average'] ?? '—' }}</span></div>
+            <div><span class="text-slate-500">Grade</span> <span class="font-semibold">{{ $summary['grade'] ?? '—' }}</span></div>
+            <div><span class="text-slate-500">Strategic</span> {{ $summary['by_function']['strategic'] ?? '—' }}</div>
+            <div><span class="text-slate-500">Core</span> {{ $summary['by_function']['core'] ?? '—' }}</div>
+            <div><span class="text-slate-500">Support</span> {{ $summary['by_function']['support'] ?? '—' }}</div>
+        </div>
+        <p class="mt-2 text-xs text-slate-500">Weights: Strategic 40% · Core 50% · Support 10% (or Core 80% · Support 20% when no strategic). Calibrations override ratings when present.</p>
+    </section>
+
     @if ($showForm)
         <section class="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
             <form wire:submit="save" class="space-y-3">
@@ -96,6 +108,17 @@
                             @empty
                                 <span class="text-slate-400">—</span>
                             @endforelse
+                            @if ($row->calibrations->isNotEmpty())
+                                <div class="mt-1 text-xs text-indigo-700">
+                                    Cal:
+                                    @foreach ($row->calibrations as $cal)
+                                        {{ strtoupper(substr((string) $cal->calibration_type, 0, 1)) }}{{ $cal->score }}{{ ! $loop->last ? '/' : '' }}
+                                    @endforeach
+                                </div>
+                            @endif
+                            @if ($row->opcr)
+                                <div class="mt-1 text-xs text-slate-500">OPCR budget {{ number_format((float) $row->opcr->budget, 2) }} · {{ $row->opcr->accountables->count() }} accountable(s)</div>
+                            @endif
                         </td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">
                             @if ($canManage)
@@ -103,6 +126,12 @@
                             @endif
                             @if ($canRate)
                                 <button wire:click="openRating({{ $row->id }})" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Rate</button>
+                            @endif
+                            @if ($canCalibrate)
+                                <button wire:click="openCalibration({{ $row->id }})" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Calibrate</button>
+                            @endif
+                            @if ($canManage || $canCalibrate)
+                                <button wire:click="openOpcr({{ $row->id }})" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">OPCR</button>
                             @endif
                         </td>
                     </tr>
@@ -140,6 +169,60 @@
                     </label>
                     <div class="flex justify-end gap-2">
                         <button type="button" wire:click="closeRating" class="rounded-md border border-slate-300 px-3 py-2 text-sm">Cancel</button>
+                        <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
+
+    @if ($calibrateIpcrId)
+        <div class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4" wire:click="closeCalibration">
+            <div class="w-full max-w-md rounded-md bg-white p-5 shadow-xl" wire:click.stop>
+                <h3 class="mb-3 text-lg font-semibold">Calibrate scores</h3>
+                <form wire:submit="saveCalibration" class="space-y-3">
+                    <div class="grid grid-cols-3 gap-3">
+                        <label class="text-sm">Quality
+                            <select wire:model="calQuality" class="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm">
+                                @foreach (range(1,5) as $n)<option value="{{ $n }}">{{ $n }}</option>@endforeach
+                            </select>
+                        </label>
+                        <label class="text-sm">Effectiveness
+                            <select wire:model="calEffectiveness" class="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm">
+                                @foreach (range(1,5) as $n)<option value="{{ $n }}">{{ $n }}</option>@endforeach
+                            </select>
+                        </label>
+                        <label class="text-sm">Timeliness
+                            <select wire:model="calTimeliness" class="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm">
+                                @foreach (range(1,5) as $n)<option value="{{ $n }}">{{ $n }}</option>@endforeach
+                            </select>
+                        </label>
+                    </div>
+                    <label class="block text-sm">Calibration notes
+                        <textarea wire:model="calNotes" rows="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
+                    </label>
+                    <div class="flex justify-end gap-2">
+                        <button type="button" wire:click="closeCalibration" class="rounded-md border border-slate-300 px-3 py-2 text-sm">Cancel</button>
+                        <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
+
+    @if ($opcrIpcrId)
+        <div class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4" wire:click="closeOpcr">
+            <div class="w-full max-w-md rounded-md bg-white p-5 shadow-xl" wire:click.stop>
+                <h3 class="mb-3 text-lg font-semibold">OPCR link</h3>
+                <form wire:submit="saveOpcr" class="space-y-3">
+                    <label class="block text-sm">Budget
+                        <input wire:model="opcrBudget" type="number" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </label>
+                    <label class="block text-sm">Accountable employee IDs
+                        <input wire:model="opcrAccountables" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="000123, 000456">
+                    </label>
+                    <div class="flex justify-end gap-2">
+                        <button type="button" wire:click="closeOpcr" class="rounded-md border border-slate-300 px-3 py-2 text-sm">Cancel</button>
                         <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white">Save</button>
                     </div>
                 </form>

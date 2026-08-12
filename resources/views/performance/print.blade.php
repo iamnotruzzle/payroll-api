@@ -31,6 +31,13 @@
             · {{ $employee->position?->position ?? $employee->position?->position_name ?? '—' }}
             · {{ $period->label }}
         </p>
+        <p class="muted">
+            Weighted average: <strong>{{ $summary['average'] ?? '—' }}</strong>
+            · Grade: <strong>{{ $summary['grade'] ?? '—' }}</strong>
+            · Strategic {{ $summary['by_function']['strategic'] ?? '—' }}
+            · Core {{ $summary['by_function']['core'] ?? '—' }}
+            · Support {{ $summary['by_function']['support'] ?? '—' }}
+        </p>
 
         @foreach ($grouped as $functionLabel => $rows)
             @continue(count($rows) === 0)

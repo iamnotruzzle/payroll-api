@@ -81,6 +81,14 @@
                             </select>
                             @error('leaveType') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
                         </label>
+                        <label class="sm:col-span-2">
+                            <span class="text-xs font-semibold uppercase text-slate-500">Date mode</span>
+                            <select wire:model.live="dateMode" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                <option value="weekdays">Fill range as weekdays (Mon–Fri)</option>
+                                <option value="calendar">Fill range as calendar days</option>
+                                <option value="pick">Pick specific dates</option>
+                            </select>
+                        </label>
                         <label>
                             <span class="text-xs font-semibold uppercase text-slate-500">Start</span>
                             <input wire:model.live="startDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
@@ -91,17 +99,34 @@
                             <input wire:model.live="endDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             @error('endDate') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
                         </label>
+                        @if ($dateMode === 'pick')
+                            <label class="sm:col-span-2">
+                                <span class="text-xs font-semibold uppercase text-slate-500">Selected dates (CSV)</span>
+                                <textarea wire:model.lazy="selectedDatesCsv" rows="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm" placeholder="2026-08-03,2026-08-05"></textarea>
+                                @error('selectedDatesCsv') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                            </label>
+                        @else
+                            <p class="sm:col-span-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                                Selected days: <span class="font-semibold">{{ $previewDayCount }}</span>
+                            </p>
+                        @endif
+                        <label class="sm:col-span-2">
+                            <span class="inline-flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
+                                <input wire:model.live="autoSplitCredits" type="checkbox" class="rounded border-slate-300">
+                                Auto-split with-pay / without-pay from credits
+                            </span>
+                        </label>
                         <label>
                             <span class="text-xs font-semibold uppercase text-slate-500">Days with pay</span>
-                            <input wire:model="daysWpay" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            <input wire:model="daysWpay" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" @disabled($autoSplitCredits)>
                         </label>
                         <label>
                             <span class="text-xs font-semibold uppercase text-slate-500">Days w/o pay</span>
-                            <input wire:model="daysWopay" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            <input wire:model="daysWopay" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" @disabled($autoSplitCredits)>
                         </label>
                         <label class="sm:col-span-2">
-                            <span class="text-xs font-semibold uppercase text-slate-500">Remarks</span>
-                            <textarea wire:model="remarks" rows="3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
+                            <span class="text-xs font-semibold uppercase text-slate-500">Note</span>
+                            <textarea wire:model="applicantNote" rows="3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Reason (optional)"></textarea>
                         </label>
                     </div>
                     <div class="border-t border-slate-200 px-4 py-3">

@@ -72,6 +72,12 @@ return [
 
         'gain_leave_type_id' => 14,
 
+        /** Extended maternity — entire application is days_wopay. */
+        'extended_maternity_leave_type_ids' => [17],
+
+        /** Quota / special leaves that must not auto-split into LWOP. */
+        'reject_if_insufficient_type_ids' => [4, 5, 6, 7],
+
         'married_civil_stat_ids' => [1], // tbl_civilstat: Married
 
         /*
@@ -126,5 +132,12 @@ return [
         /** Leave type ids that are ledger/system rows, never shown as entitlements. */
         'hidden_leave_type_ids' => [12, 14, 15, 16, 20],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | CSC Form 6 leave application PDF (legacy NEW_LEAVE_FORM.pdf via FPDM)
+    |--------------------------------------------------------------------------
+    */
+    'leave_form_pdf' => env('HRIS_LEAVE_FORM_PDF', storage_path('app/forms/NEW_LEAVE_FORM.pdf')),
 
 ];

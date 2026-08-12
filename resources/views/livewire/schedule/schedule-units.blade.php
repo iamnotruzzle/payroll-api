@@ -69,7 +69,7 @@
         <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h3 class="font-semibold">{{ $unitNounPlural ?? 'Units' }}</h3>
-                <input wire:model.live.debounce.250ms="search" placeholder="Search code or name" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <input wire:model.lazy="search" placeholder="Search code or name" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
             </div>
 
             <div class="overflow-x-auto">

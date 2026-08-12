@@ -576,7 +576,7 @@
                 <div class="grid gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 md:grid-cols-[minmax(220px,1fr)_180px_180px_auto]">
                     <label class="block">
                         <span class="text-xs font-semibold uppercase text-slate-500">Search Rows</span>
-                        <input wire:model.live.debounce.750ms="itemSearch" type="search" placeholder="Employee, reference, type, remarks" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <input wire:model.lazy="itemSearch" type="search" placeholder="Employee, reference, type, remarks" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     </label>
                     <label class="block">
                         <span class="text-xs font-semibold uppercase text-slate-500">Status</span>

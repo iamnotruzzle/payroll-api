@@ -23,7 +23,7 @@
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
             <label class="min-w-0 flex-1">
                 <span class="sr-only">Search</span>
-                <input wire:model.live.debounce.500ms="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search TARF no, title, sponsor, employee">
+                <input wire:model.lazy="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search TARF no, title, sponsor, employee">
             </label>
             <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
                 Status
@@ -193,7 +193,7 @@
                     @unless ($editingTarfNo)
                         <div class="rounded-md border border-slate-200 p-3">
                             <p class="mb-2 text-sm font-medium text-slate-700">Additional participants</p>
-                            <input wire:model.live.debounce.400ms="employeeSearch" type="search" class="mb-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employees">
+                            <input wire:model.lazy="employeeSearch" type="search" class="mb-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employees">
                             <div class="max-h-40 space-y-1 overflow-y-auto text-sm">
                                 @foreach ($employees as $emp)
                                     <label class="flex items-center gap-2 rounded px-1 py-1 hover:bg-slate-50">

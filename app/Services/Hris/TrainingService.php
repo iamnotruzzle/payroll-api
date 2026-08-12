@@ -2,19 +2,32 @@
 
 namespace App\Services\Hris;
 
+use App\Mail\TrainingStatusMail;
 use App\Models\Hris\TrainingDetail;
 use App\Models\Hris\TrainingRequest;
 use App\Models\Hris\TrainingTypeLookup;
 use App\Models\Hris\UploadedFile;
+use App\Services\Schedule\ScheduleMailConfig;
 use App\Support\Hris\TarfStatuses;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile as HttpUploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class TrainingService
 {
+    public const MAIL_ASSESSED = 1;
+
+    public const MAIL_APPROVED = 2;
+
+    public const MAIL_DISAPPROVED = 3;
+
+    public const MAIL_RESCHEDULED = 7;
+
+    public const MAIL_INVITE = 8;
+
     /**
      * @param  array<string, mixed>  $payload
      * @param  list<string>  $participantEmpIds
@@ -22,7 +35,7 @@ class TrainingService
      */
     public function createRequest(array $payload, string $requestorEmpId, array $participantEmpIds = [], array $supportingFiles = []): TrainingDetail
     {
-        return DB::connection('hris')->transaction(function () use ($payload, $requestorEmpId, $participantEmpIds, $supportingFiles) {
+        $detail = DB::connection('hris')->transaction(function () use ($payload, $requestorEmpId, $participantEmpIds, $supportingFiles) {
             $tarfNo = $this->nextTarfNo();
 
             $typeId = (int) ($payload['type'] ?? 0);
@@ -84,6 +97,10 @@ class TrainingService
 
             return $detail->fresh(['requests.employee', 'ldiType', 'uploadedFiles']);
         });
+
+        $this->notify(self::MAIL_INVITE, $detail->tarf_no);
+
+        return $detail;
     }
 
     /**
@@ -111,6 +128,108 @@ class TrainingService
         return $detail->fresh(['requests.employee', 'ldiType', 'uploadedFiles']);
     }
 
+    public function respondToInvite(int $requestId, string $empId, int $response): TrainingRequest
+    {
+        $request = TrainingRequest::query()->with('trainingDetail')->findOrFail($requestId);
+
+        if ((string) $request->emp_id !== (string) $empId) {
+            throw ValidationException::withMessages(['invite' => 'This invitation is not for your account.']);
+        }
+
+        if ((int) $request->role !== 0 || (int) $request->accepted !== 0) {
+            throw ValidationException::withMessages(['invite' => 'Invitation is no longer pending.']);
+        }
+
+        $status = (int) ($request->trainingDetail?->status ?? -1);
+        if ($status !== TarfStatuses::PENDING_PETU) {
+            throw ValidationException::withMessages(['invite' => 'Invitations can only be answered while the TARF is pending PETU.']);
+        }
+
+        if ($response === 1) {
+            $request->accepted = 1;
+            $request->save();
+
+            return $request->fresh(['trainingDetail', 'employee']);
+        }
+
+        if ($response === 2) {
+            $request->delete();
+
+            return $request;
+        }
+
+        throw ValidationException::withMessages(['invite' => 'Invalid invitation response.']);
+    }
+
+    /**
+     * @param  array{start_date:string,end_date:string,hrs?:float|int|string|null,notes?:?string}  $payload
+     */
+    public function reschedule(TrainingDetail $detail, array $payload): TrainingDetail
+    {
+        if (! in_array((int) $detail->status, [
+            TarfStatuses::PENDING_PETU,
+            TarfStatuses::PENDING_MCC,
+            TarfStatuses::APPROVED,
+            TarfStatuses::APPROVED_OT,
+        ], true)) {
+            throw ValidationException::withMessages(['status' => 'This TARF cannot be rescheduled in its current status.']);
+        }
+
+        $notes = trim((string) ($payload['notes'] ?? ''));
+        $description = (string) ($detail->description ?? '');
+        if ($notes !== '') {
+            $stamp = now()->format('Y-m-d H:i');
+            $description = trim($description."\n[Reschedule {$stamp}] {$notes}");
+        }
+
+        $detail->fill([
+            'start_date' => $payload['start_date'],
+            'end_date' => $payload['end_date'],
+            'hrs' => isset($payload['hrs']) && $payload['hrs'] !== '' && $payload['hrs'] !== null
+                ? (float) $payload['hrs']
+                : $detail->hrs,
+            'description' => $description !== '' ? $description : $detail->description,
+        ])->save();
+
+        $this->notify(self::MAIL_RESCHEDULED, $detail->tarf_no);
+
+        return $detail->fresh(['requests.employee', 'ldiType', 'uploadedFiles']);
+    }
+
+    /**
+     * @param  array<string, int>  $obOtByEmpId
+     */
+    public function approveMcc(
+        TrainingDetail $detail,
+        string $actorEmpId,
+        ?string $notes = null,
+        ?string $approverEmpId = null,
+        array $obOtByEmpId = [],
+        bool $asOt = false
+    ): TrainingDetail {
+        if ((int) $detail->status !== TarfStatuses::PENDING_MCC) {
+            throw ValidationException::withMessages(['status' => 'Request is not awaiting MCC approval.']);
+        }
+
+        foreach ($obOtByEmpId as $empId => $obOt) {
+            TrainingRequest::query()
+                ->where('tarf_no', $detail->tarf_no)
+                ->where('emp_id', (string) $empId)
+                ->update(['ob_ot' => (int) $obOt]);
+        }
+
+        $detail->fill([
+            'status' => $asOt ? TarfStatuses::APPROVED_OT : TarfStatuses::APPROVED,
+            'approved_by' => $approverEmpId ?: $actorEmpId,
+            'approvedby_mcc' => now(),
+            'mcc_notes' => $notes,
+        ])->save();
+
+        $this->notify(self::MAIL_APPROVED, $detail->tarf_no);
+
+        return $detail->fresh();
+    }
+
     public function approvePetu(TrainingDetail $detail, string $actorEmpId, ?string $notes = null): TrainingDetail
     {
         if ((int) $detail->status !== TarfStatuses::PENDING_PETU) {
@@ -134,6 +253,8 @@ class TrainingService
             ->where('accepted', 0)
             ->delete();
 
+        $this->notify(self::MAIL_ASSESSED, $detail->tarf_no);
+
         return $detail->fresh();
     }
 
@@ -150,21 +271,7 @@ class TrainingService
             'petu_notes' => $notes,
         ])->save();
 
-        return $detail->fresh();
-    }
-
-    public function approveMcc(TrainingDetail $detail, string $actorEmpId, ?string $notes = null, ?string $approverEmpId = null): TrainingDetail
-    {
-        if ((int) $detail->status !== TarfStatuses::PENDING_MCC) {
-            throw ValidationException::withMessages(['status' => 'Request is not awaiting MCC approval.']);
-        }
-
-        $detail->fill([
-            'status' => TarfStatuses::APPROVED,
-            'approved_by' => $approverEmpId ?: $actorEmpId,
-            'approvedby_mcc' => now(),
-            'mcc_notes' => $notes,
-        ])->save();
+        $this->notify(self::MAIL_DISAPPROVED, $detail->tarf_no);
 
         return $detail->fresh();
     }
@@ -181,6 +288,8 @@ class TrainingService
             'approvedby_mcc' => now(),
             'mcc_notes' => $notes,
         ])->save();
+
+        $this->notify(self::MAIL_DISAPPROVED, $detail->tarf_no);
 
         return $detail->fresh();
     }
@@ -220,7 +329,6 @@ class TrainingService
                 ->where('type', '!=', UploadedFile::TYPE_SUPPORTING)
                 ->count();
 
-            // Legacy rule of thumb: enough reports uploaded → mark completed.
             $needed = max(1, $participantCount);
             if ($reportCount >= $needed) {
                 $detail->fill(['status' => TarfStatuses::COMPLETED])->save();
@@ -237,13 +345,49 @@ class TrainingService
             return $local;
         }
 
-        // Legacy HRIS public/uploads dual-read during cutover.
         $legacy = base_path('reference projects/hris/public/uploads/'.$upload->filename);
         if (is_file($legacy)) {
             return $legacy;
         }
 
         return null;
+    }
+
+    public function notify(int $code, string $tarfNo): void
+    {
+        if (! ScheduleMailConfig::isConfigured()) {
+            return;
+        }
+
+        $detail = TrainingDetail::query()->with(['requests.employee'])->find($tarfNo);
+        if (! $detail) {
+            return;
+        }
+
+        $emails = $detail->requests
+            ->map(fn (TrainingRequest $request) => $request->employee?->email)
+            ->filter(fn ($email) => is_string($email) && filter_var($email, FILTER_VALIDATE_EMAIL))
+            ->unique()
+            ->values();
+
+        foreach ($emails as $email) {
+            Mail::to($email)->queue(new TrainingStatusMail($tarfNo, $code));
+        }
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, TrainingRequest>
+     */
+    public function pendingInvitesFor(string $empId)
+    {
+        return TrainingRequest::query()
+            ->with(['trainingDetail.ldiType'])
+            ->where('emp_id', $empId)
+            ->where('role', 0)
+            ->where('accepted', 0)
+            ->whereHas('trainingDetail', fn ($q) => $q->where('status', TarfStatuses::PENDING_PETU))
+            ->orderByDesc('id')
+            ->get();
     }
 
     private function nextTarfNo(): string

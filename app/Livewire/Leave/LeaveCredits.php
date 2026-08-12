@@ -3,6 +3,7 @@
 namespace App\Livewire\Leave;
 
 use App\Models\Hris\Employee;
+use App\Models\Hris\EmployeeLeaveCreditLedger;
 use App\Models\Payroll\PayrollLeaveCreditAdjustment;
 use App\Services\Hris\LeaveCreditComputationService;
 use App\Services\Hris\LeaveService;
@@ -133,6 +134,25 @@ class LeaveCredits extends Component
             'undertimeByEmp' => $undertimeByEmp,
             'computedByEmp' => $computedByEmp,
             'canEdit' => (bool) auth()->user()?->can('leave.credits'),
+            'ledgerRows' => $this->ledgerRowsForDrawer(),
         ]);
+    }
+
+    private function ledgerRowsForDrawer()
+    {
+        if (! $this->drawerOpen || $this->empId === '') {
+            return collect();
+        }
+
+        if (! Schema::connection('hris')->hasTable('employee_leave_credit_ledger')) {
+            return collect();
+        }
+
+        return EmployeeLeaveCreditLedger::query()
+            ->where('emp_id', $this->empId)
+            ->orderByDesc('effective_date')
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get();
     }
 }

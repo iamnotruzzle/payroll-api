@@ -12,11 +12,21 @@
     $canEditCurrentStep = (bool) ($payrollGenerationAccess['can_edit_current_step'] ?? false);
     $canEditStep1HrFields = (bool) ($payrollGenerationAccess['can_edit_step1_hr_fields'] ?? false);
     $canEditStep1Tev = (bool) ($payrollGenerationAccess['can_edit_step1_tev'] ?? false);
+    $workbookCompensationLabel = static function ($item): string {
+        $name = Illuminate\Support\Str::of((string) $item->name)->lower()->squish()->toString();
+
+        return match (true) {
+            str_contains($name, 'subsistence') => 'Subsistence',
+            str_contains($name, 'laundry') => 'Laundry',
+            str_contains($name, 'pera'), str_contains($name, 'personal economic relief') => 'PERA',
+            default => (string) $item->name,
+        };
+    };
 @endphp
 
 <section
     class="flex h-screen min-h-0 flex-col"
-    x-init="applyRowVisibility(); sortPayrollRows(); $nextTick(() => syncSelectedProgramEmployees())"
+    x-init="applyRowVisibility(); sortPayrollRows(); $nextTick(() => { syncSelectedProgramEmployees(); recalculateGrossCompensationTotals(); })"
     x-data="{
         stepDirty: false,
         filtersOpen: @js(! empty($employeeFilterIds)),
@@ -43,7 +53,7 @@
         get unsavedChangeRows() {
             return Object.values(this.unsavedChanges).slice(0, 10);
         },
-        formSteps: [1, 3, 4, 5, 8],
+        formSteps: [1, 2, 3, 4, 7],
         markStepDirty(currentStep, event) {
             if (!this.formSteps.includes(currentStep) || event.target?.type === 'search') {
                 return;
@@ -103,7 +113,7 @@
         syncMandatoryDeductions() {
             $wire.set('employeeFilterIds', this.employeeFilterIds, false);
             $wire.set('appliedEmployeeFilterIds', this.employeeFilterIds, false);
-            if (this.activeStep === 4) {
+            if (this.activeStep === 3) {
                 $wire.set('mandatoryDeductionAdjustments', this.mandatoryDeductionAdjustments, false);
             }
         },
@@ -226,10 +236,32 @@
                 && (search === '' || String(searchableText).toLowerCase().includes(search));
         },
         applyRowVisibility() {
-            this.$nextTick(() => document.querySelectorAll('[data-payroll-row]').forEach((row) => {
-                const searchable = `${row.dataset.empId || ''} ${row.dataset.employeeName || ''} ${row.dataset.department || ''} ${row.dataset.position || ''}`;
-                row.hidden = !this.employeeVisible(row.dataset.empId, searchable);
-            }));
+            this.$nextTick(() => {
+                document.querySelectorAll('[data-payroll-row]').forEach((row) => {
+                    const searchable = `${row.dataset.empId || ''} ${row.dataset.employeeName || ''} ${row.dataset.department || ''} ${row.dataset.position || ''}`;
+                    row.hidden = !this.employeeVisible(row.dataset.empId, searchable);
+                });
+                this.recalculateGrossCompensationTotals();
+            });
+        },
+        recalculateGrossCompensationTotals() {
+            const table = document.querySelector('[data-gross-compensation-table]');
+            if (!table) return;
+
+            const totals = {};
+            table.querySelectorAll('tbody tr[data-payroll-row]:not([hidden])').forEach((row) => {
+                row.querySelectorAll('[data-gross-total-key]').forEach((cell) => {
+                    const key = cell.dataset.grossTotalKey;
+                    const value = cell.matches('input')
+                        ? cell.value
+                        : (cell.dataset.grossTotalValue ?? cell.textContent);
+                    totals[key] = (totals[key] || 0) + Number(String(value || 0).replace(/,/g, ''));
+                });
+            });
+
+            table.querySelectorAll('[data-gross-total-output]').forEach((cell) => {
+                cell.textContent = this.money(totals[cell.dataset.grossTotalOutput] || 0);
+            });
         },
         sortPayrollRows() {
             this.$nextTick(() => [...new Set(Array.from(document.querySelectorAll('[data-payroll-row]')).map((row) => row.parentElement))].forEach((body) => {
@@ -372,7 +404,7 @@
     </header>
 
     <div class="min-h-0 flex-1 lg:grid lg:grid-cols-[300px_minmax(0,1fr)]">
-    <aside class="overflow-x-hidden border-b border-[#e4e6ef] bg-white lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:h-screen lg:w-[300px] lg:overflow-y-auto lg:border-b-0 lg:border-r">
+    <aside class="payroll-generation-sidebar overflow-x-hidden border-b border-[#e4e6ef] bg-white lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:h-screen lg:w-[300px] lg:overflow-y-auto lg:border-b-0 lg:border-r">
         <div class="space-y-4 p-4">
     <div
         x-cloak
@@ -488,7 +520,7 @@
 
         <div x-cloak x-show="filtersOpen" x-transition class="border-b border-slate-200 bg-slate-50 px-3 py-3">
             <div class="grid min-w-0 gap-2">
-                <div class="w-full min-w-0">
+                <div class="w-full min-w-0" wire:ignore>
                     <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="payroll-employee-filter">
                         Employee Filter
                     </label>
@@ -924,60 +956,6 @@
             </div>
         </div>
     @elseif ($currentStep === 2)
-        <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-4 py-3">
-                <h3 class="font-semibold">Compensation</h3>
-            </div>
-            <div class="payroll-table-scroll overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                        <tr>
-                            <th colspan="3" class="payroll-sticky-employee-info-group border-b border-r-2 border-slate-300 px-4 py-3 text-center">Employee Information</th>
-                            <th rowspan="2" class="px-4 py-3 text-right align-middle">Basic Salary</th>
-                            <th colspan="{{ max(1, $compensations->count()) }}" class="border-b border-slate-200 px-4 py-3 text-center">Additional Earnings</th>
-                            <th rowspan="2" class="px-4 py-3 text-right align-middle">Gross Pay</th>
-                        </tr>
-                        <tr>
-                            <th class="payroll-sticky-employee-no-header px-4 py-3">Employee No.</th>
-                            <th class="payroll-sticky-employee-name-header px-4 py-3">Employee Name</th>
-                            <th class="payroll-sticky-employee-position-header border-r-2 border-slate-300 px-4 py-3">Position</th>
-                            @forelse ($compensations as $item)
-                                <th class="px-4 py-3 text-right">{{ $item->name }}</th>
-                            @empty
-                                <th class="px-4 py-3 text-right">None</th>
-                            @endforelse
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        @forelse ($rows as $row)
-                            <tr class="hover:bg-slate-50" data-payroll-row data-emp-id="{{ $row['emp_id'] }}" data-employee-name="{{ $row['employee_name'] }}" data-department="{{ $row['department'] ?? '' }}" data-position="{{ $row['position'] ?? '' }}" data-basic-salary="{{ $row['basic_salary'] ?? 0 }}" data-gross="{{ $row['gross'] ?? 0 }}" data-net-compensation="{{ $row['net_compensation'] ?? 0 }}" data-net-after-loan-deductions="{{ $row['net_after_loan_deductions'] ?? 0 }}" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}">
-                                <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
-                                <td class="payroll-sticky-employee-name-cell px-4 py-3 font-medium">
-                                    {{ $row['employee_name'] }}
-                                    <div class="text-xs font-normal text-slate-500">{{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div>
-                                    @if ($row['is_part_time'])
-                                        <span class="ml-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-violet-700">Part-time</span>
-                                    @endif
-                                </td>
-                                <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($row['basic_salary'], 2) }}</td>
-                                @forelse ($compensations as $item)
-                                    <td class="px-4 py-3 text-right">{{ number_format($row['compensations'][$item->id]['amount'] ?? 0, 2) }}</td>
-                                @empty
-                                    <td class="px-4 py-3 text-right">-</td>
-                                @endforelse
-                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['gross'], 2) }}</td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="{{ 5 + max(1, $compensations->count()) }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    @elseif ($currentStep === 3)
         <div
             class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
             x-data="{
@@ -1008,8 +986,8 @@
         >
             <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
                 <div>
-                    <h3 class="font-semibold">Deductions and Adjustments</h3>
-                    <p class="mt-1 text-sm text-slate-600">Compensation adjustments for the Regular payroll output.</p>
+                    <h3 class="font-semibold">Gross Compensation</h3>
+                    <p class="mt-1 text-sm text-slate-600">Compensation and adjustments, following the payroll workbook layout.</p>
                 </div>
                 @include('livewire.payroll.partials.step-save-button')
             </div>
@@ -1022,27 +1000,35 @@
 
             <fieldset @disabled(! $canEditCurrentStep) class="contents">
             <div class="payroll-table-scroll overflow-x-auto">
-                <table class="divide-y divide-slate-200 text-sm" style="min-width: {{ 1560 + ($adjustmentTypes->count() * 140) }}px;">
+                <table data-gross-compensation-table class="divide-y divide-slate-200 text-sm" style="min-width: {{ 1700 + (($compensations->count() + $adjustmentTypes->count()) * 140) }}px;">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th colspan="3" class="payroll-sticky-employee-info-group border-b border-r-2 border-slate-300 px-4 py-3 text-center">Employee Information</th>
-                            <th rowspan="2" class="px-4 py-3 text-right align-middle">Deduct Days</th>
-                            <th rowspan="2" class="px-4 py-3 text-right align-middle">Gross Compensation</th>
-                            <th colspan="{{ 5 + $adjustmentTypes->count() }}" class="border-b border-slate-200 px-4 py-3 text-center">Compensation Adjustment</th>
-                            <th rowspan="2" class="px-4 py-3 text-right align-middle">Net Compensation</th>
+                            <th colspan="3" rowspan="2" class="payroll-sticky-employee-info-group border-b border-r-2 border-slate-300 px-4 py-3 text-center align-middle">Employee Information</th>
+                            <th colspan="{{ 7 + max(1, $compensations->count()) + $adjustmentTypes->count() }}" class="border-b border-slate-300 px-4 py-3 text-center">Gross Compensation</th>
+                        </tr>
+                        <tr>
+                            <th colspan="{{ 1 + max(1, $compensations->count()) }}" class="border-b border-slate-200 px-4 py-3 text-center">Compensation</th>
+                            <th colspan="{{ 4 + $adjustmentTypes->count() }}" class="border-b border-l-2 border-slate-300 px-4 py-3 text-center">Adjustment</th>
+                            <th rowspan="2" class="border-l-2 border-slate-300 px-3 py-3 align-middle">Remarks</th>
+                            <th rowspan="2" class="border-l-2 border-slate-300 px-4 py-3 text-right align-middle">Gross Compensation</th>
                         </tr>
                         <tr>
                             <th class="payroll-sticky-employee-no-header px-4 py-3">Employee No.</th>
                             <th class="payroll-sticky-employee-name-header px-4 py-3">Employee Name</th>
                             <th class="payroll-sticky-employee-position-header border-r-2 border-slate-300 px-4 py-3">Position</th>
-                            <th class="px-3 py-3 text-right">Basic Salary</th>
+                            <th class="px-4 py-3 text-right">Basic Salary</th>
+                            @forelse ($compensations as $item)
+                                <th class="px-4 py-3 text-right">{{ $workbookCompensationLabel($item) }}</th>
+                            @empty
+                                <th class="px-4 py-3 text-right">None</th>
+                            @endforelse
+                            <th class="border-l-2 border-slate-300 px-3 py-3 text-right">Basic Salary</th>
                             <th class="px-3 py-3 text-right">Subsistence</th>
                             <th class="px-3 py-3 text-right">Laundry</th>
                             <th class="px-3 py-3 text-right">PERA</th>
                             @foreach ($adjustmentTypes as $type)
                                 <th class="px-3 py-3 text-right">{{ $type->name }}</th>
                             @endforeach
-                            <th class="px-3 py-3">Remarks</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -1051,7 +1037,35 @@
                                 $employeeExtraItems = (array) ($compensationAdjustments[$row['emp_id']]['extra_items'] ?? []);
                                 $employeeAdjustmentTypeIds = collect(array_keys($employeeExtraItems))->map(fn ($id) => (int) $id)->all();
                             @endphp
-                            <tr class="hover:bg-slate-50" data-payroll-row data-emp-id="{{ $row['emp_id'] }}" data-employee-name="{{ $row['employee_name'] }}" data-department="{{ $row['department'] ?? '' }}" data-position="{{ $row['position'] ?? '' }}" data-basic-salary="{{ $row['basic_salary'] ?? 0 }}" data-gross="{{ $row['gross'] ?? 0 }}" data-net-compensation="{{ $row['net_compensation'] ?? 0 }}" data-net-after-loan-deductions="{{ $row['net_after_loan_deductions'] ?? 0 }}" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}">
+                            <tr
+                                class="hover:bg-slate-50"
+                                x-data="{
+                                    baseGross: @js((float) ($row['gross'] ?? 0)),
+                                    extraAdjustment: @js((float) ($row['compensation_adjustments']['extra_total'] ?? 0)),
+                                    adjustments: {
+                                        basic_salary: @js((float) ($row['compensation_adjustments']['basic_salary'] ?? 0)),
+                                        subsistence: @js((float) ($row['compensation_adjustments']['subsistence'] ?? 0)),
+                                        laundry: @js((float) ($row['compensation_adjustments']['laundry'] ?? 0)),
+                                        pera: @js((float) ($row['compensation_adjustments']['pera'] ?? 0)),
+                                    },
+                                    grossCompensation() {
+                                        return this.baseGross
+                                            + this.extraAdjustment
+                                            + Object.values(this.adjustments).reduce((total, value) => total + Number(value || 0), 0);
+                                    },
+                                }"
+                                data-payroll-row
+                                data-emp-id="{{ $row['emp_id'] }}"
+                                data-employee-name="{{ $row['employee_name'] }}"
+                                data-department="{{ $row['department'] ?? '' }}"
+                                data-position="{{ $row['position'] ?? '' }}"
+                                data-basic-salary="{{ $row['basic_salary'] ?? 0 }}"
+                                data-gross="{{ $row['gross'] ?? 0 }}"
+                                data-net-compensation="{{ $row['net_compensation'] ?? 0 }}"
+                                data-net-after-loan-deductions="{{ $row['net_after_loan_deductions'] ?? 0 }}"
+                                data-unsaved-employee-no="{{ $row['emp_id'] }}"
+                                data-unsaved-employee-name="{{ $row['employee_name'] }}"
+                            >
                                 <td class="payroll-sticky-employee-no-cell px-4 py-3 align-top font-medium">{{ $row['emp_id'] }}</td>
                                 <td class="payroll-sticky-employee-name-cell px-4 py-3 align-top">
                                     <div class="flex min-w-[230px] items-start justify-between gap-3">
@@ -1065,12 +1079,19 @@
                                     </div>
                                 </td>
                                 <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3 align-top">{{ $row['position'] ?? '-' }}</td>
-                                <td class="px-4 py-3 text-right align-top">{{ number_format($row['deduction_days'], 3) }}</td>
-                                <td class="px-4 py-3 text-right align-top font-medium">{{ number_format($row['gross'], 2) }}</td>
+                                <td data-gross-total-key="basic_salary" data-gross-total-value="{{ $row['basic_salary'] }}" class="px-4 py-3 text-right align-top">{{ number_format($row['basic_salary'], 2) }}</td>
+                                @forelse ($compensations as $item)
+                                    <td data-gross-total-key="compensation_{{ $item->id }}" data-gross-total-value="{{ $row['compensations'][$item->id]['amount'] ?? 0 }}" class="px-4 py-3 text-right align-top">{{ number_format($row['compensations'][$item->id]['amount'] ?? 0, 2) }}</td>
+                                @empty
+                                    <td class="px-4 py-3 text-right align-top">-</td>
+                                @endforelse
                                 @foreach (['basic_salary', 'subsistence', 'laundry', 'pera'] as $field)
-                                    <td class="px-3 py-2 text-right align-top">
+                                    <td class="px-3 py-2 text-right align-top {{ $loop->first ? 'border-l-2 border-slate-300' : '' }}">
                                         <input
                                             wire:model.defer="compensationAdjustments.{{ $row['emp_id'] }}.{{ $field }}"
+                                            x-model.number="adjustments.{{ $field }}"
+                                            x-on:input="$nextTick(() => recalculateGrossCompensationTotals())"
+                                            data-gross-total-key="adjustment_{{ $field }}"
                                             type="number"
                                             step="0.01"
                                             placeholder="Signed ± adjustment"
@@ -1082,7 +1103,7 @@
                                     @php
                                         $item = $row['compensation_adjustments']['extra_items'][(string) $type->id] ?? null;
                                     @endphp
-                                    <td class="px-3 py-2 align-top">
+                                    <td data-gross-total-key="adjustment_type_{{ $type->id }}" data-gross-total-value="{{ $item['signed_amount'] ?? 0 }}" class="px-3 py-2 align-top">
                                         @if ($item)
                                             <div class="flex min-w-[130px] items-center justify-end gap-2">
                                                 <button type="button" x-on:click="start(@js($row['emp_id']), @js($row['employee_name']), @js($employeeAdjustmentTypeIds), { typeId: {{ $type->id }}, operator: @js($item['operator'] ?? 'ADD'), amount: @js($item['amount'] ?? 0) })" class="text-right text-xs font-semibold {{ ($item['operator'] ?? 'ADD') === 'LESS' ? 'text-red-700' : 'text-emerald-700' }} hover:underline">
@@ -1097,41 +1118,45 @@
                                         @endif
                                     </td>
                                 @endforeach
-                                <td class="px-3 py-2 align-top">
+                                <td class="border-l-2 border-slate-300 px-3 py-2 align-top">
                                     <input
                                         wire:model="compensationAdjustments.{{ $row['emp_id'] }}.remarks"
                                         type="text"
                                         class="w-64 rounded-md border px-2 py-1.5 text-sm {{ $row['compensation_adjustments']['remarks_missing'] ? 'border-red-400 bg-red-50' : 'border-slate-300' }}"
                                     >
                                 </td>
-                                <td class="px-4 py-3 text-right align-top font-semibold">{{ number_format($row['net_compensation'], 2) }}</td>
+                                <td data-gross-total-key="gross_compensation" x-bind:data-gross-total-value="grossCompensation()" class="border-l-2 border-slate-300 px-4 py-3 text-right align-top font-semibold" x-text="money(grossCompensation())">{{ number_format($row['net_compensation'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ 11 + $adjustmentTypes->count() }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="{{ 10 + max(1, $compensations->count()) + $adjustmentTypes->count() }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
                     @if ($rows->isNotEmpty())
                         <tfoot class="bg-slate-50 font-semibold">
                             <tr>
-                                <td colspan="3" class="border-r-2 border-slate-300 px-4 py-3">Totals</td>
-                                <td></td>
-                                <td class="px-4 py-3 text-right">{{ number_format($totals['gross'], 2) }}</td>
-                                <td class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['basic_salary'], 2) }}</td>
-                                <td class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['subsistence'], 2) }}</td>
-                                <td class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['laundry'], 2) }}</td>
-                                <td class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['pera'], 2) }}</td>
+                                <td colspan="3" class="payroll-sticky-employee-totals border-r-2 border-slate-300 px-4 py-3">Totals</td>
+                                <td data-gross-total-output="basic_salary" class="px-4 py-3 text-right">{{ number_format($totals['basic_salary'], 2) }}</td>
+                                @forelse ($compensations as $item)
+                                    <td data-gross-total-output="compensation_{{ $item->id }}" class="px-4 py-3 text-right">{{ number_format($totals['compensations'][$item->id] ?? 0, 2) }}</td>
+                                @empty
+                                    <td class="px-4 py-3 text-right">-</td>
+                                @endforelse
+                                <td data-gross-total-output="adjustment_basic_salary" class="border-l-2 border-slate-300 px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['basic_salary'], 2) }}</td>
+                                <td data-gross-total-output="adjustment_subsistence" class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['subsistence'], 2) }}</td>
+                                <td data-gross-total-output="adjustment_laundry" class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['laundry'], 2) }}</td>
+                                <td data-gross-total-output="adjustment_pera" class="px-3 py-3 text-right">{{ number_format($totals['compensation_adjustments']['pera'], 2) }}</td>
                                 @foreach ($adjustmentTypes as $type)
-                                    <td class="px-3 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['compensation_adjustments']['extra_items'][(string) $type->id]['signed_amount'] ?? 0), 2) }}</td>
+                                    <td data-gross-total-output="adjustment_type_{{ $type->id }}" class="px-3 py-3 text-right">{{ number_format($rows->sum(fn ($row) => $row['compensation_adjustments']['extra_items'][(string) $type->id]['signed_amount'] ?? 0), 2) }}</td>
                                 @endforeach
-                                <td class="px-3 py-3 text-right">
+                                <td class="border-l-2 border-slate-300 px-3 py-3 text-right">
                                     <div>{{ number_format($totals['compensation_adjustments']['total'], 2) }}</div>
                                     @if ($adjustmentTypes->isNotEmpty())
                                         <div class="text-xs font-normal text-slate-500">Other {{ number_format($totals['compensation_adjustments']['extra_total'], 2) }}</div>
                                     @endif
                                 </td>
-                                <td class="px-4 py-3 text-right">{{ number_format($totals['net_compensation'], 2) }}</td>
+                                <td data-gross-total-output="gross_compensation" class="border-l-2 border-slate-300 px-4 py-3 text-right">{{ number_format($totals['net_compensation'], 2) }}</td>
                             </tr>
                         </tfoot>
                     @endif
@@ -1188,7 +1213,7 @@
                 </div>
             </fieldset>
         </div>
-    @elseif ($currentStep === 4)
+    @elseif ($currentStep === 3)
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
                 <h3 class="font-semibold">Mandatory Deductions</h3>
@@ -1280,7 +1305,7 @@
             </div>
             </fieldset>
         </div>
-    @elseif ($currentStep === 5)
+    @elseif ($currentStep === 4)
         <div class="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(420px,0.8fr)_minmax(560px,1.2fr)] xl:grid-rows-[auto_minmax(420px,1fr)]">
             <div class="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3 shadow-sm xl:col-start-1 xl:row-start-1">
                 <h3 class="font-semibold">Import Program Membership</h3>
@@ -1577,9 +1602,9 @@
             </div>
             </fieldset>
         </div>
-    @elseif (in_array($currentStep, [6, 7], true))
+    @elseif (in_array($currentStep, [5, 6], true))
         @php
-            $isAdditionalPremiumStep = $currentStep === 6;
+            $isAdditionalPremiumStep = $currentStep === 5;
             $stepDeductionTypes = $isAdditionalPremiumStep ? $additionalPremiumTypes : $loanTypes;
             $stepTitle = $isAdditionalPremiumStep ? 'Additional Premium Deductions' : 'Loan Deductions';
             $stepDescription = $isAdditionalPremiumStep
@@ -2205,7 +2230,7 @@
                 </template>
             @endunless
         </div>
-    @elseif ($currentStep === 8)
+    @elseif ($currentStep === 7)
         <div x-data="{ taxTab: 'basic' }" class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
                 <div>
@@ -2457,7 +2482,7 @@
                 </table>
             </div>
         </div>
-    @elseif ($currentStep === 9)
+    @elseif ($currentStep === 8)
         @php
             $activeReviewDeductionPrograms = $deductionPrograms->filter(fn ($program) => filter_var($deductionProgramSelections[(string) $program->id]['enabled'] ?? false, FILTER_VALIDATE_BOOL));
         @endphp

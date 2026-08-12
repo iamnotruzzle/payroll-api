@@ -19,6 +19,11 @@ class TarfApprovals extends Component
     /** @var array<string, string> */
     public array $notes = [];
 
+    /** @var array<string, array<string, int|string>> */
+    public array $obOt = [];
+
+    public bool $approveAsOt = false;
+
     public function updatedSearch(): void
     {
         $this->resetPage();
@@ -45,10 +50,24 @@ class TarfApprovals extends Component
     public function approveMcc(string $tarfNo, TrainingService $trainingService): void
     {
         abort_unless(auth()->user()?->can('training.approve'), 403);
-        $tarf = TrainingDetail::query()->findOrFail($tarfNo);
+        $tarf = TrainingDetail::query()->with('requests')->findOrFail($tarfNo);
         $actor = (string) (auth()->user()?->emp_id ?? auth()->user()?->username ?? 'system');
-        $trainingService->approveMcc($tarf, $actor, $this->notes[$tarfNo] ?? null);
-        session()->flash('status', 'TARF approved by MCC.');
+
+        $obOtByEmpId = [];
+        foreach ($tarf->requests as $request) {
+            $value = $this->obOt[$tarfNo][$request->emp_id] ?? 0;
+            $obOtByEmpId[(string) $request->emp_id] = (int) $value;
+        }
+
+        $trainingService->approveMcc(
+            $tarf,
+            $actor,
+            $this->notes[$tarfNo] ?? null,
+            null,
+            $obOtByEmpId,
+            $this->approveAsOt
+        );
+        session()->flash('status', $this->approveAsOt ? 'TARF approved with OT.' : 'TARF approved by MCC.');
     }
 
     public function disapproveMcc(string $tarfNo, TrainingService $trainingService): void
@@ -85,6 +104,9 @@ class TarfApprovals extends Component
 
         foreach ($tarfs as $tarf) {
             $this->notes[$tarf->tarf_no] ??= '';
+            foreach ($tarf->requests as $request) {
+                $this->obOt[$tarf->tarf_no][$request->emp_id] ??= (int) ($request->ob_ot ?? 0);
+            }
         }
 
         return view('livewire.training.tarf-approvals', [

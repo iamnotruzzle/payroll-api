@@ -5,6 +5,7 @@ namespace App\Models\Hris;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class IpcrEmployee extends Model
@@ -51,5 +52,15 @@ class IpcrEmployee extends Model
     public function ratings(): HasMany
     {
         return $this->hasMany(IpcrRating::class, 'ipcr_id', 'id');
+    }
+
+    public function calibrations(): HasMany
+    {
+        return $this->hasMany(IpcrCalibrationSet::class, 'ipcr_employee_id', 'id');
+    }
+
+    public function opcr(): HasOne
+    {
+        return $this->hasOne(Opcr::class, 'ipcr_id', 'id');
     }
 }

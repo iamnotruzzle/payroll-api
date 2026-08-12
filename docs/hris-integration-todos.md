@@ -103,14 +103,17 @@ flowchart LR
 - [x] ~~ETL command `hris:migrate-employees`~~ **cancelled 2026-08-12** (no `hris_v2`)
 - [x] Livewire employee directory (search / status) on legacy `tbl_employee`
 - [x] Basic employee profile view (employment, contact, personal/gov IDs)
+- [x] **Employee View 360° hub** (`/employees/{empId}?tab=`): summary strip + permission-gated tabs for profile/PDS/docs (editable) and read-only Leave / TARF / IPCR / DTR / Schedule / Payroll / Account panels with deep links
+- [x] **Employment / plantilla history** (`employee_employment_history` + Employment tab): original/promotion/transfer trail with plantilla item no.; seeds from current master; recording a change updates `tbl_employee` cache
 - [x] Core PDS edit (identity, contact, personal, gov IDs) on legacy
+- [x] **Create employee** (`/employees/create`) + optional login account (Employee role, temp password, `login_attempt=0`)
 - [x] Activate / deactivate
 - [x] Basic PDS print view (`/employees/{empId}/print`)
 - [x] Full PDS section editors (family, education, eligibility, work, L&D, voluntary, other info, refs)
 - [x] Dependents CRUD (included in PDS sections)
 - [x] ~~Section-table ETL~~ **cancelled 2026-08-12**
 - [x] File uploads (`employee_documents` on `hris` + profile UI)
-- [x] Self-service PDS print/view (`/self-service/profile`)
+- [x] Self-service PDS print/view (`/self-service/profile`) + first-login / annual profile update gate (`login_attempt`)
 - [x] User Accounts create/edit + reset/delete without breaking Spatie roles
 - [x] ~~Run employee ETL + `HRIS_USE_V2=true`~~ **cancelled 2026-08-12** — strategy A
 
@@ -125,6 +128,8 @@ flowchart LR
 **Data choice (2026-08-10):** Phase 3 ships on **legacy** `hris` leave tables (`tbl_employee_leave`, `tbl_leave_log`, `tbl_leave_type`, `tbl_leave_status`, employee VL/SL columns) keyed by `emp_id`.
 
 - [x] Apply / edit / cancel / print + leave card (`tbl_employee_leave` / logs; legacy tables)
+- [x] Itemized leave dates (`remarks` CSV + `LeaveDates`); pick/weekdays/calendar modes; LWOP auto-split + leave log action 7; `applicant_note` for free text; VL/SL deduct on apply
+- [x] **Leave credit ledger** (additive): `employee_leave_credit_ledger` written alongside legacy VL/SL columns + `tbl_leave_log`; Leave Credits drawer + Employee hub Leave tab; seed `hris:seed-leave-credit-ledger`
 - [x] Approval queue with Spatie roles (replace `user_level` checks)
 - [x] Leave credits maintenance, undertime (via existing MRA/payroll adjustments), credit updater job (`hris:accrue-leave-credits`)
 - [x] Hire-date / employment-status leave credit computation (`LeaveCreditComputationService`, `hris:compute-leave-credits`) + entitlements UI on Credits/Card; monthly accrual filtered by eligible empstat + hire date
@@ -245,14 +250,13 @@ curl -X POST "%APP_URL%/api/dtr/client/sync" -H "Content-Type: application/json"
 **Data choice (2026-08-11):** Phase 7 ships on **legacy** `hris` tables (same stance as Leave Phase 3): TARF/LDI on `tbl_training_details` / `tbl_training_requests` / `tbl_training_types` / `tbl_uploaded_files`; IPCR on modernized-but-legacy-db `ipcr_periods` / `ipcr_employees` / `ipcr_ratings` / `ipcr_mfos` / `ipcr_mfo_sets` / `ipcr_mfo_types` / `ipcr_types`. Preserve `emp_id`. No ETL.
 
 - [x] TARF / LDI (requests, approvals, calendar, reschedule, invites)
-  - **Shipped:** list/create/edit/cancel pending PETU requests; PETU→MCC approval queue; month list “calendar”; detail + print; report upload.
-  - **Deferred:** invite accept/reject UX, email notifications, drag-drop calendar, reschedule workflow polish, OB/OT participant toggles.
+  - **Shipped:** list/create/edit/cancel pending PETU requests; PETU→MCC approval queue; month list “calendar”; detail + print; report upload; invite accept/decline on My Training; reschedule on TARF detail; MCC OB/OT toggles; queued email notifications when mail is configured.
+  - **Deferred:** drag-drop calendar UI; pixel DomPDF form templates.
 - [x] TARF PDFs + uploaded training reports
   - **Shipped:** HTML print (`/training/tarf/{tarfNo}/print`); supporting docs on create; report upload on detail; download via storage (+ dual-read legacy `public/uploads` if present).
   - **Deferred:** pixel-perfect DomPDF parity with legacy form templates.
 - [x] IPCR / OPCR / MFO (periods, targets, ratings, calibration, print)
-  - **Shipped:** periods CRUD-lite, employee target sheet (MFO + target + accomplishment), Q/E/T ratings, HTML print.
-  - **Deferred:** full OPCR accountables UI, calibration sets UI, weighted Strategic/Core/Support grade rollups beyond print grouping.
+  - **Shipped:** periods CRUD-lite, employee target sheet (MFO + target + accomplishment), Q/E/T ratings, calibration sets UI (`performance.approve`), OPCR budget/accountables, weighted Strategic/Core/Support summary + letter grade on sheet/print.
 - [x] Self-service: My IPCR / My Training where applicable
   - Routes: `/self-service/training`, `/self-service/ipcr`. Permissions: `self-service.training`, `self-service.ipcr` (re-seed RBAC).
 
@@ -305,9 +309,10 @@ php artisan route:list --name=self-service.payslip
 
 **Goal:** Dual-run then retire reference systems’ production use (legacy HRIS UI / NDOS), without a parallel `hris_v2` DB.
 
-**Update (2026-08-12):** Schema B cutover tooling (`HRIS_USE_V2`, `HRIS_CUTOVER_*`, freeze guard, `/admin/cutover`) was **removed**. People data stays on legacy `hris`. See retired note in [`docs/hris-cutover.md`](hris-cutover.md) and backlog [`docs/hris-schema-enhancements.md`](hris-schema-enhancements.md).
+**Update (2026-08-12):** Schema B cutover tooling (`HRIS_USE_V2`, `HRIS_CUTOVER_*`, freeze guard, `/admin/cutover`) was **removed**. People data stays on legacy `hris`. See [`docs/hris-cutover.md`](hris-cutover.md) and backlog [`docs/hris-schema-enhancements.md`](hris-schema-enhancements.md).
 
 - [ ] Pilot one dept on Employees + Leave + Self-service against shared HRIS data; dual-run vs legacy HRIS UI
+  - **Prep done:** employee create + account provision + first-login profile gate; runbook in `docs/hris-cutover.md`; `php artisan hris:pilot-readiness`
 - [x] ~~Feature-flag / redirect traffic off legacy HRIS~~ **cancelled** (flags removed; ops process only)
 - [ ] Nursing (+ others) fully on Phase 5 Schedule; archive NDOS usage
 - [x] ~~If schema (B): freeze legacy writes; decommission dual-read~~ **cancelled** — strategy A; no freeze flag
@@ -319,9 +324,11 @@ php artisan route:list --name=self-service.payslip
 **Verify:**
 
 ```bash
+php artisan hris:pilot-readiness
 php artisan db:seed --class=RBACSeeder
-# Confirm no admin.cutover route; employees documents download still registered
-php artisan route:list --name=employees
+php artisan route:list --name=employees.create
+php artisan route:list --name=self-service.profile
+# Follow dual-run checklist in docs/hris-cutover.md
 ```
 
 ---
@@ -392,5 +399,9 @@ Non-CNO multi-area: enable `uses_units` only (UI: Areas). Do not force nursing e
 | 2026-08-11 | Schedule UX restructure: `/schedule` list + Generate New Schedule modal (non-CNO); grid at `/schedule/months/{id}`; CNO draft generate blocked (UI + `ScheduleDraftGenerationService`); NDOS import stays separate page. |
 | 2026-08-11 | Non-CNO generate modes: Automated (Beta) = weekly-duty/template allocation; Manual = blank OFF shifts per employee/day for hand-fill. |
 | 2026-08-12 | Schema strategy **A**: removed `hris_v2` models/migrations/ETL/cutover flags/UI; Employees + documents on legacy `hris`; backlog `docs/hris-schema-enhancements.md`. |
+| 2026-08-12 | Gap-closure from feature audit: employee create + account provision; first-login profile gate; TARF invites/email/reschedule/OB-OT; IPCR calibration/OPCR/weighted grades; Phase 9 dual-run runbook + `hris:pilot-readiness`. |
+| 2026-08-12 | Employee View 360° hub: tabbed profile with lazy domain panels (leave/TARF/IPCR/DTR/schedule/payroll/account) + deep links. |
+| 2026-08-12 | Employment/plantilla history table + Employee View Employment tab (record changes sync to employee master). |
+| 2026-08-12 | Additive leave credit ledger (`employee_leave_credit_ledger`) parallel to legacy VL/SL + `tbl_leave_log`. |
 
 

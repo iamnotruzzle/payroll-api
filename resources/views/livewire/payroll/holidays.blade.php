@@ -63,8 +63,8 @@
             <div class="mb-3 space-y-3">
                 <h3 class="font-semibold">Holidays</h3>
                 <div class="grid gap-2 md:grid-cols-[minmax(180px,1fr)_120px_150px]">
-                    <input wire:model.live.debounce.250ms="search" placeholder="Search holiday, label, or type" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
-                    <input wire:model.live.debounce.250ms="yearFilter" type="number" min="1900" max="2200" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <input wire:model.lazy="search" placeholder="Search holiday, label, or type" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <input wire:model.lazy="yearFilter" type="number" min="1900" max="2200" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
                     <select wire:model.live="statusFilter" class="rounded-md border border-slate-300 py-2 pl-3 pr-8 text-sm">
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>

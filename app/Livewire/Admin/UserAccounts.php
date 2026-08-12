@@ -7,6 +7,7 @@ use App\Models\Hris\Employee;
 use App\Models\Hris\UserAccount;
 use App\Models\Role;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -14,6 +15,7 @@ class UserAccounts extends Component
 {
     use WithPagination;
 
+    #[Url]
     public string $search = '';
 
     public int $perPage = 12;
@@ -156,6 +158,11 @@ class UserAccounts extends Component
             ['userid' => $this->editingId],
             $payload,
         );
+
+        if (! $this->editingId) {
+            $account->login_attempt = 0;
+            $account->save();
+        }
 
         $account->syncRoles($data['selectedRoles']);
         $account->syncPermissions($data['selectedPermissions']);

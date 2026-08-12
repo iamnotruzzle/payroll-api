@@ -196,6 +196,13 @@
             </header>
 
             <main class="erp-content w-full px-3 py-4 sm:px-5 {{ $isLauncher ? 'erp-content-launcher' : '' }}">
+                @if (auth()->check() && (int) (auth()->user()->login_attempt ?? 1) === 0)
+                    <div class="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                        Please
+                        <a href="{{ route('self-service.profile') }}" class="font-semibold underline">review and save your profile</a>
+                        before using other modules.
+                    </div>
+                @endif
                 {{ $slot }}
             </main>
         </section>

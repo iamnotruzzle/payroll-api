@@ -13,6 +13,29 @@
         <div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('status') }}</div>
     @endif
 
+    @if ($pendingInvites->isNotEmpty())
+        <section class="rounded-md border border-amber-200 bg-amber-50 p-4 shadow-sm">
+            <h3 class="text-sm font-semibold text-amber-900">Pending invitations</h3>
+            <ul class="mt-3 space-y-3">
+                @foreach ($pendingInvites as $invite)
+                    <li class="flex flex-col gap-2 rounded-md border border-amber-100 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p class="font-semibold text-slate-800">{{ $invite->trainingDetail?->training_name ?: $invite->tarf_no }}</p>
+                            <p class="text-xs text-slate-500">
+                                {{ $invite->tarf_no }}
+                                · {{ optional($invite->trainingDetail?->start_date)->format('Y-m-d') }} → {{ optional($invite->trainingDetail?->end_date)->format('Y-m-d') }}
+                            </p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button wire:click="respondInvite({{ $invite->id }}, 1)" type="button" class="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">Accept</button>
+                            <button wire:click="respondInvite({{ $invite->id }}, 2)" wire:confirm="Decline this training invitation?" type="button" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">Decline</button>
+                        </div>
+                    </li>
+                @endforeach
+            </ul>
+        </section>
+    @endif
+
     @if ($showForm)
         <section class="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
             <form wire:submit="submit" class="grid gap-3 sm:grid-cols-2">

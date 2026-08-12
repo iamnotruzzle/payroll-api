@@ -1312,6 +1312,16 @@ html[data-theme="dark"] .erp-home-pill-live {
     box-shadow: 1px 0 0 #d9dee8;
 }
 
+.erp-content .payroll-sticky-employee-totals {
+    position: sticky;
+    left: 0;
+    z-index: 30;
+    width: 38rem;
+    min-width: 38rem;
+    background: #f6f7fb !important;
+    box-shadow: 1px 0 0 #d9dee8;
+}
+
 .erp-content .payroll-sticky-employee-no-header,
 .erp-content .payroll-sticky-employee-no-cell,
 .erp-content .payroll-sticky-employee-name-header,
@@ -1612,6 +1622,22 @@ html[data-theme="dark"] .erp-home-pill-live {
     .select2-search__field::placeholder {
     color: #8a8d93;
     opacity: 1;
+}
+
+/* Keep the payroll employee picker from horizontally scrolling its fixed sidebar. */
+.payroll-generation-sidebar {
+    overflow-x: clip;
+}
+
+.payroll-generation-sidebar .select2-container,
+.payroll-generation-sidebar .select2-selection--multiple,
+.payroll-generation-sidebar .select2-selection__rendered {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.payroll-generation-sidebar .select2-selection__rendered {
+    overflow: hidden;
 }
 
 /* Theme bridge: legacy utility colors now follow the shared design tokens. */

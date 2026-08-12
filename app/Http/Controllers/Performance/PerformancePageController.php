@@ -75,10 +75,13 @@ class PerformancePageController extends Controller
             $grouped[$label][] = $target;
         }
 
+        $summary = $ipcrService->weightedSummary($targets);
+
         return view('performance.print', [
             'employee' => $employee,
             'period' => $period,
             'grouped' => $grouped,
+            'summary' => $summary,
             'backUrl' => $user?->can('performance.view') || $user?->can('performance.manage')
                 ? route('performance.employee', ['empId' => $empId, 'periodId' => $periodId])
                 : route('self-service.ipcr'),

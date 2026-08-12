@@ -11,18 +11,21 @@ Ideas below come from pain points in `tbl_*` and from what the retired v2 design
 | Item | Notes |
 |------|-------|
 | Typed `employee_documents` on `hris` | Metadata table keyed by `emp_id` (`disk`, `path`, `mime_type`, category). Livewire upload/download uses this instead of `hris_v2.employee_documents`. |
+| `tbl_employee_leave.applicant_note` | Free-text reason; `remarks` stays legacy date CSV only. |
+| **Employment history** | `employee_employment_history` on `hris` (plantilla item, position, dept, status, step, nature, effective dates). Employee View **Employment** tab; `tbl_employee` position/dept/status/step remain current-cache. PDS work experience stays separate. |
+| **Leave credit ledger** | Additive `employee_leave_credit_ledger` (VL/SL deltas). Legacy `tbl_employee` balances + `tbl_leave_log` unchanged and still written. UI on Leave Credits + Employee hub Leave tab. Seed: `hris:seed-leave-credit-ledger`. |
 
 ---
 
 ## High value
 
-1. **Employment history** — new table keyed by `emp_id` with `effective_from` / `effective_to` / dept / position / status / step; keep current columns on `tbl_employee` as a cache of the current assignment.
+1. ~~**Employment history**~~ **done 2026-08-12** — see Done table.
 2. **Normalize Y/N flags** — migrate `is_active`, CS Form questions, `is_government`, section-head, etc. from `'Y'/'N'` strings to `TINYINT(1)` / boolean consistently.
 3. **Sanitize dates** — ban `0000-00-00`; backfill nulls; enforce STRICT + app `SafeDate` at write time.
 4. **Widen VARCHAR/TEXT** — training name/venue/sponsor, addresses, name affixes, license numbers where production data truncates.
 5. **Decode coded PDS columns** — other-info type, education level, civil status, work_status → lookups or stable labels; stop ambiguous `0/1/2` storage.
 6. **Missing PDS fields** — voluntary org address; character-reference email.
-7. **Leave credit ledger** — move VL/SL off `tbl_employee` columns into dated ledger rows; keep running balance as derived/cache for payroll/schedule.
+7. ~~**Leave credit ledger**~~ **done 2026-08-12** — additive parallel ledger; legacy columns/logs retained.
 
 ## Medium value
 

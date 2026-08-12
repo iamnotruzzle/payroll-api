@@ -8,18 +8,17 @@ class PayrollGenerationDraft extends Model
 {
     public const LEGACY_WIZARD_STEP_COUNT = 8;
 
-    public const ADDITIONAL_PREMIUM_STEP = 6;
+    public const WIZARD_LAYOUT = 'gross_compensation_v2';
 
     public const WIZARD_STEPS = [
         1 => 'MRA Validation',
-        2 => 'Compensation',
-        3 => 'Deductions and Adjustments',
-        4 => 'Mandatory Deductions',
-        5 => 'Deduction Programs',
-        6 => 'Additional Premium',
-        7 => 'Loan Deductions',
-        8 => 'Tax Calculation',
-        9 => 'Review',
+        2 => 'Gross Compensation',
+        3 => 'Mandatory Deductions',
+        4 => 'Deduction Programs',
+        5 => 'Additional Premium',
+        6 => 'Loan Deductions',
+        7 => 'Tax Calculation',
+        8 => 'Review',
     ];
 
     protected $connection = 'payroll';
@@ -64,8 +63,17 @@ class PayrollGenerationDraft extends Model
         $savedStepCount = (int) ($state['wizard_step_count'] ?? self::LEGACY_WIZARD_STEP_COUNT);
         $currentStepCount = self::currentWizardStepCount();
 
-        if ($savedStepCount > 0 && $savedStepCount < $currentStepCount && $step >= self::ADDITIONAL_PREMIUM_STEP) {
-            $step += $currentStepCount - $savedStepCount;
+        if (($state['wizard_layout'] ?? null) !== self::WIZARD_LAYOUT) {
+            if ($savedStepCount === 9) {
+                $step = $step <= 2 ? $step : $step - 1;
+            } elseif ($savedStepCount === self::LEGACY_WIZARD_STEP_COUNT) {
+                $step = match ($step) {
+                    3 => 2,
+                    4 => 3,
+                    5 => 4,
+                    default => $step,
+                };
+            }
         }
 
         return max(1, min($currentStepCount, $step));

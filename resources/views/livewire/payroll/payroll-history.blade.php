@@ -7,7 +7,7 @@
     <div class="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-5">
         <div class="md:col-span-2">
             <label class="text-sm font-medium">Search</label>
-            <input type="search" wire:model.live.debounce.500ms="search" placeholder="Period, type, or user" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <input type="search" wire:model.lazy="search" placeholder="Period, type, or user" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
         </div>
         <div>
             <label class="text-sm font-medium">Payroll Period</label>

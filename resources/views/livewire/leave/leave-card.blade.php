@@ -10,7 +10,7 @@
     <section class="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
         <label class="block">
             <span class="text-xs font-semibold uppercase text-slate-500">Find employee</span>
-            <input wire:model.live.debounce.500ms="search" type="search" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Name or emp_id" @disabled($empId !== '')>
+            <input wire:model.lazy="search" type="search" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Name or emp_id" @disabled($empId !== '')>
         </label>
         @if ($empId !== '')
             <button wire:click="$set('empId', '')" type="button" class="mt-2 text-sm font-semibold text-[#696cff] hover:underline">Clear selection</button>
@@ -133,7 +133,12 @@
                     @forelse ($leaves as $leave)
                         <tr>
                             <td class="px-4 py-3">{{ $leave->leave_type_name }}</td>
-                            <td class="px-4 py-3">{{ optional($leave->start_date)->format('Y-m-d') }} → {{ optional($leave->end_date)->format('Y-m-d') }}</td>
+                            <td class="px-4 py-3">
+                                {{ optional($leave->start_date)->format('Y-m-d') }} → {{ optional($leave->end_date)->format('Y-m-d') }}
+                                @if (\App\Support\Hris\LeaveDates::looksLikeDateCsv((string) ($leave->remarks ?? '')))
+                                    <span class="mt-1 block text-xs text-slate-500">{{ $leave->remarks }}</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3">{{ number_format((float) $leave->days_wpay, 2) }} / {{ number_format((float) $leave->days_wopay, 2) }}</td>
                             <td class="px-4 py-3">{{ $leave->status_name ?: \App\Support\Hris\LeaveStatuses::nameFor($leave->status !== null ? (int) $leave->status : null) }}</td>
                         </tr>
@@ -159,7 +164,7 @@
                     @forelse ($logs as $log)
                         <tr>
                             <td class="px-4 py-3 text-xs text-slate-500">{{ optional($log->created_at)->format('Y-m-d H:i') ?: '—' }}</td>
-                            <td class="px-4 py-3">{{ $log->action }}</td>
+                            <td class="px-4 py-3">{{ $log->action_name }}</td>
                             <td class="px-4 py-3">{{ number_format((float) $log->vlc, 3) }} / {{ number_format((float) $log->slc, 3) }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $log->remarks }}</td>
                         </tr>

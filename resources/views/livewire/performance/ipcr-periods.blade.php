@@ -17,7 +17,7 @@
     @endif
 
     <section class="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
-        <input wire:model.live.debounce.500ms="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search year / period">
+        <input wire:model.lazy="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search year / period">
     </section>
 
     @if ($showCreate)
@@ -76,7 +76,7 @@
         <div class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4" wire:click="$set('openPeriodId', null)">
             <div class="w-full max-w-lg rounded-md bg-white p-5 shadow-xl" wire:click.stop>
                 <h3 class="mb-3 text-lg font-semibold">Select employee</h3>
-                <input wire:model.live.debounce.400ms="employeeSearch" type="search" class="mb-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employee">
+                <input wire:model.lazy="employeeSearch" type="search" class="mb-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employee">
                 <select wire:model="selectedEmpId" class="mb-4 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" size="8">
                     @foreach ($employees as $emp)
                         <option value="{{ $emp->emp_id }}">{{ $emp->full_name }} ({{ $emp->emp_id }})</option>

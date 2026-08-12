@@ -17,7 +17,7 @@
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
             <label class="min-w-0 flex-1">
                 <span class="sr-only">Search</span>
-                <input wire:model.live.debounce.500ms="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employee or ID">
+                <input wire:model.lazy="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employee or ID">
             </label>
             <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
                 Rows
@@ -56,7 +56,16 @@
                             <p class="text-xs text-slate-500">{{ number_format((float) $leave->days_wpay, 2) }} WP / {{ number_format((float) $leave->days_wopay, 2) }} WOP · {{ $leave->leave_spent ?: '—' }}</p>
                         </td>
                         <td class="px-4 py-3">
-                            <p class="mb-2 text-xs text-slate-600">{{ $leave->remarks ?: '—' }}</p>
+                            <p class="mb-2 text-xs text-slate-600">
+                                @if (\App\Support\Hris\LeaveDates::looksLikeDateCsv((string) ($leave->remarks ?? '')))
+                                    Dates: {{ $leave->remarks }}
+                                @else
+                                    {{ $leave->remarks ?: '—' }}
+                                @endif
+                                @if (! empty($leave->applicant_note))
+                                    <span class="mt-1 block">Note: {{ $leave->applicant_note }}</span>
+                                @endif
+                            </p>
                             @if ($canApprove)
                                 <input wire:model="remarks.{{ $leave->leave_id }}" type="text" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" placeholder="Approver remarks">
                             @endif

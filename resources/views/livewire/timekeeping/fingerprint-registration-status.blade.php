@@ -38,7 +38,7 @@
         <div class="grid gap-3 md:grid-cols-3">
             <div>
                 <label class="text-sm font-medium">Search</label>
-                <input type="search" wire:model.live.debounce.300ms="search" placeholder="emp_id or name"
+                <input type="search" wire:model.lazy="search" placeholder="emp_id or name"
                        class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
             </div>
             <div>

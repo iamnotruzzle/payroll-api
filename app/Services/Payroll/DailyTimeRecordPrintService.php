@@ -9,6 +9,7 @@ use App\Models\Payroll\PayrollDtrAdjustment;
 use App\Models\Payroll\PayrollDtrLabel;
 use App\Models\Payroll\PayrollDtrLabelOption;
 use App\Models\Payroll\PayrollHoliday;
+use App\Support\Hris\LeaveDates;
 use Carbon\CarbonImmutable;
 use FPDF;
 use Illuminate\Http\Response;
@@ -202,7 +203,8 @@ class DailyTimeRecordPrintService
                 ?: $leave->leaveType?->leave_name
                 ?: 'Leave';
 
-            for ($date = CarbonImmutable::parse($leave->start_date); $date->lessThanOrEqualTo(CarbonImmutable::parse($leave->end_date)); $date = $date->addDay()) {
+            foreach (LeaveDates::for($leave) as $dateString) {
+                $date = CarbonImmutable::parse($dateString)->startOfDay();
                 if ($date->betweenIncluded($from, $to)) {
                     $dates[$date->toDateString()] = [
                         'code' => ((float) $leave->days_wopay > 0 && (float) $leave->days_wpay <= 0)

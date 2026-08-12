@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Leave;
 use App\Http\Controllers\Controller;
 use App\Models\Hris\Employee;
 use App\Models\Hris\EmployeeLeave;
-use App\Support\Hris\LeaveStatuses;
+use App\Services\Hris\LeaveApplicationPrintService;
 use Illuminate\View\View;
 
 class LeavePageController extends Controller
@@ -35,10 +35,34 @@ class LeavePageController extends Controller
         return view('leave.reports');
     }
 
-    public function printRequest(int $leaveId): View
+    public function printRequest(int $leaveId, LeaveApplicationPrintService $printer): View
+    {
+        $leave = $this->authorizedLeave($leaveId);
+
+        $user = auth()->user();
+        $backUrl = $user?->can('leave.view') || $user?->can('leave.request') || $user?->can('leave.approve')
+            ? route('leave.requests')
+            : route('self-service.leave');
+
+        // Embed PDF bytes in the HTML page so IDM cannot intercept a second file request.
+        $pdfBinary = $printer->binary($leave);
+
+        return view('leave.print-request', [
+            'leave' => $leave,
+            'pdfBase64' => base64_encode($pdfBinary),
+            'backUrl' => $backUrl,
+        ]);
+    }
+
+    public function printRequestPdf(int $leaveId, LeaveApplicationPrintService $printer)
+    {
+        return $printer->stream($this->authorizedLeave($leaveId));
+    }
+
+    private function authorizedLeave(int $leaveId): EmployeeLeave
     {
         $leave = EmployeeLeave::query()
-            ->with(['leaveType', 'employee.department', 'employee.position', 'statusLookup', 'logs'])
+            ->with(['leaveType', 'employee.department', 'employee.position', 'statusLookup'])
             ->findOrFail($leaveId);
 
         $user = auth()->user();
@@ -50,13 +74,7 @@ class LeavePageController extends Controller
             abort_unless((string) $leave->emp_id === (string) $user->emp_id, 403);
         }
 
-        return view('leave.print-request', [
-            'leave' => $leave,
-            'statusName' => LeaveStatuses::nameFor($leave->status !== null ? (int) $leave->status : null),
-            'backUrl' => $user?->can('leave.view') || $user?->can('leave.request') || $user?->can('leave.approve')
-                ? route('leave.requests')
-                : route('self-service.leave'),
-        ]);
+        return $leave;
     }
 
     public function printCard(string $empId): View

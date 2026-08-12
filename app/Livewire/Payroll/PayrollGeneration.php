@@ -38,6 +38,7 @@ use App\Services\Payroll\PayrollTaxService;
 use App\Services\Payroll\RegularPayrollTemplateExportService;
 use App\Services\Payroll\StatutoryContributionService;
 use App\Services\Payroll\TaxInputImportService;
+use App\Support\Hris\LeaveDates;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -323,8 +324,8 @@ class PayrollGeneration extends Component
 
         return match ((int) $step) {
             1 => $this->canEditStep1HrFields() || $this->canEditStep1TevField(),
-            2, 8, 9 => $this->canEditPayrollGenerationHr() || $this->canEditPayrollGenerationAccounting(),
-            3, 4, 5, 6, 7 => $this->canEditPayrollGenerationHr(),
+            2, 7, 8 => $this->canEditPayrollGenerationHr() || $this->canEditPayrollGenerationAccounting(),
+            3, 4, 5, 6 => $this->canEditPayrollGenerationHr(),
             default => false,
         };
     }
@@ -398,7 +399,7 @@ class PayrollGeneration extends Component
 
     public function confirmProgramRoster(): void
     {
-        if (! $this->ensureStepCanBeEdited(5)) {
+        if (! $this->ensureStepCanBeEdited(4)) {
             return;
         }
 
@@ -484,7 +485,7 @@ class PayrollGeneration extends Component
 
     public function applyDeductionProgram(int $programId): void
     {
-        if (! $this->ensureStepCanBeEdited(5)) {
+        if (! $this->ensureStepCanBeEdited(4)) {
             return;
         }
 
@@ -498,7 +499,7 @@ class PayrollGeneration extends Component
 
     public function removeDeductionProgram(int $programId): void
     {
-        if (! $this->ensureStepCanBeEdited(5)) {
+        if (! $this->ensureStepCanBeEdited(4)) {
             return;
         }
 
@@ -875,7 +876,7 @@ class PayrollGeneration extends Component
 
     public function importTaxAnnualizationLookup(): void
     {
-        if (! $this->ensureStepCanBeEdited(8)) {
+        if (! $this->ensureStepCanBeEdited(7)) {
             return;
         }
 
@@ -907,7 +908,7 @@ class PayrollGeneration extends Component
 
     public function confirmTaxInputImport(): void
     {
-        if (! $this->ensureStepCanBeEdited(8)) {
+        if (! $this->ensureStepCanBeEdited(7)) {
             return;
         }
 
@@ -949,7 +950,7 @@ class PayrollGeneration extends Component
             'leavePeriodEnd' => ['required', 'date', 'after_or_equal:leavePeriodStart'],
         ];
 
-        if ($this->currentStep === 7) {
+        if ($this->currentStep === 6) {
             $rules += [
                 'loanRefunds.*.amount' => ['nullable', 'numeric', 'min:0'],
                 'loanRefunds.*.loan_type' => ['nullable', 'string', 'max:255'],
@@ -957,7 +958,7 @@ class PayrollGeneration extends Component
             ];
         }
 
-        if ($this->currentStep === 5) {
+        if ($this->currentStep === 4) {
             $rules += [
                 'deductionProgramSelections.*.employee_overrides.*' => ['nullable', 'numeric', 'min:0'],
             ];
@@ -1035,7 +1036,7 @@ class PayrollGeneration extends Component
 
     private function applyBrowserDeductionProgramState(array $programs): void
     {
-        if ($this->currentStep !== 5 || $programs === []) {
+        if ($this->currentStep !== 4 || $programs === []) {
             return;
         }
 
@@ -1077,6 +1078,7 @@ class PayrollGeneration extends Component
         $state = [
             ...$this->existingDraftState(),
             'wizard_step_count' => count($this->steps),
+            'wizard_layout' => PayrollGenerationDraft::WIZARD_LAYOUT,
             'selected_division_ids' => $this->selectedDivisionIds,
             'selected_department_ids' => $this->selectedDepartmentIds,
             'leave_period_start' => $this->leavePeriodStart,
@@ -1085,24 +1087,24 @@ class PayrollGeneration extends Component
 
         return match ($this->currentStep) {
             1 => $this->mergeStepOneDraftState($state),
-            3 => [
+            2 => [
                 ...$state,
                 'compensation_adjustments' => $this->compensationAdjustments,
                 'selected_adjustment_type_ids' => $this->selectedAdjustmentTypeIds,
             ],
-            4 => [
+            3 => [
                 ...$state,
                 'mandatory_deduction_adjustments' => $this->mandatoryDeductionAdjustments,
             ],
-            5 => [
+            4 => [
                 ...$state,
                 'deduction_program_selections' => $this->deductionProgramSelections,
             ],
-            7 => [
+            6 => [
                 ...$state,
                 'loan_refunds' => $this->loanRefunds,
             ],
-            8 => [
+            7 => [
                 ...$state,
                 'tax_annualization_overrides' => $this->taxAnnualizationOverrides,
             ],
@@ -1275,7 +1277,7 @@ class PayrollGeneration extends Component
 
     public function saveEmployeeAdjustment(string $empId, int $typeId, string $operator, mixed $amount): void
     {
-        if (! $this->ensureStepCanBeEdited(3)) {
+        if (! $this->ensureStepCanBeEdited(2)) {
             return;
         }
 
@@ -1307,7 +1309,7 @@ class PayrollGeneration extends Component
 
     public function removeEmployeeAdjustmentType(string $empId, int $typeId): void
     {
-        if (! $this->ensureStepCanBeEdited(3)) {
+        if (! $this->ensureStepCanBeEdited(2)) {
             return;
         }
 
@@ -1317,7 +1319,7 @@ class PayrollGeneration extends Component
 
     public function exportRegularPayrollTemplate(RegularPayrollTemplateExportService $exporter)
     {
-        if (! $this->ensureStepCanBeEdited(9, 'You can review this payroll but cannot export it.')) {
+        if (! $this->ensureStepCanBeEdited(8, 'You can review this payroll but cannot export it.')) {
             return null;
         }
 
@@ -1386,8 +1388,8 @@ class PayrollGeneration extends Component
                 ->values(),
             'allAdjustmentTypes' => $allAdjustmentTypes,
             'adjustmentTypes' => $adjustmentTypes,
-            'loanTypes' => $this->currentStep === 7 ? $this->loanTypes(false) : collect(),
-            'additionalPremiumTypes' => $this->currentStep === 6 ? $this->loanTypes(true) : collect(),
+            'loanTypes' => $this->currentStep === 6 ? $this->loanTypes(false) : collect(),
+            'additionalPremiumTypes' => $this->currentStep === 5 ? $this->loanTypes(true) : collect(),
             'rows' => $rows,
             'previousMraPeriod' => $previousMraPeriod,
             'previousMraReport' => $previousMraReport,
@@ -1427,14 +1429,14 @@ class PayrollGeneration extends Component
 
     private function needsAdjustmentTypeOptions(): bool
     {
-        return in_array($this->currentStep, [3, 9], true)
+        return in_array($this->currentStep, [2, 8], true)
             || $this->selectedAdjustmentTypeIds !== []
             || $this->compensationAdjustments !== [];
     }
 
     private function needsPayrollTotals(): bool
     {
-        return in_array($this->currentStep, [3, 8, 9], true);
+        return in_array($this->currentStep, [2, 7, 8], true);
     }
 
     private function payrollTotals(Collection $rows, Collection $compensations): array
@@ -2221,17 +2223,17 @@ class PayrollGeneration extends Component
 
     private function currentDeductionImportMode(): string
     {
-        return $this->currentStep === 6 ? 'additional_premiums' : 'loans';
+        return $this->currentStep === 5 ? 'additional_premiums' : 'loans';
     }
 
     private function currentDeductionLabel(): string
     {
-        return $this->currentStep === 6 ? 'additional premium deduction' : 'loan deduction';
+        return $this->currentStep === 5 ? 'additional premium deduction' : 'loan deduction';
     }
 
     private function currentDeductionTypeLabel(): string
     {
-        return $this->currentStep === 6 ? 'premium' : 'loan';
+        return $this->currentStep === 5 ? 'premium' : 'loan';
     }
 
     private function loanTypeMatchesCurrentDeductionStep(PayrollLoanType $loanType): bool
@@ -2241,7 +2243,7 @@ class PayrollGeneration extends Component
         $isPremiumType = in_array($entityCode, self::ADDITIONAL_PREMIUM_ENTITY_CODES, true)
             || in_array($entityName, self::ADDITIONAL_PREMIUM_ENTITY_CODES, true);
 
-        return $this->currentStep === 6 ? $isPremiumType : ! $isPremiumType;
+        return $this->currentStep === 5 ? $isPremiumType : ! $isPremiumType;
     }
 
     private function isAdditionalPremiumItem(PayrollLoanImportItem $item): bool
@@ -2315,7 +2317,7 @@ class PayrollGeneration extends Component
 
     private function manualLoanImportFor(CarbonImmutable $periodStart): \App\Models\Payroll\PayrollLoanImport
     {
-        $isPremium = $this->currentStep === 6;
+        $isPremium = $this->currentStep === 5;
 
         return \App\Models\Payroll\PayrollLoanImport::query()->firstOrCreate(
             [
@@ -2506,8 +2508,13 @@ class PayrollGeneration extends Component
     private function editableLeaveDateFor(EmployeeLeave $leave, CarbonImmutable $periodStart, CarbonImmutable $periodEnd, Collection $processedDates): array
     {
         $key = (string) $leave->leave_id;
-        $originalStart = CarbonImmutable::parse($leave->start_date);
-        $originalEnd = CarbonImmutable::parse($leave->end_date);
+        $authoritativeDates = collect(LeaveDates::for($leave));
+        $originalStart = $authoritativeDates->isNotEmpty()
+            ? CarbonImmutable::parse($authoritativeDates->first())
+            : CarbonImmutable::parse($leave->start_date);
+        $originalEnd = $authoritativeDates->isNotEmpty()
+            ? CarbonImmutable::parse($authoritativeDates->last())
+            : CarbonImmutable::parse($leave->end_date);
         $defaultStart = $originalStart->max($periodStart);
         $defaultEnd = $originalEnd->min($periodEnd);
         $this->leaveDateOverrides[$key]['start_date'] ??= $defaultStart->toDateString();
@@ -2527,10 +2534,23 @@ class PayrollGeneration extends Component
 
         $this->leaveDateOverrides[$key]['start_date'] = $start->toDateString();
         $this->leaveDateOverrides[$key]['end_date'] = $end->toDateString();
-        $rangeDates = collect();
-        for ($date = $start; $date->lessThanOrEqualTo($end); $date = $date->addDay()) {
-            $rangeDates->push($date->toDateString());
+
+        // Prefer remarks CSV (itemized) clipped by override window; never invent weekend gaps.
+        $rangeDates = $authoritativeDates
+            ->filter(function (string $date) use ($start, $end) {
+                $parsed = CarbonImmutable::parse($date);
+
+                return $parsed->betweenIncluded($start, $end);
+            })
+            ->values();
+
+        if ($authoritativeDates->isEmpty()) {
+            $rangeDates = collect();
+            for ($date = $start; $date->lessThanOrEqualTo($end); $date = $date->addDay()) {
+                $rangeDates->push($date->toDateString());
+            }
         }
+
         $processedInRange = $rangeDates
             ->filter(fn (string $date) => $processedDates->has($date))
             ->map(fn (string $date) => ['date' => $date, ...$processedDates->get($date)])
@@ -2743,7 +2763,7 @@ class PayrollGeneration extends Component
             return true;
         }
 
-        $this->currentStep = 3;
+        $this->currentStep = 2;
         if ($missingRemarks->isNotEmpty()) {
             $names = $missingRemarks->take(3)->implode(', ');
             $suffix = $missingRemarks->count() > 3 ? ' and others' : '';
@@ -3733,7 +3753,7 @@ class PayrollGeneration extends Component
 
     public function finalizePayroll(): void
     {
-        if (! $this->ensureStepCanBeEdited(9, 'You can review this payroll but cannot finalize it.')) {
+        if (! $this->ensureStepCanBeEdited(8, 'You can review this payroll but cannot finalize it.')) {
             return;
         }
 

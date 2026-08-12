@@ -16,6 +16,13 @@ class EmployeePageController extends Controller
         return view('employees.index');
     }
 
+    public function create(): View
+    {
+        abort_unless(auth()->user()?->can('employees.manage'), 403);
+
+        return view('employees.create');
+    }
+
     public function show(string $empId): View
     {
         return view('employees.show', [

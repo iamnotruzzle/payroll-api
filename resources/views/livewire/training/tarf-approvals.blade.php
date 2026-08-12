@@ -12,7 +12,7 @@
     @endif
 
     <section class="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
-        <input wire:model.live.debounce.500ms="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search TARF or employee">
+        <input wire:model.lazy="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search TARF or employee">
     </section>
 
     <section class="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
@@ -52,6 +52,23 @@
                                     <button wire:click="approvePetu('{{ $tarf->tarf_no }}')" type="button" class="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">PETU Approve</button>
                                     <button wire:click="disapprovePetu('{{ $tarf->tarf_no }}')" wire:confirm="Disapprove this TARF?" type="button" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">Disapprove</button>
                                 @else
+                                    <div class="mb-2 space-y-1 text-left">
+                                        @foreach ($tarf->requests as $request)
+                                            <label class="flex items-center justify-end gap-2 text-xs text-slate-600">
+                                                <span class="truncate">{{ $request->employee?->lastname ?: $request->emp_id }}</span>
+                                                <select wire:model="obOt.{{ $tarf->tarf_no }}.{{ $request->emp_id }}" class="rounded border border-slate-300 px-2 py-1 text-xs">
+                                                    <option value="0">Personal</option>
+                                                    <option value="1">OB</option>
+                                                    <option value="2">OT</option>
+                                                    <option value="3">Disapprove pax</option>
+                                                </select>
+                                            </label>
+                                        @endforeach
+                                        <label class="mt-1 flex items-center justify-end gap-2 text-xs text-slate-600">
+                                            <input wire:model="approveAsOt" type="checkbox" class="rounded border-slate-300">
+                                            Approve as OT status
+                                        </label>
+                                    </div>
                                     <button wire:click="approveMcc('{{ $tarf->tarf_no }}')" type="button" class="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">MCC Approve</button>
                                     <button wire:click="disapproveMcc('{{ $tarf->tarf_no }}')" wire:confirm="Disapprove this TARF?" type="button" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">Disapprove</button>
                                 @endif

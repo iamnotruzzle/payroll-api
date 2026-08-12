@@ -42,6 +42,11 @@ class WebLoginController extends Controller
                 ->onlyInput('emp_id');
         }
 
+        if ((int) ($user?->login_attempt ?? 1) === 0) {
+            return redirect()->route('self-service.profile')
+                ->with('status', 'Please review and save your profile before continuing.');
+        }
+
         return redirect()->intended(route('home'));
     }
 

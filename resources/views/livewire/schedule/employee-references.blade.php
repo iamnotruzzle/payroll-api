@@ -16,7 +16,7 @@
     <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h3 class="font-semibold">References</h3>
-            <input wire:model.live.debounce.250ms="search" placeholder="Search employee" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-72">
+            <input wire:model.lazy="search" placeholder="Search employee" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-72">
         </div>
 
         <div class="overflow-x-auto">

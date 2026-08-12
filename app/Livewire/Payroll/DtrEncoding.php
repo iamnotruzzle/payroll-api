@@ -15,6 +15,7 @@ use App\Models\Payroll\PayrollTimeTemplate;
 use App\Models\Schedule\MonthlySchedule;
 use App\Models\Schedule\ScheduleAssignment;
 use App\Services\Payroll\SchedulerDtrSyncService;
+use App\Support\Hris\LeaveDates;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\DB;
@@ -543,10 +544,14 @@ class DtrEncoding extends Component
             ->whereDate('end_date', '>=', $this->from)
             ->whereDoesntHave('logs', fn ($query) => $query->whereIn('action', [2, 3]));
 
+        $from = CarbonImmutable::parse($this->from);
+        $to = CarbonImmutable::parse($this->to);
+
         foreach ($query->get() as $leave) {
             $leaveLabel = $this->leaveLabelFor($leave);
-            for ($date = CarbonImmutable::parse($leave->start_date); $date->lessThanOrEqualTo(CarbonImmutable::parse($leave->end_date)); $date = $date->addDay()) {
-                if ($date->betweenIncluded(CarbonImmutable::parse($this->from), CarbonImmutable::parse($this->to))) {
+            foreach (LeaveDates::for($leave) as $dateString) {
+                $date = CarbonImmutable::parse($dateString)->startOfDay();
+                if ($date->betweenIncluded($from, $to)) {
                     $dates[$date->toDateString()] = $leaveLabel;
                 }
             }

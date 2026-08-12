@@ -3,9 +3,58 @@
 namespace App\Services\Hris;
 
 use App\Models\Hris\Employee;
+use App\Models\Hris\UserAccount;
+use App\Models\Role;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class EmployeeProfileWriteService
 {
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{employee: Employee, temporary_password: ?string}
+     */
+    public function createEmployee(array $data, bool $provisionAccount = true): array
+    {
+        $empId = $this->normalizeEmpId((string) $data['emp_id']);
+
+        if (Employee::query()->where('emp_id', $empId)->exists()) {
+            throw ValidationException::withMessages([
+                'emp_id' => 'Employee number is already in use.',
+            ]);
+        }
+
+        return DB::connection('hris')->transaction(function () use ($data, $empId, $provisionAccount) {
+            $employee = new Employee;
+            $employee->emp_id = $empId;
+            $employee->fill($this->coreAttributes($data) + [
+                'position_id' => $data['position_id'] ?: null,
+                'department_id' => $data['department_id'] ?: null,
+                'empstat_id' => $data['empstat_id'] ?: null,
+                'is_active' => 'Y',
+            ]);
+            $employee->save();
+
+            app(EmploymentHistoryService::class)->seedFromEmployeeIfEmpty(
+                $employee,
+                auth()->user()?->emp_id
+            );
+
+            $temporaryPassword = null;
+            if ($provisionAccount && ! UserAccount::query()->where('emp_id', $empId)->exists()) {
+                $temporaryPassword = $this->provisionDefaultAccount(
+                    $empId,
+                    auth()->user()?->emp_id
+                );
+            }
+
+            return [
+                'employee' => $employee->fresh(['department', 'position', 'employmentStatus']),
+                'temporary_password' => $temporaryPassword,
+            ];
+        });
+    }
+
     /**
      * @param  array<string, mixed>  $data
      */
@@ -13,7 +62,85 @@ class EmployeeProfileWriteService
     {
         $employee = Employee::query()->where('emp_id', $empId)->firstOrFail();
 
-        $employee->fill([
+        $employee->fill($this->coreAttributes($data));
+        $employee->save();
+
+        return $employee->fresh(['department', 'position']);
+    }
+
+    /**
+     * @param  array{date_separated?:?string,separation_reason?:?string}  $meta
+     */
+    public function setActive(string $empId, bool $isActive, array $meta = []): Employee
+    {
+        $employee = Employee::query()->where('emp_id', $empId)->firstOrFail();
+        $employee->is_active = $isActive ? 'Y' : 'N';
+
+        if (! $isActive) {
+            if (! empty($meta['date_separated'])) {
+                $employee->separationdate = $meta['date_separated'];
+            }
+            if (! empty($meta['separation_reason'])) {
+                $employee->separationtype = $meta['separation_reason'];
+            }
+        }
+
+        $employee->save();
+
+        return $employee->fresh(['department', 'position']);
+    }
+
+    public function clearLoginAttempt(string $empId): void
+    {
+        UserAccount::query()
+            ->where('emp_id', $empId)
+            ->where(function ($query) {
+                $query->whereNull('login_attempt')->orWhere('login_attempt', 0);
+            })
+            ->update(['login_attempt' => 1]);
+    }
+
+    public function provisionDefaultAccount(string $empId, ?string $createdByEmpId = null): string
+    {
+        $temporary = 'ChangeMe'.random_int(1000, 9999).'!';
+
+        $account = UserAccount::query()->create([
+            'emp_id' => $empId,
+            'username' => $empId,
+            'password' => $temporary,
+            'login_attempt' => 0,
+            'user_level' => 4,
+            'created_by' => is_numeric($createdByEmpId) ? (int) $createdByEmpId : null,
+        ]);
+
+        if (Role::query()->where('name', 'employee')->where('guard_name', 'web')->exists()) {
+            $account->assignRole('employee');
+        }
+
+        return $temporary;
+    }
+
+    public function normalizeEmpId(string $empId): string
+    {
+        $trimmed = trim($empId);
+        if ($trimmed === '') {
+            return $trimmed;
+        }
+
+        if (ctype_digit($trimmed) && strlen($trimmed) < 6) {
+            return str_pad($trimmed, 6, '0', STR_PAD_LEFT);
+        }
+
+        return $trimmed;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function coreAttributes(array $data): array
+    {
+        return [
             'firstname' => $data['firstname'],
             'middlename' => $data['middlename'] ?: null,
             'lastname' => $data['lastname'],
@@ -29,8 +156,8 @@ class EmployeeProfileWriteService
             'gender' => $data['sex'] ?: null,
             'civil_stat' => $data['civil_status'] ?: null,
             'blood_type' => $data['blood_type'] ?: null,
-            'citizenship' => $data['citizenship'] ?: null,
-            'religion' => $data['religion'] ?: null,
+            'citizenship_id' => $data['citizenship'] ?: null,
+            'religion_id' => $data['religion'] ?: null,
             'height' => $data['height'] !== '' && $data['height'] !== null ? $data['height'] : null,
             'weight' => $data['weight'] !== '' && $data['weight'] !== null ? $data['weight'] : null,
             'tin_no' => $data['tin_no'] ?: null,
@@ -53,23 +180,7 @@ class EmployeeProfileWriteService
             'is_indigenous' => $this->ynOrNull($data['is_indigenous'] ?? null),
             'is_pwd' => $this->ynOrNull($data['is_pwd'] ?? null),
             'is_soloparent' => $this->ynOrNull($data['is_solo_parent'] ?? null),
-        ]);
-
-        $employee->save();
-
-        return $employee->fresh(['department', 'position']);
-    }
-
-    /**
-     * @param  array{date_separated?:?string,separation_reason?:?string}  $meta
-     */
-    public function setActive(string $empId, bool $isActive, array $meta = []): Employee
-    {
-        $employee = Employee::query()->where('emp_id', $empId)->firstOrFail();
-        $employee->is_active = $isActive ? 'Y' : 'N';
-        $employee->save();
-
-        return $employee->fresh(['department', 'position']);
+        ];
     }
 
     private function ynOrNull(mixed $value): ?string

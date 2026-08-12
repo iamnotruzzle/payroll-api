@@ -19,7 +19,7 @@
 
     <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <label class="text-sm font-medium">Employee Search</label>
-        <input wire:model.live.debounce.500ms="search" type="search" placeholder="Filter hazard payroll rows by employee ID or name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+        <input wire:model.lazy="search" type="search" placeholder="Filter hazard payroll rows by employee ID or name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
     </div>
 
     <div class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
@@ -156,11 +156,11 @@
                                     'previous_tax_withheld',
                                 ] as $taxField)
                                     <td class="px-4 py-3 text-right">
-                                        <input wire:model.live.debounce.250ms="taxOverrides.{{ $row['emp_id'] }}.{{ $taxField }}" type="number" min="0" step="0.01" placeholder="{{ number_format($row['tax'][$taxField] ?? 0, 2, '.', '') }}" class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                        <input wire:model.lazy="taxOverrides.{{ $row['emp_id'] }}.{{ $taxField }}" type="number" min="0" step="0.01" placeholder="{{ number_format($row['tax'][$taxField] ?? 0, 2, '.', '') }}" class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
                                     </td>
                                 @endforeach
                                 <td class="px-4 py-3 text-right">
-                                    <input wire:model.live.debounce.250ms="taxOverrides.{{ $row['emp_id'] }}.withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
+                                    <input wire:model.lazy="taxOverrides.{{ $row['emp_id'] }}.withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm">
                                 </td>
                                 <td class="px-4 py-3">{{ $row['tax']['entry_date'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">{{ $row['tax']['salary_grade'] ?? '-' }}</td>

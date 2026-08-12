@@ -4,11 +4,15 @@ namespace App\Services\Hris;
 
 use App\Models\Hris\Employee;
 use App\Models\Hris\EmployeeLeave;
+use App\Models\Hris\EmployeeLeaveCreditLedger;
 use App\Models\Hris\EmployeeLeaveLog;
 use App\Models\Hris\LeaveType;
+use App\Support\Hris\LeaveDates;
 use App\Support\Hris\LeaveStatuses;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class LeaveService
@@ -28,40 +32,114 @@ class LeaveService
 
     public const ACTION_CREDIT_DEBIT = 6;
 
+    public const ACTION_LWOP_BALANCE = 7;
+
     /** Statuses used for credit ledger rows, not leave applications. */
     public const LEDGER_STATUS_IDS = [4, 5, 6];
+
+    /**
+     * Human-readable label for tbl_leave_log.action (aligned with tbl_leave_status + LWOP).
+     */
+    public static function actionName(?int $action): string
+    {
+        if ($action === null) {
+            return 'Unknown';
+        }
+
+        if ($action === self::ACTION_LWOP_BALANCE) {
+            return 'LWOP balance';
+        }
+
+        $fromLookup = LeaveStatuses::nameFor($action);
+        if ($fromLookup !== '' && ! str_starts_with($fromLookup, 'Status #')) {
+            return $fromLookup;
+        }
+
+        return match ($action) {
+            self::ACTION_FILED => 'Filed / Pending',
+            self::ACTION_APPROVED => 'Approved',
+            self::ACTION_DISAPPROVED => 'Disapproved',
+            self::ACTION_CANCELLED => 'Cancelled',
+            self::ACTION_CREDIT_ACCRUAL => 'Credit accrual (gain)',
+            self::ACTION_CREDIT_UPDATE => 'Credit update',
+            self::ACTION_CREDIT_DEBIT => 'Credit debit',
+            default => "Action #{$action}",
+        };
+    }
 
     /**
      * @param  array{
      *     emp_id: string,
      *     leave_type: int,
-     *     start_date: string,
-     *     end_date: string,
+     *     start_date?: string|null,
+     *     end_date?: string|null,
+     *     selected_dates?: list<string>|string|null,
+     *     date_mode?: string|null,
      *     filing_date?: string|null,
      *     remarks?: string|null,
+     *     applicant_note?: string|null,
      *     days_wpay?: float|int|string|null,
      *     days_wopay?: float|int|string|null,
+     *     auto_split_credits?: bool|null,
      *     commutation?: string|null,
      *     leave_spent?: string|null,
-     *     leave_spent_to?: string|null
+     *     leave_spent_to?: string|null,
+     *     skip_overlap_check?: bool|null
      * }  $data
      */
     public function apply(array $data, string $actionByEmpId): EmployeeLeave
     {
         $employee = $this->employeeOrFail($data['emp_id']);
         $leaveType = $this->leaveTypeOrFail((int) $data['leave_type']);
-        [$start, $end] = $this->assertDateRange($data['start_date'], $data['end_date']);
 
-        $daysWpay = $this->nullableFloat($data['days_wpay'] ?? null);
-        $daysWopay = $this->nullableFloat($data['days_wopay'] ?? null);
+        $mode = (string) ($data['date_mode'] ?? LeaveDates::MODE_WEEKDAYS);
+        $selected = LeaveDates::resolveSelection(
+            $mode,
+            $data['start_date'] ?? null,
+            $data['end_date'] ?? null,
+            $data['selected_dates'] ?? null,
+        );
+        LeaveDates::assertNonEmpty($selected);
 
-        if ($daysWpay === null && $daysWopay === null) {
-            $daysWpay = (float) ($start->diffInDays($end) + 1);
-            $daysWopay = 0.0;
+        $start = CarbonImmutable::parse($selected[0])->startOfDay();
+        $end = CarbonImmutable::parse($selected[array_key_last($selected)])->startOfDay();
+        $dateCsv = LeaveDates::toCsv($selected);
+        $dayCount = (float) count($selected);
+
+        if (empty($data['skip_overlap_check'])) {
+            $this->assertNoOverlap($employee->emp_id, $selected);
         }
 
-        return DB::connection('hris')->transaction(function () use ($data, $actionByEmpId, $employee, $leaveType, $start, $end, $daysWpay, $daysWopay) {
-            $leave = EmployeeLeave::query()->create([
+        $manualWpay = $this->nullableFloat($data['days_wpay'] ?? null);
+        $manualWopay = $this->nullableFloat($data['days_wopay'] ?? null);
+        $autoSplit = array_key_exists('auto_split_credits', $data)
+            ? (bool) $data['auto_split_credits']
+            : ($manualWpay === null && $manualWopay === null);
+
+        return DB::connection('hris')->transaction(function () use (
+            $data,
+            $actionByEmpId,
+            $employee,
+            $leaveType,
+            $start,
+            $end,
+            $dateCsv,
+            $dayCount,
+            $manualWpay,
+            $manualWopay,
+            $autoSplit,
+        ) {
+            [$daysWpay, $daysWopay, $borrowedVl] = $autoSplit
+                ? $this->splitCredits($employee, $leaveType, $dayCount)
+                : [
+                    $manualWpay ?? $dayCount,
+                    $manualWopay ?? 0.0,
+                    0.0,
+                ];
+
+            $this->assertDayCountConsistency($dayCount, $daysWpay, $daysWopay, $leaveType);
+
+            $payload = [
                 'emp_id' => $employee->emp_id,
                 'leave_type' => $leaveType->leave_type_id,
                 'leave_spent' => $data['leave_spent'] ?? null,
@@ -70,11 +148,29 @@ class LeaveService
                 'filing_date' => $data['filing_date'] ?? now()->toDateString(),
                 'start_date' => $start->toDateString(),
                 'end_date' => $end->toDateString(),
-                'remarks' => $data['remarks'] ?? null,
-                'days_wpay' => $daysWpay ?? 0,
-                'days_wopay' => $daysWopay ?? 0,
+                'remarks' => $dateCsv,
+                'days_wpay' => $daysWpay,
+                'days_wopay' => $daysWopay,
                 'status' => LeaveStatuses::idFor(LeaveStatuses::PENDING),
-            ]);
+            ];
+
+            if ($this->hasApplicantNoteColumn()) {
+                $payload['applicant_note'] = $data['applicant_note'] ?? null;
+            }
+
+            $leave = EmployeeLeave::query()->create($payload);
+
+            // Legacy parity: deduct with-pay credits on apply (approve only flips status).
+            $this->applyCreditImpact(
+                $employee,
+                $leaveType,
+                $daysWpay,
+                $borrowedVl,
+                deduct: true,
+                source: EmployeeLeaveCreditLedger::SOURCE_APPLY,
+                leave: $leave,
+                recordedBy: $actionByEmpId,
+            );
 
             $this->writeLog(
                 $leave,
@@ -82,7 +178,23 @@ class LeaveService
                 $actionByEmpId,
                 'Applied for '.($leaveType->leave_name ?: 'leave'),
                 $employee,
+                $daysWpay,
             );
+
+            if ($borrowedVl > 0) {
+                $this->writeLog(
+                    $leave,
+                    self::ACTION_FILED,
+                    $actionByEmpId,
+                    'Borrowed from VL',
+                    $employee,
+                    $borrowedVl,
+                );
+            }
+
+            if ($daysWopay >= 1) {
+                $this->addLeaveWithoutPayRecord($leave, $employee, $actionByEmpId, $daysWopay);
+            }
 
             return $leave->fresh(['leaveType', 'logs']);
         });
@@ -91,12 +203,16 @@ class LeaveService
     /**
      * @param  array{
      *     leave_type?: int,
-     *     start_date?: string,
-     *     end_date?: string,
+     *     start_date?: string|null,
+     *     end_date?: string|null,
+     *     selected_dates?: list<string>|string|null,
+     *     date_mode?: string|null,
      *     filing_date?: string|null,
      *     remarks?: string|null,
+     *     applicant_note?: string|null,
      *     days_wpay?: float|int|string|null,
      *     days_wopay?: float|int|string|null,
+     *     auto_split_credits?: bool|null,
      *     commutation?: string|null,
      *     leave_spent?: string|null,
      *     leave_spent_to?: string|null
@@ -110,12 +226,56 @@ class LeaveService
             ? $this->leaveTypeOrFail((int) $data['leave_type'])
             : $this->leaveTypeOrFail((int) $leave->leave_type);
 
-        $startDate = $data['start_date'] ?? optional($leave->start_date)?->toDateString() ?? (string) $leave->start_date;
-        $endDate = $data['end_date'] ?? optional($leave->end_date)?->toDateString() ?? (string) $leave->end_date;
-        [$start, $end] = $this->assertDateRange($startDate, $endDate);
+        $employee = $this->employeeOrFail($leave->emp_id);
 
-        return DB::connection('hris')->transaction(function () use ($leave, $data, $actionByEmpId, $leaveType, $start, $end) {
-            $leave->forceFill([
+        $mode = (string) ($data['date_mode'] ?? LeaveDates::MODE_WEEKDAYS);
+        $selected = LeaveDates::resolveSelection(
+            $mode,
+            $data['start_date'] ?? optional($leave->start_date)?->toDateString(),
+            $data['end_date'] ?? optional($leave->end_date)?->toDateString(),
+            $data['selected_dates'] ?? LeaveDates::for($leave),
+        );
+        LeaveDates::assertNonEmpty($selected);
+        $this->assertNoOverlap($employee->emp_id, $selected, (int) $leave->leave_id);
+
+        $start = CarbonImmutable::parse($selected[0])->startOfDay();
+        $end = CarbonImmutable::parse($selected[array_key_last($selected)])->startOfDay();
+        $dateCsv = LeaveDates::toCsv($selected);
+        $dayCount = (float) count($selected);
+
+        $manualWpay = array_key_exists('days_wpay', $data) ? $this->nullableFloat($data['days_wpay']) : null;
+        $manualWopay = array_key_exists('days_wopay', $data) ? $this->nullableFloat($data['days_wopay']) : null;
+        $autoSplit = array_key_exists('auto_split_credits', $data)
+            ? (bool) $data['auto_split_credits']
+            : ($manualWpay === null && $manualWopay === null);
+
+        return DB::connection('hris')->transaction(function () use (
+            $leave,
+            $data,
+            $actionByEmpId,
+            $employee,
+            $leaveType,
+            $start,
+            $end,
+            $dateCsv,
+            $dayCount,
+            $manualWpay,
+            $manualWopay,
+            $autoSplit,
+        ) {
+            $this->restoreApplyImpact($leave, $employee, $actionByEmpId);
+
+            [$daysWpay, $daysWopay, $borrowedVl] = $autoSplit
+                ? $this->splitCredits($employee->fresh(), $leaveType, $dayCount)
+                : [
+                    $manualWpay ?? $dayCount,
+                    $manualWopay ?? 0.0,
+                    0.0,
+                ];
+
+            $this->assertDayCountConsistency($dayCount, $daysWpay, $daysWopay, $leaveType);
+
+            $fill = [
                 'leave_type' => $leaveType->leave_type_id,
                 'leave_spent' => array_key_exists('leave_spent', $data) ? $data['leave_spent'] : $leave->leave_spent,
                 'leave_spent_to' => array_key_exists('leave_spent_to', $data) ? $data['leave_spent_to'] : $leave->leave_spent_to,
@@ -123,12 +283,38 @@ class LeaveService
                 'filing_date' => $data['filing_date'] ?? $leave->filing_date,
                 'start_date' => $start->toDateString(),
                 'end_date' => $end->toDateString(),
-                'remarks' => array_key_exists('remarks', $data) ? $data['remarks'] : $leave->remarks,
-                'days_wpay' => array_key_exists('days_wpay', $data) ? ($this->nullableFloat($data['days_wpay']) ?? 0) : $leave->days_wpay,
-                'days_wopay' => array_key_exists('days_wopay', $data) ? ($this->nullableFloat($data['days_wopay']) ?? 0) : $leave->days_wopay,
-            ])->save();
+                'remarks' => $dateCsv,
+                'days_wpay' => $daysWpay,
+                'days_wopay' => $daysWopay,
+            ];
 
-            $this->writeLog($leave, self::ACTION_FILED, $actionByEmpId, 'Leave application updated.');
+            if ($this->hasApplicantNoteColumn() && array_key_exists('applicant_note', $data)) {
+                $fill['applicant_note'] = $data['applicant_note'];
+            }
+
+            $leave->forceFill($fill)->save();
+
+            $this->applyCreditImpact(
+                $employee,
+                $leaveType,
+                $daysWpay,
+                $borrowedVl,
+                deduct: true,
+                source: EmployeeLeaveCreditLedger::SOURCE_APPLY,
+                leave: $leave,
+                recordedBy: $actionByEmpId,
+                remarks: 'Leave application updated',
+            );
+
+            $this->writeLog($leave, self::ACTION_FILED, $actionByEmpId, 'Leave application updated.', $employee, $daysWpay);
+
+            if ($borrowedVl > 0) {
+                $this->writeLog($leave, self::ACTION_FILED, $actionByEmpId, 'Borrowed from VL', $employee, $borrowedVl);
+            }
+
+            if ($daysWopay >= 1) {
+                $this->addLeaveWithoutPayRecord($leave, $employee, $actionByEmpId, $daysWopay);
+            }
 
             return $leave->fresh(['leaveType', 'logs']);
         });
@@ -144,12 +330,9 @@ class LeaveService
             ]);
         }
 
-        return DB::connection('hris')->transaction(function () use ($leave, $actionByEmpId, $remarks, $key) {
+        return DB::connection('hris')->transaction(function () use ($leave, $actionByEmpId, $remarks) {
             $employee = $this->employeeOrFail($leave->emp_id);
-
-            if ($key === LeaveStatuses::APPROVED) {
-                $this->restoreCredits($employee, $leave);
-            }
+            $this->restoreApplyImpact($leave, $employee, $actionByEmpId);
 
             $leave->forceFill([
                 'status' => LeaveStatuses::idFor(LeaveStatuses::CANCELLED),
@@ -173,8 +356,8 @@ class LeaveService
 
         return DB::connection('hris')->transaction(function () use ($leave, $actionByEmpId, $remarks) {
             $employee = $this->employeeOrFail($leave->emp_id);
-            $this->deductCredits($employee, $leave);
 
+            // Credits already deducted on apply (legacy parity). Approve only flips status.
             $leave->forceFill([
                 'status' => LeaveStatuses::idFor(LeaveStatuses::APPROVED),
             ])->save();
@@ -197,6 +380,7 @@ class LeaveService
 
         return DB::connection('hris')->transaction(function () use ($leave, $actionByEmpId, $remarks) {
             $employee = $this->employeeOrFail($leave->emp_id);
+            $this->restoreApplyImpact($leave, $employee, $actionByEmpId);
 
             $leave->forceFill([
                 'status' => LeaveStatuses::idFor(LeaveStatuses::DISAPPROVED),
@@ -256,7 +440,7 @@ class LeaveService
                 'status' => $status,
             ]);
 
-            EmployeeLeaveLog::query()->create([
+            $log = EmployeeLeaveLog::query()->create([
                 'leave_id' => $ledger->leave_id,
                 'emp_id' => $employee->emp_id,
                 'action' => $action,
@@ -275,16 +459,23 @@ class LeaveService
                 'action_by' => $actionByEmpId,
             ]);
 
+            $this->postCreditLedgerDeltas(
+                $employee,
+                $beforeVl,
+                $beforeSl,
+                EmployeeLeaveCreditLedger::SOURCE_MANUAL,
+                leaveId: (int) $ledger->leave_id,
+                leaveLogId: (int) $log->log_id,
+                recordedBy: $actionByEmpId,
+                remarks: (string) ($data['remarks'] ?? 'Manual leave credit update'),
+                effectiveDate: now()->toDateString(),
+            );
+
             return $employee->fresh();
         });
     }
 
     /**
-     * Accrue monthly VL/SL for employment statuses eligible in config/hris.php.
-     * Respects date_hired (no accrual before hire; hire month uses tbl_leave_earned prorata).
-     * Optional $vlDays/$slDays override the per-employee rate when both are provided and > 0
-     * and the employee is not in hire-month prorata mode.
-     *
      * @return array{updated: int, skipped: int, dry_run: bool}
      */
     public function accrueMonthlyCredits(float $vlDays = 1.25, float $slDays = 1.25, bool $dryRun = true, ?string $actionBy = 'system:leave-accrual'): array
@@ -323,11 +514,9 @@ class LeaveService
                 : null;
             $isHireMonth = $hired && $hired->format('Y-m') === $asOf->format('Y-m');
 
-            // Flat CLI overrides apply only for full-month accrual (not hire-month prorata).
             $addVl = $isHireMonth ? $creditDays : (($vlDays > 0) ? $vlDays : $creditDays);
             $addSl = $isHireMonth ? $creditDays : (($slDays > 0) ? $slDays : $creditDays);
 
-            // When overrides match defaults, prefer the status-aware rate from the computer.
             $defaultRate = (float) (config('hris.leave_credits.monthly_vl') ?: 1.25);
             if (! $isHireMonth && abs($vlDays - $defaultRate) < 0.0005 && abs($slDays - $defaultRate) < 0.0005) {
                 $addVl = $creditDays;
@@ -347,7 +536,12 @@ class LeaveService
             }
 
             DB::connection('hris')->transaction(function () use ($employee, $addVl, $addSl, $actionBy, $periodLabel, $leaveTypeId, $gainStatus) {
-                $employee->vacation_leave_credits = round(((float) $employee->vacation_leave_credits) + $addVl, 3);
+                [$appliedVl, $remainingLwop] = $this->payDownLwopDebt($employee, $addVl, $actionBy);
+
+                $beforeVl = (float) $employee->vacation_leave_credits;
+                $beforeSl = (float) $employee->sick_leave_credits;
+
+                $employee->vacation_leave_credits = round(((float) $employee->vacation_leave_credits) + $appliedVl, 3);
                 $employee->sick_leave_credits = round(((float) $employee->sick_leave_credits) + $addSl, 3);
                 $employee->date_gain_lc = now();
                 $employee->save();
@@ -367,16 +561,62 @@ class LeaveService
                     'status' => $gainStatus,
                 ]);
 
-                EmployeeLeaveLog::query()->create([
+                $log = EmployeeLeaveLog::query()->create([
                     'leave_id' => $ledger->leave_id,
                     'emp_id' => $employee->emp_id,
                     'action' => self::ACTION_CREDIT_ACCRUAL,
-                    'credits' => $addVl + $addSl,
+                    'credits' => $appliedVl + $addSl,
                     'vlc' => (float) $employee->vacation_leave_credits,
                     'slc' => (float) $employee->sick_leave_credits,
                     'remarks' => sprintf('Gain VL and SL for %s', $periodLabel),
                     'action_by' => $actionBy,
                 ]);
+
+                $this->postCreditLedgerDeltas(
+                    $employee,
+                    $beforeVl,
+                    $beforeSl,
+                    EmployeeLeaveCreditLedger::SOURCE_ACCRUAL,
+                    leaveId: (int) $ledger->leave_id,
+                    leaveLogId: (int) $log->log_id,
+                    recordedBy: $actionBy,
+                    remarks: sprintf('Gain VL and SL for %s', $periodLabel),
+                    effectiveDate: now()->startOfMonth()->toDateString(),
+                );
+
+                if ($remainingLwop !== null) {
+                    $lwopLog = EmployeeLeaveLog::query()->create([
+                        'leave_id' => $ledger->leave_id,
+                        'emp_id' => $employee->emp_id,
+                        'action' => self::ACTION_LWOP_BALANCE,
+                        'credits' => $remainingLwop,
+                        'vlc' => (float) $employee->vacation_leave_credits,
+                        'slc' => (float) $employee->sick_leave_credits,
+                        'remarks' => 'Updated leave without pay balance',
+                        'action_by' => $actionBy,
+                    ]);
+
+                    // Additive trail for LWOP debt paydown (no VL/SL balance change beyond accrual above).
+                    if ($this->creditLedgerEnabled() && abs($addVl - $appliedVl) > 0.0005) {
+                        EmployeeLeaveCreditLedger::query()->create([
+                            'emp_id' => $employee->emp_id,
+                            'bucket' => EmployeeLeaveCreditLedger::BUCKET_VL,
+                            'delta' => 0,
+                            'balance_after' => (float) $employee->vacation_leave_credits,
+                            'effective_date' => now()->startOfMonth()->toDateString(),
+                            'source' => EmployeeLeaveCreditLedger::SOURCE_LWOP,
+                            'leave_id' => $ledger->leave_id,
+                            'leave_log_id' => $lwopLog->log_id,
+                            'remarks' => sprintf(
+                                'LWOP paydown used %.3f of %.3f VL accrual; remaining debt %.3f',
+                                $addVl - $appliedVl,
+                                $addVl,
+                                $remainingLwop,
+                            ),
+                            'recorded_by_emp_id' => $actionBy,
+                        ]);
+                    }
+                }
             });
 
             $updated++;
@@ -391,14 +631,38 @@ class LeaveService
 
     public function isPending(EmployeeLeave $leave): bool
     {
-        return LeaveStatuses::keyFor($leave->status !== null ? (int) $leave->status : null) === LeaveStatuses::PENDING
-            && ! $leave->logs()->whereIn('action', [self::ACTION_CANCELLED, self::ACTION_DISAPPROVED])->exists();
+        if (LeaveStatuses::keyFor($leave->status !== null ? (int) $leave->status : null) !== LeaveStatuses::PENDING) {
+            return false;
+        }
+
+        return ! $this->hasTerminalLeaveLog($leave);
     }
 
     public function isApproved(EmployeeLeave $leave): bool
     {
-        return LeaveStatuses::keyFor($leave->status !== null ? (int) $leave->status : null) === LeaveStatuses::APPROVED
-            && ! $leave->logs()->whereIn('action', [self::ACTION_CANCELLED, self::ACTION_DISAPPROVED])->exists();
+        if (LeaveStatuses::keyFor($leave->status !== null ? (int) $leave->status : null) !== LeaveStatuses::APPROVED) {
+            return false;
+        }
+
+        return ! $this->hasTerminalLeaveLog($leave);
+    }
+
+    private function hasTerminalLeaveLog(EmployeeLeave $leave): bool
+    {
+        // Prefer list queries that set has_terminal_log (batched lookup, not correlated EXISTS).
+        if (array_key_exists('has_terminal_log', $leave->getAttributes())) {
+            return (bool) $leave->getAttribute('has_terminal_log');
+        }
+
+        if ($leave->relationLoaded('logs')) {
+            return $leave->logs->contains(
+                fn ($log) => in_array((int) $log->action, [self::ACTION_CANCELLED, self::ACTION_DISAPPROVED], true)
+            );
+        }
+
+        return $leave->logs()
+            ->whereIn('action', [self::ACTION_CANCELLED, self::ACTION_DISAPPROVED])
+            ->exists();
     }
 
     public function creditBucketFor(EmployeeLeave $leave): string
@@ -406,54 +670,317 @@ class LeaveService
         return $this->resolveCreditBucket($this->leaveTypeOrFail((int) $leave->leave_type));
     }
 
-    private function deductCredits(Employee $employee, EmployeeLeave $leave): void
+    /**
+     * @return array{0: float, 1: float, 2: float} [days_wpay, days_wopay, borrowed_vl]
+     */
+    private function splitCredits(Employee $employee, LeaveType $leaveType, float $numdays): array
     {
-        $days = (float) ($leave->days_wpay ?? 0);
-        if ($days <= 0) {
-            return;
+        $typeId = (int) $leaveType->leave_type_id;
+        $extendedMaternityIds = (array) config('hris.leave_credits.extended_maternity_leave_type_ids', [17]);
+
+        if (in_array($typeId, $extendedMaternityIds, true)) {
+            return [0.0, $numdays, 0.0];
         }
 
-        $bucket = $this->resolveCreditBucket($this->leaveTypeOrFail((int) $leave->leave_type));
+        $bucket = $this->resolveCreditBucket($leaveType);
 
-        if ($bucket === 'SL') {
-            if ((float) $employee->sick_leave_credits < $days) {
-                throw ValidationException::withMessages([
-                    'credits' => 'Insufficient sick leave credits for approval.',
-                ]);
-            }
-            $employee->sick_leave_credits = round((float) $employee->sick_leave_credits - $days, 3);
-        } elseif ($bucket === 'VL') {
-            if ((float) $employee->vacation_leave_credits < $days) {
-                throw ValidationException::withMessages([
-                    'credits' => 'Insufficient vacation leave credits for approval.',
-                ]);
-            }
-            $employee->vacation_leave_credits = round((float) $employee->vacation_leave_credits - $days, 3);
+        if ($bucket === 'NONE') {
+            return [$numdays, 0.0, 0.0];
+        }
+
+        $partTimeId = (int) config('hris.leave_credits.part_time_empstat_id', Employee::EMPSTAT_PART_TIME);
+        $isPartTime = (int) $employee->empstat_id === $partTimeId;
+        $need = $isPartTime ? ($numdays / 2) : $numdays;
+
+        $available = $bucket === 'SL'
+            ? (float) $employee->sick_leave_credits
+            : (float) $employee->vacation_leave_credits;
+
+        if ($available >= $need) {
+            return [$numdays, 0.0, 0.0];
+        }
+
+        if ($isPartTime) {
+            $wpay = floor($available * 2);
+            $wopay = $numdays - $wpay;
         } else {
-            return;
+            $wpay = floor($available);
+            $wopay = $numdays - $wpay;
         }
 
-        $employee->save();
+        $borrowed = 0.0;
+        if ($bucket === 'SL' && $wopay > 0 && (float) $employee->vacation_leave_credits > 0) {
+            $vl = (float) $employee->vacation_leave_credits;
+            $shortfallCredits = $isPartTime ? ($wopay / 2) : $wopay;
+            if ($vl >= $shortfallCredits) {
+                $borrowed = $shortfallCredits;
+                $wpay = $numdays;
+                $wopay = 0.0;
+            } else {
+                $borrowed = floor($vl);
+                $coveredCalendar = $isPartTime ? ($borrowed * 2) : $borrowed;
+                $wopay = max(0, $wopay - $coveredCalendar);
+                $wpay = $wpay + $coveredCalendar;
+            }
+        }
+
+        // Non-SL quota leaves with insufficient credits: reject rather than silent LWOP.
+        $rejectIfShort = (array) config('hris.leave_credits.reject_if_insufficient_type_ids', [4, 5, 6, 7]);
+        if (in_array($typeId, $rejectIfShort, true) && $wopay > 0) {
+            throw ValidationException::withMessages([
+                'credits' => 'Insufficient leave credits for this leave type.',
+            ]);
+        }
+
+        return [(float) $wpay, (float) max(0, $wopay), (float) $borrowed];
     }
 
-    private function restoreCredits(Employee $employee, EmployeeLeave $leave): void
-    {
-        $days = (float) ($leave->days_wpay ?? 0);
-        if ($days <= 0) {
-            return;
+    private function applyCreditImpact(
+        Employee $employee,
+        LeaveType $leaveType,
+        float $daysWpay,
+        float $borrowedVl,
+        bool $deduct,
+        string $source = EmployeeLeaveCreditLedger::SOURCE_APPLY,
+        ?EmployeeLeave $leave = null,
+        ?string $recordedBy = null,
+        ?string $remarks = null,
+    ): void {
+        $beforeVl = (float) $employee->vacation_leave_credits;
+        $beforeSl = (float) $employee->sick_leave_credits;
+
+        $bucket = $this->resolveCreditBucket($leaveType);
+        $sign = $deduct ? -1 : 1;
+        $partTimeId = (int) config('hris.leave_credits.part_time_empstat_id', Employee::EMPSTAT_PART_TIME);
+        $isPartTime = (int) $employee->empstat_id === $partTimeId;
+        $withPayCredits = $isPartTime ? ($daysWpay / 2) : $daysWpay;
+
+        if ($bucket === 'SL' && $withPayCredits > 0) {
+            // SL portion only; borrowed VL is charged separately.
+            $fromSl = max(0.0, $withPayCredits - $borrowedVl);
+            $employee->sick_leave_credits = round((float) $employee->sick_leave_credits + ($sign * $fromSl), 3);
+        } elseif ($bucket === 'VL' && $withPayCredits > 0) {
+            $employee->vacation_leave_credits = round((float) $employee->vacation_leave_credits + ($sign * $withPayCredits), 3);
         }
 
-        $bucket = $this->resolveCreditBucket($this->leaveTypeOrFail((int) $leave->leave_type));
+        if ($borrowedVl > 0) {
+            $employee->vacation_leave_credits = round((float) $employee->vacation_leave_credits + ($sign * $borrowedVl), 3);
+        }
 
-        if ($bucket === 'SL') {
-            $employee->sick_leave_credits = round((float) $employee->sick_leave_credits + $days, 3);
-        } elseif ($bucket === 'VL') {
-            $employee->vacation_leave_credits = round((float) $employee->vacation_leave_credits + $days, 3);
-        } else {
-            return;
+        if ($deduct) {
+            if ((float) $employee->sick_leave_credits < -0.0005 || (float) $employee->vacation_leave_credits < -0.0005) {
+                throw ValidationException::withMessages([
+                    'credits' => 'Insufficient leave credits for this application.',
+                ]);
+            }
         }
 
         $employee->save();
+
+        $this->postCreditLedgerDeltas(
+            $employee,
+            $beforeVl,
+            $beforeSl,
+            $source,
+            leaveId: $leave?->leave_id !== null ? (int) $leave->leave_id : null,
+            leaveLogId: null,
+            recordedBy: $recordedBy,
+            remarks: $remarks ?? ($deduct ? 'Leave credit deduction' : 'Leave credit restore'),
+            effectiveDate: optional($leave?->filing_date)->format('Y-m-d') ?: now()->toDateString(),
+        );
+    }
+
+    /**
+     * Additive VL/SL ledger rows when a bucket balance changed. Never replaces tbl_leave_log.
+     */
+    private function postCreditLedgerDeltas(
+        Employee $employee,
+        float $beforeVl,
+        float $beforeSl,
+        string $source,
+        ?int $leaveId = null,
+        ?int $leaveLogId = null,
+        ?string $recordedBy = null,
+        ?string $remarks = null,
+        ?string $effectiveDate = null,
+    ): void {
+        if (! $this->creditLedgerEnabled()) {
+            return;
+        }
+
+        $afterVl = (float) $employee->vacation_leave_credits;
+        $afterSl = (float) $employee->sick_leave_credits;
+        $date = $effectiveDate ?: now()->toDateString();
+
+        foreach ([
+            [EmployeeLeaveCreditLedger::BUCKET_VL, $beforeVl, $afterVl],
+            [EmployeeLeaveCreditLedger::BUCKET_SL, $beforeSl, $afterSl],
+        ] as [$bucket, $before, $after]) {
+            $delta = round($after - $before, 3);
+            if (abs($delta) < 0.0005) {
+                continue;
+            }
+
+            EmployeeLeaveCreditLedger::query()->create([
+                'emp_id' => $employee->emp_id,
+                'bucket' => $bucket,
+                'delta' => $delta,
+                'balance_after' => $after,
+                'effective_date' => $date,
+                'source' => $source,
+                'leave_id' => $leaveId,
+                'leave_log_id' => $leaveLogId,
+                'remarks' => $remarks,
+                'recorded_by_emp_id' => $recordedBy,
+            ]);
+        }
+    }
+
+    private function creditLedgerEnabled(): bool
+    {
+        return (bool) Cache::remember('hris.has_employee_leave_credit_ledger', 60, function () {
+            return Schema::connection('hris')->hasTable('employee_leave_credit_ledger');
+        });
+    }
+
+    private function restoreApplyImpact(EmployeeLeave $leave, Employee $employee, string $actionByEmpId): void
+    {
+        $leaveType = $this->leaveTypeOrFail((int) $leave->leave_type);
+        $borrowed = (float) $leave->logs()
+            ->where('action', self::ACTION_FILED)
+            ->where('remarks', 'Borrowed from VL')
+            ->sum('credits');
+
+        $this->applyCreditImpact(
+            $employee,
+            $leaveType,
+            (float) ($leave->days_wpay ?? 0),
+            $borrowed,
+            deduct: false,
+            source: EmployeeLeaveCreditLedger::SOURCE_RESTORE,
+            leave: $leave,
+            recordedBy: $actionByEmpId,
+            remarks: 'Credits restored',
+        );
+
+        EmployeeLeaveLog::query()
+            ->where('leave_id', $leave->leave_id)
+            ->where('action', self::ACTION_LWOP_BALANCE)
+            ->delete();
+    }
+
+    private function addLeaveWithoutPayRecord(
+        EmployeeLeave $leave,
+        Employee $employee,
+        string $actionByEmpId,
+        float $daysWopay,
+    ): void {
+        $prior = (float) EmployeeLeaveLog::query()
+            ->where('emp_id', $employee->emp_id)
+            ->where('action', self::ACTION_LWOP_BALANCE)
+            ->orderByDesc('id')
+            ->value('credits');
+
+        $log = EmployeeLeaveLog::query()->create([
+            'leave_id' => $leave->leave_id,
+            'emp_id' => $employee->emp_id,
+            'action' => self::ACTION_LWOP_BALANCE,
+            'credits' => round($prior + $daysWopay, 3),
+            'vlc' => (float) $employee->vacation_leave_credits,
+            'slc' => (float) $employee->sick_leave_credits,
+            'remarks' => 'Leave Without Pay Balance',
+            'action_by' => $actionByEmpId,
+        ]);
+
+        if ($this->creditLedgerEnabled()) {
+            EmployeeLeaveCreditLedger::query()->create([
+                'emp_id' => $employee->emp_id,
+                'bucket' => EmployeeLeaveCreditLedger::BUCKET_VL,
+                'delta' => 0,
+                'balance_after' => (float) $employee->vacation_leave_credits,
+                'effective_date' => optional($leave->filing_date)->format('Y-m-d') ?: now()->toDateString(),
+                'source' => EmployeeLeaveCreditLedger::SOURCE_LWOP,
+                'leave_id' => $leave->leave_id,
+                'leave_log_id' => $log->log_id,
+                'remarks' => sprintf('LWOP debt +%.3f (balance %.3f); VL/SL unchanged', $daysWopay, $prior + $daysWopay),
+                'recorded_by_emp_id' => $actionByEmpId,
+            ]);
+        }
+    }
+
+    /**
+     * @return array{0: float, 1: ?float} [vl_to_credit, remaining_lwop_or_null]
+     */
+    private function payDownLwopDebt(Employee $employee, float $earnedVl, string $actionBy): array
+    {
+        $latest = EmployeeLeaveLog::query()
+            ->where('emp_id', $employee->emp_id)
+            ->where('action', self::ACTION_LWOP_BALANCE)
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $latest || (float) $latest->credits <= 0) {
+            return [$earnedVl, null];
+        }
+
+        $debt = (float) $latest->credits;
+        if ($earnedVl >= $debt) {
+            return [$earnedVl - $debt, 0.0];
+        }
+
+        return [0.0, round($debt - $earnedVl, 3)];
+    }
+
+    /**
+     * @param  list<string>  $selectedDates
+     */
+    private function assertNoOverlap(string $empId, array $selectedDates, ?int $ignoreLeaveId = null): void
+    {
+        $selected = array_fill_keys($selectedDates, true);
+        $pending = LeaveStatuses::idFor(LeaveStatuses::PENDING);
+        $approved = LeaveStatuses::idFor(LeaveStatuses::APPROVED);
+
+        $leaves = EmployeeLeave::query()
+            ->where('emp_id', $empId)
+            ->whereNotNull('start_date')
+            ->whereIn('status', array_filter([$pending, $approved], fn ($id) => $id !== null))
+            ->when($ignoreLeaveId, fn ($q) => $q->where('leave_id', '!=', $ignoreLeaveId))
+            ->get(['leave_id', 'start_date', 'end_date', 'remarks', 'status']);
+
+        foreach ($leaves as $existing) {
+            foreach (LeaveDates::for($existing) as $date) {
+                if (isset($selected[$date])) {
+                    throw ValidationException::withMessages([
+                        'selected_dates' => "Leave date {$date} overlaps an existing pending/approved leave (#{$existing->leave_id}).",
+                    ]);
+                }
+            }
+        }
+    }
+
+    private function assertDayCountConsistency(
+        float $selectedCount,
+        float $daysWpay,
+        float $daysWopay,
+        LeaveType $leaveType,
+    ): void {
+        $typeId = (int) $leaveType->leave_type_id;
+        $vlDeductIds = (array) config('hris.leave_credits.vl_deduct_leave_type_ids', [1, 3, 11]);
+        $slDeductIds = (array) config('hris.leave_credits.sl_deduct_leave_type_ids', [2, 18]);
+
+        // After part-time / multiplier quirks, only enforce for simple credit leaves without multipliers.
+        if (! in_array($typeId, array_merge($vlDeductIds, $slDeductIds), true)) {
+            return;
+        }
+
+        $sum = round($daysWpay + $daysWopay, 3);
+        if (abs($sum - $selectedCount) > 0.001) {
+            // Allow part-time half-credit representation: wpay+wopay may equal selected calendar days.
+            // If both differ, still accept when sum equals selected (legacy stores calendar days in wpay/wopay).
+            throw ValidationException::withMessages([
+                'days_wpay' => 'Days with/without pay must equal the number of selected leave dates.',
+            ]);
+        }
     }
 
     private function writeLog(
@@ -462,6 +989,7 @@ class LeaveService
         string $actionByEmpId,
         string $remarks,
         ?Employee $employee = null,
+        ?float $credits = null,
     ): void {
         $employee ??= Employee::query()->where('emp_id', $leave->emp_id)->first();
 
@@ -469,7 +997,7 @@ class LeaveService
             'leave_id' => $leave->leave_id,
             'emp_id' => $leave->emp_id,
             'action' => $action,
-            'credits' => (float) ($leave->days_wpay ?? 0),
+            'credits' => $credits ?? (float) ($leave->days_wpay ?? 0),
             'vlc' => (float) ($employee?->vacation_leave_credits ?? 0),
             'slc' => (float) ($employee?->sick_leave_credits ?? 0),
             'remarks' => $remarks,
@@ -479,11 +1007,22 @@ class LeaveService
 
     private function resolveCreditBucket(LeaveType $leaveType): string
     {
+        $typeId = (int) $leaveType->leave_type_id;
+        $vlIds = (array) config('hris.leave_credits.vl_deduct_leave_type_ids', [1, 3, 11]);
+        $slIds = (array) config('hris.leave_credits.sl_deduct_leave_type_ids', [2, 18]);
+
+        if (in_array($typeId, $slIds, true)) {
+            return 'SL';
+        }
+        if (in_array($typeId, $vlIds, true)) {
+            return 'VL';
+        }
+
         $name = strtolower((string) $leaveType->leave_name);
         if (str_contains($name, 'sick') || preg_match('/\bsl\b/', $name)) {
             return 'SL';
         }
-        if (str_contains($name, 'vacation') || preg_match('/\bvl\b/', $name)) {
+        if (str_contains($name, 'vacation') || preg_match('/\bvl\b/', $name) || str_contains($name, 'forced')) {
             return 'VL';
         }
 
@@ -492,33 +1031,17 @@ class LeaveService
 
     private function creditLeaveTypeId(): int
     {
-        $type = LeaveType::query()
-            ->where(function ($query) {
-                $query->where('leave_name', 'like', '%credit%')
-                    ->orWhere('leave_name', 'like', '%gain%')
-                    ->orWhere('leave_name', 'like', '%vacation%');
-            })
-            ->orderBy('leave_type_id')
-            ->first();
-
-        return (int) ($type?->leave_type_id ?? 14);
+        return (int) (config('hris.leave_credits.gain_leave_type_id') ?: 14);
     }
 
-    /**
-     * @return array{0: CarbonImmutable, 1: CarbonImmutable}
-     */
-    private function assertDateRange(string $startDate, string $endDate): array
+    private function hasApplicantNoteColumn(): bool
     {
-        $start = CarbonImmutable::parse($startDate)->startOfDay();
-        $end = CarbonImmutable::parse($endDate)->startOfDay();
-
-        if ($end->lt($start)) {
-            throw ValidationException::withMessages([
-                'end_date' => 'End date must be on or after the start date.',
-            ]);
+        static $cached = null;
+        if ($cached === null) {
+            $cached = Schema::connection('hris')->hasColumn('tbl_employee_leave', 'applicant_note');
         }
 
-        return [$start, $end];
+        return $cached;
     }
 
     private function assertPending(EmployeeLeave $leave): void

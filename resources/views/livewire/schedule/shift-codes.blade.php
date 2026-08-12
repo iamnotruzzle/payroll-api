@@ -77,7 +77,7 @@
             <div class="mb-3 space-y-3">
                 <h3 class="font-semibold">Codes</h3>
                 <div class="grid gap-2 md:grid-cols-[minmax(180px,1fr)_150px_150px_150px]">
-                    <input wire:model.live.debounce.250ms="search" placeholder="Search code or name" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <input wire:model.lazy="search" placeholder="Search code or name" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
                     <select wire:model.live="scopeFilter" class="rounded-md border border-slate-300 py-2 pl-3 pr-8 text-sm">
                         <option value="office">Office scoped</option>
                         <option value="global">Global scoped</option>

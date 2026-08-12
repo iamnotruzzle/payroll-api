@@ -2,6 +2,7 @@
 
 namespace App\Models\Hris;
 
+use App\Services\Hris\LeaveService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -37,5 +38,10 @@ class EmployeeLeaveLog extends Model
     public function leave(): BelongsTo
     {
         return $this->belongsTo(EmployeeLeave::class, 'leave_id', 'leave_id');
+    }
+
+    public function getActionNameAttribute(): string
+    {
+        return LeaveService::actionName($this->action !== null ? (int) $this->action : null);
     }
 }

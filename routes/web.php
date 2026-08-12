@@ -100,6 +100,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/leave/requests/{leaveId}/print', [LeavePageController::class, 'printRequest'])
             ->whereNumber('leaveId')
             ->name('leave.requests.print');
+        Route::get('/leave/requests/{leaveId}/print/file', [LeavePageController::class, 'printRequestPdf'])
+            ->whereNumber('leaveId')
+            ->name('leave.requests.print.pdf');
     });
 
     Route::middleware('permission:leave.view|leave.request|leave.approve')->group(function () {
@@ -161,6 +164,9 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('permission:employees.view|employees.manage')->group(function () {
         Route::get('/employees', [EmployeePageController::class, 'index'])->name('employees.index');
+        Route::get('/employees/create', [EmployeePageController::class, 'create'])
+            ->middleware('permission:employees.manage')
+            ->name('employees.create');
         Route::get('/employees/{empId}/print', [EmployeePageController::class, 'print'])
             ->where('empId', '[A-Za-z0-9\-]+')
             ->name('employees.print');

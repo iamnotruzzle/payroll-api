@@ -58,6 +58,11 @@ const initPayrollEmployeePickers = () => {
         });
 
         $select.on('change.payrollSelect2', () => {
+            const payrollSidebar = select.closest('.payroll-generation-sidebar');
+            if (payrollSidebar) {
+                payrollSidebar.scrollLeft = 0;
+            }
+
             const componentRoot = select.closest('[wire\\:id]');
             const componentId = componentRoot?.getAttribute('wire:id');
             const model = select.dataset.model;

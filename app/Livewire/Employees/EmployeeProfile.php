@@ -4,11 +4,15 @@ namespace App\Livewire\Employees;
 
 use App\Services\Hris\EmployeeProfileWriteService;
 use App\Support\Hris\EmployeeDirectoryQuery;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 class EmployeeProfile extends Component
 {
     public string $empId;
+
+    #[Url(as: 'tab', except: 'profile')]
+    public string $tab = 'profile';
 
     public bool $editing = false;
 
@@ -108,6 +112,16 @@ class EmployeeProfile extends Component
     {
         abort_unless($this->canView(), 403);
         $this->empId = $empId;
+        $this->ensureTabAllowed();
+    }
+
+    public function setTab(string $tab): void
+    {
+        $this->tab = $tab;
+        $this->ensureTabAllowed();
+        if ($this->tab !== 'profile') {
+            $this->editing = false;
+        }
     }
 
     public function startEditing(): void
@@ -117,6 +131,7 @@ class EmployeeProfile extends Component
         $employee = EmployeeDirectoryQuery::findForProfile($this->empId);
         abort_unless($employee, 404);
 
+        $this->tab = 'profile';
         $this->firstname = (string) $employee->firstname;
         $this->middlename = (string) ($employee->middlename ?? '');
         $this->lastname = (string) $employee->lastname;
@@ -274,7 +289,54 @@ class EmployeeProfile extends Component
             'positionName' => EmployeeDirectoryQuery::positionName($employee),
             'isActive' => EmployeeDirectoryQuery::isActive($employee),
             'canManage' => $this->canManage(),
+            'tabs' => $this->availableTabs(),
         ]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function availableTabs(): array
+    {
+        $user = auth()->user();
+        $tabs = [
+            'profile' => 'Profile',
+            'employment' => 'Employment',
+            'pds' => 'PDS',
+            'documents' => 'Documents',
+        ];
+
+        if ($user?->can('leave.view') || $user?->can('leave.request') || $user?->can('leave.approve') || $user?->can('leave.credits')) {
+            $tabs['leave'] = 'Leave';
+        }
+        if ($user?->can('training.view') || $user?->can('training.manage') || $user?->can('training.approve')) {
+            $tabs['training'] = 'Training';
+        }
+        if ($user?->can('performance.view') || $user?->can('performance.manage') || $user?->can('performance.approve')) {
+            $tabs['ipcr'] = 'IPCR';
+        }
+        if ($user?->can('payroll.view') || $user?->can('self-service.dtr')) {
+            $tabs['dtr'] = 'DTR';
+        }
+        if ($user?->can('schedule.view') || $user?->can('schedule.manage')) {
+            $tabs['schedule'] = 'Schedule';
+        }
+        if ($user?->can('payroll.view') || $user?->can('payroll.generate') || $user?->can('payroll.approve')) {
+            $tabs['payroll'] = 'Payroll';
+        }
+        if ($user?->can('admin.users.view') || $user?->can('admin.users.manage')) {
+            $tabs['account'] = 'Account';
+        }
+
+        return $tabs;
+    }
+
+    private function ensureTabAllowed(): void
+    {
+        $tabs = $this->availableTabs();
+        if (! array_key_exists($this->tab, $tabs)) {
+            $this->tab = 'profile';
+        }
     }
 
     private function canView(): bool

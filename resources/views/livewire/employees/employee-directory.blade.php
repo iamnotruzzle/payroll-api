@@ -6,14 +6,19 @@
                 Directory of workforce records
             </p>
         </div>
-        <a href="{{ route('home') }}" class="text-sm font-semibold text-[#696cff] hover:underline">All apps</a>
+        <div class="flex flex-wrap items-center gap-2">
+            @can('employees.manage')
+                <a href="{{ route('employees.create') }}" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Add employee</a>
+            @endcan
+            <a href="{{ route('home') }}" class="text-sm font-semibold text-[#696cff] hover:underline">All apps</a>
+        </div>
     </div>
 
     <section class="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
             <label class="min-w-0 flex-1">
                 <span class="sr-only">Search employees</span>
-                <input wire:model.live.debounce.500ms="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search name or employee ID">
+                <input wire:model.lazy="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search name or employee ID">
             </label>
             <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
                 Status

@@ -23,6 +23,7 @@ class EmployeeLeave extends Model
         'start_date',
         'end_date',
         'remarks',
+        'applicant_note',
         'days_wpay',
         'days_wopay',
         'status',

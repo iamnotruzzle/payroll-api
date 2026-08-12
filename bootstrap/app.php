@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'api.device' => \App\Http\Middleware\AuthenticateDeviceApiKey::class,
             'api.access' => \App\Http\Middleware\EnsureApiAccess::class,
+            'profile.updated' => \App\Http\Middleware\EnsureProfileUpdated::class,
         ]);
 
         // Allow same-origin browser session auth on /api/* when API_REQUIRE_AUTH=true.
@@ -30,6 +31,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // Field biometric clocks post to /dtr/new (legacy path); exclude CSRF.
         $middleware->validateCsrfTokens(except: [
             'dtr/new',
+        ]);
+
+        $middleware->appendToGroup('web', [
+            'profile.updated',
         ]);
 
         $middleware->appendToGroup('api', [

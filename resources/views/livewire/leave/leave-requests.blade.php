@@ -7,8 +7,15 @@
         <div class="flex flex-wrap gap-2">
             <a href="{{ route('home') }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">All apps</a>
             @if ($canRequest)
-                <button wire:click="create" type="button" class="inline-flex items-center justify-center rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">
-                    Apply Leave
+                <button
+                    wire:click="create"
+                    wire:loading.attr="disabled"
+                    wire:target="create"
+                    type="button"
+                    class="inline-flex items-center justify-center rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6] disabled:opacity-60"
+                >
+                    <span wire:loading.remove wire:target="create">Apply Leave</span>
+                    <span wire:loading wire:target="create">Opening…</span>
                 </button>
             @endif
         </div>
@@ -24,7 +31,7 @@
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
             <label class="min-w-0 flex-1">
                 <span class="sr-only">Search leave</span>
-                <input wire:model.live.debounce.500ms="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employee, ID, or remarks">
+                <input wire:model.lazy="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employee, ID, or remarks">
             </label>
             <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
                 Status
@@ -63,8 +70,8 @@
                 @forelse ($leaves as $leave)
                     @php
                         $statusKey = \App\Support\Hris\LeaveStatuses::keyFor($leave->status !== null ? (int) $leave->status : null);
-                        $statusName = $leave->status_name ?: \App\Support\Hris\LeaveStatuses::nameFor($leave->status !== null ? (int) $leave->status : null);
-                        $pending = $leaveService->isPending($leave);
+                        $statusName = \App\Support\Hris\LeaveStatuses::nameFor($leave->status !== null ? (int) $leave->status : null);
+                        $pending = (bool) ($pendingById[$leave->leave_id] ?? false);
                     @endphp
                     <tr wire:key="leave-{{ $leave->leave_id }}">
                         <td class="px-4 py-3">
@@ -96,7 +103,7 @@
                         <td class="px-4 py-3 text-right whitespace-nowrap">
                             <a href="{{ route('leave.requests.print', $leave->leave_id) }}" target="_blank" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Print</a>
                             @if ($pending && $canRequest)
-                                <button wire:click="edit({{ $leave->leave_id }})" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Edit</button>
+                                <button wire:click="edit({{ $leave->leave_id }})" wire:loading.attr="disabled" wire:target="edit({{ $leave->leave_id }})" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-60">Edit</button>
                                 <button wire:click="cancelRequest({{ $leave->leave_id }})" wire:confirm="Cancel this leave request?" type="button" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100">Cancel</button>
                             @endif
                         </td>
@@ -127,7 +134,7 @@
                     <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
                         <label class="block">
                             <span class="text-xs font-semibold uppercase text-slate-500">Employee</span>
-                            <input wire:model.live.debounce.500ms="employeeSearch" type="search" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Filter employees">
+                            <input wire:model.lazy="employeeSearch" type="search" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Filter employees">
                             <select wire:model="empId" class="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" @disabled($editingId)>
                                 <option value="">Select employee</option>
                                 @foreach ($employees as $employee)
@@ -148,6 +155,16 @@
                             @error('leaveType') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
                         </label>
 
+                        <label class="block">
+                            <span class="text-xs font-semibold uppercase text-slate-500">Date mode</span>
+                            <select wire:model.live="dateMode" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                <option value="weekdays">Fill range as weekdays (Mon–Fri)</option>
+                                <option value="calendar">Fill range as calendar days</option>
+                                <option value="pick">Pick specific dates</option>
+                            </select>
+                            @error('dateMode') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                        </label>
+
                         <div class="grid gap-3 sm:grid-cols-3">
                             <label class="block">
                                 <span class="text-xs font-semibold uppercase text-slate-500">Filing date</span>
@@ -166,15 +183,37 @@
                             </label>
                         </div>
 
+                        @if ($dateMode === 'pick')
+                            <label class="block">
+                                <span class="text-xs font-semibold uppercase text-slate-500">Selected dates (CSV)</span>
+                                <textarea wire:model.lazy="selectedDatesCsv" rows="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm" placeholder="2026-08-03,2026-08-05,2026-08-07"></textarea>
+                                <span class="mt-1 block text-xs text-slate-500">Comma-separated YYYY-MM-DD. Start/end fill can seed the list; edit to drop weekends or gaps.</span>
+                                @error('selectedDatesCsv') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                            </label>
+                        @else
+                            <p class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                                Selected days: <span class="font-semibold text-slate-800">{{ $previewDayCount }}</span>
+                                @if ($selectedDatesCsv)
+                                    <span class="mt-1 block font-mono text-[11px] text-slate-500">{{ $selectedDatesCsv }}</span>
+                                @endif
+                            </p>
+                        @endif
+
                         <div class="grid gap-3 sm:grid-cols-3">
+                            <label class="block sm:col-span-3">
+                                <span class="inline-flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
+                                    <input wire:model.live="autoSplitCredits" type="checkbox" class="rounded border-slate-300">
+                                    Auto-split with-pay / without-pay from credits
+                                </span>
+                            </label>
                             <label class="block">
                                 <span class="text-xs font-semibold uppercase text-slate-500">Days with pay</span>
-                                <input wire:model="daysWpay" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                <input wire:model="daysWpay" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" @disabled($autoSplitCredits)>
                                 @error('daysWpay') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
                             </label>
                             <label class="block">
                                 <span class="text-xs font-semibold uppercase text-slate-500">Days w/o pay</span>
-                                <input wire:model="daysWopay" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                <input wire:model="daysWopay" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" @disabled($autoSplitCredits)>
                                 @error('daysWopay') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
                             </label>
                             <label class="block">
@@ -189,9 +228,9 @@
                         </label>
 
                         <label class="block">
-                            <span class="text-xs font-semibold uppercase text-slate-500">Remarks</span>
-                            <textarea wire:model="remarks" rows="3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Reason / details"></textarea>
-                            @error('remarks') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                            <span class="text-xs font-semibold uppercase text-slate-500">Applicant note</span>
+                            <textarea wire:model="applicantNote" rows="3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Reason / details (not stored in remarks)"></textarea>
+                            @error('applicantNote') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
                         </label>
                     </div>
                     <div class="shrink-0 border-t border-slate-200 px-5 py-4">

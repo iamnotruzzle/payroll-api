@@ -17,7 +17,7 @@
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
             <label class="min-w-0 flex-1">
                 <span class="sr-only">Search</span>
-                <input wire:model.live.debounce.500ms="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employee or ID">
+                <input wire:model.lazy="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employee or ID">
             </label>
             <label class="flex items-center gap-2 text-xs font-semibold text-slate-600">
                 <input wire:model.live="showComputed" type="checkbox" class="rounded border-slate-300">
@@ -188,6 +188,42 @@
                             <span class="text-xs font-semibold uppercase text-slate-500">Remarks</span>
                             <textarea wire:model="remarks" rows="3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
                         </label>
+
+                        <div class="rounded-md border border-slate-200">
+                            <div class="border-b border-slate-100 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500">
+                                Credit ledger (latest {{ $ledgerRows->count() }})
+                            </div>
+                            <div class="max-h-56 overflow-y-auto">
+                                <table class="min-w-full text-left text-xs">
+                                    <thead class="bg-white text-slate-500">
+                                        <tr>
+                                            <th class="px-3 py-2 font-semibold">Date</th>
+                                            <th class="px-3 py-2 font-semibold">Bucket</th>
+                                            <th class="px-3 py-2 font-semibold text-right">Delta</th>
+                                            <th class="px-3 py-2 font-semibold text-right">Balance</th>
+                                            <th class="px-3 py-2 font-semibold">Source</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100">
+                                        @forelse ($ledgerRows as $row)
+                                            <tr>
+                                                <td class="px-3 py-2">{{ optional($row->effective_date)->format('Y-m-d') ?: '—' }}</td>
+                                                <td class="px-3 py-2 font-semibold">{{ $row->bucket }}</td>
+                                                <td class="px-3 py-2 text-right @if ($row->delta < 0) text-rose-700 @elseif ($row->delta > 0) text-emerald-700 @endif">
+                                                    {{ $row->delta > 0 ? '+' : '' }}{{ number_format((float) $row->delta, 3) }}
+                                                </td>
+                                                <td class="px-3 py-2 text-right">{{ number_format((float) $row->balance_after, 3) }}</td>
+                                                <td class="px-3 py-2" title="{{ $row->remarks }}">{{ $row->source_label }}</td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="5" class="px-3 py-4 text-center text-slate-500">No ledger rows yet. Run <code class="text-[10px]">hris:seed-leave-credit-ledger</code> or save a credit change.</td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                     <div class="mt-auto border-t border-slate-200 px-5 py-4">
                         <button type="submit" class="w-full rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save credits</button>

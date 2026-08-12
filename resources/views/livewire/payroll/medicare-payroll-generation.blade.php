@@ -18,7 +18,7 @@
 
     <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <label class="text-sm font-medium">Doctor Search</label>
-        <input wire:model.live.debounce.500ms="search" type="search" placeholder="Filter by employee ID or name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+        <input wire:model.lazy="search" type="search" placeholder="Filter by employee ID or name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
     </div>
 
     <div class="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">

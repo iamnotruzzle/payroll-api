@@ -1,4 +1,14 @@
 <div class="space-y-4">
+    @if (session('status'))
+        <div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>
+    @endif
+
+    @if ($mustUpdateProfile)
+        <div class="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            First-login / annual update required. Review your contact and personal details below, then save to continue.
+        </div>
+    @endif
+
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
             <h2 class="text-xl font-semibold">My Profile</h2>
@@ -16,9 +26,92 @@
                class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
                 Print PDS
             </a>
+            @if (! $editing)
+                <button type="button" wire:click="startEditing" class="rounded-md bg-[#696cff] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#5f61e6]">
+                    Update profile
+                </button>
+            @endif
         </div>
     </div>
 
+    @if ($editing)
+        <form wire:submit="save" class="space-y-4">
+            <section class="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+                <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Identity &amp; contact</h3>
+                <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div>
+                        <label class="text-sm font-medium">First name</label>
+                        <input wire:model="firstname" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        @error('firstname') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Middle name</label>
+                        <input wire:model="middlename" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Last name</label>
+                        <input wire:model="lastname" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        @error('lastname') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Email</label>
+                        <input wire:model="email" type="email" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        @error('email') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Mobile</label>
+                        <input wire:model="mobile_no" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Telephone</label>
+                        <input wire:model="telephone_no" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Birth date</label>
+                        <input wire:model="birthdate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Sex</label>
+                        <select wire:model="sex" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            <option value="">—</option>
+                            <option value="M">Male</option>
+                            <option value="F">Female</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Civil status</label>
+                        <input wire:model="civil_status" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">TIN</label>
+                        <input wire:model="tin_no" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">GSIS</label>
+                        <input wire:model="gsis_no" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">PhilHealth</label>
+                        <input wire:model="phic_no" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Pag-IBIG</label>
+                        <input wire:model="pagibig_no" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">SSS</label>
+                        <input wire:model="sss_no" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    </div>
+                </div>
+            </section>
+            <div class="flex flex-wrap gap-2">
+                <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save profile</button>
+                @unless ($mustUpdateProfile)
+                    <button type="button" wire:click="cancelEditing" class="rounded-md border border-slate-300 px-3 py-2 text-sm">Cancel</button>
+                @endunless
+            </div>
+        </form>
+    @else
     <div class="grid gap-4 lg:grid-cols-2">
         <section class="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
             <h3 class="text-sm font-bold uppercase tracking-wide text-slate-500">Employment</h3>
@@ -47,9 +140,9 @@
                 <div><p class="text-slate-500">GSIS</p><p class="font-medium">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->gsis_no) }}</p></div>
                 <div><p class="text-slate-500">PhilHealth</p><p class="font-medium">{{ \App\Livewire\SelfService\MyProfile::displayValue($employee->phic_no) }}</p></div>
             </div>
-            <p class="mt-4 text-xs text-slate-500">Contact HR if any of this information needs correction.</p>
         </section>
     </div>
+    @endif
 
     <section class="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
         <h3 class="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">PDS sections</h3>

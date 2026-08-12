@@ -20,9 +20,59 @@ class TarfShow extends Component
     /** @var mixed */
     public $reportFiles = [];
 
+    public bool $showReschedule = false;
+
+    public string $rescheduleStart = '';
+
+    public string $rescheduleEnd = '';
+
+    public string $rescheduleHrs = '';
+
+    public string $rescheduleNotes = '';
+
     public function mount(string $tarfNo): void
     {
         $this->tarfNo = $tarfNo;
+    }
+
+    public function openReschedule(): void
+    {
+        abort_unless(auth()->user()?->can('training.manage') || auth()->user()?->can('training.approve'), 403);
+        $tarf = TrainingDetail::query()->findOrFail($this->tarfNo);
+        $this->rescheduleStart = optional($tarf->start_date)->format('Y-m-d') ?: '';
+        $this->rescheduleEnd = optional($tarf->end_date)->format('Y-m-d') ?: '';
+        $this->rescheduleHrs = $tarf->hrs !== null ? (string) $tarf->hrs : '';
+        $this->rescheduleNotes = '';
+        $this->showReschedule = true;
+    }
+
+    public function cancelReschedule(): void
+    {
+        $this->showReschedule = false;
+        $this->resetValidation();
+    }
+
+    public function saveReschedule(TrainingService $trainingService): void
+    {
+        abort_unless(auth()->user()?->can('training.manage') || auth()->user()?->can('training.approve'), 403);
+
+        $data = $this->validate([
+            'rescheduleStart' => ['required', 'date'],
+            'rescheduleEnd' => ['required', 'date', 'after_or_equal:rescheduleStart'],
+            'rescheduleHrs' => ['nullable', 'numeric', 'min:0'],
+            'rescheduleNotes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $tarf = TrainingDetail::query()->findOrFail($this->tarfNo);
+        $trainingService->reschedule($tarf, [
+            'start_date' => $data['rescheduleStart'],
+            'end_date' => $data['rescheduleEnd'],
+            'hrs' => $data['rescheduleHrs'] ?? null,
+            'notes' => $data['rescheduleNotes'] ?? null,
+        ]);
+
+        $this->showReschedule = false;
+        session()->flash('status', 'TARF rescheduled.');
     }
 
     public function uploadReports(TrainingService $trainingService): void
@@ -84,6 +134,16 @@ class TarfShow extends Component
             403
         );
 
+        $canReschedule = (bool) (
+            ($user?->can('training.manage') || $user?->can('training.approve'))
+            && in_array((int) $tarf->status, [
+                TarfStatuses::PENDING_PETU,
+                TarfStatuses::PENDING_MCC,
+                TarfStatuses::APPROVED,
+                TarfStatuses::APPROVED_OT,
+            ], true)
+        );
+
         return view('livewire.training.tarf-show', [
             'tarf' => $tarf,
             'statusName' => TarfStatuses::nameFor($tarf->status !== null ? (int) $tarf->status : null),
@@ -92,6 +152,7 @@ class TarfShow extends Component
                 $user?->can('training.manage')
                 || $user?->can('self-service.training')
             ),
+            'canReschedule' => $canReschedule,
         ]);
     }
 }

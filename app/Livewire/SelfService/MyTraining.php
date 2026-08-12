@@ -94,7 +94,19 @@ class MyTraining extends Component
         session()->flash('status', 'Training request submitted.');
     }
 
-    public function render()
+    public function respondInvite(int $requestId, int $response, TrainingService $trainingService): void
+    {
+        abort_unless(
+            auth()->user()?->can('self-service.training')
+            || auth()->user()?->can('training.manage'),
+            403
+        );
+
+        $trainingService->respondToInvite($requestId, $this->empId, $response);
+        session()->flash('status', $response === 1 ? 'Invitation accepted.' : 'Invitation declined.');
+    }
+
+    public function render(TrainingService $trainingService)
     {
         $tarfNos = TrainingRequest::query()
             ->where('emp_id', $this->empId)
@@ -109,6 +121,7 @@ class MyTraining extends Component
 
         return view('livewire.self-service.my-training', [
             'tarfs' => $tarfs,
+            'pendingInvites' => $trainingService->pendingInvitesFor($this->empId),
             'types' => TrainingTypeLookup::query()->orderBy('id')->get(),
             'canRequest' => (bool) (
                 auth()->user()?->can('self-service.training')

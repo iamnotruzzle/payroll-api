@@ -10,12 +10,31 @@
             @else
                 <a href="{{ route('self-service.training') }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">My Training</a>
             @endcanany
+            @if ($canReschedule)
+                <button type="button" wire:click="openReschedule" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Reschedule</button>
+            @endif
             <a href="{{ route('training.print', $tarf->tarf_no) }}" target="_blank" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Print</a>
         </div>
     </div>
 
     @if (session('status'))
         <div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('status') }}</div>
+    @endif
+
+    @if ($showReschedule)
+        <section class="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 class="mb-3 text-sm font-semibold uppercase text-slate-500">Reschedule</h3>
+            <form wire:submit="saveReschedule" class="grid gap-3 sm:grid-cols-2">
+                <label class="block text-sm">Start<input wire:model="rescheduleStart" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
+                <label class="block text-sm">End<input wire:model="rescheduleEnd" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
+                <label class="block text-sm">Hours<input wire:model="rescheduleHrs" type="number" step="0.5" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
+                <label class="block text-sm sm:col-span-2">Notes<textarea wire:model="rescheduleNotes" rows="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea></label>
+                <div class="flex gap-2 sm:col-span-2">
+                    <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white">Save dates</button>
+                    <button type="button" wire:click="cancelReschedule" class="rounded-md border border-slate-300 px-3 py-2 text-sm">Cancel</button>
+                </div>
+            </form>
+        </section>
     @endif
 
     <section class="grid gap-4 lg:grid-cols-3">
@@ -37,7 +56,13 @@
                 @foreach ($tarf->requests as $req)
                     <li>
                         <span class="font-medium">{{ $req->employee?->full_name ?: $req->emp_id }}</span>
-                        <span class="text-xs text-slate-500">({{ $req->emp_id }}) · {{ (int) $req->role === 1 ? 'Requestor' : 'Participant' }}</span>
+                        <span class="text-xs text-slate-500">
+                            ({{ $req->emp_id }}) · {{ (int) $req->role === 1 ? 'Requestor' : 'Participant' }}
+                            · {{ (int) $req->accepted === 1 ? 'Accepted' : 'Pending invite' }}
+                            @if ((int) $req->ob_ot > 0)
+                                · OB/OT {{ (int) $req->ob_ot }}
+                            @endif
+                        </span>
                     </li>
                 @endforeach
             </ul>
