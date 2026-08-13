@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Payroll.Mobile.Debug"
+             xmlns:controls="clr-namespace:Payroll.Mobile.Controls"
+             x:Class="Payroll.Mobile.Debug.SettingsPage"
+             x:DataType="vm:SettingsViewModel"
+             Title="API settings"
+             BackgroundColor="{StaticResource PageBackground}">
+    <controls:TechBackdrop>
+        <ScrollView>
+            <VerticalStackLayout Padding="20,16" Spacing="12" HorizontalOptions="Fill">
+                <Grid HeightRequest="40">
+                    <Image Source="texture_brushed_metal.png"
+                           Aspect="AspectFill"
+                           Opacity="0.92" />
+                    <BoxView Color="#9900E5FF"
+                             HeightRequest="1.5"
+                             VerticalOptions="End" />
+                    <HorizontalStackLayout Padding="14,0"
+                                           Spacing="8"
+                                           VerticalOptions="Center">
+                        <Label Text="▸"
+                               TextColor="{StaticResource Accent}"
+                               FontAttributes="Bold" />
+                        <Label Text="DEBUG  //  API"
+                               Style="{StaticResource HudCaption}"
+                               VerticalTextAlignment="Center" />
+                    </HorizontalStackLayout>
+                </Grid>
+
+                <Label Text="Debug only — not included in Release builds."
+                       TextColor="{StaticResource Muted}"
+                       FontSize="13"
+                       HorizontalOptions="Fill" />
+
+                <Border Style="{StaticResource GlassCard}">
+                    <VerticalStackLayout Spacing="12">
+                        <VerticalStackLayout Spacing="6" HorizontalOptions="Fill">
+                            <Label Text="BASE URL" Style="{StaticResource FieldLabel}" />
+                            <Entry Text="{Binding BaseUrl}" Keyboard="Url" Placeholder="http://192.168.137.1:8000" />
+                        </VerticalStackLayout>
+
+                        <Label Text="PRESETS" Style="{StaticResource FieldLabel}" />
+                        <Button Text="Hotspot (192.168.137.1)" Command="{Binding UseHotspotCommand}" Style="{StaticResource OutlineButton}" />
+                        <Button Text="Android emulator (10.0.2.2)" Command="{Binding UseEmulatorCommand}" Style="{StaticResource OutlineButton}" />
+                        <Button Text="This PC artisan (127.0.0.1)" Command="{Binding UseLocalCommand}" Style="{StaticResource OutlineButton}" />
+                        <Button Text="Herd (payroll-api.test)" Command="{Binding UseHerdCommand}" Style="{StaticResource OutlineButton}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <VerticalStackLayout Spacing="12" HorizontalOptions="Fill">
+                    <Button Text="Save" Command="{Binding SaveCommand}" />
+                    <Button Text="Test connection" Command="{Binding TestConnectionCommand}" Style="{StaticResource AccentButton}" />
+                </VerticalStackLayout>
+                <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                   IsVisible="{Binding IsBusy}"
+                                   HorizontalOptions="Center" />
+                <Label Text="{Binding StatusMessage}"
+                       TextColor="{StaticResource Text}"
+                       HorizontalOptions="Fill" />
+            </VerticalStackLayout>
+        </ScrollView>
+    </controls:TechBackdrop>
+</ContentPage>

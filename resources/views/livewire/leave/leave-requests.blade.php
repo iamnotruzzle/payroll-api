@@ -2,7 +2,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
             <h2 class="text-xl font-semibold">Leave Requests</h2>
-            <p class="text-sm text-slate-600">File, edit, cancel, and print leave applications (legacy HRIS leave tables).</p>
+            <p class="text-sm text-slate-600">File, edit, cancel, and print leave applications.</p>
         </div>
         <div class="flex flex-wrap gap-2">
             <a href="{{ route('home') }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">All apps</a>
@@ -126,7 +126,6 @@
                 <div class="shrink-0 flex items-center justify-between border-b border-slate-200 px-5 py-4">
                     <div>
                         <h3 class="text-base font-semibold">{{ $editingId ? 'Edit Leave' : 'Apply Leave' }}</h3>
-                        <p class="text-xs text-slate-500">Writes to legacy <code>tbl_employee_leave</code> keyed by emp_id.</p>
                     </div>
                     <button wire:click="closeDrawer" type="button" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm">Close</button>
                 </div>

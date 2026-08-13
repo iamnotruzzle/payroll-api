@@ -29,6 +29,7 @@
     x-init="applyRowVisibility(); sortPayrollRows(); $nextTick(() => { syncSelectedProgramEmployees(); recalculateGrossCompensationTotals(); })"
     x-data="{
         stepDirty: false,
+        programSelectorDrawerOpen: false,
         filtersOpen: @js(! empty($employeeFilterIds)),
         unsavedStepModalOpen: false,
         pendingStep: null,
@@ -53,7 +54,7 @@
         get unsavedChangeRows() {
             return Object.values(this.unsavedChanges).slice(0, 10);
         },
-        formSteps: [1, 2, 3, 4, 7],
+        formSteps: [1, 2, 3, 4, 5, 6],
         markStepDirty(currentStep, event) {
             if (!this.formSteps.includes(currentStep) || event.target?.type === 'search') {
                 return;
@@ -151,7 +152,15 @@
         },
         selectProgram(programId) {
             this.selectedProgramId = String(programId || '');
-            this.$nextTick(() => this.syncSelectedProgramEmployees());
+            if (this.selectedProgramId && !this.programConfigurations[this.selectedProgramId]) {
+                this.programConfigurations[this.selectedProgramId] = { mode: 'all', amount_mode: 'program', employee_ids: [] };
+                this.programEnabled[this.selectedProgramId] = false;
+                this.programEmployeeOverrides[this.selectedProgramId] = {};
+            }
+            this.$nextTick(() => {
+                window.initPayrollEmployeePickers?.();
+                this.syncSelectedProgramEmployees();
+            });
         },
         resetProgramSelection() {
             this.selectedProgramId = '';
@@ -193,13 +202,13 @@
             this.stepDirty = true;
         },
         syncDeductionPrograms() {
-            if (this.activeStep !== 5) return;
+            if (![3, 5].includes(this.activeStep)) return;
             Object.entries(this.programEmployeeOverrides).forEach(([programId, overrides]) => {
                 $wire.set(`deductionProgramSelections.${programId}.employee_overrides`, overrides, false);
             });
         },
         browserDeductionProgramState() {
-            if (this.activeStep !== 5) return {};
+            if (![3, 5].includes(this.activeStep)) return {};
             return Object.fromEntries(Object.keys(this.programEnabled).map((programId) => {
                 const config = this.programConfigurations[programId] || { mode: 'all', amount_mode: 'program', employee_ids: [] };
                 return [programId, {
@@ -767,15 +776,12 @@
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th colspan="3" class="payroll-sticky-employee-info-group border-b border-r-2 border-slate-300 px-4 py-3 text-center">Employee Information</th>
+                            <th rowspan="2" class="payroll-sticky-employee-summary-header border-b border-r-2 border-slate-300 px-3 py-3">Employee Information</th>
                             <th colspan="2" class="border-b border-slate-200 px-4 py-3 text-center">Pay Basis</th>
                             <th colspan="6" class="border-b border-slate-200 px-4 py-3 text-center">Leave Basis</th>
                             <th colspan="6" class="border-b border-slate-200 px-4 py-3 text-center">Payroll Input</th>
                         </tr>
                         <tr>
-                            <th class="payroll-sticky-employee-no-header px-4 py-3">Employee No.</th>
-                            <th class="payroll-sticky-employee-name-header px-4 py-3">Employee Name</th>
-                            <th class="payroll-sticky-employee-position-header border-r-2 border-slate-300 px-4 py-3">Position</th>
                             <th class="px-4 py-3 text-right">Salary Grade</th>
                             <th class="px-4 py-3 text-right">Step</th>
                             <th class="px-4 py-3">Leave Period</th>
@@ -834,10 +840,14 @@
                                 }"
                                 data-payroll-row data-emp-id="{{ $row['emp_id'] }}" data-employee-name="{{ $row['employee_name'] }}" data-department="{{ $row['department'] ?? '' }}" data-position="{{ $row['position'] ?? '' }}" data-basic-salary="{{ $row['basic_salary'] ?? 0 }}" data-gross="{{ $row['gross'] ?? 0 }}" data-net-compensation="{{ $row['net_compensation'] ?? 0 }}" data-net-after-loan-deductions="{{ $row['net_after_loan_deductions'] ?? 0 }}" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}"
                             >
-                                <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
-                                <td class="payroll-sticky-employee-name-cell px-4 py-3">
-                                    <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
-                                    <div class="text-xs text-slate-500">{{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div>
+                                <td class="payroll-sticky-employee-summary-cell overflow-hidden whitespace-nowrap border-r-2 border-slate-200 px-3 py-2.5">
+                                    <div class="flex min-w-0 items-baseline gap-2 whitespace-nowrap">
+                                        <span class="shrink-0 font-semibold text-slate-900">{{ $row['emp_id'] }}</span>
+                                        <span class="min-w-0 truncate font-medium text-slate-800" title="{{ $row['employee_name'] }}">{{ $row['employee_name'] }}</span>
+                                    </div>
+                                    <div class="mt-0.5 truncate text-xs text-slate-500" title="{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}">
+                                        {{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}
+                                    </div>
                                     <div class="mt-1 text-[11px] text-slate-500">
                                         HRIS credits: VL {{ number_format($row['vacation_leave_credits'], 3) }} · SL {{ number_format($row['sick_leave_credits'], 3) }}
                                     </div>
@@ -845,7 +855,6 @@
                                         CTO availed {{ number_format($row['cto_availed_days'], 2) }} day(s) · Cancelled leaves {{ $row['cancelled_leave_count'] }}
                                     </div>
                                 </td>
-                                <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">
                                     <input wire:model="payBasisOverrides.{{ $row['emp_id'] }}.salary_grade" type="number" min="0" step="1" @disabled(! $canEditStep1HrFields) class="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
                                 </td>
@@ -1003,7 +1012,7 @@
                 <table data-gross-compensation-table class="divide-y divide-slate-200 text-sm" style="min-width: {{ 1700 + (($compensations->count() + $adjustmentTypes->count()) * 140) }}px;">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th colspan="3" rowspan="2" class="payroll-sticky-employee-info-group border-b border-r-2 border-slate-300 px-4 py-3 text-center align-middle">Employee Information</th>
+                            <th rowspan="3" class="payroll-sticky-employee-summary-header border-b border-r-2 border-slate-300 px-3 py-3 align-middle">Employee Information</th>
                             <th colspan="{{ 7 + max(1, $compensations->count()) + $adjustmentTypes->count() }}" class="border-b border-slate-300 px-4 py-3 text-center">Gross Compensation</th>
                         </tr>
                         <tr>
@@ -1013,9 +1022,6 @@
                             <th rowspan="2" class="border-l-2 border-slate-300 px-4 py-3 text-right align-middle">Gross Compensation</th>
                         </tr>
                         <tr>
-                            <th class="payroll-sticky-employee-no-header px-4 py-3">Employee No.</th>
-                            <th class="payroll-sticky-employee-name-header px-4 py-3">Employee Name</th>
-                            <th class="payroll-sticky-employee-position-header border-r-2 border-slate-300 px-4 py-3">Position</th>
                             <th class="px-4 py-3 text-right">Basic Salary</th>
                             @forelse ($compensations as $item)
                                 <th class="px-4 py-3 text-right">{{ $workbookCompensationLabel($item) }}</th>
@@ -1066,19 +1072,20 @@
                                 data-unsaved-employee-no="{{ $row['emp_id'] }}"
                                 data-unsaved-employee-name="{{ $row['employee_name'] }}"
                             >
-                                <td class="payroll-sticky-employee-no-cell px-4 py-3 align-top font-medium">{{ $row['emp_id'] }}</td>
-                                <td class="payroll-sticky-employee-name-cell px-4 py-3 align-top">
-                                    <div class="flex min-w-[230px] items-start justify-between gap-3">
-                                        <div data-unsaved-employee-name>
-                                            <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>
-                                            <div class="text-xs text-slate-500">{{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div>
+                                <td class="payroll-sticky-employee-summary-cell overflow-hidden whitespace-nowrap border-r-2 border-slate-200 px-3 py-2.5 align-top">
+                                    <div class="flex min-w-0 items-start justify-between gap-2">
+                                        <div class="min-w-0" data-unsaved-employee-name>
+                                            <div class="flex min-w-0 items-baseline gap-2 whitespace-nowrap">
+                                                <span class="shrink-0 font-semibold text-slate-900">{{ $row['emp_id'] }}</span>
+                                                <span class="min-w-0 truncate font-medium text-slate-800" title="{{ $row['employee_name'] }}">{{ $row['employee_name'] }}</span>
+                                            </div>
+                                            <div class="mt-0.5 truncate text-xs text-slate-500" title="{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}">{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div>
                                         </div>
                                         <button type="button" x-on:click="start(@js($row['emp_id']), @js($row['employee_name']), @js($employeeAdjustmentTypeIds))" class="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                                             +
                                         </button>
                                     </div>
                                 </td>
-                                <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3 align-top">{{ $row['position'] ?? '-' }}</td>
                                 <td data-gross-total-key="basic_salary" data-gross-total-value="{{ $row['basic_salary'] }}" class="px-4 py-3 text-right align-top">{{ number_format($row['basic_salary'], 2) }}</td>
                                 @forelse ($compensations as $item)
                                     <td data-gross-total-key="compensation_{{ $item->id }}" data-gross-total-value="{{ $row['compensations'][$item->id]['amount'] ?? 0 }}" class="px-4 py-3 text-right align-top">{{ number_format($row['compensations'][$item->id]['amount'] ?? 0, 2) }}</td>
@@ -1136,7 +1143,7 @@
                     @if ($rows->isNotEmpty())
                         <tfoot class="bg-slate-50 font-semibold">
                             <tr>
-                                <td colspan="3" class="payroll-sticky-employee-totals border-r-2 border-slate-300 px-4 py-3">Totals</td>
+                                <td class="payroll-sticky-employee-totals border-r-2 border-slate-300 px-4 py-3">Totals</td>
                                 <td data-gross-total-output="basic_salary" class="px-4 py-3 text-right">{{ number_format($totals['basic_salary'], 2) }}</td>
                                 @forelse ($compensations as $item)
                                     <td data-gross-total-output="compensation_{{ $item->id }}" class="px-4 py-3 text-right">{{ number_format($totals['compensations'][$item->id] ?? 0, 2) }}</td>
@@ -1214,33 +1221,167 @@
             </fieldset>
         </div>
     @elseif ($currentStep === 3)
+        @php
+            $mandatoryPrograms = $deductionPrograms->where('section', 'mandatory')->values();
+            $statutoryMandatoryColumns = collect([
+                ['key' => 'life_retirement', 'source' => 'statutory_deductions', 'label' => 'GSIS (PS)'],
+                ['key' => 'government_life_retirement', 'source' => 'statutory_government_shares', 'label' => 'GSIS (GS)'],
+                ['key' => 'ec', 'source' => 'statutory_government_shares', 'label' => 'EC'],
+                ['key' => 'phic', 'source' => 'statutory_deductions', 'label' => 'PHIC (PS)'],
+                ['key' => 'government_phic', 'source' => 'statutory_government_shares', 'label' => 'PHIC (GS)'],
+                ['key' => 'mandatory_pagibig', 'source' => 'statutory_deductions', 'label' => 'HDMF (PS) 1'],
+                ['key' => 'government_pagibig', 'source' => 'statutory_government_shares', 'label' => 'HDMF (GS)'],
+            ]);
+            $mandatoryDisplayColumns = $statutoryMandatoryColumns->flatMap(function ($column) use ($mandatoryPrograms) {
+                return collect([$column])->concat($mandatoryPrograms
+                    ->where('insert_after_column', $column['key'])
+                    ->map(fn ($program) => ['program' => $program, 'label' => $program->name]));
+            })->concat($mandatoryPrograms->whereNull('insert_after_column')->map(fn ($program) => ['program' => $program, 'label' => $program->name]));
+        @endphp
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
                 <h3 class="font-semibold">Mandatory Deductions</h3>
                 <p class="text-xs text-slate-500">Enter a positive adjustment to add a deduction or a negative adjustment to refund/reduce it.</p>
                 @include('livewire.payroll.partials.step-save-button')
             </div>
+            <div class="border-b border-slate-200 bg-slate-50/60 px-4 py-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <h4 class="text-sm font-semibold text-slate-800">Mandatory Deduction Programs</h4>
+                        <p class="text-xs text-slate-500">Apply employee-specific recurring deductions such as HDMF (PS) 2 MS and EA Deduction.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button x-on:click="programSelectorDrawerOpen = true; $nextTick(() => window.initPayrollEmployeePickers?.())" type="button" class="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">Select Programs</button>
+                        <button wire:click="openProgramManagerDrawer" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Manage Programs</button>
+                    </div>
+                </div>
+
+                @if ($mandatoryPrograms->isNotEmpty())
+                    <div class="mt-2 flex flex-wrap gap-1.5">
+                        @foreach ($mandatoryPrograms as $program)
+                            <span x-show="programEnabled['{{ $program->id }}']" x-cloak class="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">{{ $program->name }}</span>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="mt-2 text-xs text-slate-500">No active programs are classified under Mandatory Deductions.</div>
+                @endif
+            </div>
+                <template x-teleport="body">
+                    <div x-show="programSelectorDrawerOpen" x-cloak x-on:keydown.escape.window="programSelectorDrawerOpen = false" class="fixed inset-0 z-[1000]" role="dialog" aria-modal="true" aria-label="Select mandatory deduction programs">
+                        <button x-on:click="programSelectorDrawerOpen = false" type="button" class="absolute inset-0 bg-slate-950/45" aria-label="Close program selector"></button>
+                        <aside class="absolute inset-y-0 right-0 flex w-full max-w-xl flex-col bg-white shadow-2xl">
+                            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                                <div>
+                                    <h3 class="font-semibold text-slate-900">Select Mandatory Deduction Programs</h3>
+                                    <p class="text-xs text-slate-500">Choose a program and configure its employees for this payroll.</p>
+                                </div>
+                                <button x-on:click="programSelectorDrawerOpen = false" type="button" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Close</button>
+                            </div>
+                            <div class="min-h-0 flex-1 overflow-y-auto p-5">
+                                <div class="space-y-4">
+                                    <label class="block text-xs font-semibold uppercase text-slate-500">
+                                        Program
+                                        <select x-model="selectedProgramId" x-on:change="selectProgram($event.target.value)" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case">
+                                            <option value="">Choose program</option>
+                                            @foreach ($mandatoryPrograms as $program)
+                                                <option value="{{ $program->id }}">{{ $program->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </label>
+                                    <template x-if="selectedProgramId">
+                                        <div class="space-y-4">
+                                            <div class="grid gap-3 sm:grid-cols-2">
+                                                <label class="text-xs font-semibold uppercase text-slate-500">
+                                                    Applies To
+                                                    <select x-model="programConfigurations[selectedProgramId].mode" x-on:change="programRevision++; stepDirty = true; $nextTick(() => { window.initPayrollEmployeePickers?.(); syncSelectedProgramEmployees(); })" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case">
+                                                        <option value="all">All employees</option>
+                                                        <option value="include">Specific employees</option>
+                                                        <option value="exclude">All except selected</option>
+                                                    </select>
+                                                </label>
+                                                <label class="text-xs font-semibold uppercase text-slate-500">
+                                                    Amount Source
+                                                    <select x-model="programConfigurations[selectedProgramId].amount_mode" x-on:change="programRevision++; stepDirty = true; $nextTick(() => { window.initPayrollEmployeePickers?.(); syncSelectedProgramEmployees(); })" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case">
+                                                        <option value="program">Program default</option>
+                                                        <option value="employee">Employee-specific</option>
+                                                    </select>
+                                                </label>
+                                            </div>
+                                            <div x-show="programConfigurations[selectedProgramId].mode !== 'all' || programConfigurations[selectedProgramId].amount_mode === 'employee'" x-cloak>
+                                                <label class="text-xs font-semibold uppercase text-slate-500">Employees</label>
+                                                <select id="deduction-program-employee-picker" data-select2-searchable data-placeholder="Search employees" x-on:change="updateSelectedProgramEmployees()" multiple class="mt-1 w-full">
+                                                    @foreach ($rows as $row)
+                                                        <option value="{{ $row['emp_id'] }}">{{ $row['emp_id'] }} - {{ $row['employee_name'] }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            <div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
+                                                <button x-show="programEnabled[selectedProgramId]" x-cloak x-on:click="setProgramEnabled(selectedProgramId, false); resetProgramSelection()" type="button" class="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Remove</button>
+                                                <button x-show="!programEnabled[selectedProgramId]" x-cloak x-on:click="updateSelectedProgramEmployees(); setProgramEnabled(selectedProgramId, true)" type="button" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Apply Program</button>
+                                                <button x-show="programEnabled[selectedProgramId]" x-cloak x-on:click="updateSelectedProgramEmployees(); programRevision++; stepDirty = true" type="button" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Update Program</button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </aside>
+                    </div>
+                </template>
+            @if ($showProgramManagerDrawer)
+                <template x-teleport="body">
+                <div class="fixed inset-0 z-[1000]" role="dialog" aria-modal="true" aria-label="Manage deduction programs">
+                    <button wire:click="closeProgramManagerDrawer" type="button" class="absolute inset-0 bg-slate-950/35" aria-label="Close program manager"></button>
+                    <aside class="absolute inset-y-0 right-0 flex w-[92vw] max-w-6xl flex-col bg-slate-50 shadow-2xl">
+                        <div class="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+                            <div>
+                                <h3 class="font-semibold text-slate-900">Manage Deduction Programs</h3>
+                                <p class="text-xs text-slate-500">Changes appear in payroll after this drawer is closed.</p>
+                            </div>
+                            <button wire:click="closeProgramManagerDrawer" type="button" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Close</button>
+                        </div>
+                        <div class="min-h-0 flex-1 overflow-y-auto p-5">
+                            <livewire:payroll.deduction-programs lazy />
+                        </div>
+                    </aside>
+                </div>
+                </template>
+            @endif
             <fieldset @disabled(! $canEditCurrentStep) class="contents">
             <div class="payroll-table-scroll overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="payroll-sticky-employee-no-header px-4 py-3">Employee No.</th>
-                            <th class="payroll-sticky-employee-name-header px-4 py-3">Employee Name</th>
-                            <th class="payroll-sticky-employee-position-header border-r-2 border-slate-300 px-4 py-3">Position</th>
-                            <th class="px-4 py-3 text-right">GSIS (PS)</th>
-                            <th class="px-4 py-3 text-right">GSIS (GS)</th>
-                            <th class="px-4 py-3 text-right">EC</th>
-                            <th class="px-4 py-3 text-right">PHIC (PS)</th>
-                            <th class="px-4 py-3 text-right">PHIC (GS)</th>
-                            <th class="px-4 py-3 text-right">HDMF (PS) 1</th>
-                            <th class="px-4 py-3 text-right">HDMF (GS)</th>
-                            <th class="px-4 py-3 text-right">Total Mandatory Deductions</th>
-                            <th class="px-4 py-3 text-right">Net Pay</th>
+                            <th rowspan="2" class="payroll-sticky-employee-summary-header border-b border-r-2 border-slate-300 px-3 py-3">Employee Information</th>
+                            <th colspan="{{ $mandatoryDisplayColumns->count() }}" class="border-b border-r-2 border-slate-400 px-4 py-2 text-center">Gross Mandatory Deductions</th>
+                            <th colspan="{{ $mandatoryDisplayColumns->count() }}" class="border-b border-r-2 border-slate-400 px-4 py-2 text-center">Adjustment</th>
+                            <th rowspan="2" class="border-b border-slate-300 px-4 py-3 text-right">Net Pay</th>
+                            <th rowspan="2" class="sticky right-0 z-30 min-w-40 border-b border-l-2 border-slate-400 bg-slate-50 px-4 py-3 text-right">Total Mandatory Deductions</th>
+                        </tr>
+                        <tr>
+                            @foreach ($mandatoryDisplayColumns as $column)
+                                <th class="border-b border-slate-300 px-4 py-2 text-right">{{ $column['label'] }}</th>
+                            @endforeach
+                            @foreach ($mandatoryDisplayColumns as $column)
+                                <th class="border-b border-slate-300 px-4 py-2 text-right">{{ $column['label'] }}</th>
+                            @endforeach
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
+                            @php
+                                $rowMandatoryProgramBases = $mandatoryPrograms
+                                    ->where('impact_type', 'employee_deduction')
+                                    ->mapWithKeys(function ($program) use ($deductionProgramSelections, $row) {
+                                        $selection = $deductionProgramSelections[(string) $program->id] ?? [];
+                                        $employeeAmount = data_get($selection, 'employee_amounts.'.$row['emp_id']);
+                                        $configuredValue = (($selection['amount_mode'] ?? 'program') === 'employee' && is_numeric($employeeAmount)) ? (float) $employeeAmount : (float) $program->value;
+                                        $amount = $program->is_percentage ? round((float) $row['basic_salary'] * ($configuredValue > 1 ? $configuredValue / 100 : $configuredValue), 2) : round($configuredValue, 2);
+                                        return [(string) $program->id => $amount];
+                                    });
+                                $rowMandatoryProgramOverrides = $mandatoryPrograms->mapWithKeys(fn ($program) => [
+                                    (string) $program->id => data_get($deductionProgramSelections, $program->id.'.employee_overrides.'.$row['emp_id'], ''),
+                                ]);
+                            @endphp
                             <tr
                                 class="hover:bg-slate-50"
                                 data-payroll-row
@@ -1258,46 +1399,78 @@
                                     employeeId: @js($row['emp_id']),
                                     employeeBases: @js($row['base_statutory_deductions']),
                                     netCompensation: @js($row['net_compensation']),
+                                    programBases: @js($rowMandatoryProgramBases),
+                                    programOverrides: @js($rowMandatoryProgramOverrides),
+                                    displayedMandatoryTotal() {
+                                        const statutory = mandatoryEmployeeTotal(this.employeeId, this.employeeBases);
+                                        const programs = Object.entries(this.programBases).reduce((total, [id, base]) => {
+                                            if (!programEnabled[id] || !programApplies(id, this.employeeId)) return total;
+                                            const override = this.programOverrides[id];
+                                            return total + ((override !== '' && override !== null) ? Number(override || 0) : Number(base || 0));
+                                        }, 0);
+                                        return statutory + programs;
+                                    },
                                 }"
                             >
-                                <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
-                                <td class="payroll-sticky-employee-name-cell px-4 py-3"><div class="font-medium">{{ $row['employee_name'] }}</div><div class="text-xs text-slate-500">{{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div></td>
-                                <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
-                                @foreach ([
-                                    ['key' => 'life_retirement', 'source' => 'statutory_deductions'],
-                                    ['key' => 'government_life_retirement', 'source' => 'statutory_government_shares'],
-                                    ['key' => 'ec', 'source' => 'statutory_government_shares'],
-                                    ['key' => 'phic', 'source' => 'statutory_deductions'],
-                                    ['key' => 'government_phic', 'source' => 'statutory_government_shares'],
-                                    ['key' => 'mandatory_pagibig', 'source' => 'statutory_deductions'],
-                                    ['key' => 'government_pagibig', 'source' => 'statutory_government_shares'],
-                                ] as $deductionColumn)
+                                <td class="payroll-sticky-employee-summary-cell overflow-hidden whitespace-nowrap border-r-2 border-slate-200 px-3 py-2.5">
+                                    <div class="flex min-w-0 items-baseline gap-2 whitespace-nowrap">
+                                        <span class="shrink-0 font-semibold text-slate-900">{{ $row['emp_id'] }}</span>
+                                        <span class="min-w-0 truncate font-medium text-slate-800" title="{{ $row['employee_name'] }}">{{ $row['employee_name'] }}</span>
+                                    </div>
+                                    <div class="mt-0.5 truncate text-xs text-slate-500" title="{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}">
+                                        {{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}
+                                    </div>
+                                </td>
+                                {{-- Workbook base/gross mandatory deduction block. --}}
+                                @foreach ($mandatoryDisplayColumns as $deductionColumn)
                                     @php
-                                        $deductionKey = $deductionColumn['key'];
-                                        $source = $deductionColumn['source'];
+                                        $program = $deductionColumn['program'] ?? null;
+                                        $deductionKey = $deductionColumn['key'] ?? null;
+                                        $source = $deductionColumn['source'] ?? null;
                                         $baseSource = $source === 'statutory_deductions' ? 'base_statutory_deductions' : 'base_statutory_government_shares';
                                     @endphp
                                     <td class="px-4 py-3 text-right">
-                                        <div class="text-[10px] uppercase text-slate-400">Base {{ number_format($row[$baseSource][$deductionKey] ?? 0, 2) }}</div>
-                                        <div class="font-medium">
-                                            Result <span x-text="money(mandatoryResult(employeeId, @js($deductionKey), @js($row[$baseSource][$deductionKey] ?? 0)))"></span>
-                                        </div>
+                                      @if ($program)
+                                        @php
+                                            $selection = $deductionProgramSelections[(string) $program->id] ?? [];
+                                            $employeeAmount = data_get($selection, 'employee_amounts.'.$row['emp_id']);
+                                            $configuredValue = (($selection['amount_mode'] ?? 'program') === 'employee' && is_numeric($employeeAmount)) ? (float) $employeeAmount : (float) $program->value;
+                                            $baseProgramAmount = $program->is_percentage ? round((float) $row['basic_salary'] * ($configuredValue > 1 ? $configuredValue / 100 : $configuredValue), 2) : round($configuredValue, 2);
+                                        @endphp
+                                        <span class="font-medium" x-text="money(programEnabled[@js((string) $program->id)] && programApplies(@js((string) $program->id), employeeId) ? programBases[@js((string) $program->id)] : 0)"></span>
+                                      @else
+                                        <span class="font-medium">{{ number_format($row[$baseSource][$deductionKey] ?? 0, 2) }}</span>
+                                      @endif
+                                    </td>
+                                @endforeach
+                                {{-- Workbook adjustment block, repeated in the same field order. --}}
+                                @foreach ($mandatoryDisplayColumns as $deductionColumn)
+                                    @php
+                                        $program = $deductionColumn['program'] ?? null;
+                                        $deductionKey = $deductionColumn['key'] ?? null;
+                                    @endphp
+                                    <td class="px-4 py-3 text-right {{ $loop->first ? 'border-l-2 border-slate-400' : '' }}">
+                                      @if ($program)
+                                        <input x-show="programEnabled[@js((string) $program->id)] && programApplies(@js((string) $program->id), employeeId)" x-cloak x-model.number="programOverrides[@js((string) $program->id)]" wire:model.defer="deductionProgramSelections.{{ $program->id }}.employee_overrides.{{ $row['emp_id'] }}" data-model="deductionProgramSelections.{{ $program->id }}.employee_overrides.{{ $row['emp_id'] }}" type="number" min="0" step="0.01" placeholder="0.00" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-xs">
+                                        <span x-show="!programEnabled[@js((string) $program->id)] || !programApplies(@js((string) $program->id), employeeId)" x-cloak class="text-xs text-slate-400">—</span>
+                                      @else
                                         <input
                                             x-model.number="mandatoryDeductionAdjustments[employeeId][@js($deductionKey)]"
                                             data-model="mandatoryDeductionAdjustments.{{ $row['emp_id'] }}.{{ $deductionKey }}"
                                             type="number"
                                             step="0.01"
-                                            placeholder="{{ number_format($row[$baseSource][$deductionKey] ?? 0, 2) }}"
-                                            class="mt-1 w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-xs"
+                                            placeholder="0.00"
+                                            class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-xs"
                                         >
+                                      @endif
                                     </td>
                                 @endforeach
-                                <td class="px-4 py-3 text-right font-semibold" x-text="money(mandatoryEmployeeTotal(employeeId, employeeBases))"></td>
-                                <td class="px-4 py-3 text-right font-semibold" x-text="money(netCompensation - mandatoryEmployeeTotal(employeeId, employeeBases))"></td>
+                                <td class="px-4 py-3 text-right font-semibold" x-text="money(netCompensation - displayedMandatoryTotal())"></td>
+                                <td class="sticky right-0 z-20 min-w-40 border-l-2 border-slate-400 bg-white px-4 py-3 text-right font-semibold" x-text="money(displayedMandatoryTotal())"></td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="14" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                <td colspan="{{ 3 + ($mandatoryDisplayColumns->count() * 2) }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -1305,10 +1478,12 @@
             </div>
             </fieldset>
         </div>
-    @elseif ($currentStep === 4)
+    @elseif ($currentStep === 5)
+        @php $deductionPrograms = $deductionPrograms->where('section', 'other')->values(); @endphp
         <div class="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(420px,0.8fr)_minmax(560px,1.2fr)] xl:grid-rows-[auto_minmax(420px,1fr)]">
-            <div class="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3 shadow-sm xl:col-start-1 xl:row-start-1">
-                <h3 class="font-semibold">Import Program Membership</h3>
+            @if (false)
+            <div class="hidden">
+                <h3 class="font-semibold">Import Other Deduction Membership</h3>
                 <p class="mt-0.5 text-xs text-slate-600">Choose one program. Confirming a valid workbook replaces its persistent employee roster.</p>
                 <div class="mt-2 grid gap-2 sm:grid-cols-2">
                     <label class="text-xs font-semibold uppercase text-slate-500">
@@ -1351,17 +1526,34 @@
                     </div>
                 @endif
             </div>
+            @endif
 
             @php
                 $activeDeductionPrograms = $deductionPrograms;
                 $programPreviewWidth = 920;
             @endphp
 
-            <fieldset @disabled(! $canEditCurrentStep) class="contents">
-            <div class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:col-start-2 xl:row-start-1">
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm xl:col-span-2">
+                <div>
+                    <h3 class="font-semibold">Other Deductions Setup</h3>
+                    <p class="text-xs text-slate-500">Apply programs or manage their configuration and recurring membership.</p>
+                </div>
+                <div class="flex gap-2">
+                    <button x-on:click="programSelectorDrawerOpen = true; $nextTick(() => window.initPayrollEmployeePickers?.())" type="button" class="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">Select Programs</button>
+                    <button wire:click="openProgramManagerDrawer" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Manage Deductions</button>
+                </div>
+                <div class="flex w-full flex-wrap gap-1.5">
+                    @foreach ($deductionPrograms as $program)
+                        <span x-show="programEnabled['{{ $program->id }}']" x-cloak class="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">{{ $program->name }}</span>
+                    @endforeach
+                </div>
+            </div>
+
+            @if (false) {{-- Replaced by the browser-rendered selection drawer. --}}
+            <div class="hidden">
                 <div class="border-b border-slate-200 px-3 py-2">
                     <div class="flex flex-wrap items-center justify-between gap-3">
-                        <h3 class="font-semibold">Program Setup</h3>
+                        <h3 class="font-semibold">Other Deductions Setup</h3>
                         <div class="flex flex-wrap gap-1.5">
                             @foreach ($deductionPrograms as $program)
                                 <span x-show="programEnabled['{{ $program->id }}']" x-cloak class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
@@ -1398,7 +1590,7 @@
                     </template>
                     <div x-show="selectedProgramId && (programConfigurations[selectedProgramId].mode !== 'all' || programConfigurations[selectedProgramId].amount_mode === 'employee')" x-cloak>
                         <label class="text-xs font-semibold uppercase text-slate-500">Employees</label>
-                        <select id="deduction-program-employee-picker" data-select2-searchable data-placeholder="Search employees" x-on:change="updateSelectedProgramEmployees()" multiple class="mt-1 w-full">
+                        <select id="deduction-program-employee-picker-hidden" data-placeholder="Search employees" x-on:change="updateSelectedProgramEmployees()" multiple class="mt-1 w-full">
                             @foreach ($rows as $row)
                                 <option value="{{ $row['emp_id'] }}">{{ $row['emp_id'] }} - {{ $row['employee_name'] }}</option>
                             @endforeach
@@ -1489,12 +1681,93 @@
                     </div>
                 </div>
             </div>
+            @endif
 
+            <template x-teleport="body">
+                <div x-show="programSelectorDrawerOpen" x-cloak x-on:keydown.escape.window="programSelectorDrawerOpen = false" class="fixed inset-0 z-[1000]" role="dialog" aria-modal="true" aria-label="Select other deduction programs">
+                    <button x-on:click="programSelectorDrawerOpen = false" type="button" class="absolute inset-0 bg-slate-950/45" aria-label="Close program selector"></button>
+                    <aside class="absolute inset-y-0 right-0 flex w-full max-w-xl flex-col bg-white shadow-2xl">
+                        <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                            <div><h3 class="font-semibold text-slate-900">Select Other Deduction Programs</h3><p class="text-xs text-slate-500">Choose a program and configure its employees for this payroll.</p></div>
+                            <button x-on:click="programSelectorDrawerOpen = false" type="button" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Close</button>
+                        </div>
+                        <div class="min-h-0 flex-1 overflow-y-auto p-5">
+                            <div class="space-y-4">
+                                <label class="block text-xs font-semibold uppercase text-slate-500">Program
+                                    <select x-model="selectedProgramId" x-on:change="selectProgram($event.target.value)" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case">
+                                        <option value="">Choose program</option>
+                                        @foreach ($deductionPrograms as $program)<option value="{{ $program->id }}">{{ $program->name }}</option>@endforeach
+                                    </select>
+                                </label>
+                                <template x-if="selectedProgramId">
+                                    <div class="space-y-4">
+                                        <div class="grid gap-3 sm:grid-cols-2">
+                                            <label class="text-xs font-semibold uppercase text-slate-500">Applies To
+                                                <select x-model="programConfigurations[selectedProgramId].mode" x-on:change="programRevision++; stepDirty = true; $nextTick(() => { window.initPayrollEmployeePickers?.(); syncSelectedProgramEmployees(); })" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case"><option value="all">All employees</option><option value="include">Specific employees</option><option value="exclude">All except selected</option></select>
+                                            </label>
+                                            <label class="text-xs font-semibold uppercase text-slate-500">Amount Source
+                                                <select x-model="programConfigurations[selectedProgramId].amount_mode" x-on:change="programRevision++; stepDirty = true; $nextTick(() => { window.initPayrollEmployeePickers?.(); syncSelectedProgramEmployees(); })" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case"><option value="program">Program default</option><option value="employee">Employee-specific</option></select>
+                                            </label>
+                                        </div>
+                                        <div x-show="programConfigurations[selectedProgramId].mode !== 'all' || programConfigurations[selectedProgramId].amount_mode === 'employee'" x-cloak>
+                                            <label class="text-xs font-semibold uppercase text-slate-500">Employees</label>
+                                            <select id="deduction-program-employee-picker" data-select2-searchable data-placeholder="Search employees" x-on:change="updateSelectedProgramEmployees()" multiple class="mt-1 w-full">
+                                                @foreach ($rows as $row)<option value="{{ $row['emp_id'] }}">{{ $row['emp_id'] }} - {{ $row['employee_name'] }}</option>@endforeach
+                                            </select>
+                                        </div>
+                                        <div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
+                                            <button x-show="programEnabled[selectedProgramId]" x-cloak x-on:click="setProgramEnabled(selectedProgramId, false); resetProgramSelection()" type="button" class="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Remove</button>
+                                            <button x-show="!programEnabled[selectedProgramId]" x-cloak x-on:click="updateSelectedProgramEmployees(); setProgramEnabled(selectedProgramId, true)" type="button" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Apply Program</button>
+                                            <button x-show="programEnabled[selectedProgramId]" x-cloak x-on:click="updateSelectedProgramEmployees(); programRevision++; stepDirty = true" type="button" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Update Program</button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+            </template>
+
+            @if ($showProgramManagerDrawer)
+                <template x-teleport="body">
+                    <div class="fixed inset-0 z-[1000]" role="dialog" aria-modal="true" aria-label="Manage other deductions">
+                        <button wire:click="closeProgramManagerDrawer" type="button" class="absolute inset-0 bg-slate-950/35" aria-label="Close deduction manager"></button>
+                        <aside class="absolute inset-y-0 right-0 flex w-[92vw] max-w-6xl flex-col bg-slate-50 shadow-2xl">
+                            <div class="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+                                <div><h3 class="font-semibold text-slate-900">Manage Other Deductions</h3><p class="text-xs text-slate-500">Manage programs and import recurring employee membership.</p></div>
+                                <button wire:click="closeProgramManagerDrawer" type="button" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Close</button>
+                            </div>
+                            <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+                                <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                                    <h4 class="font-semibold">Import Other Deduction Membership</h4>
+                                    <p class="mt-0.5 text-xs text-slate-600">A confirmed workbook replaces the selected program's persistent employee roster.</p>
+                                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                                        <label class="text-xs font-semibold uppercase text-slate-500">Program<select wire:model="programRosterProgramId" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case"><option value="">Choose program</option>@foreach ($deductionPrograms as $program)<option value="{{ $program->id }}">{{ $program->name }}</option>@endforeach</select></label>
+                                        <label class="text-xs font-semibold uppercase text-slate-500">Membership file<input wire:model="programRosterFile" type="file" accept=".xlsx,.xls" class="mt-1 block w-full rounded-md border border-slate-300 bg-white text-sm"></label>
+                                        <button wire:click="previewProgramRoster" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Validate Excel</button>
+                                        <button wire:click="exportProgramRosterTemplate" type="button" @disabled(! $programRosterProgramId) class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium disabled:opacity-50">Download Template</button>
+                                        @if ($programRosterPreview !== [])<button wire:click="confirmProgramRoster" type="button" class="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white sm:col-span-2">Replace Roster</button>@endif
+                                    </div>
+                                    @error('programRosterProgramId') <div class="mt-2 text-xs text-red-600">{{ $message }}</div> @enderror
+                                    @error('programRosterFile') <div class="mt-2 text-xs text-red-600">{{ $message }}</div> @enderror
+                                    @if (session('program_roster_status')) <div class="mt-2 text-sm text-emerald-700">{{ session('program_roster_status') }}</div> @endif
+                                    @if ($programRosterPreview !== [])
+                                        <div class="mt-3 max-h-64 overflow-auto rounded border border-slate-200"><table class="min-w-full text-xs"><thead class="sticky top-0 bg-slate-100 text-left"><tr><th class="p-2">Row</th><th class="p-2">Employee ID</th><th class="p-2">Employee</th><th class="p-2">Validation</th></tr></thead><tbody>@foreach ($programRosterPreview as $item)<tr class="border-t border-slate-100"><td class="p-2">{{ $item['row'] }}</td><td class="p-2">{{ $item['emp_id'] ?: '-' }}</td><td class="p-2">{{ $item['employee_name'] ?: '-' }}</td><td class="p-2 {{ $item['valid'] ? 'text-emerald-700' : 'text-red-700' }}">{{ $item['valid'] ? ($item['name_mismatch'] ? 'Valid · name differs from HRIS' : 'Valid') : implode(' ', $item['errors']) }}</td></tr>@endforeach</tbody></table></div>
+                                    @endif
+                                </section>
+                                <livewire:payroll.deduction-programs lazy />
+                            </div>
+                        </aside>
+                    </div>
+                </template>
+            @endif
+
+            <fieldset @disabled(! $canEditCurrentStep) class="contents">
             <div class="grid min-h-0 gap-3 xl:col-span-2 xl:col-start-1 xl:row-start-2">
                 <div class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
                         <div>
-                            <h3 class="font-semibold">Program Deduction Preview</h3>
+                            <h3 class="font-semibold">Other Deductions → Others</h3>
                             <p class="text-sm text-slate-600">Turn recurring deductions on for this payroll run and choose who they apply to.</p>
                         </div>
                         @include('livewire.payroll.partials.step-save-button')
@@ -1503,17 +1776,16 @@
                         <table class="border-separate border-spacing-0 text-sm" style="min-width: {{ $programPreviewWidth }}px;">
                             <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
                                 <tr>
-                                    <th class="payroll-sticky-employee-no-header border-b border-slate-300 px-3 py-2">Employee No.</th>
-                                    <th class="payroll-sticky-employee-name-header border-b border-slate-300 px-3 py-2">Employee Name</th>
-                                    <th class="payroll-sticky-employee-position-header border-b border-r border-slate-300 px-3 py-2">Position</th>
+                                    <th class="payroll-sticky-employee-summary-header border-b border-r-2 border-slate-300 px-3 py-2">Employee Information</th>
                                     <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net Before Programs</th>
                                     @foreach ($activeDeductionPrograms as $program)
                                         <template x-if="programEnabled['{{ $program->id }}']">
                                             <th class="border-b border-r border-slate-300 px-3 py-2 text-right">{{ $program->name }}</th>
                                         </template>
                                     @endforeach
-                                    <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Program Total</th>
-                                    <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net After Programs</th>
+                                    <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Remarks</th>
+                                    <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Total Other Deductions</th>
+                                    <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Net After Other Deductions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1538,21 +1810,24 @@
                                     <tr
                                         class="hover:bg-slate-50"
                                         x-data="{
-                                            netBeforePrograms: @js((float) $row['net_before_other_deductions']),
+                                            netBeforePrograms: @js((float) $row['net_after_loans_before_other']),
+                                            loanTotal: @js((float) ($row['loan_deductions']['total'] ?? 0)),
                                             programAmounts: @js($browserProgramAmounts),
                                             programTotal() {
                                                 return Object.entries(this.programAmounts).reduce((total, [programId, amount]) => {
                                                     return total + (programEnabled[programId] && programApplies(programId, @js((string) $row['emp_id'])) ? Number(amount || 0) : 0);
                                                 }, 0);
                                             },
+                                            totalOtherDeductions() { return this.loanTotal + this.programTotal(); },
                                             money(value) { return Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
                                         }"
                                         data-payroll-row data-emp-id="{{ $row['emp_id'] }}" data-employee-name="{{ $row['employee_name'] }}" data-department="{{ $row['department'] ?? '' }}" data-position="{{ $row['position'] ?? '' }}" data-basic-salary="{{ $row['basic_salary'] ?? 0 }}" data-gross="{{ $row['gross'] ?? 0 }}" data-net-compensation="{{ $row['net_compensation'] ?? 0 }}" data-net-after-loan-deductions="{{ $row['net_after_loan_deductions'] ?? 0 }}" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}"
                                     >
-                                        <td class="payroll-sticky-employee-no-cell border-b border-slate-200 px-3 py-2 font-medium">{{ $row['emp_id'] }}</td>
-                                        <td class="payroll-sticky-employee-name-cell border-b border-slate-200 px-3 py-2"><div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div><div class="text-xs text-slate-500">{{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div></td>
-                                        <td class="payroll-sticky-employee-position-cell border-b border-r border-slate-200 px-3 py-2">{{ $row['position'] ?? '-' }}</td>
-                                        <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ number_format($row['net_before_other_deductions'], 2) }}</td>
+                                        <td class="payroll-sticky-employee-summary-cell overflow-hidden whitespace-nowrap border-b border-r-2 border-slate-200 px-3 py-2.5">
+                                            <div class="flex min-w-0 items-baseline gap-2 whitespace-nowrap"><span class="shrink-0 font-semibold text-slate-900">{{ $row['emp_id'] }}</span><span class="min-w-0 truncate font-medium text-slate-800" title="{{ $row['employee_name'] }}">{{ $row['employee_name'] }}</span></div>
+                                            <div class="mt-0.5 truncate text-xs text-slate-500" title="{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}">{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div>
+                                        </td>
+                                        <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ number_format($row['net_after_loans_before_other'], 2) }}</td>
                                         @foreach ($activeDeductionPrograms as $program)
                                             <template x-if="programEnabled['{{ $program->id }}']">
                                             <td class="border-b border-r border-slate-200 px-3 py-2 text-right">
@@ -1585,14 +1860,15 @@
                                             </td>
                                             </template>
                                         @endforeach
-                                        <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold {{ ($row['program_deductions']['total'] ?? 0) > 0 ? 'text-blue-700' : 'text-slate-500' }}">
-                                            <span x-text="money(programTotal())"></span>
+                                        <td class="border-b border-r border-slate-200 px-3 py-2"><input wire:model.defer="otherDeductionRemarks.{{ $row['emp_id'] }}" type="text" class="w-36 rounded-md border border-slate-300 px-2 py-1 text-xs" aria-label="Other deduction remarks for {{ $row['employee_name'] }}"></td>
+                                        <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold {{ ($row['total_other_deductions'] ?? 0) > 0 ? 'text-blue-700' : 'text-slate-500' }}">
+                                            <span x-text="money(totalOtherDeductions())"></span>
                                         </td>
                                         <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold" x-text="money(netBeforePrograms - programTotal())"></td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ 6 + $activeDeductionPrograms->count() }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
+                                        <td colspan="{{ 7 + $activeDeductionPrograms->count() }}" class="px-4 py-8 text-center text-slate-500">No active HRIS employees found for the selected department.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -1602,7 +1878,7 @@
             </div>
             </fieldset>
         </div>
-    @elseif (in_array($currentStep, [5, 6], true))
+    @elseif ($currentStep === 4)
         @php
             $isAdditionalPremiumStep = $currentStep === 5;
             $stepDeductionTypes = $isAdditionalPremiumStep ? $additionalPremiumTypes : $loanTypes;
@@ -1621,8 +1897,8 @@
             $stepTotalLabel = $isAdditionalPremiumStep ? 'Additional Premium' : 'Loan Deductions';
             $stepFinalLabel = $isAdditionalPremiumStep ? 'Net After Premiums' : 'Final Net Pay';
             $stepDeductionKey = $isAdditionalPremiumStep ? 'additional_premiums' : 'loan_deductions';
-            $stepNetBeforeKey = $isAdditionalPremiumStep ? 'net_after_program_deductions' : 'net_after_additional_premiums';
-            $stepNetAfterKey = $isAdditionalPremiumStep ? 'net_after_additional_premiums' : 'net_after_loan_deductions';
+            $stepNetBeforeKey = 'net_before_other_deductions';
+            $stepNetAfterKey = 'net_after_loans_before_other';
             $loanEmployees = $rows->map(fn ($row) => [
                 'emp_id' => $row['emp_id'],
                 'name' => $row['employee_name'],
@@ -2146,9 +2422,7 @@
                     <table class="min-w-[1360px] border-separate border-spacing-0 text-sm">
                         <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
                             <tr>
-                                <th class="payroll-sticky-employee-no-header border-b border-slate-300 px-3 py-2">Employee No.</th>
-                                <th class="payroll-sticky-employee-name-header border-b border-slate-300 px-3 py-2">Employee Name</th>
-                                <th class="payroll-sticky-employee-position-header border-b border-r border-slate-300 px-3 py-2">Position</th>
+                                <th class="payroll-sticky-employee-summary-header border-b border-r-2 border-slate-300 px-3 py-2">Employee Information</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2 text-right">{{ $stepNetBeforeLabel }}</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2 text-right">{{ $stepTotalLabel }}</th>
                                 <th class="border-b border-r border-slate-300 px-3 py-2 text-right">{{ $stepFinalLabel }}</th>
@@ -2158,9 +2432,10 @@
                         <tbody>
                             @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50" data-payroll-row data-emp-id="{{ $row['emp_id'] }}" data-employee-name="{{ $row['employee_name'] }}" data-department="{{ $row['department'] ?? '' }}" data-position="{{ $row['position'] ?? '' }}" data-basic-salary="{{ $row['basic_salary'] ?? 0 }}" data-gross="{{ $row['gross'] ?? 0 }}" data-net-compensation="{{ $row['net_compensation'] ?? 0 }}" data-net-after-loan-deductions="{{ $row['net_after_loan_deductions'] ?? 0 }}" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}">
-                                    <td class="payroll-sticky-employee-no-cell border-b border-slate-200 px-3 py-2 font-medium">{{ $row['emp_id'] }}</td>
-                                    <td class="payroll-sticky-employee-name-cell border-b border-slate-200 px-3 py-2"><div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div><div class="text-xs text-slate-500">{{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div></td>
-                                    <td class="payroll-sticky-employee-position-cell border-b border-r border-slate-200 px-3 py-2">{{ $row['position'] ?? '-' }}</td>
+                                    <td class="payroll-sticky-employee-summary-cell overflow-hidden whitespace-nowrap border-b border-r-2 border-slate-200 px-3 py-2.5">
+                                        <div class="flex min-w-0 items-baseline gap-2 whitespace-nowrap"><span class="shrink-0 font-semibold text-slate-900">{{ $row['emp_id'] }}</span><span class="min-w-0 truncate font-medium text-slate-800" title="{{ $row['employee_name'] }}">{{ $row['employee_name'] }}</span></div>
+                                        <div class="mt-0.5 truncate text-xs text-slate-500" title="{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}">{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div>
+                                    </td>
                                     <td class="border-b border-r border-slate-200 px-3 py-2 text-right">{{ number_format($row[$stepNetBeforeKey] ?? 0, 2) }}</td>
                                     <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold {{ ($row[$stepDeductionKey]['total'] ?? 0) > 0 ? 'text-blue-700' : 'text-slate-500' }}">
                                         {{ number_format($row[$stepDeductionKey]['total'] ?? 0, 2) }}
@@ -2203,13 +2478,15 @@
                     <div class="payroll-table-scroll max-h-[640px] overflow-auto">
                         <table class="min-w-[1100px] border-separate border-spacing-0 text-sm">
                             <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
-                                <tr><th class="px-3 py-2">Employee No.</th><th class="px-3 py-2">Employee</th><th class="px-3 py-2">Loan Kind</th><th class="px-3 py-2 text-right">Refund Amount</th><th class="px-3 py-2">Remarks</th><th class="px-3 py-2 text-right">Net After Refund</th></tr>
+                                <tr><th class="payroll-sticky-employee-summary-header px-3 py-2">Employee Information</th><th class="px-3 py-2">Loan Kind</th><th class="px-3 py-2 text-right">Refund Amount</th><th class="px-3 py-2">Remarks</th><th class="px-3 py-2 text-right">Net After Refund</th></tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
                                 @foreach ($rows as $row)
                                     <tr x-data="{ refundAmount: @entangle('loanRefunds.'.$row['emp_id'].'.amount'), baseNet: @js($row['net_after_loan_deductions'] - ($row['loan_refunds']['total'] ?? 0)) }" data-payroll-row data-emp-id="{{ $row['emp_id'] }}" data-employee-name="{{ $row['employee_name'] }}" data-department="{{ $row['department'] ?? '' }}" data-position="{{ $row['position'] ?? '' }}">
-                                        <td class="px-3 py-2 font-medium">{{ $row['emp_id'] }}</td>
-                                        <td class="px-3 py-2"><div class="font-medium">{{ $row['employee_name'] }}</div><div class="text-xs text-slate-500">{{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div></td>
+                                        <td class="payroll-sticky-employee-summary-cell overflow-hidden whitespace-nowrap border-r-2 border-slate-200 px-3 py-2.5">
+                                            <div class="flex min-w-0 items-baseline gap-2 whitespace-nowrap"><span class="shrink-0 font-semibold text-slate-900">{{ $row['emp_id'] }}</span><span class="min-w-0 truncate font-medium text-slate-800" title="{{ $row['employee_name'] }}">{{ $row['employee_name'] }}</span></div>
+                                            <div class="mt-0.5 truncate text-xs text-slate-500" title="{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}">{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div>
+                                        </td>
                                         <td class="px-3 py-2">
                                             <select wire:model.defer="loanRefunds.{{ $row['emp_id'] }}.loan_type" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm">
                                                 <option value="">Select loan type</option>
@@ -2230,8 +2507,21 @@
                 </template>
             @endunless
         </div>
-    @elseif ($currentStep === 7)
-        <div x-data="{ taxTab: 'basic' }" class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    @elseif ($currentStep === 6)
+        <div
+            x-data="{
+                taxTab: 'basic',
+                bulkTaxAdjustment: '',
+                applyTaxAdjustmentToAll(root) {
+                    root.querySelectorAll('[data-tax-adjustment]').forEach((input) => {
+                        input.value = this.bulkTaxAdjustment;
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                },
+            }"
+            class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+        >
             <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
                 <div>
                     <h3 class="font-semibold">Tax Calculation</h3>
@@ -2250,24 +2540,97 @@
             <div class="flex flex-wrap gap-2 border-b border-slate-200 px-4 py-3">
                 <button type="button" x-on:click="taxTab = 'basic'" x-bind:class="taxTab === 'basic' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'" class="rounded-md px-4 py-2 text-sm font-semibold">Tax on Basic</button>
                 <button type="button" x-on:click="taxTab = 'hazard'" x-bind:class="taxTab === 'hazard' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'" class="rounded-md px-4 py-2 text-sm font-semibold">Tax on Hazard</button>
-                <button type="button" x-on:click="taxTab = 'adjustments'" x-bind:class="taxTab === 'adjustments' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'" class="rounded-md px-4 py-2 text-sm font-semibold">Tax Adjustments</button>
                 <button type="button" x-on:click="taxTab = 'annualization'" x-bind:class="taxTab === 'annualization' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'" class="rounded-md px-4 py-2 text-sm font-semibold">Tax Annualization</button>
             </div>
-            <div x-show="taxTab !== 'annualization'" class="payroll-table-scroll overflow-x-auto">
-                <table class="min-w-[1200px] divide-y divide-slate-200 text-sm">
+            <div x-show="taxTab === 'basic'" class="payroll-table-scroll overflow-x-auto">
+                <table class="min-w-[1320px] divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                        <tr><th class="px-4 py-3">Employee No.</th><th class="px-4 py-3">Employee</th><th class="px-4 py-3 text-right">Base Taxable Income</th><th x-show="taxTab === 'hazard'" class="px-4 py-3 text-right">Hazard</th><th class="px-4 py-3 text-right">Computed Tax</th><th x-show="taxTab === 'adjustments'" class="px-4 py-3 text-right">Adjustment</th><th class="px-4 py-3 text-right">Final Withholding Tax</th></tr>
+                        <tr>
+                            <th rowspan="3" class="payroll-sticky-employee-summary-header border-b border-r-2 border-slate-300 px-3 py-3 align-middle">Employee Information</th>
+                            <th colspan="7" class="border-b border-slate-300 px-4 py-2 text-center">Tax on Basic</th>
+                        </tr>
+                        <tr>
+                            <th colspan="3" class="border-b border-r-2 border-slate-300 px-4 py-2 text-center">Base Income</th>
+                            <th colspan="3" class="border-b border-r-2 border-slate-300 px-4 py-2 text-center">Tax</th>
+                            <th rowspan="2" class="border-b border-slate-300 px-3 py-2 align-middle">
+                                <div class="flex min-w-48 flex-col items-end gap-1.5">
+                                    <span>Tax Adj</span>
+                                    @if ($canEditCurrentStep)
+                                        <div class="flex items-center gap-1.5 normal-case">
+                                            <input x-model="bulkTaxAdjustment" type="number" step="0.01" placeholder="0.00" aria-label="Tax adjustment to apply to all employees" class="w-24 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-right text-xs font-normal text-slate-700">
+                                            <button type="button" x-on:click="applyTaxAdjustmentToAll($root)" x-bind:disabled="bulkTaxAdjustment === ''" class="whitespace-nowrap rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-semibold normal-case text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">Apply to All</button>
+                                        </div>
+                                    @endif
+                                </div>
+                            </th>
+                        </tr>
+                        <tr>
+                            <th class="border-b border-slate-300 px-4 py-2 text-right">TI</th>
+                            <th class="border-b border-slate-300 px-4 py-2 text-right">CL</th>
+                            <th class="border-b border-r-2 border-slate-300 px-4 py-2 text-right">Excess</th>
+                            <th class="border-b border-slate-300 px-4 py-2 text-right">CL</th>
+                            <th class="border-b border-slate-300 px-4 py-2 text-right">Excess</th>
+                            <th class="border-b border-r-2 border-slate-300 px-4 py-2 text-right">Total</th>
+                        </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @foreach ($rows as $row)
+                            @php $taxOnBasic = $row['tax']['tax_on_basic_breakdown'] ?? []; @endphp
                             <tr data-payroll-row data-emp-id="{{ $row['emp_id'] }}" data-employee-name="{{ $row['employee_name'] }}" data-department="{{ $row['department'] ?? '' }}" data-position="{{ $row['position'] ?? '' }}">
-                                <td class="px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
-                                <td class="px-4 py-3"><div class="font-medium">{{ $row['employee_name'] }}</div><div class="text-xs text-slate-500">{{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div></td>
-                                <td class="px-4 py-3 text-right">{{ number_format($row['tax']['monthly_withholding_taxable_income'] ?? 0, 2) }}</td>
-                                <td x-show="taxTab === 'hazard'" class="px-4 py-3 text-right">{{ number_format($row['tax']['current_hazard'] ?? 0, 2) }}</td>
-                                <td class="px-4 py-3 text-right font-semibold"><span x-show="taxTab === 'basic'">{{ number_format($row['tax']['tax_on_basic'] ?? 0, 2) }}</span><span x-show="taxTab === 'hazard'">{{ number_format($row['tax']['tax_on_hazard'] ?? 0, 2) }}</span><span x-show="taxTab === 'adjustments'">{{ number_format($row['tax']['tax_adjustments'] ?? 0, 2) }}</span></td>
-                                <td x-show="taxTab === 'adjustments'" class="px-4 py-3 text-right"><input wire:model.defer="taxAnnualizationOverrides.{{ $row['emp_id'] }}.withholding_tax_adjustment" type="number" step="0.01" class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right"></td>
-                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['monthly_tax_due'] ?? 0, 2) }}</td>
+                                <td class="payroll-sticky-employee-summary-cell overflow-hidden whitespace-nowrap border-r-2 border-slate-200 px-3 py-2.5">
+                                    <div class="flex min-w-0 items-baseline gap-2 whitespace-nowrap"><span class="shrink-0 font-semibold text-slate-900">{{ $row['emp_id'] }}</span><span class="min-w-0 truncate font-medium text-slate-800" title="{{ $row['employee_name'] }}">{{ $row['employee_name'] }}</span></div>
+                                    <div class="mt-0.5 truncate text-xs text-slate-500" title="{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}">{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div>
+                                </td>
+                                <td class="px-4 py-3 text-right">{{ number_format($taxOnBasic['taxable_income'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($taxOnBasic['class_limit'] ?? 0, 2) }}</td>
+                                <td class="border-r-2 border-slate-200 px-4 py-3 text-right">{{ number_format($taxOnBasic['excess'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($taxOnBasic['base_tax'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($taxOnBasic['excess_tax'] ?? 0, 2) }}</td>
+                                <td class="border-r-2 border-slate-200 px-4 py-3 text-right font-semibold">{{ number_format($taxOnBasic['total'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right"><input data-tax-adjustment wire:model.defer="taxAnnualizationOverrides.{{ $row['emp_id'] }}.withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-right"></td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            <div x-show="taxTab === 'hazard'" x-cloak class="payroll-table-scroll overflow-x-auto">
+                <table class="min-w-[1320px] divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                        <tr>
+                            <th rowspan="3" class="payroll-sticky-employee-summary-header border-b border-r-2 border-slate-300 px-3 py-3 align-middle">Employee Information</th>
+                            <th colspan="8" class="border-b border-slate-300 px-4 py-2 text-center">Tax on Hazard</th>
+                        </tr>
+                        <tr>
+                            <th colspan="3" class="border-b border-r-2 border-slate-300 px-4 py-2 text-center">Base Income</th>
+                            <th colspan="3" class="border-b border-r-2 border-slate-300 px-4 py-2 text-center">Tax</th>
+                            <th rowspan="2" class="border-b border-slate-300 px-4 py-3 text-right align-middle">Tax on Basic</th>
+                            <th rowspan="2" class="border-b border-slate-300 px-4 py-3 text-right align-middle">Tax on Hazard</th>
+                        </tr>
+                        <tr>
+                            <th class="border-b border-slate-300 px-4 py-2 text-right">TI</th>
+                            <th class="border-b border-slate-300 px-4 py-2 text-right">CL</th>
+                            <th class="border-b border-r-2 border-slate-300 px-4 py-2 text-right">Excess</th>
+                            <th class="border-b border-slate-300 px-4 py-2 text-right">CL</th>
+                            <th class="border-b border-slate-300 px-4 py-2 text-right">Excess</th>
+                            <th class="border-b border-r-2 border-slate-300 px-4 py-2 text-right">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach ($rows as $row)
+                            @php $taxOnHazard = $row['tax']['tax_on_hazard_breakdown'] ?? []; @endphp
+                            <tr data-payroll-row data-emp-id="{{ $row['emp_id'] }}" data-employee-name="{{ $row['employee_name'] }}" data-department="{{ $row['department'] ?? '' }}" data-position="{{ $row['position'] ?? '' }}">
+                                <td class="payroll-sticky-employee-summary-cell overflow-hidden whitespace-nowrap border-r-2 border-slate-200 px-3 py-2.5">
+                                    <div class="flex min-w-0 items-baseline gap-2 whitespace-nowrap"><span class="shrink-0 font-semibold text-slate-900">{{ $row['emp_id'] }}</span><span class="min-w-0 truncate font-medium text-slate-800" title="{{ $row['employee_name'] }}">{{ $row['employee_name'] }}</span></div>
+                                    <div class="mt-0.5 truncate text-xs text-slate-500" title="{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}">{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div>
+                                </td>
+                                <td class="px-4 py-3 text-right">{{ number_format($taxOnHazard['taxable_income'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($taxOnHazard['class_limit'] ?? 0, 2) }}</td>
+                                <td class="border-r-2 border-slate-200 px-4 py-3 text-right">{{ number_format($taxOnHazard['excess'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($taxOnHazard['base_tax'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($taxOnHazard['excess_tax'] ?? 0, 2) }}</td>
+                                <td class="border-r-2 border-slate-200 px-4 py-3 text-right font-semibold">{{ number_format($taxOnHazard['total'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($taxOnHazard['tax_on_basic'] ?? 0, 2) }}</td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($taxOnHazard['tax_on_hazard'] ?? 0, 2) }}</td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -2277,9 +2640,7 @@
                 <table class="min-w-[2720px] divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="payroll-sticky-employee-no-header px-4 py-3">Employee No.</th>
-                            <th class="payroll-sticky-employee-name-header px-4 py-3">Employee Name</th>
-                            <th class="payroll-sticky-employee-position-header border-r-2 border-slate-300 px-4 py-3">Position</th>
+                            <th class="payroll-sticky-employee-summary-header border-r-2 border-slate-300 px-3 py-3">Employee Information</th>
                             <th class="px-4 py-3">Entry Date</th>
                             <th class="px-4 py-3 text-right">SG</th>
                             <th class="px-4 py-3 text-right">Salary</th>
@@ -2310,9 +2671,10 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50" data-payroll-row data-emp-id="{{ $row['emp_id'] }}" data-employee-name="{{ $row['employee_name'] }}" data-department="{{ $row['department'] ?? '' }}" data-position="{{ $row['position'] ?? '' }}" data-basic-salary="{{ $row['basic_salary'] ?? 0 }}" data-gross="{{ $row['gross'] ?? 0 }}" data-net-compensation="{{ $row['net_compensation'] ?? 0 }}" data-net-after-loan-deductions="{{ $row['net_after_loan_deductions'] ?? 0 }}" data-unsaved-employee-no="{{ $row['emp_id'] }}" data-unsaved-employee-name="{{ $row['employee_name'] }}">
-                                <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
-                                <td class="payroll-sticky-employee-name-cell px-4 py-3"><div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div><div class="text-xs text-slate-500">{{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div></td>
-                                <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
+                                <td class="payroll-sticky-employee-summary-cell overflow-hidden whitespace-nowrap border-r-2 border-slate-200 px-3 py-2.5">
+                                    <div class="flex min-w-0 items-baseline gap-2 whitespace-nowrap"><span class="shrink-0 font-semibold text-slate-900">{{ $row['emp_id'] }}</span><span class="min-w-0 truncate font-medium text-slate-800" title="{{ $row['employee_name'] }}">{{ $row['employee_name'] }}</span></div>
+                                    <div class="mt-0.5 truncate text-xs text-slate-500" title="{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}">{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div>
+                                </td>
                                 <td class="px-4 py-3">{{ $row['tax']['entry_date'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">{{ $row['tax']['salary_grade'] ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($row['tax']['salary'] ?? 0, 2) }}</td>
@@ -2382,14 +2744,12 @@
                 <table class="min-w-[5760px] divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="px-4 py-2" colspan="4"></th>
+                            <th class="px-4 py-2" colspan="2"></th>
                             <th class="px-4 py-2 text-center" colspan="30">ANNUALIZATION</th>
                             <th class="px-4 py-2 text-center" colspan="6">WITHHOLDING TAX OUTPUTS</th>
                         </tr>
                         <tr>
-                            <th class="payroll-sticky-employee-no-header px-4 py-3">Employee No.</th>
-                            <th class="payroll-sticky-employee-name-header px-4 py-3">Employee Name</th>
-                            <th class="payroll-sticky-employee-position-header border-r-2 border-slate-300 px-4 py-3">Position</th>
+                            <th class="payroll-sticky-employee-summary-header border-r-2 border-slate-300 px-3 py-3">Employee Information</th>
                             <th class="px-4 py-3 text-right">SG</th>
                             <th class="px-4 py-3">APPOINTMENT DATE</th>
                             <th class="px-4 py-3">EXPECTED RETIRE/RESIGN DATE</th>
@@ -2432,9 +2792,10 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rows as $row)
                             <tr class="hover:bg-slate-50" data-payroll-row data-emp-id="{{ $row['emp_id'] }}" data-employee-name="{{ $row['employee_name'] }}" data-department="{{ $row['department'] ?? '' }}" data-position="{{ $row['position'] ?? '' }}" data-basic-salary="{{ $row['basic_salary'] ?? 0 }}" data-gross="{{ $row['gross'] ?? 0 }}" data-net-compensation="{{ $row['net_compensation'] ?? 0 }}" data-net-after-loan-deductions="{{ $row['net_after_loan_deductions'] ?? 0 }}">
-                                <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
-                                <td class="payroll-sticky-employee-name-cell px-4 py-3"><div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div><div class="text-xs text-slate-500">{{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div></td>
-                                <td class="payroll-sticky-employee-position-cell border-r-2 border-slate-200 px-4 py-3">{{ $row['position'] ?? '-' }}</td>
+                                <td class="payroll-sticky-employee-summary-cell overflow-hidden whitespace-nowrap border-r-2 border-slate-200 px-3 py-2.5">
+                                    <div class="flex min-w-0 items-baseline gap-2 whitespace-nowrap"><span class="shrink-0 font-semibold text-slate-900">{{ $row['emp_id'] }}</span><span class="min-w-0 truncate font-medium text-slate-800" title="{{ $row['employee_name'] }}">{{ $row['employee_name'] }}</span></div>
+                                    <div class="mt-0.5 truncate text-xs text-slate-500" title="{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}">{{ $row['position'] ?? '-' }} · {{ $row['department'] ?: ($row['division'] ?? 'No department/office') }}</div>
+                                </td>
                                 <td class="px-4 py-3 text-right">{{ $row['tax']['salary_grade'] ?? '-' }} / {{ $row['step'] ?? '-' }}</td>
                                 <td class="px-4 py-3">{{ $row['tax']['entry_date'] ?? '-' }}</td>
                                 <td class="px-4 py-3">-</td>
@@ -2468,7 +2829,7 @@
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['monthly_annualized_tax_due'] ?? 0, 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format(($row['tax']['gross_withholding_tax_adjustment'] ?? 0) + ($row['tax']['supplemental_tax_due'] ?? 0), 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['tax']['withholding_tax_gross'] ?? $row['tax']['monthly_tax_due'], 2) }}</td>
-                                <td class="px-4 py-3 text-right"><input wire:model.defer="taxAnnualizationOverrides.{{ $row['emp_id'] }}.withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
+                                <td class="px-4 py-3 text-right"><input data-tax-adjustment wire:model.defer="taxAnnualizationOverrides.{{ $row['emp_id'] }}.withholding_tax_adjustment" type="number" step="0.01" placeholder="{{ number_format($row['tax']['withholding_tax_adjustment'] ?? 0, 2, '.', '') }}" @disabled(! $canEditCurrentStep) class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"></td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_loan_deductions'], 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['fifteenth'], 2) }}</td>
                                 <td class="px-4 py-3 text-right font-semibold">{{ number_format($row['thirtieth'], 2) }}</td>
@@ -2482,7 +2843,7 @@
                 </table>
             </div>
         </div>
-    @elseif ($currentStep === 8)
+    @elseif ($currentStep === 7)
         @php
             $activeReviewDeductionPrograms = $deductionPrograms->filter(fn ($program) => filter_var($deductionProgramSelections[(string) $program->id]['enabled'] ?? false, FILTER_VALIDATE_BOOL));
         @endphp

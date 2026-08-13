@@ -47,6 +47,37 @@ class PayrollTaxService
         }, 2);
     }
 
+    /**
+     * Workbook-aligned TAX ON BASIC breakdown (hopss_finance IE:IM).
+     *
+     * @return array{taxable_income: float, class_limit: float, excess: float, base_tax: float, excess_rate: float, excess_tax: float, total: float}
+     */
+    public function monthlyWithholdingTaxBreakdown(float $monthlyTaxableIncome): array
+    {
+        $taxableIncome = round($monthlyTaxableIncome, 2);
+        [$classLimit, $baseTax, $excessRate] = match (true) {
+            $taxableIncome >= 666667 => [666667.0, 183541.8, 0.35],
+            $taxableIncome >= 166667 => [166667.0, 33541.8, 0.30],
+            $taxableIncome >= 66667 => [66667.0, 8541.8, 0.25],
+            $taxableIncome >= 33333 => [33333.0, 1875.0, 0.20],
+            $taxableIncome >= 20833 => [20833.0, 0.0, 0.15],
+            $taxableIncome >= 20832 => [20832.0, 0.0, 0.0],
+            default => [0.0, 0.0, 0.0],
+        };
+        $excess = round($taxableIncome - $classLimit, 2);
+        $excessTax = round($excessRate * $excess, 2);
+
+        return [
+            'taxable_income' => $taxableIncome,
+            'class_limit' => $classLimit,
+            'excess' => $excess,
+            'base_tax' => $baseTax,
+            'excess_rate' => $excessRate,
+            'excess_tax' => $excessTax,
+            'total' => round($baseTax + $excessTax, 2),
+        ];
+    }
+
     public function monthlyAnnualizedTaxDue(float $monthlyTaxableIncome): float
     {
         return round($this->monthlyAnnualizedTaxDueRaw($monthlyTaxableIncome), 2);
@@ -135,8 +166,10 @@ class PayrollTaxService
 
         $currentBasicTaxableIncome = round($currentBasic + $currentSubsistence - $currentMandatoryDeductions, 2);
         $currentTaxableIncomeWithHazard = round($currentBasicTaxableIncome + $currentHazard, 2);
-        $regularMonthlyTaxDue = $this->monthlyWithholdingTaxDue($currentBasicTaxableIncome);
-        $currentTaxWithHazard = $this->monthlyWithholdingTaxDue($currentTaxableIncomeWithHazard);
+        $taxOnBasicBreakdown = $this->monthlyWithholdingTaxBreakdown($currentBasicTaxableIncome);
+        $regularMonthlyTaxDue = $taxOnBasicBreakdown['total'];
+        $taxOnHazardBreakdown = $this->monthlyWithholdingTaxBreakdown($currentTaxableIncomeWithHazard);
+        $currentTaxWithHazard = $taxOnHazardBreakdown['total'];
         $currentHazardTaxDue = $annualTaxableIncome > 250000
             ? round(max(0, $currentTaxWithHazard - $regularMonthlyTaxDue), 2)
             : 0.0;
@@ -190,6 +223,12 @@ class PayrollTaxService
             'annual_tax_due' => $annualTaxDue,
             'regular_monthly_tax_due' => $regularMonthlyTaxDue,
             'tax_on_basic' => $regularMonthlyTaxDue,
+            'tax_on_basic_breakdown' => $taxOnBasicBreakdown,
+            'tax_on_hazard_breakdown' => [
+                ...$taxOnHazardBreakdown,
+                'tax_on_basic' => $regularMonthlyTaxDue,
+                'tax_on_hazard' => $currentHazardTaxDue,
+            ],
             'gross_withholding_tax_adjustment' => $grossTaxAdjustment,
             'supplemental_tax_due' => $supplementalTaxDue,
             'withholding_tax_gross' => $withholdingTaxGross,

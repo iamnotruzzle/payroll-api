@@ -78,35 +78,35 @@ class FingerprintRegistrationStatus extends Component
 
             $summary['total_active'] = (clone $base)->count();
             $summary['registered'] = (clone $base)
-                ->whereNotNull('fingerprint_1')
-                ->whereNotNull('fingerprint_2')
+                ->whereRaw('OCTET_LENGTH(fingerprint_1) > 0')
+                ->whereRaw('OCTET_LENGTH(fingerprint_2) > 0')
                 ->count();
             $summary['partial'] = (clone $base)
                 ->where(function ($q) {
                     $q->where(function ($inner) {
-                        $inner->whereNotNull('fingerprint_1')->whereNull('fingerprint_2');
+                        $inner->whereRaw('OCTET_LENGTH(fingerprint_1) > 0')->whereRaw('OCTET_LENGTH(fingerprint_2) = 0');
                     })->orWhere(function ($inner) {
-                        $inner->whereNull('fingerprint_1')->whereNotNull('fingerprint_2');
+                        $inner->whereRaw('OCTET_LENGTH(fingerprint_1) = 0')->whereRaw('OCTET_LENGTH(fingerprint_2) > 0');
                     });
                 })
                 ->count();
             $summary['missing'] = (clone $base)
-                ->whereNull('fingerprint_1')
-                ->whereNull('fingerprint_2')
+                ->whereRaw('OCTET_LENGTH(fingerprint_1) = 0')
+                ->whereRaw('OCTET_LENGTH(fingerprint_2) = 0')
                 ->count();
 
             if ($this->statusFilter === 'registered') {
-                $query->whereNotNull('fingerprint_1')->whereNotNull('fingerprint_2');
+                $query->whereRaw('OCTET_LENGTH(fingerprint_1) > 0')->whereRaw('OCTET_LENGTH(fingerprint_2) > 0');
             } elseif ($this->statusFilter === 'partial') {
                 $query->where(function ($q) {
                     $q->where(function ($inner) {
-                        $inner->whereNotNull('fingerprint_1')->whereNull('fingerprint_2');
+                        $inner->whereRaw('OCTET_LENGTH(fingerprint_1) > 0')->whereRaw('OCTET_LENGTH(fingerprint_2) = 0');
                     })->orWhere(function ($inner) {
-                        $inner->whereNull('fingerprint_1')->whereNotNull('fingerprint_2');
+                        $inner->whereRaw('OCTET_LENGTH(fingerprint_1) = 0')->whereRaw('OCTET_LENGTH(fingerprint_2) > 0');
                     });
                 });
             } elseif ($this->statusFilter === 'missing') {
-                $query->whereNull('fingerprint_1')->whereNull('fingerprint_2');
+                $query->whereRaw('OCTET_LENGTH(fingerprint_1) = 0')->whereRaw('OCTET_LENGTH(fingerprint_2) = 0');
             }
 
             $employees = $query
@@ -116,8 +116,8 @@ class FingerprintRegistrationStatus extends Component
                     'middlename',
                     'lastname',
                     'department_id',
-                    DB::raw('CASE WHEN fingerprint_1 IS NULL THEN 0 ELSE 1 END as has_fingerprint_1'),
-                    DB::raw('CASE WHEN fingerprint_2 IS NULL THEN 0 ELSE 1 END as has_fingerprint_2'),
+                    DB::raw('CASE WHEN OCTET_LENGTH(fingerprint_1) > 0 THEN 1 ELSE 0 END as has_fingerprint_1'),
+                    DB::raw('CASE WHEN OCTET_LENGTH(fingerprint_2) > 0 THEN 1 ELSE 0 END as has_fingerprint_2'),
                 ])
                 ->paginate(25);
         } else {
@@ -134,6 +134,7 @@ class FingerprintRegistrationStatus extends Component
             'employees' => $employees,
             'departments' => Department::query()->orderBy('department')->get(),
             'summary' => $summary,
+            'canManage' => auth()->user()?->can('timekeeping.manage') ?? false,
         ]);
     }
 }

@@ -2,7 +2,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
             <h2 class="text-xl font-semibold">IPCR Periods</h2>
-            <p class="text-sm text-slate-600">Performance periods on legacy <code>ipcr_*</code> tables. OPCR/MFO calibration polish deferred.</p>
+            <p class="text-sm text-slate-600">Manage employee performance evaluation periods.</p>
         </div>
         <div class="flex flex-wrap gap-2">
             <a href="{{ route('home') }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">All apps</a>

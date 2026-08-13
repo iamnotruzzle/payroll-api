@@ -9,9 +9,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Division extends Model
 {
     protected $connection = 'hris';
+
     protected $table = 'tbl_division';
+
     protected $primaryKey = 'division_id';
+
     public $incrementing = true;
+
+    public $timestamps = false;
+
     protected $keyType = 'int';
 
     protected $fillable = [

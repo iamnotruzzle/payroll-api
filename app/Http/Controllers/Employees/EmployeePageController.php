@@ -23,6 +23,13 @@ class EmployeePageController extends Controller
         return view('employees.create');
     }
 
+    public function import(): View
+    {
+        abort_unless(auth()->user()?->can('employees.manage'), 403);
+
+        return view('employees.import');
+    }
+
     public function show(string $empId): View
     {
         return view('employees.show', [

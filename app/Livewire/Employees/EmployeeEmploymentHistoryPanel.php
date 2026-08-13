@@ -174,8 +174,8 @@ class EmployeeEmploymentHistoryPanel extends Component
             'rows' => $rows,
             'canManage' => $this->canManage(),
             'natures' => EmploymentHistoryService::natures(),
-            'positions' => Position::query()->orderBy('position_title')->get(['position_id', 'position_title', 'salary_grade']),
-            'departments' => Department::query()->orderBy('department')->get(['department_id', 'department']),
+            'positions' => Position::query()->whereNotExists(fn ($query) => $query->selectRaw('1')->from('hris_reference_metadata')->whereColumn('reference_id', 'tbl_position.position_id')->where('reference_type', 'position')->where('is_active', false))->orderBy('position_title')->get(['position_id', 'position_title', 'salary_grade']),
+            'departments' => Department::query()->whereNotExists(fn ($query) => $query->selectRaw('1')->from('hris_reference_metadata')->whereColumn('reference_id', 'tbl_department.department_id')->where('reference_type', 'department')->where('is_active', false))->orderBy('department')->get(['department_id', 'department']),
             'employmentStatuses' => EmploymentStatus::query()->orderBy('empstat_id')->get(),
         ]);
     }

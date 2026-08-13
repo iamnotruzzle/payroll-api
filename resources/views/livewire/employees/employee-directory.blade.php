@@ -8,9 +8,9 @@
         </div>
         <div class="flex flex-wrap items-center gap-2">
             @can('employees.manage')
+                <a href="{{ route('employees.masterlist-import') }}" class="rounded-md border border-[#696cff] px-4 py-2 text-sm font-semibold text-[#696cff] hover:bg-indigo-50">Import Masterlist</a>
                 <a href="{{ route('employees.create') }}" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Add employee</a>
             @endcan
-            <a href="{{ route('home') }}" class="text-sm font-semibold text-[#696cff] hover:underline">All apps</a>
         </div>
     </div>
 

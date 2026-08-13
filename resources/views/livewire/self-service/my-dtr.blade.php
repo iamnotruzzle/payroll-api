@@ -91,7 +91,4 @@
         </table>
     </section>
 
-    <p class="text-xs text-slate-500">
-        Source: HRIS DTR punches (`tbl_employee_dtr`) plus payroll labels/adjustments used by DTR Encoding. This screen is read-only — request corrections through Timekeeping if needed.
-    </p>
 </section>

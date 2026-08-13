@@ -135,6 +135,7 @@ class RegularPayrollTemplateExportService
             $tax = $row['tax'] ?? [];
             $loans = $row['loan_deductions']['columns'] ?? [];
             $programs = collect($row['program_deductions']['items'] ?? []);
+            $mandatoryPrograms = collect($row['mandatory_program_deductions']['items'] ?? []);
             $adjustments = $row['compensation_adjustments'] ?? [];
             $totalOtherDeductions = $row['total_other_deductions']
                 ?? (($row['program_deductions']['total'] ?? 0) + ($row['additional_premiums']['total'] ?? 0) + ($row['loan_deductions']['total'] ?? 0));
@@ -174,9 +175,11 @@ class RegularPayrollTemplateExportService
                 'AQ' => $this->money($statutory['phic'] ?? 0),
                 'AR' => $this->money($governmentShares['government_phic'] ?? 0),
                 'AS' => $this->money($statutory['mandatory_pagibig'] ?? 0),
-                'AT' => $this->money($statutory['hdmf_ps_2_ms'] ?? 0),
+                'AT' => $this->programAmount($mandatoryPrograms, ['hdmf ps 2 ms', 'hdmf (ps) 2 ms'])
+                    ?: $this->money($statutory['hdmf_ps_2_ms'] ?? 0),
                 'AU' => $this->money($governmentShares['government_pagibig'] ?? 0),
-                'AV' => $this->money($statutory['ea_deduction'] ?? 0),
+                'AV' => $this->programAmount($mandatoryPrograms, ['ea deduction'])
+                    ?: $this->money($statutory['ea_deduction'] ?? 0),
                 'AW' => 0,
                 'AX' => 0,
                 'AY' => 0,

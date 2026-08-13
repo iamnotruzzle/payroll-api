@@ -4,17 +4,23 @@ namespace App\Models\Hris;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
 class UserAccount extends Authenticatable
 {
-    use HasRoles;
+    use HasApiTokens, HasRoles;
 
     protected $connection = 'hris';
+
     protected $table = 'tbl_useraccount';
+
     protected $primaryKey = 'userid';
+
     protected string $guard_name = 'web';
+
     public $incrementing = true;
+
     protected $keyType = 'int';
 
     protected $fillable = [
@@ -37,10 +43,10 @@ class UserAccount extends Authenticatable
     {
         return [
             'login_attempt' => 'integer',
-            'user_level'    => 'integer',
-            'created_by'    => 'integer',
-            'pims_role'     => 'integer',
-            'password'      => 'hashed',
+            'user_level' => 'integer',
+            'created_by' => 'integer',
+            'pims_role' => 'integer',
+            'password' => 'hashed',
         ];
     }
 

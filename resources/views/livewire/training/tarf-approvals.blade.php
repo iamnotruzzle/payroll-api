@@ -2,7 +2,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
             <h2 class="text-xl font-semibold">TARF Approvals</h2>
-            <p class="text-sm text-slate-600">PETU then MCC approval queue (legacy status codes).</p>
+            <p class="text-sm text-slate-600">Review learning and development requests awaiting approval.</p>
         </div>
         <a href="{{ route('training.requests') }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">All requests</a>
     </div>

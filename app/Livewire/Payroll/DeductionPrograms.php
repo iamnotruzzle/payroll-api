@@ -8,11 +8,23 @@ use Livewire\Component;
 class DeductionPrograms extends Component
 {
     public ?int $editingId = null;
+
     public string $name = '';
+
     public string $computationType = 'fixed';
+
     public float $value = 0;
+
     public int $sortOrder = 0;
+
     public string $insertAfterColumn = '';
+
+    public string $section = 'other';
+
+    public string $impactType = 'employee_deduction';
+
+    public bool $isRecurring = true;
+
     public bool $isActive = true;
 
     public function render()
@@ -33,19 +45,27 @@ class DeductionPrograms extends Component
             'value' => ['required', 'numeric', 'min:0'],
             'sortOrder' => ['required', 'integer', 'min:0', 'max:999'],
             'insertAfterColumn' => ['nullable', 'string', 'max:80'],
+            'section' => ['required', 'in:mandatory,other'],
+            'impactType' => ['required', 'in:employee_deduction,employer_contribution'],
+            'isRecurring' => ['boolean'],
             'isActive' => ['boolean'],
         ]);
 
-        $item = $this->editingId ? PayrollDeduction::findOrFail($this->editingId) : new PayrollDeduction();
+        $item = $this->editingId ? PayrollDeduction::findOrFail($this->editingId) : new PayrollDeduction;
         $item->fill([
             'name' => $data['name'],
             'is_percentage' => $data['computationType'] === 'percentage',
             'value' => $data['value'],
             'sort_order' => $data['sortOrder'],
             'insert_after_column' => $data['insertAfterColumn'] ?: null,
+            'section' => $data['section'],
+            'impact_type' => $data['impactType'],
+            'is_recurring' => $data['isRecurring'],
             'is_active' => $data['isActive'],
         ]);
         $item->save();
+
+        $this->dispatch('deduction-programs-changed');
 
         $this->resetForm();
         session()->flash('status', 'Deduction program saved.');
@@ -61,12 +81,16 @@ class DeductionPrograms extends Component
         $this->value = (float) $item->value;
         $this->sortOrder = (int) ($item->sort_order ?? 0);
         $this->insertAfterColumn = (string) ($item->insert_after_column ?? '');
+        $this->section = (string) ($item->section ?? 'other');
+        $this->impactType = (string) ($item->impact_type ?? 'employee_deduction');
+        $this->isRecurring = (bool) ($item->is_recurring ?? true);
         $this->isActive = (bool) $item->is_active;
     }
 
     public function delete(int $id): void
     {
         PayrollDeduction::findOrFail($id)->delete();
+        $this->dispatch('deduction-programs-changed');
         $this->resetForm();
         session()->flash('status', 'Deduction program deleted.');
     }
@@ -79,6 +103,9 @@ class DeductionPrograms extends Component
         $this->value = 0;
         $this->sortOrder = 0;
         $this->insertAfterColumn = '';
+        $this->section = 'other';
+        $this->impactType = 'employee_deduction';
+        $this->isRecurring = true;
         $this->isActive = true;
     }
 }

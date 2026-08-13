@@ -142,7 +142,14 @@ class ErpNavigation
                 'href' => route('employees.index'),
                 'available' => (bool) ($user?->can('employees.view') || $user?->can('employees.manage')),
                 'visible' => (bool) ($user?->can('employees.view') || $user?->can('employees.manage')),
-                'active' => request()->routeIs('employees.*'),
+                'active' => request()->routeIs('employees.index', 'employees.create', 'employees.show', 'employees.print', 'employees.documents.download')
+                    || ($user?->can('employees.manage') && request()->routeIs(
+                        'setup.organization',
+                        'setup.positions',
+                        'setup.salary-schedules',
+                        'setup.plantilla',
+                        'employees.masterlist-import'
+                    )),
                 'menu_sections' => self::menuSections([
                     [
                         'label' => 'Directory',
@@ -150,6 +157,16 @@ class ErpNavigation
                             ['label' => 'Employee Directory', 'route' => 'employees.index', 'icon' => 'users', 'active' => request()->routeIs('employees.index')],
                             ['label' => 'Personal Data Sheet', 'route' => 'employees.index', 'icon' => 'id-card', 'active' => request()->routeIs('employees.show')],
                         ],
+                    ],
+                    [
+                        'label' => 'HRIS Setup',
+                        'items' => $user?->can('employees.manage') ? [
+                            ['label' => 'Organization', 'route' => 'setup.organization', 'icon' => 'building', 'active' => request()->routeIs('setup.organization')],
+                            ['label' => 'Positions', 'route' => 'setup.positions', 'icon' => 'id-card', 'active' => request()->routeIs('setup.positions')],
+                            ['label' => 'Salary Schedules', 'route' => 'setup.salary-schedules', 'icon' => 'coins', 'active' => request()->routeIs('setup.salary-schedules')],
+                            ['label' => 'Plantilla Registry', 'route' => 'setup.plantilla', 'icon' => 'clipboard-list', 'active' => request()->routeIs('setup.plantilla')],
+                            ['label' => 'Import Masterlist', 'route' => 'employees.masterlist-import', 'icon' => 'upload', 'active' => request()->routeIs('employees.masterlist-import')],
+                        ] : [],
                     ],
                 ]),
             ],
@@ -222,14 +239,6 @@ class ErpNavigation
                 'active' => request()->routeIs(
                     'schedule.dashboard',
                     'schedule.show',
-                    'schedule.shift-codes',
-                    'schedule.employees',
-                    'schedule.rotation-groups',
-                    'schedule.staffing-requirements',
-                    'schedule.templates',
-                    'schedule.print-settings',
-                    'schedule.department-profiles',
-                    'schedule.units',
                     'schedule.floaters',
                     'schedule.on-call',
                     'schedule.census',
@@ -305,10 +314,7 @@ class ErpNavigation
                     'payroll.dtr',
                     'payroll.dtr-encoding',
                     'payroll.dtr-correction-requests',
-                    'payroll.dtr-correction-approvers',
-                    'payroll.fingerprint-registration',
-                    'payroll.mra',
-                    'payroll.holidays'
+                    'payroll.mra'
                 ) || (request()->routeIs('coming-soon') && request()->route('module') === 'timekeeping'),
                 'menu_sections' => self::menuSections([
                     [
@@ -352,12 +358,7 @@ class ErpNavigation
                     'payroll.history',
                     'payroll.history.payslip.print',
                     'payroll.loan-imports',
-                    'payroll.loan-references',
-                    'payroll.additional-premiums',
-                    'payroll.deduction-programs',
-                    'payroll.statutory-contributions',
-                    'payroll.compensations',
-                    'payroll.adjustment-types'
+                    'payroll.additional-premiums'
                 ) || (request()->routeIs('coming-soon') && request()->route('module') === 'payroll'),
                 'menu_sections' => self::menuSections([
                     [
@@ -438,7 +439,7 @@ class ErpNavigation
                     || $user?->can('performance.manage')
                     || $user?->can('performance.approve')
                 ),
-                'active' => request()->routeIs('performance.*'),
+                'active' => request()->routeIs('performance.employee', 'performance.print'),
                 'menu_sections' => self::menuSections([
                     [
                         'label' => 'IPCR',
@@ -451,10 +452,115 @@ class ErpNavigation
                 ]),
             ],
             [
+                'key' => 'setup',
+                'label' => 'Setup',
+                'accent' => 'cyan',
+                'icon' => 'settings',
+                'href' => route('setup.index'),
+                'available' => (bool) (
+                    $user?->can('employees.manage')
+                    || $user?->can('schedule.view')
+                    || $user?->can('timekeeping.view')
+                    || $user?->can('payroll.view')
+                    || $user?->can('performance.view')
+                    || $user?->can('admin.users.view')
+                    || $user?->can('admin.roles.view')
+                ),
+                'visible' => (bool) (
+                    $user?->can('employees.manage')
+                    || $user?->can('schedule.view')
+                    || $user?->can('timekeeping.view')
+                    || $user?->can('payroll.view')
+                    || $user?->can('performance.view')
+                    || $user?->can('admin.users.view')
+                    || $user?->can('admin.roles.view')
+                ),
+                'active' => request()->routeIs(
+                    'setup.*',
+                    'employees.masterlist-import',
+                    'schedule.shift-codes',
+                    'schedule.employees',
+                    'schedule.rotation-groups',
+                    'schedule.staffing-requirements',
+                    'schedule.templates',
+                    'schedule.print-settings',
+                    'schedule.department-profiles',
+                    'schedule.units',
+                    'payroll.dtr-correction-approvers',
+                    'payroll.fingerprint-registration',
+                    'payroll.holidays',
+                    'payroll.loan-references',
+                    'payroll.deduction-programs',
+                    'payroll.statutory-contributions',
+                    'payroll.compensations',
+                    'payroll.adjustment-types',
+                    'performance.periods',
+                    'admin.user-accounts',
+                    'admin.roles-permissions'
+                ),
+                'menu_sections' => self::menuSections([
+                    [
+                        'label' => 'Organization & HRIS',
+                        'items' => [
+                            ($user?->can('employees.manage') || $user?->can('payroll.configure')) ? ['label' => 'Organization', 'route' => 'setup.organization', 'icon' => 'building', 'active' => request()->routeIs('setup.organization')] : null,
+                            ($user?->can('employees.manage') || $user?->can('payroll.configure')) ? ['label' => 'Positions', 'route' => 'setup.positions', 'icon' => 'id-card', 'active' => request()->routeIs('setup.positions')] : null,
+                            ($user?->can('employees.manage') || $user?->can('payroll.configure')) ? ['label' => 'Salary Schedules', 'route' => 'setup.salary-schedules', 'icon' => 'coins', 'active' => request()->routeIs('setup.salary-schedules')] : null,
+                            ($user?->can('employees.manage') || $user?->can('payroll.configure')) ? ['label' => 'Plantilla Registry', 'route' => 'setup.plantilla', 'icon' => 'clipboard-list', 'active' => request()->routeIs('setup.plantilla')] : null,
+                            $user?->can('employees.manage')
+                                ? ['label' => 'Import Masterlist', 'route' => 'employees.masterlist-import', 'icon' => 'upload', 'active' => request()->routeIs('employees.masterlist-import')]
+                                : null,
+                        ],
+                    ],
+                    [
+                        'label' => 'Scheduling',
+                        'items' => [
+                            $user?->can('schedule.view') ? ['label' => 'Shift Codes', 'route' => 'schedule.shift-codes', 'icon' => 'clock-3', 'active' => request()->routeIs('schedule.shift-codes')] : null,
+                            $user?->can('schedule.view') ? ['label' => 'Employee Settings', 'route' => 'schedule.employees', 'icon' => 'user-cog', 'active' => request()->routeIs('schedule.employees')] : null,
+                            $user?->can('schedule.view') ? ['label' => 'Rotation Groups', 'route' => 'schedule.rotation-groups', 'icon' => 'refresh-cw', 'active' => request()->routeIs('schedule.rotation-groups')] : null,
+                            $user?->can('schedule.view') ? ['label' => 'Staffing', 'route' => 'schedule.staffing-requirements', 'icon' => 'clipboard-list', 'active' => request()->routeIs('schedule.staffing-requirements')] : null,
+                            $user?->can('schedule.view') ? ['label' => 'Templates', 'route' => 'schedule.templates', 'icon' => 'table-properties', 'active' => request()->routeIs('schedule.templates')] : null,
+                            $user?->can('schedule.view') ? ['label' => 'Department Profiles', 'route' => 'schedule.department-profiles', 'icon' => 'building', 'active' => request()->routeIs('schedule.department-profiles')] : null,
+                            $user?->can('schedule.view') ? ['label' => 'Print Settings', 'route' => 'schedule.print-settings', 'icon' => 'printer', 'active' => request()->routeIs('schedule.print-settings')] : null,
+                        ],
+                    ],
+                    [
+                        'label' => 'Timekeeping',
+                        'items' => [
+                            $user?->can('timekeeping.view') ? ['label' => 'DTR Approvers', 'route' => 'payroll.dtr-correction-approvers', 'icon' => 'user-check', 'active' => request()->routeIs('payroll.dtr-correction-approvers')] : null,
+                            $user?->can('timekeeping.view') ? ['label' => 'Holidays', 'route' => 'payroll.holidays', 'icon' => 'calendar-check', 'active' => request()->routeIs('payroll.holidays')] : null,
+                            $user?->can('timekeeping.view') ? ['label' => 'Fingerprint References', 'route' => 'payroll.fingerprint-registration', 'icon' => 'fingerprint', 'active' => request()->routeIs('payroll.fingerprint-registration')] : null,
+                        ],
+                    ],
+                    [
+                        'label' => 'Payroll',
+                        'items' => [
+                            $user?->can('payroll.view') ? ['label' => 'Compensation Rules', 'route' => 'payroll.compensations', 'icon' => 'coins', 'active' => request()->routeIs('payroll.compensations')] : null,
+                            $user?->can('payroll.view') ? ['label' => 'Mandatory Deductions', 'route' => 'payroll.statutory-contributions', 'icon' => 'wallet', 'active' => request()->routeIs('payroll.statutory-contributions')] : null,
+                            $user?->can('payroll.view') ? ['label' => 'Deduction Programs', 'route' => 'payroll.deduction-programs', 'icon' => 'list-checks', 'active' => request()->routeIs('payroll.deduction-programs')] : null,
+                            $user?->can('payroll.view') ? ['label' => 'Adjustment Types', 'route' => 'payroll.adjustment-types', 'icon' => 'sliders', 'active' => request()->routeIs('payroll.adjustment-types')] : null,
+                            $user?->can('payroll.view') ? ['label' => 'Loan References', 'route' => 'payroll.loan-references', 'icon' => 'files', 'active' => request()->routeIs('payroll.loan-references')] : null,
+                        ],
+                    ],
+                    [
+                        'label' => 'Performance',
+                        'items' => [
+                            $user?->can('performance.view') ? ['label' => 'IPCR Periods', 'route' => 'performance.periods', 'icon' => 'award', 'active' => request()->routeIs('performance.periods')] : null,
+                        ],
+                    ],
+                    [
+                        'label' => 'Access & Security',
+                        'items' => [
+                            $user?->can('admin.users.view') ? ['label' => 'User Accounts', 'route' => 'admin.user-accounts', 'icon' => 'users', 'active' => request()->routeIs('admin.user-accounts')] : null,
+                            $user?->can('admin.roles.view') ? ['label' => 'Roles & Permissions', 'route' => 'admin.roles-permissions', 'icon' => 'shield-check', 'active' => request()->routeIs('admin.roles-permissions')] : null,
+                        ],
+                    ],
+                ]),
+            ],
+            [
                 'key' => 'administration',
                 'label' => 'Settings',
                 'accent' => 'slate',
-                'icon' => 'settings',
+                'icon' => 'gears',
                 'href' => $user?->can('admin.users.view')
                     ? route('admin.user-accounts')
                     : ($user?->can('admin.roles.view')
@@ -553,6 +659,7 @@ class ErpNavigation
             'files' => 'M15 2H6a2 2 0 0 0-2 2v13 M8 6h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z',
             'fingerprint' => 'M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4 M14 13.12c0 2.38 0 6.38-1 8.88 M17.29 21.02c.12-.6.43-2.3.5-3.02 M2 12a10 10 0 0 1 18-6 M2 16h.01 M21.8 16c.2-2 .131-5.354 0-6 M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2 M8.65 22c.21-.66.45-1.32.57-2 M9 6.8a6 6 0 0 1 9 5.2v2',
             'graduation-cap' => 'M22 10v6 M2 10l10-5 10 5-10 5z M6 12v5c3 3 9 3 12 0v-5',
+            'gears' => 'M9 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M9 5V3 M9 21v-2 M5.5 6.5 4 5 M14 19l-1.5-1.5 M5 12H3 M15 12h-2 M5.5 17.5 4 19 M14 5l-1.5 1.5 M18 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M18 2V1 M18 12v-1 M14.5 3.5l-.8-.8 M22.3 11.3l-.8-.8 M14 6.5h-1 M23 6.5h-1 M14.5 9.5l-.8.8 M22.3 1.7l-.8.8',
             'grid' => 'M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z',
             'history' => 'M3 12a9 9 0 1 0 9-9 M12 7v5l3 3',
             'home' => 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',

@@ -8,9 +8,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Position extends Model
 {
     protected $connection = 'hris';
+
     protected $table = 'tbl_position';
+
     protected $primaryKey = 'position_id';
+
     public $incrementing = true;
+
+    public $timestamps = false;
+
     protected $keyType = 'int';
 
     protected $fillable = [

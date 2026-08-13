@@ -41,7 +41,7 @@
                     <th class="px-4 py-3 text-left">Employee</th>
                     <th class="px-4 py-3 text-left">Username</th>
                     <th class="px-4 py-3 text-left">Roles</th>
-                    <th class="px-4 py-3 text-left">Legacy</th>
+                    <th class="px-4 py-3 text-left">Account Levels</th>
                     <th class="px-4 py-3 text-right">Action</th>
                 </tr>
             </thead>
@@ -123,11 +123,11 @@
 
                                     <div class="grid gap-3 sm:grid-cols-2">
                                         <label>
-                                            <span class="text-xs font-semibold uppercase text-slate-500">Legacy User Level</span>
+                                            <span class="text-xs font-semibold uppercase text-slate-500">User Level</span>
                                             <input wire:model="userLevel" type="number" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                                         </label>
                                         <label>
-                                            <span class="text-xs font-semibold uppercase text-slate-500">Legacy PIMS Role</span>
+                                            <span class="text-xs font-semibold uppercase text-slate-500">PIMS Role</span>
                                             <input wire:model="pimsRole" type="number" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                                         </label>
                                     </div>

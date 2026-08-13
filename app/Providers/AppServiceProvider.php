@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\PersonalAccessToken;
 use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Database\Migrations\DatabaseMigrationRepository;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Sanctum\Sanctum;
 use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
@@ -27,6 +29,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
+
         Event::listen(CommandStarting::class, function (CommandStarting $event): void {
             $blockedCommands = [
                 'db:wipe',

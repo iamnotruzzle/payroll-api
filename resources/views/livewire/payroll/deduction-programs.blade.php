@@ -14,6 +14,23 @@
 
             <div class="mt-4 space-y-3">
                 <div>
+                    <label class="text-sm font-medium">Payroll section</label>
+                    <select wire:model.change="section" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <option value="mandatory">Mandatory Deductions</option>
+                        <option value="other">Other Deductions → Others</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-sm font-medium">Payroll impact</label>
+                    <select wire:model.change="impactType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <option value="employee_deduction">Employee deduction</option>
+                        <option value="employer_contribution">Employer contribution / display only</option>
+                    </select>
+                </div>
+                <label class="flex items-center gap-2 text-sm font-medium">
+                    <input wire:model.change="isRecurring" type="checkbox" class="rounded border-slate-300"> Recurring by default
+                </label>
+                <div>
                     <label class="text-sm font-medium">Name</label>
                     <input wire:model.blur="name" type="text" placeholder="Program name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     @error('name') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
@@ -53,6 +70,7 @@
                         <option value="phic">After PHIC (PS)</option>
                         <option value="government_phic">After PHIC (GS)</option>
                         <option value="mandatory_pagibig">After HDMF (PS) 1</option>
+                        <option value="hdmf_ps_2_ms">After HDMF (PS) 2 MS</option>
                         <option value="government_pagibig">After HDMF (GS)</option>
                     </select>
                 </div>
@@ -132,6 +150,7 @@
                                     <td class="px-4 py-3">
                                         <div class="font-medium">{{ $item->name }}</div>
                                         <div class="text-xs text-slate-500">Sort {{ (int) ($item->sort_order ?? 0) }}</div>
+                                        <div class="text-xs text-slate-500">{{ str($item->section ?? 'other')->title() }} · {{ str($item->impact_type ?? 'employee_deduction')->replace('_', ' ')->title() }} · {{ $item->is_recurring ? 'Recurring' : 'Per payroll' }}</div>
                                         @if ($item->insert_after_column)
                                             <div class="text-xs text-blue-600">Placed after {{ str($item->insert_after_column)->replace('_', ' ')->title() }}</div>
                                         @endif

@@ -7,6 +7,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title }}</title>
     <link rel="icon" type="image/png" href="{{ asset('assets/brand/mmmhmc-hris-icon-transparent.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('assets/brand/mmmhmc-hris-icon-transparent.png') }}">
@@ -32,60 +33,88 @@
         $navHref = fn (array $item): string => \App\Support\ErpNavigation::href($item);
     @endphp
 
-    <div class="{{ $isLauncher ? 'erp-launcher-scene min-h-screen' : 'min-h-screen lg:grid lg:grid-cols-[248px_minmax(0,1fr)]' }}">
+    <div
+        @unless($isLauncher)
+            x-data="{
+                sidebarOpen: localStorage.getItem('erp-sidebar-open') !== 'false',
+                toggleSidebar() {
+                    this.sidebarOpen = ! this.sidebarOpen;
+                    localStorage.setItem('erp-sidebar-open', this.sidebarOpen ? 'true' : 'false');
+                }
+            }"
+            :class="sidebarOpen ? 'lg:grid-cols-[248px_minmax(0,1fr)]' : 'lg:grid-cols-[minmax(0,1fr)]'"
+        @endunless
+        class="{{ $isLauncher ? 'erp-launcher-scene min-h-screen' : 'min-h-screen lg:grid' }}"
+    >
         @unless ($isLauncher)
-            <aside class="erp-sidebar border-b border-[#e4e6ef] bg-white lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto lg:border-b-0 lg:border-r">
-                <div class="flex min-h-full flex-col">
-                    <div class="border-b border-[#eceef6] px-4 py-4">
-                        <a href="{{ route('home') }}" class="erp-brand flex items-center gap-3">
-                            <x-brand.mark size="md" />
-                            <div class="min-w-0">
-                                <p class="erp-brand-eyebrow text-[10px] font-bold uppercase">MMMHMC</p>
-                                <h1 class="erp-brand-title truncate text-base font-bold">HRIS &amp; Payroll</h1>
-                            </div>
-                        </a>
+            <aside x-cloak x-show="sidebarOpen" x-transition.opacity.duration.150ms class="erp-sidebar border-b border-[#e4e6ef] bg-white lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden lg:border-b-0 lg:border-r">
+                <div class="flex h-full min-h-0 max-h-screen flex-col">
+                    <div class="erp-sidebar-pinned sticky top-0 z-20 shrink-0 bg-white">
+                        <div class="flex items-center gap-2 border-b border-[#eceef6] px-4 py-4">
+                            <a href="{{ route('home') }}" class="erp-brand flex min-w-0 flex-1 items-center gap-3">
+                                <x-brand.mark size="md" />
+                                <div class="min-w-0">
+                                    <p class="erp-brand-eyebrow text-[10px] font-bold uppercase">MMMHMC</p>
+                                    <h1 class="erp-brand-title truncate text-base font-bold">HRIS &amp; Payroll</h1>
+                                </div>
+                            </a>
+                        </div>
+
+                        <div class="border-b border-[#eceef6] px-3 py-3">
+                            <a href="{{ route('home') }}" class="erp-nav-link erp-nav-link-depth-1 {{ request()->routeIs('home') ? 'erp-nav-link-active' : '' }}">
+                                <span class="erp-nav-item-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="{{ $icons['grid'] }}"></path>
+                                    </svg>
+                                </span>
+                                <span class="truncate font-semibold">All Apps</span>
+                            </a>
+                        </div>
                     </div>
 
-                    <div class="border-b border-[#eceef6] px-3 py-3">
-                        <a href="{{ route('home') }}" class="erp-nav-link erp-nav-link-depth-1 {{ request()->routeIs('home') ? 'erp-nav-link-active' : '' }}">
-                            <span class="erp-nav-item-icon" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="{{ $icons['grid'] }}"></path>
-                                </svg>
-                            </span>
-                            <span class="truncate font-semibold">All Apps</span>
-                        </a>
-                    </div>
-
-                    <nav class="space-y-3 px-3 py-3 text-sm">
+                    <nav class="erp-sidebar-scroll min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3 text-sm">
                         @if ($currentApp)
                             <div class="erp-nav-group">
                                 <p class="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-[#8a8d93]">
                                     {{ $currentApp['label'] }}
                                 </p>
                                 @foreach ($currentApp['menu_sections'] ?? [] as $section)
-                                    <div class="space-y-0.5 {{ ! $loop->first ? 'mt-3' : '' }}">
+                                    @php
+                                        $sectionKey = 'erp-nav-group-'.$currentApp['key'].'-'.\Illuminate\Support\Str::slug($section['label'] ?: 'navigation-'.$loop->index);
+                                    @endphp
+                                    <div
+                                        x-data="{ expanded: localStorage.getItem(@js($sectionKey)) !== 'false' }"
+                                        class="space-y-0.5 {{ ! $loop->first ? 'mt-3' : '' }}"
+                                    >
                                         @if (! empty($section['label']))
-                                            <p class="px-2.5 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-[#a1a5b7]">
-                                                {{ $section['label'] }}
-                                            </p>
-                                        @endif
-                                        @foreach ($section['items'] ?? [] as $item)
-                                            <a
-                                                class="erp-nav-link erp-nav-link-depth-1 {{ ($item['active'] ?? false) ? 'erp-nav-link-active' : '' }}"
-                                                href="{{ $navHref($item) }}"
+                                            <button
+                                                type="button"
+                                                x-on:click="expanded = ! expanded; localStorage.setItem(@js($sectionKey), expanded ? 'true' : 'false')"
+                                                class="erp-nav-section-toggle flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#a1a5b7]"
+                                                :aria-expanded="expanded.toString()"
                                             >
-                                                <span class="erp-nav-item-icon" aria-hidden="true">
-                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                        <path d="{{ $icons[$item['icon']] ?? $icons['grid'] }}"></path>
-                                                    </svg>
-                                                </span>
-                                                <span class="min-w-0 truncate">{{ $item['label'] }}</span>
-                                                @if ($item['coming_soon'] ?? false)
-                                                    <span class="erp-nav-soon">Soon</span>
-                                                @endif
-                                            </a>
-                                        @endforeach
+                                                <span>{{ $section['label'] }}</span>
+                                                <svg class="h-3.5 w-3.5 transition-transform" :class="expanded ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                                            </button>
+                                        @endif
+                                        <div x-cloak x-show="expanded" x-transition.opacity.duration.100ms class="space-y-0.5">
+                                            @foreach ($section['items'] ?? [] as $item)
+                                                <a
+                                                    class="erp-nav-link erp-nav-link-depth-1 {{ ($item['active'] ?? false) ? 'erp-nav-link-active' : '' }}"
+                                                    href="{{ $navHref($item) }}"
+                                                >
+                                                    <span class="erp-nav-item-icon" aria-hidden="true">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="{{ $icons[$item['icon']] ?? $icons['grid'] }}"></path>
+                                                        </svg>
+                                                    </span>
+                                                    <span class="min-w-0 truncate">{{ $item['label'] }}</span>
+                                                    @if ($item['coming_soon'] ?? false)
+                                                        <span class="erp-nav-soon">Soon</span>
+                                                    @endif
+                                                </a>
+                                            @endforeach
+                                        </div>
                                     </div>
                                 @endforeach
                             </div>
@@ -125,6 +154,10 @@
                                 </div>
                             </a>
                         @else
+                            <button type="button" x-on:click="toggleSidebar()" class="erp-theme-toggle grid" :title="sidebarOpen ? 'Hide sidebar' : 'Show sidebar'" :aria-label="sidebarOpen ? 'Hide sidebar' : 'Show sidebar'" :aria-expanded="sidebarOpen.toString()">
+                                <svg x-show="sidebarOpen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+                                <svg x-show="! sidebarOpen" x-cloak viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/><path d="M3 5h3v14H3z"/></svg>
+                            </button>
                             <div class="erp-system-status hidden items-center gap-2 text-xs font-semibold sm:flex">
                                 <span class="erp-status-dot"></span>
                                 <span class="erp-subtle">

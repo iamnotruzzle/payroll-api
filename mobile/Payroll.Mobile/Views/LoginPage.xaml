@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Payroll.Mobile.ViewModels"
+             xmlns:controls="clr-namespace:Payroll.Mobile.Controls"
+             xmlns:ui="clr-namespace:Payroll.Mobile.Ui"
+             x:Class="Payroll.Mobile.Views.LoginPage"
+             x:DataType="vm:AuthViewModel"
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="{StaticResource PageBackground}">
+    <controls:TechBackdrop>
+        <ScrollView>
+            <Grid x:Name="LoginBody" Padding="24,48,24,24">
+                <VerticalStackLayout Spacing="20"
+                                     VerticalOptions="Center"
+                                     HorizontalOptions="Fill">
+                    <Grid WidthRequest="200"
+                          HeightRequest="200"
+                          HorizontalOptions="Center"
+                          IsClippedToBounds="False">
+                        <Grid x:Name="LogoGlowHost"
+                              WidthRequest="200"
+                              HeightRequest="200"
+                              AnchorX="0.5"
+                              AnchorY="0.5"
+                              Opacity="0"
+                              InputTransparent="True">
+                            <Border WidthRequest="180"
+                                    HeightRequest="180"
+                                    StrokeThickness="0"
+                                    BackgroundColor="#1400E5FF"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="90" />
+                                </Border.StrokeShape>
+                            </Border>
+                            <Border WidthRequest="148"
+                                    HeightRequest="148"
+                                    StrokeThickness="0"
+                                    BackgroundColor="#2600E5FF"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="74" />
+                                </Border.StrokeShape>
+                            </Border>
+                            <Border WidthRequest="118"
+                                    HeightRequest="118"
+                                    StrokeThickness="0"
+                                    BackgroundColor="#3A00E5FF"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="59" />
+                                </Border.StrokeShape>
+                            </Border>
+                        </Grid>
+                        <Ellipse WidthRequest="96"
+                                 HeightRequest="96"
+                                 Stroke="{StaticResource Accent}"
+                                 StrokeThickness="1.5"
+                                 Fill="#E6141C2E"
+                                 HorizontalOptions="Center"
+                                 VerticalOptions="Center" />
+                        <Border WidthRequest="84"
+                                HeightRequest="84"
+                                StrokeThickness="0"
+                                Padding="0"
+                                BackgroundColor="Transparent"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center">
+                            <Border.StrokeShape>
+                                <RoundRectangle CornerRadius="42" />
+                            </Border.StrokeShape>
+                            <Image Source="brand_icon.png" Aspect="AspectFill" />
+                        </Border>
+                    </Grid>
+
+                    <VerticalStackLayout Spacing="2" HorizontalOptions="Fill">
+                        <Label Text="{x:Static ui:AppBranding.Eyebrow}"
+                               Style="{StaticResource HudCaption}"
+                               HorizontalOptions="Fill"
+                               HorizontalTextAlignment="Center" />
+                        <Label Text="{x:Static ui:AppBranding.Headline}"
+                               Style="{StaticResource PageTitle}" />
+                        <Label Text="Employee portal"
+                               TextColor="{StaticResource Muted}"
+                               HorizontalOptions="Fill"
+                               HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout Spacing="12" HorizontalOptions="Fill">
+                        <Border Style="{StaticResource NativeField}">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="Employee ID" Style="{StaticResource FieldLabel}" CharacterSpacing="0" />
+                                <Entry Text="{Binding EmpId}"
+                                       Placeholder="Required"
+                                       Keyboard="Text"
+                                       ReturnType="Next"
+                                       BackgroundColor="Transparent" />
+                            </VerticalStackLayout>
+                        </Border>
+                        <Border Style="{StaticResource NativeField}">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="Password" Style="{StaticResource FieldLabel}" CharacterSpacing="0" />
+                                <Entry Text="{Binding Password}"
+                                       IsPassword="True"
+                                       Placeholder="Required"
+                                       ReturnType="Go"
+                                       Completed="OnPasswordCompleted"
+                                       BackgroundColor="Transparent" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </VerticalStackLayout>
+
+                    <Label Text="{Binding ErrorMessage}"
+                           TextColor="{StaticResource Danger}"
+                           HorizontalOptions="Fill" />
+
+                    <Button Text="Sign in" Command="{Binding LoginCommand}" />
+                    <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                       IsVisible="{Binding IsBusy}"
+                                       HorizontalOptions="Center" />
+                    <Button x:Name="ApiSettingsButton"
+                            Text="API settings"
+                            IsVisible="False"
+                            Clicked="OnApiSettingsClicked"
+                            Style="{StaticResource LinkButton}" />
+                </VerticalStackLayout>
+            </Grid>
+        </ScrollView>
+    </controls:TechBackdrop>
+</ContentPage>

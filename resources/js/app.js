@@ -77,6 +77,8 @@ const initPayrollEmployeePickers = () => {
     });
 };
 
+window.initPayrollEmployeePickers = initPayrollEmployeePickers;
+
 const initPayrollTableScrollbars = () => {
     document.querySelectorAll('.payroll-table-scroll').forEach((scrollArea) => {
         const table = scrollArea.querySelector('table');

@@ -1,5 +1,14 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminPageController;
+use App\Http\Controllers\Api\Attendance\BiometricPunchController;
+use App\Http\Controllers\Auth\WebLoginController;
+use App\Http\Controllers\Employees\EmployeePageController;
+use App\Http\Controllers\Leave\LeavePageController;
+use App\Http\Controllers\Payroll\PayrollLoanImportController;
+use App\Http\Controllers\Payroll\PayrollPageController;
+use App\Http\Controllers\Performance\PerformancePageController;
+use App\Http\Controllers\Schedule\SchedulePageController;
 use App\Http\Controllers\SelfService\MyDtrController;
 use App\Http\Controllers\SelfService\MyIpcrController;
 use App\Http\Controllers\SelfService\MyLeaveController;
@@ -8,17 +17,10 @@ use App\Http\Controllers\SelfService\MyProfileController;
 use App\Http\Controllers\SelfService\MyScheduleController;
 use App\Http\Controllers\SelfService\MyShiftSwapsController;
 use App\Http\Controllers\SelfService\MyTrainingController;
-use App\Http\Controllers\Admin\AdminPageController;
-use App\Http\Controllers\Auth\WebLoginController;
-use App\Http\Controllers\Employees\EmployeePageController;
-use App\Http\Controllers\Leave\LeavePageController;
-use App\Http\Controllers\Payroll\PayrollLoanImportController;
-use App\Http\Controllers\Payroll\PayrollPageController;
-use App\Http\Controllers\Performance\PerformancePageController;
-use App\Http\Controllers\Schedule\SchedulePageController;
-use App\Http\Controllers\Training\TrainingPageController;
-use App\Http\Controllers\Api\Attendance\BiometricPunchController;
+use App\Http\Controllers\Setup\SetupPageController;
 use App\Http\Controllers\TimePunchController;
+use App\Http\Controllers\Timekeeping\FingerprintEnrollmentController;
+use App\Http\Controllers\Training\TrainingPageController;
 use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,7 +31,6 @@ use Illuminate\Support\Facades\Route;
 Route::post('/dtr/new', [BiometricPunchController::class, 'store'])
     ->middleware('api.device')
     ->name('dtr.new');
-
 
 Route::get('/', function () {
     return auth()->check()
@@ -56,6 +57,13 @@ Route::middleware('auth')->group(function () {
         ->where('module', '[a-z0-9\-]+')
         ->where('feature', '[a-z0-9\-]+')
         ->name('coming-soon');
+
+    Route::get('/setup', [SetupPageController::class, 'index'])->name('setup.index');
+    Route::redirect('/setup/hris', '/setup/organization')->name('setup.hris');
+    Route::get('/setup/organization', [SetupPageController::class, 'organization'])->name('setup.organization');
+    Route::get('/setup/positions', [SetupPageController::class, 'positions'])->name('setup.positions');
+    Route::get('/setup/salary-schedules', [SetupPageController::class, 'salarySchedules'])->name('setup.salary-schedules');
+    Route::get('/setup/plantilla', [SetupPageController::class, 'plantilla'])->name('setup.plantilla');
 
     Route::middleware('permission:self-service.dtr|self-service.access')->group(function () {
         Route::get('/time-punch', [TimePunchController::class, 'index'])->name('time-punch.index');
@@ -167,6 +175,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/employees/create', [EmployeePageController::class, 'create'])
             ->middleware('permission:employees.manage')
             ->name('employees.create');
+        Route::get('/employees/masterlist-import', [EmployeePageController::class, 'import'])
+            ->middleware('permission:employees.manage')
+            ->name('employees.masterlist-import');
+        Route::redirect('/employees/hris-setup', '/setup/organization')->name('employees.hris-setup');
         Route::get('/employees/{empId}/print', [EmployeePageController::class, 'print'])
             ->where('empId', '[A-Za-z0-9\-]+')
             ->name('employees.print');
@@ -224,6 +236,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/payroll/dtr-correction-requests', [PayrollPageController::class, 'dtrCorrectionRequests'])->name('payroll.dtr-correction-requests');
         Route::get('/payroll/dtr-correction-approvers', [PayrollPageController::class, 'dtrCorrectionApprovers'])->name('payroll.dtr-correction-approvers');
         Route::get('/payroll/fingerprint-registration', [PayrollPageController::class, 'fingerprintRegistration'])->name('payroll.fingerprint-registration');
+        Route::post('/timekeeping/fingerprints/{employee}/{slot}', [FingerprintEnrollmentController::class, 'store'])
+            ->whereNumber('slot')
+            ->name('timekeeping.fingerprints.store');
         Route::get('/payroll/mra', [PayrollPageController::class, 'mra'])->name('payroll.mra');
         Route::get('/payroll/holidays', [PayrollPageController::class, 'holidays'])->name('payroll.holidays');
     });

@@ -9,9 +9,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Department extends Model
 {
     protected $connection = 'hris';
+
     protected $table = 'tbl_department';
+
     protected $primaryKey = 'department_id';
+
     public $incrementing = true;
+
+    public $timestamps = false;
+
     protected $keyType = 'int';
 
     protected $fillable = [

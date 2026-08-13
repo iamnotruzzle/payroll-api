@@ -318,6 +318,9 @@ class EmployeeProfile extends Component
         if ($user?->can('payroll.view') || $user?->can('self-service.dtr')) {
             $tabs['dtr'] = 'DTR';
         }
+        if ($user?->can('timekeeping.view') || $user?->can('timekeeping.manage')) {
+            $tabs['biometrics'] = 'Biometrics';
+        }
         if ($user?->can('schedule.view') || $user?->can('schedule.manage')) {
             $tabs['schedule'] = 'Schedule';
         }

@@ -2,7 +2,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
             <h2 class="text-xl font-semibold">Leave Approvals</h2>
-            <p class="text-sm text-slate-600">Pending queue gated by Spatie <code>leave.approve</code> (replaces legacy user_level checks).</p>
+            <p class="text-sm text-slate-600">Review and process pending leave applications.</p>
         </div>
         <a href="{{ route('leave.requests') }}" class="text-sm font-semibold text-[#696cff] hover:underline">Back to requests</a>
     </div>

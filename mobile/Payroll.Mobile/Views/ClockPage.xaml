@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Payroll.Mobile.ViewModels"
+             xmlns:controls="clr-namespace:Payroll.Mobile.Controls"
+             x:Class="Payroll.Mobile.Views.ClockPage"
+             x:DataType="vm:ClockViewModel"
+             Title="Time Punch"
+             BackgroundColor="{StaticResource PageBackground}">
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Sign out" Command="{Binding LogoutCommand}" />
+    </ContentPage.ToolbarItems>
+
+    <controls:TechBackdrop>
+        <ScrollView>
+            <VerticalStackLayout Padding="20,16" Spacing="16" HorizontalOptions="Fill">
+                <Grid HeightRequest="40">
+                    <Image Source="texture_brushed_metal.png"
+                           Aspect="AspectFill"
+                           Opacity="0.92" />
+                    <BoxView Color="#9900E5FF"
+                             HeightRequest="1.5"
+                             VerticalOptions="End" />
+                    <HorizontalStackLayout Padding="14,0"
+                                           Spacing="8"
+                                           VerticalOptions="Center">
+                        <Label Text="▸"
+                               TextColor="{StaticResource Accent}"
+                               FontAttributes="Bold" />
+                        <Label Text="TIME PUNCH  //  DTR"
+                               Style="{StaticResource HudCaption}"
+                               VerticalTextAlignment="Center" />
+                    </HorizontalStackLayout>
+                </Grid>
+
+                <Border x:Name="HeroCard" Style="{StaticResource GlassCard}">
+                    <Grid>
+                        <Image Source="overlay_hex.png"
+                               Aspect="AspectFill"
+                               Opacity="0.2"
+                               InputTransparent="True" />
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="TODAY" Style="{StaticResource FieldLabel}" />
+                            <Label Text="{Binding DateDisplay}"
+                                   FontAttributes="Bold"
+                                   FontSize="24"
+                                   TextColor="{StaticResource Text}" />
+                            <Label Text="{Binding ProfileBanner}" TextColor="{StaticResource Accent}" />
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                <Border x:Name="TimeInCard" Style="{StaticResource KpiCard}">
+                                    <VerticalStackLayout Spacing="4">
+                                        <Label Text="▸ TIME IN" Style="{StaticResource HudCaption}" FontSize="10" />
+                                        <Label Text="{Binding TimeInDisplay}"
+                                               FontSize="22"
+                                               FontAttributes="Bold"
+                                               TextColor="{StaticResource Accent}" />
+                                    </VerticalStackLayout>
+                                </Border>
+                                <Border x:Name="TimeOutCard"
+                                        Grid.Column="1"
+                                        Style="{StaticResource KpiCard}">
+                                    <VerticalStackLayout Spacing="4">
+                                        <Label Text="▸ TIME OUT" Style="{StaticResource HudCaption}" FontSize="10" />
+                                        <Label Text="{Binding TimeOutDisplay}"
+                                               FontSize="22"
+                                               FontAttributes="Bold"
+                                               TextColor="{StaticResource Primary}" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Grid>
+                </Border>
+
+                <Label Text="{Binding Message}"
+                       TextColor="{StaticResource Accent}"
+                       HorizontalOptions="Fill" />
+
+                <Button Text="▸  Time in"
+                        Command="{Binding TimeInCommand}"
+                        IsEnabled="{Binding CanTimeIn}"
+                        Style="{StaticResource SuccessButton}" />
+                <Button Text="▸  Time out"
+                        Command="{Binding TimeOutCommand}"
+                        IsEnabled="{Binding CanTimeOut}" />
+                <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                   IsVisible="{Binding IsBusy}"
+                                   HorizontalOptions="Center" />
+            </VerticalStackLayout>
+        </ScrollView>
+    </controls:TechBackdrop>
+</ContentPage>

@@ -2,7 +2,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
             <h2 class="text-xl font-semibold">My Training</h2>
-            <p class="text-sm text-slate-600">Your TARF / LDI requests and invitations (legacy HRIS tables).</p>
+            <p class="text-sm text-slate-600">Your TARF / LDI requests and invitations.</p>
         </div>
         @if ($canRequest)
             <button wire:click="openForm" type="button" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Request training</button>

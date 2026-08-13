@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Payroll.Mobile.ViewModels"
+             xmlns:controls="clr-namespace:Payroll.Mobile.Controls"
+             x:Class="Payroll.Mobile.Views.PayslipDetailPage"
+             x:DataType="vm:PayslipDetailViewModel"
+             Title="Payslip"
+             BackgroundColor="{StaticResource PageBackground}">
+    <controls:TechBackdrop>
+        <Grid RowDefinitions="Auto,*">
+            <Border Style="{StaticResource GlassCard}" Margin="20,12,20,8">
+                <VerticalStackLayout Spacing="6" HorizontalOptions="Fill">
+                    <Label Text="▸  PAYSLIP"
+                           Style="{StaticResource HudCaption}" />
+                    <Label Text="{Binding Payslip.PayrollPeriod}"
+                           FontAttributes="Bold"
+                           FontSize="20"
+                           TextColor="{StaticResource Text}" />
+                    <Label Text="{Binding Payslip.PayrollType}" TextColor="{StaticResource Muted}" />
+                    <Label Text="{Binding Payslip.Net, StringFormat='Net {0:N2}'}"
+                           TextColor="{StaticResource Accent}"
+                           FontAttributes="Bold"
+                           FontSize="18" />
+                    <Label Text="{Binding Message}" TextColor="{StaticResource Danger}" />
+                </VerticalStackLayout>
+            </Border>
+            <Border Grid.Row="1"
+                    Style="{StaticResource GlassCard}"
+                    Margin="20,0,20,16"
+                    Padding="0">
+                <WebView x:Name="PrintView" />
+            </Border>
+        </Grid>
+    </controls:TechBackdrop>
+</ContentPage>

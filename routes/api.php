@@ -2,29 +2,32 @@
 
 use App\Http\Controllers\Api\Attendance\BiometricPunchController;
 use App\Http\Controllers\Api\Attendance\DtrClientSyncController;
-use App\Http\Controllers\Api\DtrLabelOptionController;
 use App\Http\Controllers\Api\DtrCorrectionRequestController;
+use App\Http\Controllers\Api\DtrLabelOptionController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\HolidayController;
-use App\Http\Controllers\Api\PayrollOperationsController;
+use App\Http\Controllers\Api\Mobile\MobileAuthController;
+use App\Http\Controllers\Api\Mobile\MobileClockController;
+use App\Http\Controllers\Api\Mobile\MobileLeaveController;
+use App\Http\Controllers\Api\Mobile\MobilePayslipController;
 use App\Http\Controllers\Api\PayrollAdditionalController;
 use App\Http\Controllers\Api\PayrollBankTemplateController;
 use App\Http\Controllers\Api\PayrollDeductionController;
 use App\Http\Controllers\Api\PayrollLoanReferenceController;
+use App\Http\Controllers\Api\PayrollOperationsController;
 use App\Http\Controllers\Api\PayrollTypeController;
 use App\Http\Controllers\Api\PositionController;
 use App\Http\Controllers\Api\ReferenceDataController;
 use App\Http\Controllers\Api\SalaryGradeController;
-use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Api\Schedule\ScheduleWeekController;
 use App\Http\Controllers\Api\ScheduleModuleController;
 use App\Http\Controllers\Api\ShiftCodeController;
 use App\Http\Controllers\Api\TimeTemplateController;
 use App\Http\Controllers\Api\UserAccountController;
+use App\Http\Controllers\Auth\AuthController;
 use Illuminate\Support\Facades\Route;
 
 // Route::post('/login', [AuthController::class, 'login']);
-
 
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
@@ -148,14 +151,13 @@ Route::prefix('payroll')->group(function () {
 });
 
 Route::prefix('payroll-bank-template')->group(function () {
-    Route::get('/',                  [PayrollBankTemplateController::class, 'index']);
-    Route::get('/latest',            [PayrollBankTemplateController::class, 'latest']);
-    Route::get('/{id}',              [PayrollBankTemplateController::class, 'show']);
-    Route::post('/',                 [PayrollBankTemplateController::class, 'store']);
-    Route::delete('/{id}',           [PayrollBankTemplateController::class, 'destroy']);
-    Route::get('/{id}/download',     [PayrollBankTemplateController::class, 'download']);
+    Route::get('/', [PayrollBankTemplateController::class, 'index']);
+    Route::get('/latest', [PayrollBankTemplateController::class, 'latest']);
+    Route::get('/{id}', [PayrollBankTemplateController::class, 'show']);
+    Route::post('/', [PayrollBankTemplateController::class, 'store']);
+    Route::delete('/{id}', [PayrollBankTemplateController::class, 'destroy']);
+    Route::get('/{id}/download', [PayrollBankTemplateController::class, 'download']);
 });
-
 
 Route::prefix('schedule')->group(function () {
     Route::post('/employee-references/sync', [ScheduleModuleController::class, 'syncEmployees']);
@@ -189,4 +191,24 @@ Route::prefix('schedule')->group(function () {
     Route::post('/monthly/{schedule}/review', [ScheduleModuleController::class, 'review']);
     Route::post('/monthly/{schedule}/approve', [ScheduleModuleController::class, 'approve']);
     Route::post('/monthly/{schedule}/lock', [ScheduleModuleController::class, 'lock']);
+});
+
+Route::prefix('mobile')->group(function () {
+    Route::post('/auth/login', [MobileAuthController::class, 'login']);
+
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/auth/logout', [MobileAuthController::class, 'logout']);
+        Route::get('/me', [MobileAuthController::class, 'me']);
+
+        Route::get('/clock/status', [MobileClockController::class, 'status']);
+        Route::post('/clock', [MobileClockController::class, 'store']);
+
+        Route::get('/leave-types', [MobileLeaveController::class, 'types']);
+        Route::get('/leaves', [MobileLeaveController::class, 'index']);
+        Route::post('/leaves', [MobileLeaveController::class, 'store']);
+
+        Route::get('/payslips', [MobilePayslipController::class, 'index']);
+        Route::get('/payslips/{recordId}', [MobilePayslipController::class, 'show'])->whereNumber('recordId');
+        Route::get('/payslips/{recordId}/print', [MobilePayslipController::class, 'print'])->whereNumber('recordId');
+    });
 });

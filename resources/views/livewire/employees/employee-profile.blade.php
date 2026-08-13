@@ -299,6 +299,8 @@
             <livewire:employees.employee-ipcr-panel :emp-id="$empId" :key="'ipcr-'.$empId" />
         @elseif ($tab === 'dtr')
             <livewire:employees.employee-dtr-panel :emp-id="$empId" :key="'dtr-'.$empId" />
+        @elseif ($tab === 'biometrics')
+            <livewire:employees.employee-fingerprint-panel :emp-id="$empId" :key="'biometrics-'.$empId" />
         @elseif ($tab === 'schedule')
             <livewire:employees.employee-schedule-panel :emp-id="$empId" :key="'schedule-'.$empId" />
         @elseif ($tab === 'payroll')

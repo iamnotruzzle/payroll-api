@@ -42,6 +42,7 @@ return [
 
     'public_prefixes' => [
         'auth/login',
+        'mobile/auth/login',
     ],
 
 ];

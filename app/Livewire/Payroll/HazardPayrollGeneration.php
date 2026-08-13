@@ -291,6 +291,7 @@ class HazardPayrollGeneration extends Component
     {
         $grades = SalaryGrade::query()
             ->select(['salary_grade', 'step_increment', 'salary', 'effectivity_date'])
+            ->whereDate('effectivity_date', '<=', CarbonImmutable::createFromFormat('Y-m', $this->period)->endOfMonth()->toDateString())
             ->orderByDesc('effectivity_date')
             ->get()
             ->groupBy(fn ($grade) => $grade->salary_grade.'|'.$grade->step_increment);

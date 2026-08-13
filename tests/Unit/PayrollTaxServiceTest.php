@@ -7,6 +7,19 @@ use Tests\TestCase;
 
 class PayrollTaxServiceTest extends TestCase
 {
+    public function test_monthly_withholding_breakdown_matches_workbook_tax_on_basic_columns(): void
+    {
+        $breakdown = app(PayrollTaxService::class)->monthlyWithholdingTaxBreakdown(50000);
+
+        $this->assertSame(50000.0, $breakdown['taxable_income']);
+        $this->assertSame(33333.0, $breakdown['class_limit']);
+        $this->assertSame(16667.0, $breakdown['excess']);
+        $this->assertSame(1875.0, $breakdown['base_tax']);
+        $this->assertSame(0.20, $breakdown['excess_rate']);
+        $this->assertSame(3333.4, $breakdown['excess_tax']);
+        $this->assertSame(5208.4, $breakdown['total']);
+    }
+
     public function test_hazard_withholding_uses_only_incremental_hazard_tax_and_signed_adjustment(): void
     {
         $service = app(PayrollTaxService::class);
@@ -109,6 +122,9 @@ class PayrollTaxServiceTest extends TestCase
         $this->assertSame(5.25, $result['future_hazard_subsistence_months']);
         $this->assertSame($result['regular_monthly_tax_due'], $result['tax_on_basic']);
         $this->assertSame($result['current_hazard_tax_due'], $result['tax_on_hazard']);
+        $this->assertSame($result['monthly_taxable_income_with_hazard'], $result['tax_on_hazard_breakdown']['taxable_income']);
+        $this->assertSame($result['tax_on_basic'], $result['tax_on_hazard_breakdown']['tax_on_basic']);
+        $this->assertSame($result['tax_on_hazard'], $result['tax_on_hazard_breakdown']['tax_on_hazard']);
         $this->assertArrayHasKey('tax_adjustments', $result);
     }
 }

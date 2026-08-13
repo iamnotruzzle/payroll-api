@@ -44,6 +44,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -51,6 +52,9 @@ use Livewire\WithFileUploads;
 class PayrollGeneration extends Component
 {
     use WithFileUploads;
+
+    /** @var Collection<int, PayrollExternalEmployeeOverride>|null */
+    private ?Collection $activeExternalEmployeeOverrides = null;
 
     private const DEFAULT_UNCHECKED_LEAVE_TYPE_IDS = [4, 14, 15, 16, 20, 22];
 
@@ -134,6 +138,8 @@ class PayrollGeneration extends Component
 
     public array $deductionProgramSelections = [];
 
+    public array $otherDeductionRemarks = [];
+
     public $programRosterFile;
 
     public ?int $programRosterProgramId = null;
@@ -153,6 +159,8 @@ class PayrollGeneration extends Component
     public string $programSearch = '';
 
     public bool $showLoanImportModal = false;
+
+    public bool $showProgramManagerDrawer = false;
 
     public $loanFile;
 
@@ -279,6 +287,23 @@ class PayrollGeneration extends Component
     public function nextStep(): void
     {
         $this->goToStep($this->currentStep + 1);
+    }
+
+    public function openProgramManagerDrawer(): void
+    {
+        $this->showProgramManagerDrawer = true;
+    }
+
+    public function closeProgramManagerDrawer(): void
+    {
+        $this->showProgramManagerDrawer = false;
+    }
+
+    #[On('deduction-programs-changed')]
+    public function refreshDeductionProgramOptions(): void
+    {
+        // The listener intentionally only invalidates this parent render. Normal
+        // browser-side program selection does not make a request.
     }
 
     public function previousStep(): void
@@ -950,7 +975,7 @@ class PayrollGeneration extends Component
             'leavePeriodEnd' => ['required', 'date', 'after_or_equal:leavePeriodStart'],
         ];
 
-        if ($this->currentStep === 6) {
+        if ($this->currentStep === 4) {
             $rules += [
                 'loanRefunds.*.amount' => ['nullable', 'numeric', 'min:0'],
                 'loanRefunds.*.loan_type' => ['nullable', 'string', 'max:255'],
@@ -958,13 +983,17 @@ class PayrollGeneration extends Component
             ];
         }
 
-        if ($this->currentStep === 4) {
+        if (in_array($this->currentStep, [3, 5], true)) {
             $rules += [
                 'deductionProgramSelections.*.employee_overrides.*' => ['nullable', 'numeric', 'min:0'],
             ];
         }
 
         $this->validate($rules);
+
+        if (in_array($this->currentStep, [3, 5], true)) {
+            $this->persistRecurringProgramSelections();
+        }
 
         $draft = PayrollGenerationDraft::query()->updateOrCreate(
             ['configuration_key' => $this->draftConfigurationKey()],
@@ -1036,7 +1065,7 @@ class PayrollGeneration extends Component
 
     private function applyBrowserDeductionProgramState(array $programs): void
     {
-        if ($this->currentStep !== 4 || $programs === []) {
+        if (! in_array($this->currentStep, [3, 5], true) || $programs === []) {
             return;
         }
 
@@ -1058,6 +1087,35 @@ class PayrollGeneration extends Component
 
             if (array_key_exists('employee_overrides', $selection)) {
                 $this->deductionProgramSelections[$id]['employee_overrides'] = (array) $selection['employee_overrides'];
+            }
+        }
+    }
+
+    private function persistRecurringProgramSelections(): void
+    {
+        if (! Schema::connection('payroll')->hasTable('payroll_deduction_program_members')) {
+            return;
+        }
+
+        $programs = PayrollDeduction::query()->where('is_recurring', true)
+            ->where('section', $this->currentStep === 3 ? 'mandatory' : 'other')->get();
+        foreach ($programs as $program) {
+            $selection = $this->deductionProgramSelections[(string) $program->id] ?? [];
+            if (($selection['mode'] ?? 'all') !== 'include') {
+                continue;
+            }
+
+            PayrollDeductionProgramMember::query()->where('deduction_program_id', $program->id)->delete();
+            if (! filter_var($selection['enabled'] ?? false, FILTER_VALIDATE_BOOL)) {
+                continue;
+            }
+            foreach (collect($selection['employee_ids'] ?? [])->filter()->unique() as $empId) {
+                PayrollDeductionProgramMember::query()->create([
+                    'deduction_program_id' => $program->id,
+                    'emp_id' => (string) $empId,
+                    'amount' => data_get($selection, 'employee_amounts.'.(string) $empId),
+                    'is_active' => true,
+                ]);
             }
         }
     }
@@ -1095,16 +1153,18 @@ class PayrollGeneration extends Component
             3 => [
                 ...$state,
                 'mandatory_deduction_adjustments' => $this->mandatoryDeductionAdjustments,
+                'deduction_program_selections' => $this->deductionProgramSelections,
             ],
             4 => [
                 ...$state,
-                'deduction_program_selections' => $this->deductionProgramSelections,
-            ],
-            6 => [
-                ...$state,
                 'loan_refunds' => $this->loanRefunds,
             ],
-            7 => [
+            5 => [
+                ...$state,
+                'deduction_program_selections' => $this->deductionProgramSelections,
+                'other_deduction_remarks' => $this->otherDeductionRemarks,
+            ],
+            6 => [
                 ...$state,
                 'tax_annualization_overrides' => $this->taxAnnualizationOverrides,
             ],
@@ -1194,6 +1254,7 @@ class PayrollGeneration extends Component
         $this->loanRefunds = [];
         $this->selectedAdjustmentTypeIds = [];
         $this->deductionProgramSelections = [];
+        $this->otherDeductionRemarks = [];
         $this->activeDraftId = null;
         $this->draftSavedAt = null;
         $this->draftNotice = null;
@@ -1383,22 +1444,21 @@ class PayrollGeneration extends Component
             'compensations' => $compensations,
             'deductionPrograms' => $deductionPrograms,
             'programSetupRows' => $deductionPrograms
+                ->where('section', $this->currentStep === 3 ? 'mandatory' : 'other')
                 ->filter(fn (PayrollDeduction $program) => $this->programSearch === ''
                     || str($program->name)->lower()->contains(str($this->programSearch)->lower()->squish()->toString()))
                 ->values(),
             'allAdjustmentTypes' => $allAdjustmentTypes,
             'adjustmentTypes' => $adjustmentTypes,
-            'loanTypes' => $this->currentStep === 6 ? $this->loanTypes(false) : collect(),
-            'additionalPremiumTypes' => $this->currentStep === 5 ? $this->loanTypes(true) : collect(),
+            'loanTypes' => $this->currentStep === 4 ? $this->loanTypes(false) : collect(),
+            'additionalPremiumTypes' => collect(),
             'rows' => $rows,
             'previousMraPeriod' => $previousMraPeriod,
             'previousMraReport' => $previousMraReport,
             'totals' => $totals,
             'payrollGenerationAccess' => $this->payrollGenerationAccess(),
             'unfilteredRowCount' => $allRows->count(),
-            'externalOverrides' => Schema::connection('payroll')->hasTable('payroll_external_employee_overrides')
-                ? PayrollExternalEmployeeOverride::query()->where('is_active', true)->orderBy('employee_name')->get()
-                : collect(),
+            'externalOverrides' => $this->activeExternalEmployeeOverrides(),
         ]);
     }
 
@@ -1429,14 +1489,14 @@ class PayrollGeneration extends Component
 
     private function needsAdjustmentTypeOptions(): bool
     {
-        return in_array($this->currentStep, [2, 8], true)
+        return in_array($this->currentStep, [2, 7], true)
             || $this->selectedAdjustmentTypeIds !== []
             || $this->compensationAdjustments !== [];
     }
 
     private function needsPayrollTotals(): bool
     {
-        return in_array($this->currentStep, [2, 7, 8], true);
+        return in_array($this->currentStep, [2, 6, 7], true);
     }
 
     private function payrollTotals(Collection $rows, Collection $compensations): array
@@ -1583,8 +1643,10 @@ class PayrollGeneration extends Component
             ->where('status', 0)
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
-            ->whereDate('start_date', '<=', $leavePeriodEnd->toDateString())
-            ->whereDate('end_date', '>=', $leavePeriodStart->toDateString())
+            // Keep the indexed columns bare; DATE(column) forces a scan of the
+            // legacy leave table (currently hundreds of thousands of rows).
+            ->where('start_date', '<=', $leavePeriodEnd->endOfDay()->toDateTimeString())
+            ->where('end_date', '>=', $leavePeriodStart->startOfDay()->toDateTimeString())
             ->whereDoesntHave('logs', fn ($query) => $query->whereIn('action', self::EXCLUDED_LEAVE_LOG_ACTIONS));
 
         if ($this->selectedLeaveTypeIds === []) {
@@ -1598,8 +1660,8 @@ class PayrollGeneration extends Component
             ->whereIn('emp_id', $empIds)
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
-            ->whereDate('start_date', '<=', $leavePeriodEnd->toDateString())
-            ->whereDate('end_date', '>=', $leavePeriodStart->toDateString())
+            ->where('start_date', '<=', $leavePeriodEnd->endOfDay()->toDateTimeString())
+            ->where('end_date', '>=', $leavePeriodStart->startOfDay()->toDateTimeString())
             ->whereHas('logs', fn ($query) => $query->whereIn('action', self::EXCLUDED_LEAVE_LOG_ACTIONS))
             ->get()
             ->groupBy('emp_id');
@@ -1729,8 +1791,6 @@ class PayrollGeneration extends Component
             $compensationAdjustments = $this->compensationAdjustmentsFor($employee->emp_id, $adjustmentTypes);
             $netCompensation = round($gross + $compensationAdjustments['total'], 2);
             $baseMandatoryDeductions = round(collect($baseStatutoryDeductions)->sum(), 2);
-            $totalMandatoryDeductions = round(collect($statutoryDeductions)->sum(), 2);
-            $netBeforeOtherDeductions = round($netCompensation - $totalMandatoryDeductions, 2);
             $computedHazardPay = $this->compensationAmountByName($computed, ['hazard'], 'computed_amount');
             $hazardForTaxDisplay = $computedHazardPay ?: $taxableHazardPay;
             $regularTaxableCompensation = collect($computed)->sum('taxable_amount');
@@ -1738,6 +1798,13 @@ class PayrollGeneration extends Component
             $leaveWithoutPayMonths = $this->leaveWithoutPayMonths($effectiveBasicDeductDays);
             $netMonths = max(0, PayrollTaxService::ANNUALIZED_MONTHS - $leaveWithoutPayMonths);
             $taxSubsistence = $this->compensationAmountByName($computed, ['subsistence']);
+            $programDeductionItems = $this->programDeductionsFor($employee, $deductionPrograms, $basicSalary);
+            $mandatoryProgramItems = collect($programDeductionItems)
+                ->where('section', 'mandatory')->where('impact_type', 'employee_deduction')->values();
+            $otherProgramItems = collect($programDeductionItems)
+                ->where('section', 'other')->where('impact_type', 'employee_deduction')->values();
+            $mandatoryProgramTotal = round($mandatoryProgramItems->sum('amount'), 2);
+            $programDeductionTotal = round($otherProgramItems->sum('amount'), 2);
             $monthlyWithholdingTaxableIncome = round(
                 $basicSalary
                 + $taxSubsistence
@@ -1745,14 +1812,13 @@ class PayrollGeneration extends Component
                     (float) ($statutoryDeductions['life_retirement'] ?? 0)
                     + (float) ($statutoryDeductions['phic'] ?? 0)
                     + (float) ($statutoryDeductions['mandatory_pagibig'] ?? 0)
+                    + $mandatoryProgramTotal
                 ),
                 2
             );
-            $currentTaxMandatoryDeductions = round(
-                (float) ($statutoryDeductions['life_retirement'] ?? 0)
-                + (float) ($statutoryDeductions['phic'] ?? 0)
-                + (float) ($statutoryDeductions['mandatory_pagibig'] ?? 0),
-                2
+            $currentTaxMandatoryDeductions = $this->taxMandatoryDeductionTotal(
+                $statutoryDeductions,
+                $mandatoryProgramTotal,
             );
             $monthlyWithholdingTaxableIncome = round($basicSalary + $taxSubsistence - $currentTaxMandatoryDeductions, 2);
             $previousAnnualization = $previousTaxAnnualization[$employee->emp_id] ?? [];
@@ -1788,6 +1854,8 @@ class PayrollGeneration extends Component
             $hazardSubsistenceDeductionMonths = round($hazardLeaveDays / max(1, $this->workingDays), 4);
             $grossWithholdingTaxAdjustment = PayrollTaxService::MONTHLY_WITHHOLDING_TAX_ADJUSTMENT;
             $withholdingTaxAdjustment = $this->taxAnnualizationOverrideValue($employee->emp_id, 'withholding_tax_adjustment', 0);
+            $totalMandatoryDeductions = round(collect($statutoryDeductions)->sum() + $mandatoryProgramTotal, 2);
+            $netBeforeOtherDeductions = round($netCompensation - $totalMandatoryDeductions, 2);
             $tax = $this->taxCalculation(
                 $basicSalary + $regularTaxableCompensation + $compensationAdjustments['total'],
                 $totalMandatoryDeductions,
@@ -1823,16 +1891,17 @@ class PayrollGeneration extends Component
                 ],
             );
             $withholdingTax = $tax['monthly_tax_due'];
-            $programDeductionItems = $this->programDeductionsFor($employee, $deductionPrograms, $basicSalary);
-            $programDeductionTotal = round(collect($programDeductionItems)->sum('amount'), 2);
             $employeeDeductionItems = $loanItems->get($employee->emp_id, collect());
             [$employeePremiumItems, $employeeLoanItems] = $employeeDeductionItems->partition(
                 fn (PayrollLoanImportItem $item) => $this->isAdditionalPremiumItem($item)
             );
-            $additionalPremiumTotal = round($employeePremiumItems->sum('amount_due'), 2);
+            // Retained in snapshots for historical compatibility; active premiums are migrated to programs.
+            $additionalPremiumTotal = 0.0;
             $loanTotal = round($employeeLoanItems->sum('amount_due'), 2);
             $loanRefund = round(max(0, (float) ($this->loanRefunds[$employee->emp_id]['amount'] ?? 0)), 2);
-            $totalOtherDeductions = round($programDeductionTotal + $additionalPremiumTotal + $loanTotal, 2);
+            // Workbook "Total Other Deductions" is the combined deductions block:
+            // loan deductions followed by employee-specific other programs.
+            $totalOtherDeductions = round($loanTotal + $programDeductionTotal, 2);
             $loanColumns = $this->blankLoanColumns();
             foreach ($employeeLoanItems as $loanItem) {
                 $key = $this->loanColumnKeyFromReference($loanItem, $loanReferenceByEntity);
@@ -1847,12 +1916,16 @@ class PayrollGeneration extends Component
                 ])
                 ->values()
                 ->all();
-            $netAfterTax = round($netBeforeOtherDeductions - $withholdingTax, 2);
-            $netAfterProgramDeductions = round($netAfterTax - $programDeductionTotal, 2);
-            $netAfterAdditionalPremiums = round($netAfterProgramDeductions - $additionalPremiumTotal, 2);
-            $netAfterLoanDeductions = round($netAfterAdditionalPremiums - $loanTotal + $loanRefund, 2);
+            $netAfterLoansBeforeOther = round($netBeforeOtherDeductions - $loanTotal + $loanRefund, 2);
+            $netAfterProgramDeductions = round($netAfterLoansBeforeOther - $programDeductionTotal, 2);
+            $netAfterAdditionalPremiums = $netAfterProgramDeductions;
+            $netAfterTax = round($netAfterProgramDeductions - $withholdingTax, 2);
+            // Keep the legacy key as final net pay for payslips, review, and saved snapshots.
+            $netAfterLoanDeductions = $netAfterTax;
             $fifteenth = round($netAfterLoanDeductions / 2, 2);
             $thirtieth = round($netAfterLoanDeductions - $fifteenth, 2);
+
+            $isExternal = $this->isExternalEmployee($employee);
 
             return [
                 'emp_id' => $employee->emp_id,
@@ -1862,8 +1935,8 @@ class PayrollGeneration extends Component
                 'extension' => $employee->extension,
                 'employee_name' => $this->formatPayrollEmployeeName($employee),
                 'is_part_time' => $isPartTime,
-                'is_external' => $this->isExternalEmployee($employee),
-                'employee_classification' => $isPartTime ? 'Part-time' : ($this->isExternalEmployee($employee) ? 'External' : ''),
+                'is_external' => $isExternal,
+                'employee_classification' => $isPartTime ? 'Part-time' : ($isExternal ? 'External' : ''),
                 'vacation_leave_credits' => (float) $employee->vacation_leave_credits,
                 'sick_leave_credits' => (float) $employee->sick_leave_credits,
                 'cancelled_leave_count' => $cancelledLeaves->get($employee->emp_id, collect())->count(),
@@ -1926,7 +1999,11 @@ class PayrollGeneration extends Component
                 ],
                 'program_deductions' => [
                     'total' => $programDeductionTotal,
-                    'items' => $programDeductionItems,
+                    'items' => $otherProgramItems->all(),
+                ],
+                'mandatory_program_deductions' => [
+                    'total' => $mandatoryProgramTotal,
+                    'items' => $mandatoryProgramItems->all(),
                 ],
                 'additional_premiums' => [
                     'total' => $additionalPremiumTotal,
@@ -1935,7 +2012,9 @@ class PayrollGeneration extends Component
                 'gross' => $gross,
                 'net_before_other_deductions' => $netBeforeOtherDeductions,
                 'total_other_deductions' => $totalOtherDeductions,
+                'other_deduction_remarks' => trim((string) ($this->otherDeductionRemarks[$employee->emp_id] ?? '')),
                 'net_after_tax' => $netAfterTax,
+                'net_after_loans_before_other' => $netAfterLoansBeforeOther,
                 'net_after_program_deductions' => $netAfterProgramDeductions,
                 'net_after_additional_premiums' => $netAfterAdditionalPremiums,
                 'net_after_loan_deductions' => $netAfterLoanDeductions,
@@ -1961,6 +2040,7 @@ class PayrollGeneration extends Component
         $this->appliedEmployeeFilterIds = [];
         $this->selectedAdjustmentTypeIds = [];
         $this->deductionProgramSelections = [];
+        $this->otherDeductionRemarks = [];
         $this->finalizedRunId = null;
         $this->finalizedSummary = [];
         $this->activeDraftId = null;
@@ -2000,6 +2080,7 @@ class PayrollGeneration extends Component
             ? array_values((array) $state['selected_adjustment_type_ids'])
             : $this->selectedAdjustmentTypeIdsFromAdjustments($this->compensationAdjustments);
         $this->deductionProgramSelections = (array) ($state['deduction_program_selections'] ?? []);
+        $this->otherDeductionRemarks = (array) ($state['other_deduction_remarks'] ?? []);
         $this->activeDraftId = $draft->id;
         $this->draftSavedAt = $draft->saved_at?->format('M d, Y g:i A');
         $this->draftNotice = 'A saved draft for this configuration was restored.';
@@ -2024,7 +2105,7 @@ class PayrollGeneration extends Component
     private function deductionPrograms(): Collection
     {
         return PayrollDeduction::query()
-            ->select(['id', 'name', 'is_percentage', 'value', 'is_active', 'sort_order'])
+            ->select(['id', 'name', 'is_percentage', 'value', 'is_active', 'sort_order', 'insert_after_column', 'section', 'impact_type', 'is_recurring'])
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('name')
@@ -2049,6 +2130,7 @@ class PayrollGeneration extends Component
         $members = Schema::connection('payroll')->hasTable('payroll_deduction_program_members')
             ? PayrollDeductionProgramMember::query()
                 ->whereIn('deduction_program_id', $programs->pluck('id'))
+                ->where('is_active', true)
                 ->get()
                 ->groupBy('deduction_program_id')
             : collect();
@@ -2060,12 +2142,18 @@ class PayrollGeneration extends Component
                 ->map(fn ($empId) => (string) $empId)
                 ->values()
                 ->all();
+            $employeeAmounts = $members->get($program->id, collect())
+                ->filter(fn ($member) => $member->amount !== null)
+                ->mapWithKeys(fn ($member) => [(string) $member->emp_id => (float) $member->amount])
+                ->all();
             $this->deductionProgramSelections[$id] = array_merge([
-                'enabled' => $rosterIds !== [] || strcasecmp($program->name, 'EA Deduction') === 0,
+                'enabled' => $program->is_recurring
+                    ? ($rosterIds !== [] || strcasecmp($program->name, 'EA Deduction') === 0)
+                    : false,
                 'mode' => $rosterIds === [] ? 'all' : 'include',
                 'employee_ids' => $rosterIds,
                 'amount_mode' => 'program',
-                'employee_amounts' => [],
+                'employee_amounts' => $employeeAmounts,
                 'employee_overrides' => [],
             ], $this->deductionProgramSelections[$id] ?? []);
         }
@@ -2079,6 +2167,9 @@ class PayrollGeneration extends Component
                 'id' => $program->id,
                 'name' => $program->name,
                 'amount' => $this->computeDeductionProgram($program, $employee->emp_id, $basicSalary),
+                'section' => $program->section ?? 'other',
+                'impact_type' => $program->impact_type ?? 'employee_deduction',
+                'insert_after_column' => $program->insert_after_column,
             ])
             ->values()
             ->all();
@@ -2223,17 +2314,17 @@ class PayrollGeneration extends Component
 
     private function currentDeductionImportMode(): string
     {
-        return $this->currentStep === 5 ? 'additional_premiums' : 'loans';
+        return 'loans';
     }
 
     private function currentDeductionLabel(): string
     {
-        return $this->currentStep === 5 ? 'additional premium deduction' : 'loan deduction';
+        return 'loan deduction';
     }
 
     private function currentDeductionTypeLabel(): string
     {
-        return $this->currentStep === 5 ? 'premium' : 'loan';
+        return 'loan';
     }
 
     private function loanTypeMatchesCurrentDeductionStep(PayrollLoanType $loanType): bool
@@ -2243,7 +2334,7 @@ class PayrollGeneration extends Component
         $isPremiumType = in_array($entityCode, self::ADDITIONAL_PREMIUM_ENTITY_CODES, true)
             || in_array($entityName, self::ADDITIONAL_PREMIUM_ENTITY_CODES, true);
 
-        return $this->currentStep === 5 ? $isPremiumType : ! $isPremiumType;
+        return ! $isPremiumType;
     }
 
     private function isAdditionalPremiumItem(PayrollLoanImportItem $item): bool
@@ -2317,13 +2408,11 @@ class PayrollGeneration extends Component
 
     private function manualLoanImportFor(CarbonImmutable $periodStart): \App\Models\Payroll\PayrollLoanImport
     {
-        $isPremium = $this->currentStep === 5;
-
         return \App\Models\Payroll\PayrollLoanImport::query()->firstOrCreate(
             [
-                'source_entity' => $isPremium ? 'Manual Additional Premium' : 'Manual Entry',
+                'source_entity' => 'Manual Entry',
                 'billing_period' => $periodStart->toDateString(),
-                'original_filename' => $isPremium ? 'manual-additional-premiums' : 'manual-loan-deductions',
+                'original_filename' => 'manual-loan-deductions',
             ],
             [
                 'stored_path' => null,
@@ -2898,8 +2987,8 @@ class PayrollGeneration extends Component
             ->whereIn('emp_id', $empIds)
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
-            ->whereDate('start_date', '<=', $periodEnd->toDateString())
-            ->whereDate('end_date', '>=', $periodStart->toDateString())
+            ->where('start_date', '<=', $periodEnd->endOfDay()->toDateTimeString())
+            ->where('end_date', '>=', $periodStart->startOfDay()->toDateTimeString())
             ->whereHas('logs', fn ($query) => $query->whereIn('action', self::EXCLUDED_LEAVE_LOG_ACTIONS))
             ->get()
             ->flatMap(function (EmployeeLeave $leave) use ($periodStart, $periodEnd) {
@@ -3000,9 +3089,7 @@ class PayrollGeneration extends Component
 
         $includesExternal = in_array(Employee::EMPLOYEE_TYPE_EXTERNAL, $types, true);
         if (! $includesExternal) {
-            $overrideIds = Schema::connection('payroll')->hasTable('payroll_external_employee_overrides')
-                ? PayrollExternalEmployeeOverride::query()->where('is_active', true)->pluck('emp_id')->all()
-                : [];
+            $overrideIds = $this->activeExternalEmployeeOverrideIds();
 
             return $query
                 ->employeeType($types)
@@ -3010,9 +3097,7 @@ class PayrollGeneration extends Component
         }
 
         $nonExternalTypes = array_values(array_diff($types, [Employee::EMPLOYEE_TYPE_EXTERNAL]));
-        $overrideIds = Schema::connection('payroll')->hasTable('payroll_external_employee_overrides')
-            ? PayrollExternalEmployeeOverride::query()->where('is_active', true)->pluck('emp_id')->all()
-            : [];
+        $overrideIds = $this->activeExternalEmployeeOverrideIds();
 
         return $query->where(function ($typeQuery) use ($nonExternalTypes, $overrideIds) {
             if ($nonExternalTypes !== []) {
@@ -3037,11 +3122,33 @@ class PayrollGeneration extends Component
             return true;
         }
 
-        return Schema::connection('payroll')->hasTable('payroll_external_employee_overrides')
-            && PayrollExternalEmployeeOverride::query()
-                ->where('emp_id', $employee->emp_id)
-                ->where('is_active', true)
-                ->exists();
+        return in_array((string) $employee->emp_id, $this->activeExternalEmployeeOverrideIds(), true);
+    }
+
+    /** @return Collection<int, PayrollExternalEmployeeOverride> */
+    private function activeExternalEmployeeOverrides(): Collection
+    {
+        if ($this->activeExternalEmployeeOverrides !== null) {
+            return $this->activeExternalEmployeeOverrides;
+        }
+
+        return $this->activeExternalEmployeeOverrides = Schema::connection('payroll')
+            ->hasTable('payroll_external_employee_overrides')
+                ? PayrollExternalEmployeeOverride::query()
+                    ->where('is_active', true)
+                    ->orderBy('employee_name')
+                    ->get()
+                : collect();
+    }
+
+    /** @return list<string> */
+    private function activeExternalEmployeeOverrideIds(): array
+    {
+        return $this->activeExternalEmployeeOverrides()
+            ->pluck('emp_id')
+            ->map(fn ($empId) => (string) $empId)
+            ->values()
+            ->all();
     }
 
     private function departmentOptions(): Collection
@@ -3243,6 +3350,17 @@ class PayrollGeneration extends Component
             ...$annualization,
             'monthly_net_income' => round($monthlyGrossIncome - $monthlyMandatoryDeductions, 2),
         ];
+    }
+
+    private function taxMandatoryDeductionTotal(array $statutoryDeductions, float $mandatoryProgramTotal): float
+    {
+        return round(
+            (float) ($statutoryDeductions['life_retirement'] ?? 0)
+            + (float) ($statutoryDeductions['phic'] ?? 0)
+            + (float) ($statutoryDeductions['mandatory_pagibig'] ?? 0)
+            + $mandatoryProgramTotal,
+            2
+        );
     }
 
     private function previousTaxAnnualizationByEmployee(array $empIds, CarbonImmutable $periodStart): array
@@ -3560,6 +3678,7 @@ class PayrollGeneration extends Component
         $grades = DB::connection('hris')
             ->table('tbl_salary_grade')
             ->select(['salary_grade', 'step_increment', 'salary', 'effectivity_date'])
+            ->whereDate('effectivity_date', '<=', $this->selectedPeriodStart()->endOfMonth()->toDateString())
             ->orderByDesc('effectivity_date')
             ->get()
             ->groupBy(fn ($grade) => $grade->salary_grade.'|'.$grade->step_increment);

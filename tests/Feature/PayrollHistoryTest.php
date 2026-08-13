@@ -157,6 +157,35 @@ class PayrollHistoryTest extends TestCase
         $this->assertStringContainsString('Plantilla', $html);
     }
 
+    public function test_finalized_snapshot_labels_and_pay_basis_do_not_change_when_hris_references_change(): void
+    {
+        DB::connection('hris')->table('tbl_division')->insert(['division_id' => 10, 'division' => 'Original Division']);
+        DB::connection('hris')->table('tbl_department')->insert(['department_id' => 20, 'division_id' => 10, 'department' => 'Original Department']);
+        $batch = PayrollBatch::query()->create([
+            'division_id' => 10, 'department_id' => 20, 'payroll_period' => '2026-07',
+            'payroll_type' => 'General', 'payroll_type_code' => 'general', 'working_days' => 22,
+            'gsis_days' => 31, 'employee_type' => 'plantilla', 'generated_by' => '001783',
+            'snapshot_created_at' => now(),
+        ]);
+        $record = PayrollBatchRecord::query()->create([
+            'payroll_batch_id' => $batch->id, 'emp_id' => '000785', 'department_id' => 20,
+            'gross' => 35127.73, 'net' => 29108.93, 'fifteenth' => 14554.47, 'thirtieth' => 14554.46,
+            'snapshot_json' => [
+                'employee' => ['department' => 'Original Department', 'position' => 'Administrative Officer II'],
+                'pay_basis' => ['salary_grade' => 15, 'step' => 1, 'monthly_salary' => 31705.00],
+            ],
+        ]);
+
+        DB::connection('hris')->table('tbl_division')->where('division_id', 10)->update(['division' => 'Renamed Division']);
+        DB::connection('hris')->table('tbl_department')->where('department_id', 20)->update(['department' => 'Renamed Department']);
+
+        $snapshot = $record->fresh()->snapshot_json;
+        $this->assertSame('Original Department', data_get($snapshot, 'employee.department'));
+        $this->assertSame('Administrative Officer II', data_get($snapshot, 'employee.position'));
+        $this->assertSame(15, data_get($snapshot, 'pay_basis.salary_grade'));
+        $this->assertSame(31705.0, (float) data_get($snapshot, 'pay_basis.monthly_salary'));
+    }
+
     public function test_history_output_shows_saved_drafts_and_continue_link_targets_generation(): void
     {
         DB::connection('hris')->table('tbl_leave_type')->insert([
@@ -197,8 +226,8 @@ class PayrollHistoryTest extends TestCase
         $this->assertStringContainsString('Saved Drafts', $html);
         $this->assertStringContainsString('Billing and Claims', $html);
         $this->assertStringContainsString('Step:', $html);
-        $this->assertStringContainsString('7', $html);
-        $this->assertStringContainsString('of 8', $html);
+        $this->assertStringContainsString('6', $html);
+        $this->assertStringContainsString('of 7', $html);
         $this->assertStringContainsString('Tax Calculation', $html);
         $this->assertStringContainsString('Continue Draft', $html);
 

@@ -18,8 +18,7 @@
                         <a href="#sample-setup" class="block rounded-md px-3 py-2 text-slate-700 hover:bg-slate-100">2. Sample Setup</a>
                         <a href="#use-cases" class="block rounded-md px-3 py-2 text-slate-700 hover:bg-slate-100">3. Use Cases</a>
                         <a href="#step-by-step" class="block rounded-md px-3 py-2 text-slate-700 hover:bg-slate-100">4. Step-by-Step Manual</a>
-                        <a href="#cutover" class="block rounded-md px-3 py-2 text-slate-700 hover:bg-slate-100">5. Cutover</a>
-                        <a href="#summary" class="block rounded-md px-3 py-2 text-slate-700 hover:bg-slate-100">6. Summary</a>
+                        <a href="#summary" class="block rounded-md px-3 py-2 text-slate-700 hover:bg-slate-100">5. Summary</a>
                     </div>
                 </nav>
             </aside>
@@ -61,8 +60,7 @@
                     <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">2. Sample Setup</p>
                     <h3 class="mt-1 text-lg font-semibold">CNO / Nursing vs Department + Areas</h3>
                     <p class="mt-2 text-sm leading-6 text-slate-600">
-                        Schedule mode follows HRIS <code class="text-xs">tbl_department.division_id</code>.
-                        Division <strong>{{ config('schedule.cno_division_id', 3) }}</strong> (Nursing Service / CNO) gets NDOS-parity defaults.
+                        Nursing Service / CNO uses the nursing scheduling workflow.
                         Other divisions stay on a simple department roster and may enable <strong>areas only</strong> for multi-area offices.
                         Optional flags never bypass draft → review → approve → <strong>lock → DTR sync</strong>.
                     </p>
@@ -194,27 +192,8 @@
                     </div>
                 </section>
 
-                <section id="cutover" class="scroll-mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">5. Cutover</p>
-                    <h3 class="mt-1 text-lg font-semibold">Retiring NDOS / legacy HRIS usage</h3>
-                    <p class="mt-2 text-sm leading-6 text-slate-600">
-                        People master stays on legacy MySQL
-                        <code class="rounded bg-slate-100 px-1 text-xs">hris</code>
-                        (schema strategy A). The parallel
-                        <code class="rounded bg-slate-100 px-1 text-xs">hris_v2</code>
-                        path was retired — see
-                        <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">docs/hris-cutover.md</code>
-                        and the enhancement backlog in
-                        <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">docs/hris-schema-enhancements.md</code>.
-                        Schedule / NDOS import tooling is unchanged. Do not treat NDOS as production
-                        after a Nursing (and optional non-CNO) lock→DTR pilot is evidenced.
-                        <code class="rounded bg-slate-100 px-1 text-xs">reference projects/</code>
-                        remain historical / read-only.
-                    </p>
-                </section>
-
                 <section id="summary" class="scroll-mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">6. Summary</p>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">5. Summary</p>
                     <h3 class="mt-1 text-lg font-semibold">Operating Checklist</h3>
 
                     <div class="mt-4 grid gap-4 md:grid-cols-3">

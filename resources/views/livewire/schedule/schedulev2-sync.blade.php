@@ -29,13 +29,6 @@
         <div class="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <p class="font-semibold">NDOS connection / sync issue</p>
             <p class="mt-1">{{ $errorMessage }}</p>
-            <p class="mt-2 text-xs text-amber-800">
-                Configure <code class="rounded bg-amber-100 px-1">DB_HOST_SCHEDULEV2</code>,
-                <code class="rounded bg-amber-100 px-1">DB_DATABASE_SCHEDULEV2</code>,
-                <code class="rounded bg-amber-100 px-1">DB_USERNAME_SCHEDULEV2</code>, and
-                <code class="rounded bg-amber-100 px-1">DB_PASSWORD_SCHEDULEV2</code> in <code class="rounded bg-amber-100 px-1">.env</code>
-                (see <code class="rounded bg-amber-100 px-1">.env.example</code>).
-            </p>
         </div>
     @endif
 
@@ -135,23 +128,14 @@
                 <span wire:loading wire:target="apply">Importing…</span>
             </button>
         </div>
-        <p class="text-xs text-slate-500">
-            Prefer dry-run first. Only status A is imported (P/S/C/R/D excluded). Apply never calls ScheduleLockService / DTR sync.
-            Second run of identical data should show unchanged (not “skip existing”).
-        </p>
+        <p class="text-xs text-slate-500">Run a preview first, then review the results before applying the import.</p>
     </form>
 
     <div class="rounded-lg border border-red-200 bg-red-50 p-5 shadow-sm">
         <h3 class="text-lg font-semibold text-red-900">Full backfill (destructive)</h3>
         <p class="mt-2 text-sm text-red-900">
-            Clears schedule-owned tables on <code class="rounded bg-red-100 px-1 text-xs">payroll_scheduler</code>
-            (assignments, swaps, monthly schedules, templates/patterns, groups, units, shift codes, floater/on-call pools,
-            legacy maps, sync runs, department profiles, signatories), then re-imports references from NDOS:
-            shifts → shift codes, locations/clinics → units, groups → rotation groups, employee locations → settings/members,
-            handled locations → handled units, floaters/on-call → pools, signatories.
-            NDOS has <strong>no pattern/template tables</strong> — local templates stay empty after clear.
-            Does <strong>not</strong> clear HRIS, payroll, employee_references, print settings, roles, cache, or jobs.
-            Never triggers lock→DTR.
+            Replaces current scheduling configuration and optionally assignments with the selected source data.
+            Employee and payroll records are not removed. Review the preview carefully before continuing.
         </p>
         <p class="mt-2 text-xs text-red-800">
             CLI preferred:

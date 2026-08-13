@@ -1,7 +1,7 @@
 @php
     $loanColumnGroups = $loanColumnGroups ?? [];
     $loanColumnCount = collect($loanColumnGroups)->sum(fn ($columns) => count($columns));
-    $deductionPrograms = collect($deductionPrograms ?? []);
+    $deductionPrograms = collect($deductionPrograms ?? [])->where('section', 'other')->values();
     $deductionProgramCount = $deductionPrograms->count();
     $adjustmentTypes = collect($adjustmentTypes ?? []);
     $adjustmentTypeCount = $adjustmentTypes->count();
@@ -19,7 +19,6 @@
                 <th colspan="10" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Mandatory Deductions</th>
                 <th colspan="2" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Tax Calculation</th>
                 <th colspan="{{ max(1, $deductionProgramCount) + 1 }}" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Deduction Programs</th>
-                <th colspan="1" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Additional Premiums</th>
                 @foreach ($loanColumnGroups as $groupLabel => $columns)
                     <th colspan="{{ count($columns) }}" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">{{ $groupLabel }}</th>
                 @endforeach
@@ -60,7 +59,6 @@
                     <th class="px-4 py-3 text-right">No Active Programs</th>
                 @endforelse
                 <th class="border-r-2 border-slate-300 px-4 py-3 text-right">Program Total</th>
-                <th class="border-r-2 border-slate-300 px-4 py-3 text-right">Additional Premium</th>
                 @foreach ($loanColumnGroups as $columns)
                     @foreach ($columns as $key => $label)
                         <th class="px-4 py-3 text-right {{ $loop->last ? 'border-r-2 border-slate-300' : '' }}">{{ $label }}</th>
@@ -75,6 +73,7 @@
         </thead>
         <tbody class="divide-y divide-slate-100">
             @forelse ($rows as $row)
+                @php $mandatoryProgramItems = collect($row['mandatory_program_deductions']['items'] ?? []); @endphp
                 <tr class="hover:bg-slate-50">
                     <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
                     <td class="payroll-sticky-employee-name-cell px-4 py-3">
@@ -105,9 +104,9 @@
                     <td class="px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['phic'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($row['statutory_government_shares']['government_phic'] ?? 0, 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['mandatory_pagibig'], 2) }}</td>
-                    <td class="px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['hdmf_ps_2_ms'] ?? 0, 2) }}</td>
+                    <td class="px-4 py-3 text-right">{{ number_format($mandatoryProgramItems->first(fn ($item) => str_contains(strtolower($item['name'] ?? ''), 'hdmf') && str_contains(strtolower($item['name'] ?? ''), '2 ms'))['amount'] ?? 0, 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($row['statutory_government_shares']['government_pagibig'] ?? 0, 2) }}</td>
-                    <td class="px-4 py-3 text-right">{{ number_format($row['statutory_deductions']['ea_deduction'] ?? 0, 2) }}</td>
+                    <td class="px-4 py-3 text-right">{{ number_format($mandatoryProgramItems->firstWhere('name', 'EA Deduction')['amount'] ?? 0, 2) }}</td>
                     <td class="border-r-2 border-slate-200 px-4 py-3 text-right font-semibold">{{ number_format($row['total_mandatory_deductions'] ?? 0, 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($row['tax']['monthly_tax_due'] ?? 0, 2) }}</td>
                     <td class="border-r-2 border-slate-200 px-4 py-3 text-right font-semibold">{{ number_format($row['net_after_tax'] ?? 0, 2) }}</td>
@@ -123,7 +122,6 @@
                         <td class="px-4 py-3 text-right text-slate-400">-</td>
                     @endforelse
                     <td class="border-r-2 border-slate-200 px-4 py-3 text-right font-semibold">{{ number_format($row['program_deductions']['total'] ?? 0, 2) }}</td>
-                    <td class="border-r-2 border-slate-200 px-4 py-3 text-right font-semibold">{{ number_format($row['additional_premiums']['total'] ?? 0, 2) }}</td>
                     @foreach ($loanColumnGroups as $columns)
                         @foreach ($columns as $key => $label)
                             <td class="px-4 py-3 text-right {{ $loop->last ? 'border-r-2 border-slate-200' : '' }}">{{ number_format($row['loan_deductions']['columns'][$key] ?? 0, 2) }}</td>
@@ -137,7 +135,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ 29 + $compensations->count() + $adjustmentTypeCount + max(1, $deductionProgramCount) + $loanColumnCount }}" class="px-4 py-8 text-center text-slate-500">
+                    <td colspan="{{ 28 + $compensations->count() + $adjustmentTypeCount + max(1, $deductionProgramCount) + $loanColumnCount }}" class="px-4 py-8 text-center text-slate-500">
                         No active HRIS employees found for the selected department.
                     </td>
                 </tr>
@@ -163,9 +161,9 @@
                     <td class="px-4 py-3 text-right">{{ number_format($totals['statutory_deductions']['phic'], 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['statutory_government_shares']['government_phic'] ?? 0, 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['statutory_deductions']['mandatory_pagibig'], 2) }}</td>
-                    <td class="px-4 py-3 text-right">{{ number_format($totals['statutory_deductions']['hdmf_ps_2_ms'] ?? 0, 2) }}</td>
+                    <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => collect($row['mandatory_program_deductions']['items'] ?? [])->first(fn ($item) => str_contains(strtolower($item['name'] ?? ''), 'hdmf') && str_contains(strtolower($item['name'] ?? ''), '2 ms'))['amount'] ?? 0), 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['statutory_government_shares']['government_pagibig'] ?? 0, 2) }}</td>
-                    <td class="px-4 py-3 text-right">{{ number_format($totals['statutory_deductions']['ea_deduction'] ?? 0, 2) }}</td>
+                    <td class="px-4 py-3 text-right">{{ number_format($rows->sum(fn ($row) => collect($row['mandatory_program_deductions']['items'] ?? [])->firstWhere('name', 'EA Deduction')['amount'] ?? 0), 2) }}</td>
                     <td class="border-r-2 border-slate-300 px-4 py-3 text-right">{{ number_format($totals['total_mandatory_deductions'] ?? 0, 2) }}</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['withholding_tax'], 2) }}</td>
                     <td class="border-r-2 border-slate-300 px-4 py-3 text-right">{{ number_format($totals['net_after_tax'], 2) }}</td>
@@ -177,7 +175,6 @@
                         <td class="px-4 py-3 text-right text-slate-400">-</td>
                     @endforelse
                     <td class="border-r-2 border-slate-300 px-4 py-3 text-right">{{ number_format($totals['program_deductions'], 2) }}</td>
-                    <td class="border-r-2 border-slate-300 px-4 py-3 text-right">{{ number_format($totals['additional_premiums'] ?? 0, 2) }}</td>
                     @foreach ($loanColumnGroups as $columns)
                         @foreach ($columns as $key => $label)
                             <td class="px-4 py-3 text-right {{ $loop->last ? 'border-r-2 border-slate-300' : '' }}">{{ number_format($totals['loan_columns'][$key] ?? 0, 2) }}</td>

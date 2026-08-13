@@ -2,7 +2,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
             <h2 class="text-xl font-semibold">TARF / LDI Requests</h2>
-            <p class="text-sm text-slate-600">File and track learning &amp; development requests on legacy HRIS training tables.</p>
+            <p class="text-sm text-slate-600">File and track learning and development requests.</p>
         </div>
         <div class="flex flex-wrap gap-2">
             <a href="{{ route('home') }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">All apps</a>
