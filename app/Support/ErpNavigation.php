@@ -356,6 +356,8 @@ class ErpNavigation
                     'payroll.generation.hazard',
                     'payroll.generation.medicare',
                     'payroll.history',
+                    'payroll.history.import',
+                    'payroll.history.imports',
                     'payroll.history.payslip.print',
                     'payroll.loan-imports',
                     'payroll.additional-premiums'
@@ -366,6 +368,12 @@ class ErpNavigation
                         'items' => [
                             ['label' => 'Payroll Generation', 'route' => 'payroll.generation.configuration', 'icon' => 'banknote', 'active' => request()->routeIs('payroll.generation', 'payroll.generation.configuration', 'payroll.generation.hazard', 'payroll.generation.medicare')],
                             ['label' => 'Payroll History', 'route' => 'payroll.history', 'icon' => 'history', 'active' => request()->routeIs('payroll.history', 'payroll.history.payslip.print')],
+                            ($user?->can('payroll.generation.hr') || $user?->can('payroll.generation.accounting'))
+                                ? ['label' => 'Past Payroll Imports', 'route' => 'payroll.history.imports', 'icon' => 'history', 'active' => request()->routeIs('payroll.history.imports')]
+                                : null,
+                            ($user?->can('payroll.generation.hr') || $user?->can('payroll.generation.accounting'))
+                                ? ['label' => 'Import Past Payroll', 'route' => 'payroll.history.import', 'icon' => 'upload', 'active' => request()->routeIs('payroll.history.import')]
+                                : null,
                         ],
                     ],
                     [

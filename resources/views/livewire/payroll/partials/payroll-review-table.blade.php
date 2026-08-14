@@ -74,7 +74,18 @@
         <tbody class="divide-y divide-slate-100">
             @forelse ($rows as $row)
                 @php $mandatoryProgramItems = collect($row['mandatory_program_deductions']['items'] ?? []); @endphp
-                <tr class="hover:bg-slate-50">
+                <tr
+                    class="hover:bg-slate-50"
+                    data-payroll-row
+                    data-emp-id="{{ $row['emp_id'] }}"
+                    data-employee-name="{{ $row['employee_name'] }}"
+                    data-department="{{ $row['department'] ?? '' }}"
+                    data-position="{{ $row['position'] ?? '' }}"
+                    data-basic-salary="{{ $row['basic_salary'] ?? 0 }}"
+                    data-gross="{{ $row['gross'] ?? 0 }}"
+                    data-net-compensation="{{ $row['net_compensation'] ?? 0 }}"
+                    data-net-after-loan-deductions="{{ $row['net_after_loan_deductions'] ?? 0 }}"
+                >
                     <td class="payroll-sticky-employee-no-cell px-4 py-3 font-medium">{{ $row['emp_id'] }}</td>
                     <td class="payroll-sticky-employee-name-cell px-4 py-3">
                         <div class="font-medium text-slate-900">{{ $row['employee_name'] }}</div>

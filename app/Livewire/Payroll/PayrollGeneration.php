@@ -105,6 +105,9 @@ class PayrollGeneration extends Component
 
     public array $appliedEmployeeFilterIds = [];
 
+    /** Employees belonging to a generated workbook comparison; independent from the UI filter. */
+    public array $comparisonEmployeeScopeIds = [];
+
     public array $employeeTypeFilter = [Employee::EMPLOYEE_TYPE_PLANTILLA];
 
     #[Url(as: 'step', except: 1)]
@@ -127,6 +130,9 @@ class PayrollGeneration extends Component
     public array $taxAnnualizationOverrides = [];
 
     public array $loanRefunds = [];
+
+    /** Workbook loan values used only by generated historical comparison drafts. */
+    public array $comparisonLoanOverrides = [];
 
     public $taxAnnualizationFile;
 
@@ -385,7 +391,7 @@ class PayrollGeneration extends Component
     public function clearEmployeeFilter(): void
     {
         $this->employeeFilterIds = [];
-        $this->appliedEmployeeFilterIds = [];
+        $this->appliedEmployeeFilterIds = $this->comparisonEmployeeScopeIds;
     }
 
     public function sortTable(string $column): void
@@ -995,23 +1001,29 @@ class PayrollGeneration extends Component
             $this->persistRecurringProgramSelections();
         }
 
-        $draft = PayrollGenerationDraft::query()->updateOrCreate(
-            ['configuration_key' => $this->draftConfigurationKey()],
-            [
-                'division_id' => $this->divisionId,
-                'department_id' => $this->departmentId,
-                'payroll_type_code' => PayrollType::CODE_GENERAL,
-                'payroll_period' => $this->period,
-                'working_days' => $this->workingDays,
-                'gsis_days' => $this->gsisDays,
-                'included_leave_type_ids' => $this->selectedLeaveTypeIds,
-                'employee_type' => Employee::employeeTypeQueryValue($this->employeeTypeFilter),
-                'current_step' => $this->currentStep,
-                'state_json' => $this->draftStateForCurrentStep(),
-                'saved_by' => auth()->user()?->emp_id ?? 'web',
-                'saved_at' => now(),
-            ]
-        );
+        $draftValues = [
+            'division_id' => $this->divisionId,
+            'department_id' => $this->departmentId,
+            'payroll_type_code' => PayrollType::CODE_GENERAL,
+            'payroll_period' => $this->period,
+            'working_days' => $this->workingDays,
+            'gsis_days' => $this->gsisDays,
+            'included_leave_type_ids' => $this->selectedLeaveTypeIds,
+            'employee_type' => Employee::employeeTypeQueryValue($this->employeeTypeFilter),
+            'current_step' => $this->currentStep,
+            'state_json' => $this->draftStateForCurrentStep(),
+            'saved_by' => auth()->user()?->emp_id ?? 'web',
+            'saved_at' => now(),
+        ];
+        $draft = $this->activeDraftId ? PayrollGenerationDraft::query()->find($this->activeDraftId) : null;
+        if ($draft && data_get($draft->state_json, 'comparison_source')) {
+            $draft->update($draftValues);
+        } else {
+            $draft = PayrollGenerationDraft::query()->updateOrCreate(
+                ['configuration_key' => $this->draftConfigurationKey()],
+                $draftValues,
+            );
+        }
 
         $this->activeDraftId = $draft->id;
         $this->draftSavedAt = $draft->saved_at?->format('M d, Y g:i A');
@@ -1139,8 +1151,12 @@ class PayrollGeneration extends Component
             'wizard_layout' => PayrollGenerationDraft::WIZARD_LAYOUT,
             'selected_division_ids' => $this->selectedDivisionIds,
             'selected_department_ids' => $this->selectedDepartmentIds,
+            'employee_filter_ids' => $this->employeeFilterIds,
+            'applied_employee_filter_ids' => $this->appliedEmployeeFilterIds,
+            'comparison_employee_scope_ids' => $this->comparisonEmployeeScopeIds,
             'leave_period_start' => $this->leavePeriodStart,
             'leave_period_end' => $this->leavePeriodEnd,
+            'comparison_loan_overrides' => $this->comparisonLoanOverrides,
         ];
 
         return match ($this->currentStep) {
@@ -1234,9 +1250,8 @@ class PayrollGeneration extends Component
 
     private function existingDraftState(): array
     {
-        $draft = PayrollGenerationDraft::query()
-            ->where('configuration_key', $this->draftConfigurationKey())
-            ->first();
+        $draft = $this->activeDraftId ? PayrollGenerationDraft::query()->find($this->activeDraftId) : null;
+        $draft ??= PayrollGenerationDraft::query()->where('configuration_key', $this->draftConfigurationKey())->first();
 
         return (array) ($draft?->state_json ?? []);
     }
@@ -1252,6 +1267,7 @@ class PayrollGeneration extends Component
         $this->mandatoryDeductionAdjustments = [];
         $this->taxAnnualizationOverrides = [];
         $this->loanRefunds = [];
+        $this->comparisonLoanOverrides = [];
         $this->selectedAdjustmentTypeIds = [];
         $this->deductionProgramSelections = [];
         $this->otherDeductionRemarks = [];
@@ -1421,7 +1437,7 @@ class PayrollGeneration extends Component
         $adjustmentTypes = $this->selectedAdjustmentTypes($allAdjustmentTypes);
         $this->syncDeductionProgramSelections($deductionPrograms);
         $savedAppliedEmployeeFilterIds = $this->appliedEmployeeFilterIds;
-        $this->appliedEmployeeFilterIds = [];
+        $this->appliedEmployeeFilterIds = $this->comparisonEmployeeScopeIds;
         try {
             $allRows = $this->payrollRows($compensations, $deductionPrograms);
         } finally {
@@ -1907,6 +1923,16 @@ class PayrollGeneration extends Component
                 $key = $this->loanColumnKeyFromReference($loanItem, $loanReferenceByEntity);
                 $loanColumns[$key] = round(($loanColumns[$key] ?? 0) + (float) $loanItem->amount_due, 2);
             }
+            $comparisonLoan = (array) ($this->comparisonLoanOverrides[$employee->emp_id] ?? []);
+            if ($comparisonLoan !== []) {
+                foreach ((array) ($comparisonLoan['columns'] ?? []) as $key => $amount) {
+                    if (array_key_exists($key, $loanColumns)) {
+                        $loanColumns[$key] = round(max(0, (float) $amount), 2);
+                    }
+                }
+                $loanTotal = round(array_sum($loanColumns), 2);
+                $totalOtherDeductions = round($loanTotal + $programDeductionTotal, 2);
+            }
             $loanByEntity = $employeeLoanItems
                 ->groupBy('entity')
                 ->map(fn (Collection $items, string $entity) => [
@@ -2036,8 +2062,10 @@ class PayrollGeneration extends Component
         $this->mandatoryDeductionAdjustments = [];
         $this->taxAnnualizationOverrides = [];
         $this->loanRefunds = [];
+        $this->comparisonLoanOverrides = [];
         $this->employeeFilterIds = [];
         $this->appliedEmployeeFilterIds = [];
+        $this->comparisonEmployeeScopeIds = [];
         $this->selectedAdjustmentTypeIds = [];
         $this->deductionProgramSelections = [];
         $this->otherDeductionRemarks = [];
@@ -2050,9 +2078,9 @@ class PayrollGeneration extends Component
 
     private function restoreDraft(): void
     {
-        $draft = PayrollGenerationDraft::query()
-            ->where('configuration_key', $this->draftConfigurationKey())
-            ->first();
+        $requestedDraftId = request()->integer('draft_id');
+        $draft = $requestedDraftId ? PayrollGenerationDraft::query()->find($requestedDraftId) : null;
+        $draft ??= PayrollGenerationDraft::query()->where('configuration_key', $this->draftConfigurationKey())->first();
 
         if (! $draft) {
             return;
@@ -2062,6 +2090,9 @@ class PayrollGeneration extends Component
         $this->currentStep = PayrollGenerationDraft::restoredWizardStep((int) $draft->current_step, $state);
         $this->selectedDivisionIds = $this->normalizedIds($state['selected_division_ids'] ?? $this->selectedDivisionIds);
         $this->selectedDepartmentIds = $this->normalizedIds($state['selected_department_ids'] ?? $this->selectedDepartmentIds);
+        $this->employeeFilterIds = $this->parseEmployeeIdList($state['employee_filter_ids'] ?? $this->employeeFilterIds);
+        $this->appliedEmployeeFilterIds = $this->parseEmployeeIdList($state['applied_employee_filter_ids'] ?? $this->employeeFilterIds);
+        $this->comparisonEmployeeScopeIds = $this->parseEmployeeIdList($state['comparison_employee_scope_ids'] ?? []);
         $this->leavePeriodStart = (string) ($state['leave_period_start'] ?? $this->leavePeriodStart);
         $this->leavePeriodEnd = (string) ($state['leave_period_end'] ?? $this->leavePeriodEnd);
         $this->syncLegacyScopeIds();
@@ -2073,6 +2104,7 @@ class PayrollGeneration extends Component
         $this->compensationAdjustments = (array) ($state['compensation_adjustments'] ?? []);
         $this->mandatoryDeductionAdjustments = (array) ($state['mandatory_deduction_adjustments'] ?? []);
         $this->loanRefunds = (array) ($state['loan_refunds'] ?? []);
+        $this->comparisonLoanOverrides = (array) ($state['comparison_loan_overrides'] ?? []);
         $this->taxAnnualizationOverrides = collect((array) ($state['tax_annualization_overrides'] ?? []))
             ->map(fn ($values) => app(TaxInputImportService::class)->retainedOverrides((array) $values))
             ->all();
@@ -2083,7 +2115,8 @@ class PayrollGeneration extends Component
         $this->otherDeductionRemarks = (array) ($state['other_deduction_remarks'] ?? []);
         $this->activeDraftId = $draft->id;
         $this->draftSavedAt = $draft->saved_at?->format('M d, Y g:i A');
-        $this->draftNotice = 'A saved draft for this configuration was restored.';
+        $this->draftNotice = data_get($state, 'comparison_source.remarks')
+            ?: 'A saved draft for this configuration was restored.';
     }
 
     private function draftConfigurationKey(): string
@@ -3199,6 +3232,10 @@ class PayrollGeneration extends Component
 
         $this->applyRawEmployeeTypeScope($query);
 
+        if ($this->comparisonEmployeeScopeIds !== []) {
+            $query->whereIn('employees.emp_id', $this->comparisonEmployeeScopeIds);
+        }
+
         return $query
             ->orderBy('employees.lastname')
             ->orderBy('employees.firstname')
@@ -3899,11 +3936,13 @@ class PayrollGeneration extends Component
             return;
         }
 
+        $comparisonSource = data_get($this->existingDraftState(), 'comparison_source');
         $run = DB::connection('payroll')->transaction(function () use (
             $rows,
             $compensations,
             $deductionPrograms,
-            $totals
+            $totals,
+            $comparisonSource
         ) {
             $periodStart = $this->selectedPeriodStart();
             $periodEnd = $periodStart->endOfMonth();
@@ -3963,7 +4002,9 @@ class PayrollGeneration extends Component
                 'employee_type' => Employee::employeeTypeQueryValue($this->employeeTypeFilter),
                 'generated_by' => $generatedBy,
                 'snapshot_created_at' => now(),
-                'remarks' => "Payroll run #{$run->id} finalized from Payroll Generation module.",
+                'remarks' => $comparisonSource
+                    ? "Generated comparison payroll finalized from historical workbook import #{$comparisonSource['historical_payroll_import_id']}. Eligible for use as historical payroll. Source: {$comparisonSource['filename']}."
+                    : "Payroll run #{$run->id} finalized from Payroll Generation module.",
             ]);
 
             foreach ($rows as $row) {
@@ -4047,7 +4088,9 @@ class PayrollGeneration extends Component
                 'payroll_generate_id' => $run->id,
                 'action' => 'payroll.finalized',
                 'performed_by' => $generatedBy,
-                'remarks' => "Finalized {$this->period} payroll for {$scopeName}.",
+                'remarks' => $comparisonSource
+                    ? "Finalized generated comparison payroll for {$this->period} and {$scopeName}; historical import #{$comparisonSource['historical_payroll_import_id']}."
+                    : "Finalized {$this->period} payroll for {$scopeName}.",
                 'created_at' => now(),
             ]);
 
@@ -4056,7 +4099,10 @@ class PayrollGeneration extends Component
 
         $this->finalizedRunId = $run->id;
         PayrollGenerationDraft::query()
-            ->where('configuration_key', $this->draftConfigurationKey())
+            ->where(function ($query) {
+                $query->where('configuration_key', $this->draftConfigurationKey())
+                    ->when($this->activeDraftId, fn ($query) => $query->orWhereKey($this->activeDraftId));
+            })
             ->delete();
         $this->activeDraftId = null;
         $this->draftSavedAt = null;

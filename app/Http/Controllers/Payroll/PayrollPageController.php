@@ -197,6 +197,16 @@ class PayrollPageController extends Controller
         return view('payroll.history');
     }
 
+    public function historicalImport()
+    {
+        return view('payroll.historical-import');
+    }
+
+    public function historicalImportHistory()
+    {
+        return view('payroll.historical-import-history');
+    }
+
     public function userManual()
     {
         return view('payroll.user-manual');

@@ -44,9 +44,16 @@ class HrisReferenceManagementService
 
     public function savePosition(?int $id, array $data, ?string $actor): Position
     {
+        $data = validator($data, [
+            'position_title' => ['required', 'string', 'max:50'],
+            'salary_grade' => ['required', 'integer', 'between:1,33'],
+            'remarks' => ['nullable', 'string', 'max:50'],
+            'is_active' => ['sometimes', 'boolean'],
+        ])->validate();
+
         return DB::connection('hris')->transaction(function () use ($id, $data, $actor) {
             $position = $id ? Position::query()->findOrFail($id) : new Position;
-            $position->fill(['position_title' => trim($data['position_title']), 'salary_grade' => $data['salary_grade'], 'remarks' => $this->blank($data['remarks'] ?? null)])->save();
+            $position->fill(['position_title' => trim($data['position_title']), 'salary_grade' => $data['salary_grade'], 'remarks' => trim((string) ($data['remarks'] ?? ''))])->save();
             $this->metadata('position', $position->position_id, $data, $actor);
 
             return $position;

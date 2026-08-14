@@ -18,8 +18,8 @@ use App\Http\Controllers\SelfService\MyScheduleController;
 use App\Http\Controllers\SelfService\MyShiftSwapsController;
 use App\Http\Controllers\SelfService\MyTrainingController;
 use App\Http\Controllers\Setup\SetupPageController;
-use App\Http\Controllers\TimePunchController;
 use App\Http\Controllers\Timekeeping\FingerprintEnrollmentController;
+use App\Http\Controllers\TimePunchController;
 use App\Http\Controllers\Training\TrainingPageController;
 use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Route;
@@ -257,6 +257,12 @@ Route::middleware('auth')->group(function () {
         Route::get('/payroll/deduction-programs', [PayrollPageController::class, 'deductionPrograms'])->name('payroll.deduction-programs');
         Route::get('/payroll/statutory-contributions', [PayrollPageController::class, 'statutoryContributions'])->name('payroll.statutory-contributions');
         Route::get('/payroll/history', [PayrollPageController::class, 'history'])->name('payroll.history');
+        Route::get('/payroll/history/import', [PayrollPageController::class, 'historicalImport'])
+            ->middleware('permission:payroll.generation.hr|payroll.generation.accounting')
+            ->name('payroll.history.import');
+        Route::get('/payroll/history/imports', [PayrollPageController::class, 'historicalImportHistory'])
+            ->middleware('permission:payroll.generation.hr|payroll.generation.accounting')
+            ->name('payroll.history.imports');
         Route::get('/payroll/history/payslip/{recordId}/print', [PayrollPageController::class, 'historyPayslipPrint'])
             ->whereNumber('recordId')
             ->name('payroll.history.payslip.print');

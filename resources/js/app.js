@@ -79,6 +79,134 @@ const initPayrollEmployeePickers = () => {
 
 window.initPayrollEmployeePickers = initPayrollEmployeePickers;
 
+const filterHistoricalDepartments = (row) => {
+    const division = row.querySelector('select[data-historical-division]');
+    const department = row.querySelector('select[data-historical-department]');
+    if (!division || !department) return;
+
+    const divisionId = String(division.value || '');
+    let selectedIsValid = !department.value;
+    department.querySelectorAll('option[data-division-id]').forEach((option) => {
+        const available = !divisionId || option.dataset.divisionId === divisionId;
+        option.disabled = !available;
+        option.hidden = !available;
+        if (option.selected && available) selectedIsValid = true;
+    });
+
+    if (!selectedIsValid) {
+        department.value = '';
+        department.dispatchEvent(new Event('change', { bubbles: true }));
+    } else if (window.jQuery) {
+        window.jQuery(department).trigger('change.select2');
+    }
+};
+
+const initHistoricalOrganizationPickers = () => {
+    document.querySelectorAll('[data-historical-org-row]').forEach(filterHistoricalDepartments);
+};
+
+document.addEventListener('change', (event) => {
+    const division = event.target.closest?.('select[data-historical-division]');
+    if (division) {
+        filterHistoricalDepartments(division.closest('[data-historical-org-row]'));
+        return;
+    }
+
+    const department = event.target.closest?.('select[data-historical-department]');
+    if (!department || !department.value) return;
+    const row = department.closest('[data-historical-org-row]');
+    const divisionSelect = row?.querySelector('select[data-historical-division]');
+    const selectedOption = department.selectedOptions?.[0];
+    const divisionId = selectedOption?.dataset.divisionId;
+    if (!divisionSelect || !divisionId || String(divisionSelect.value) === String(divisionId)) return;
+
+    divisionSelect.value = String(divisionId);
+    divisionSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    if (window.jQuery) window.jQuery(divisionSelect).trigger('change.select2');
+});
+
+window.initHistoricalOrganizationPickers = initHistoricalOrganizationPickers;
+
+// Masterlist reference drawers use delegated native events so opening remains
+// instant and reliable after Livewire replaces the staged preview DOM.
+document.addEventListener('click', (event) => {
+    const opener = event.target.closest('[data-masterlist-open]');
+    if (opener) {
+        const component = opener.closest('[wire\\:id]');
+        const type = opener.dataset.masterlistOpen;
+        const drawer = component?.querySelector(`[data-masterlist-drawer="${type}"]`);
+        const form = drawer?.querySelector('form');
+        if (!drawer || !form) return;
+
+        form.reset();
+        if (type === 'position') {
+            form.elements.source.value = opener.dataset.source || '';
+            form.elements.title.value = opener.dataset.source || '';
+            form.elements.salary_grade.value = opener.dataset.salaryGrade || '';
+            form.elements.remarks.value = `Masterlist import #${opener.dataset.importId || ''}`;
+            drawer.querySelector('[data-masterlist-source-label]').textContent = opener.dataset.source || '';
+        } else {
+            const division = opener.dataset.division || '';
+            const department = opener.dataset.department || '';
+            form.elements.source_division.value = division;
+            form.elements.source_department.value = department;
+            form.elements.division_name.value = division;
+            form.elements.department_name.value = department;
+            drawer.querySelector('[data-masterlist-source-label]').textContent = `${division} → ${department}`;
+
+            const matchingOption = Array.from(form.elements.division_id.options)
+                .find((option) => (option.dataset.divisionName || '').trim().toLowerCase() === division.trim().toLowerCase());
+            form.elements.division_id.value = matchingOption?.value || '';
+            drawer.querySelector('[data-masterlist-new-division]').hidden = Boolean(matchingOption);
+        }
+
+        drawer.hidden = false;
+        document.body.classList.add('overflow-hidden');
+        form.querySelector('input:not([type="hidden"]), select')?.focus();
+        return;
+    }
+
+    const closer = event.target.closest('[data-masterlist-close]');
+    if (closer) {
+        const drawer = closer.closest('[data-masterlist-drawer]');
+        if (drawer) drawer.hidden = true;
+        document.body.classList.remove('overflow-hidden');
+    }
+});
+
+document.addEventListener('change', (event) => {
+    if (!event.target.matches('[data-masterlist-division-select]')) return;
+    const drawer = event.target.closest('[data-masterlist-drawer]');
+    const fields = drawer?.querySelector('[data-masterlist-new-division]');
+    if (fields) fields.hidden = Boolean(event.target.value);
+});
+
+document.addEventListener('submit', async (event) => {
+    const form = event.target.closest('[data-masterlist-submit]');
+    if (!form) return;
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+
+    const component = form.closest('[wire\\:id]');
+    const componentId = component?.getAttribute('wire:id');
+    const livewire = componentId && window.Livewire?.find ? window.Livewire.find(componentId) : null;
+    if (!livewire) return;
+
+    const button = form.querySelector('button[type="submit"], button:not([type])');
+    const payload = Object.fromEntries(new FormData(form).entries());
+    if (payload.division_id === '') payload.division_id = null;
+    button?.setAttribute('disabled', 'disabled');
+    try {
+        const method = form.dataset.masterlistSubmit === 'position'
+            ? 'createPositionFromBrowser'
+            : 'createDepartmentFromBrowser';
+        await livewire.call(method, payload);
+        document.body.classList.remove('overflow-hidden');
+    } finally {
+        button?.removeAttribute('disabled');
+    }
+});
+
 const initPayrollTableScrollbars = () => {
     document.querySelectorAll('.payroll-table-scroll').forEach((scrollArea) => {
         const table = scrollArea.querySelector('table');
@@ -269,6 +397,7 @@ window.addEventListener('resize', initPayrollTableScrollbars);
                 stopLoading();
                 queueMicrotask(() => {
                     initPayrollEmployeePickers();
+                    initHistoricalOrganizationPickers();
                     initPayrollTableScrollbars();
                 });
             });
@@ -281,6 +410,7 @@ window.addEventListener('resize', initPayrollTableScrollbars);
                 stopLoading();
                 queueMicrotask(() => {
                     initPayrollEmployeePickers();
+                    initHistoricalOrganizationPickers();
                     initPayrollTableScrollbars();
                 });
             });
@@ -291,11 +421,13 @@ window.addEventListener('resize', initPayrollTableScrollbars);
     document.addEventListener('livewire:init', () => {
         installLivewireHooks();
         initPayrollEmployeePickers();
+        initHistoricalOrganizationPickers();
         initPayrollTableScrollbars();
     });
     document.addEventListener('livewire:initialized', () => {
         installLivewireHooks();
         initPayrollEmployeePickers();
+        initHistoricalOrganizationPickers();
         initPayrollTableScrollbars();
     });
 
@@ -304,12 +436,14 @@ window.addEventListener('resize', initPayrollTableScrollbars);
             initThemeToggle();
             installLivewireHooks();
             initPayrollEmployeePickers();
+            initHistoricalOrganizationPickers();
             initPayrollTableScrollbars();
         });
     } else {
         initThemeToggle();
         installLivewireHooks();
         initPayrollEmployeePickers();
+        initHistoricalOrganizationPickers();
         initPayrollTableScrollbars();
     }
 })();

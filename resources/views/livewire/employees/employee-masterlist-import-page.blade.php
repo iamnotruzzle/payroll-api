@@ -1,4 +1,20 @@
-<div class="space-y-5">
+<div class="space-y-5" x-data="{
+    drawer: null,
+    positionMappings: {},
+    departmentMappings: {},
+    positionForm: {source: '', title: '', salary_grade: '', remarks: ''},
+    departmentForm: {source_division: '', source_department: '', division_id: '', division_name: '', division_special_title: '', department_name: ''},
+    divisions: @js($divisions->map(fn($division) => ['id' => $division->division_id, 'name' => $division->division])->values()),
+    openPosition(label) {
+        this.positionForm = {source: label, title: label, salary_grade: '', remarks: 'Created while resolving Employee Masterlist import #{{ $import?->id }}'};
+        this.drawer = 'position';
+    },
+    openDepartment(division, department) {
+        const existing = this.divisions.find(item => item.name.trim().toLowerCase() === division.trim().toLowerCase());
+        this.departmentForm = {source_division: division, source_department: department, division_id: existing ? existing.id : '', division_name: division, division_special_title: '', department_name: department};
+        this.drawer = 'department';
+    }
+}" x-on:masterlist-reference-created.window="drawer = null">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
             <h2 class="text-xl font-semibold text-slate-900">Import Employee Masterlist</h2>
@@ -54,20 +70,18 @@
         @if ($unresolvedPositions->isNotEmpty() || $unresolvedDepartments->isNotEmpty())
             <section class="rounded-lg border border-amber-200 bg-amber-50 p-5">
                 <h3 class="font-semibold text-amber-950">Resolve workbook references</h3>
-                <p class="mt-1 text-sm text-amber-800">Mappings affect only this staged import and do not create new position or department records.</p>
+                <p class="mt-1 text-sm text-amber-800">Map each workbook value to an existing reference, or explicitly create the missing reference after completing its required setup fields.</p>
                 <div class="mt-4 grid gap-5 lg:grid-cols-2">
                     @if ($unresolvedPositions->isNotEmpty())
                         <div class="space-y-2">
                             <div class="text-xs font-semibold uppercase text-amber-900">Unmatched positions</div>
-                            <div class="flex flex-wrap gap-2">@foreach ($unresolvedPositions as $label)<button wire:click="choosePositionSource(@js($label))" class="rounded-full border px-3 py-1 text-xs {{ $positionSource === $label ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-amber-300 bg-white' }}">{{ $label }}</button>@endforeach</div>
-                            <div class="flex gap-2"><select wire:model="positionTarget" class="min-w-0 flex-1 rounded-md border border-amber-300 px-3 py-2 text-sm"><option value="">Choose matching HRIS position</option>@foreach ($positions as $position)<option value="{{ $position->position_id }}">{{ $position->position_title }}</option>@endforeach</select><button wire:click="mapPosition" class="rounded-md bg-amber-700 px-4 py-2 text-sm font-semibold text-white">Map</button></div>
+                            <div class="space-y-2">@foreach ($unresolvedPositions as $item)@php($label=$item['label'])<div class="rounded-md border border-amber-300 bg-white p-3"><div class="mb-2 flex items-center justify-between gap-2 text-xs font-semibold text-slate-800"><span>{{ $label }}</span>@if($item['salary_grade'])<span class="rounded bg-blue-50 px-2 py-1 text-blue-700">Workbook SG {{ $item['salary_grade'] }}</span>@elseif(count($item['salary_grades']) > 1)<span class="rounded bg-red-50 px-2 py-1 text-red-700">Conflicting SG: {{ implode(', ', $item['salary_grades']) }}</span>@endif</div><div class="flex flex-col gap-2 sm:flex-row"><select x-model="positionMappings[@js($label)]" class="min-w-0 flex-1 rounded-md border border-amber-300 px-3 py-2 text-sm"><option value="">Choose matching HRIS position</option>@foreach ($positions as $position)<option value="{{ $position->position_id }}">{{ $position->position_title }}</option>@endforeach</select><button type="button" x-on:click="$wire.mapPositionValue(@js($label), positionMappings[@js($label)] || null)" x-bind:disabled="!positionMappings[@js($label)]" class="rounded-md bg-amber-700 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Map</button><button type="button" data-masterlist-open="position" data-source="{{ $label }}" data-salary-grade="{{ $item['salary_grade'] }}" data-import-id="{{ $import->id }}" class="rounded-md border border-emerald-300 px-3 py-2 text-xs font-semibold text-emerald-700">Create position</button></div></div>@endforeach</div>
                         </div>
                     @endif
                     @if ($unresolvedDepartments->isNotEmpty())
                         <div class="space-y-2">
                             <div class="text-xs font-semibold uppercase text-amber-900">Unmatched departments</div>
-                            <div class="flex flex-wrap gap-2">@foreach ($unresolvedDepartments as $item)<button wire:click="chooseDepartmentSource(@js($item['division']), @js($item['department']))" class="rounded-full border px-3 py-1 text-xs {{ $departmentDivisionSource === $item['division'] && $departmentSource === $item['department'] ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-amber-300 bg-white' }}">{{ $item['division'] }} → {{ $item['department'] }}</button>@endforeach</div>
-                            <div class="flex gap-2"><select wire:model="departmentTarget" class="min-w-0 flex-1 rounded-md border border-amber-300 px-3 py-2 text-sm"><option value="">Choose matching HRIS department</option>@foreach ($departments as $department)<option value="{{ $department->department_id }}">{{ $department->division?->division }} → {{ $department->department }}</option>@endforeach</select><button wire:click="mapDepartment" class="rounded-md bg-amber-700 px-4 py-2 text-sm font-semibold text-white">Map</button></div>
+                            <div class="space-y-2">@foreach ($unresolvedDepartments as $item)@php($mappingKey=$item['division'].'|'.$item['department'])<div class="rounded-md border border-amber-300 bg-white p-3"><div class="mb-2 text-xs font-semibold text-slate-800">{{ $item['division'] }} &rarr; {{ $item['department'] }}</div><div class="flex flex-col gap-2 sm:flex-row"><select x-model="departmentMappings[@js($mappingKey)]" class="min-w-0 flex-1 rounded-md border border-amber-300 px-3 py-2 text-sm"><option value="">Choose matching HRIS department</option>@foreach ($departments as $department)<option value="{{ $department->department_id }}">{{ $department->division?->division }} &rarr; {{ $department->department }}</option>@endforeach</select><button type="button" x-on:click="$wire.mapDepartmentValue(@js($item['division']), @js($item['department']), departmentMappings[@js($mappingKey)] || null)" x-bind:disabled="!departmentMappings[@js($mappingKey)]" class="rounded-md bg-amber-700 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Map</button><button type="button" data-masterlist-open="department" data-division="{{ $item['division'] }}" data-department="{{ $item['department'] }}" class="rounded-md border border-emerald-300 px-3 py-2 text-xs font-semibold text-emerald-700">Create reference</button></div></div>@endforeach</div>
                         </div>
                     @endif
                 </div>
@@ -111,4 +125,36 @@
             </div>
         </section>
     @endif
+
+    <div hidden data-masterlist-drawer="position" class="fixed inset-0 z-[100] flex justify-end" role="dialog" aria-modal="true" aria-label="Create Missing Position">
+            <button type="button" data-masterlist-close class="absolute inset-0 bg-slate-950/35" aria-label="Close"></button>
+            <section class="relative flex h-full w-full max-w-2xl flex-col bg-white shadow-2xl">
+                <header class="flex items-start justify-between gap-4 border-b px-6 py-5"><div><h2 class="text-lg font-semibold text-slate-900">Create Missing Position</h2><p class="mt-1 text-sm text-slate-500">Complete the required HRIS reference fields.</p></div><button type="button" data-masterlist-close class="rounded-md border px-3 py-2 text-sm">Close</button></header>
+                <form data-masterlist-submit="position" class="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
+                <input type="hidden" name="source"><div class="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">Workbook value: <strong data-masterlist-source-label></strong>. This reference will be available throughout HRIS.</div>
+                <label class="block text-sm font-medium">Position title <span class="text-red-500">*</span><input name="title" required maxlength="50" class="mt-1 w-full rounded-md border px-3 py-2"><span class="mt-1 block text-xs text-slate-500">Maximum 50 characters.</span></label>
+                @error('title')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+                <label class="block text-sm font-medium">Salary grade <span class="text-red-500">*</span><select name="salary_grade" required class="mt-1 w-full rounded-md border px-3 py-2"><option value="">Select salary grade</option>@foreach(range(1, 33) as $grade)<option value="{{ $grade }}">SG {{ $grade }}</option>@endforeach</select></label>
+                @error('salary_grade')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+                <label class="block text-sm font-medium">Remarks<textarea name="remarks" rows="3" maxlength="50" class="mt-1 w-full rounded-md border px-3 py-2"></textarea><span class="mt-1 block text-xs text-slate-500">Maximum 50 characters.</span></label>
+                <div class="flex justify-end gap-2 border-t pt-4"><button type="button" data-masterlist-close class="rounded-md border px-4 py-2">Cancel</button><button class="rounded-md bg-emerald-700 px-4 py-2 font-semibold text-white">Create and map</button></div>
+                </form>
+            </section>
+    </div>
+
+    <div hidden data-masterlist-drawer="department" class="fixed inset-0 z-[100] flex justify-end" role="dialog" aria-modal="true" aria-label="Create Missing Organization Reference">
+            <button type="button" data-masterlist-close class="absolute inset-0 bg-slate-950/35" aria-label="Close"></button>
+            <section class="relative flex h-full w-full max-w-2xl flex-col bg-white shadow-2xl">
+                <header class="flex items-start justify-between gap-4 border-b px-6 py-5"><div><h2 class="text-lg font-semibold text-slate-900">Create Missing Organization Reference</h2><p class="mt-1 text-sm text-slate-500">Complete the division and department details.</p></div><button type="button" data-masterlist-close class="rounded-md border px-3 py-2 text-sm">Close</button></header>
+                <form data-masterlist-submit="department" class="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
+                    <input type="hidden" name="source_division"><input type="hidden" name="source_department"><div class="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">Workbook value: <strong data-masterlist-source-label></strong>. Created references will be available throughout HRIS.</div>
+                    <label class="block text-sm font-medium">Division<select name="division_id" data-masterlist-division-select class="mt-1 w-full rounded-md border px-3 py-2"><option value="">Create the workbook division</option>@foreach($divisions as $division)<option value="{{ $division->division_id }}" data-division-name="{{ $division->division }}">{{ $division->division }}</option>@endforeach</select></label>
+                    <div data-masterlist-new-division class="rounded-md border border-slate-200 p-4"><p class="mb-3 text-sm font-semibold">New division details</p><label class="block text-sm font-medium">Division name <span class="text-red-500">*</span><input name="division_name" class="mt-1 w-full rounded-md border px-3 py-2"></label>@error('division_name')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror<label class="mt-3 block text-sm font-medium">Special title<input name="division_special_title" class="mt-1 w-full rounded-md border px-3 py-2"></label></div>
+                    <label class="block text-sm font-medium">Department name <span class="text-red-500">*</span><input name="department_name" required class="mt-1 w-full rounded-md border px-3 py-2"></label>
+                    @error('department_name')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+                    @error('division_id')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+                    <div class="flex justify-end gap-2 border-t pt-4"><button type="button" data-masterlist-close class="rounded-md border px-4 py-2">Cancel</button><button class="rounded-md bg-emerald-700 px-4 py-2 font-semibold text-white">Create and map</button></div>
+                </form>
+            </section>
+    </div>
 </div>

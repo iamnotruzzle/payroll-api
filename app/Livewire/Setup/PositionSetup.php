@@ -62,7 +62,7 @@ class PositionSetup extends Component
 
     public function save(HrisReferenceManagementService $service): void
     {
-        $data = $this->validate(['positionTitle' => 'required|max:255', 'positionSalaryGrade' => 'required|integer|min:1|max:33', 'positionRemarks' => 'nullable|max:1000', 'positionActive' => 'boolean']);
+        $data = $this->validate(['positionTitle' => 'required|max:50', 'positionSalaryGrade' => 'required|integer|min:1|max:33', 'positionRemarks' => 'nullable|max:50', 'positionActive' => 'boolean']);
         $service->savePosition($this->positionId, ['position_title' => $data['positionTitle'], 'salary_grade' => $data['positionSalaryGrade'], 'remarks' => $data['positionRemarks'], 'is_active' => $data['positionActive']], auth()->user()?->emp_id);
         $this->reset(['positionId', 'positionTitle', 'positionSalaryGrade', 'positionRemarks']);
         $this->positionActive = true;
