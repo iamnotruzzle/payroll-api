@@ -115,6 +115,7 @@ class ScheduleList extends Component
         }
 
         $this->showGenerateModal = false;
+        $this->dispatch('erp-overlay-close', name: 'schedule-generate');
 
         return $this->redirect(route('schedule.show', $result['schedule']), navigate: true);
     }

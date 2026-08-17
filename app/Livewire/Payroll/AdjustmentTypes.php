@@ -7,6 +7,8 @@ use Livewire\Component;
 
 class AdjustmentTypes extends Component
 {
+    public bool $showForm = false;
+
     public string $name = '';
 
     public bool $isActive = true;
@@ -44,7 +46,14 @@ class AdjustmentTypes extends Component
         );
 
         $this->resetForm();
+        $this->dispatch('erp-overlay-close', name: 'adjustment-type');
         session()->flash('status', 'Adjustment type saved.');
+    }
+
+    public function create(): void
+    {
+        $this->resetForm();
+        $this->showForm = true;
     }
 
     public function edit(int $id): void
@@ -54,6 +63,12 @@ class AdjustmentTypes extends Component
         $this->name = $type->name;
         $this->isActive = $type->is_active;
         $this->sortOrder = $type->sort_order;
+        $this->showForm = true;
+    }
+
+    public function closeForm(): void
+    {
+        $this->resetForm();
     }
 
     public function resetForm(): void
@@ -61,6 +76,7 @@ class AdjustmentTypes extends Component
         $this->reset(['name', 'editingId']);
         $this->isActive = true;
         $this->sortOrder = 0;
+        $this->showForm = false;
         $this->resetValidation();
     }
 }

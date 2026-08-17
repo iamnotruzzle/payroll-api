@@ -189,6 +189,7 @@ class LeaveRequests extends Component
 
         $this->drawerOpen = false;
         $this->resetForm();
+        $this->dispatch('erp-overlay-close', name: 'leave-request');
     }
 
     public function cancelRequest(int $leaveId, LeaveService $leaveService): void
@@ -289,8 +290,8 @@ class LeaveRequests extends Component
         return view('livewire.leave.leave-requests', [
             'leaves' => $leaves,
             'pendingById' => $pendingById,
-            'leaveTypes' => $this->drawerOpen ? $this->leaveTypeOptions() : collect(),
-            'employees' => $this->drawerOpen ? $this->employeeOptions() : collect(),
+            'leaveTypes' => $this->leaveTypeOptions(),
+            'employees' => $this->employeeOptions(),
             'canRequest' => $this->canRequest(),
             'previewDayCount' => $this->previewDayCount(),
         ]);

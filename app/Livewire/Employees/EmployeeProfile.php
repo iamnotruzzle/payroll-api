@@ -266,6 +266,7 @@ class EmployeeProfile extends Component
         $writer->setActive($this->empId, false, $meta);
 
         $this->showDeactivateModal = false;
+        $this->dispatch('erp-overlay-close', name: 'employee-deactivate');
         session()->flash('status', 'Employee deactivated.');
     }
 

@@ -5,7 +5,7 @@
             <p class="text-sm text-slate-600">Manage logins and role assignments for HRIS accounts.</p>
         </div>
         @can('admin.users.manage')
-            <button wire:click="create" type="button" class="inline-flex items-center justify-center rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">
+            <button type="button" x-on:click="erpOverlay.open($wire, 'user-account', { editingId: null, empId: null, username: '', password: '', userLevel: null, pimsRole: null, selectedRoles: [], selectedPermissions: [] })" class="inline-flex items-center justify-center rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">
                 Add Account
             </button>
         @endcan
@@ -69,7 +69,7 @@
                         </td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">
                             @can('admin.users.manage')
-                                <button wire:click="edit({{ $account->userid }})" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Edit</button>
+                                <button type="button" x-on:click="erpOverlay.open($wire, 'user-account', { editingId: {{ $account->userid }}, empId: @js($account->emp_id), username: @js((string) $account->username), password: '', userLevel: @js($account->user_level), pimsRole: @js($account->pims_role), selectedRoles: @js($account->roles->pluck('name')->values()->all()), selectedPermissions: @js($account->permissions->pluck('name')->values()->all()) }, true)" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Edit</button>
                                 <button wire:click="resetPassword({{ $account->userid }})" wire:confirm="Reset password for {{ $account->username }}?" type="button" class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100">Reset</button>
                                 <button wire:click="deleteAccount({{ $account->userid }})" wire:confirm="Delete account {{ $account->username }}? Roles will be cleared." type="button" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100">Delete</button>
                             @else
@@ -90,126 +90,111 @@
         {{ $accounts->links() }}
     </div>
 
-    @if ($drawerOpen)
-        <div class="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true">
-            <button wire:click="closeDrawer" type="button" class="fixed inset-0 h-full w-full bg-slate-950/30" aria-label="Close user account drawer"></button>
-            <aside class="absolute inset-y-0 right-0 flex h-dvh max-h-dvh w-full max-w-6xl flex-col overflow-hidden bg-white shadow-xl">
-                <div class="shrink-0 flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                    <div>
-                        <h3 class="text-base font-semibold">{{ $editingId ? 'Edit Account' : 'Add Account' }}</h3>
-                        <p class="text-xs text-slate-500">Update employee details, login credentials, and module access.</p>
+    <x-setup-form-drawer name="user-account" title="Add Account" edit-title="Edit Account" size="wide">
+        <form wire:submit="save" class="space-y-4">
+            <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(460px,0.9fr)]">
+                <section class="rounded-md border border-slate-200 bg-white shadow-sm">
+                    <div class="border-b border-slate-200 px-4 py-3">
+                        <h4 class="text-sm font-semibold text-slate-800">Employee Details</h4>
                     </div>
-                    <button wire:click="closeDrawer" type="button" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Close</button>
-                </div>
+                    <div class="space-y-4 p-4">
+                        <label class="block">
+                            <span class="text-xs font-semibold uppercase text-slate-500">Employee</span>
+                            <select wire:model="empId" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                <option value="">Select employee</option>
+                                @foreach ($employees as $employee)
+                                    <option value="{{ $employee->emp_id }}">{{ $employee->lastname }}, {{ $employee->firstname }} {{ $employee->middlename ? mb_substr($employee->middlename, 0, 1).'.' : '' }} &middot; {{ $employee->emp_id }}</option>
+                                @endforeach
+                            </select>
+                            @error('empId') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                        </label>
 
-                <form wire:submit="save" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-                    <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50/70 px-5 py-4">
-                        <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(460px,0.9fr)]">
-                            <section class="rounded-md border border-slate-200 bg-white shadow-sm">
-                                <div class="border-b border-slate-200 px-4 py-3">
-                                    <h4 class="text-sm font-semibold text-slate-800">Employee Details</h4>
-                                </div>
-                                <div class="space-y-4 p-4">
-                                    <label class="block">
-                                        <span class="text-xs font-semibold uppercase text-slate-500">Employee</span>
-                                        <select wire:model="empId" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                            <option value="">Select employee</option>
-                                            @foreach ($employees as $employee)
-                                                <option value="{{ $employee->emp_id }}">{{ $employee->lastname }}, {{ $employee->firstname }} {{ $employee->middlename ? mb_substr($employee->middlename, 0, 1).'.' : '' }} &middot; {{ $employee->emp_id }}</option>
-                                            @endforeach
-                                        </select>
-                                        @error('empId') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label>
+                                <span class="text-xs font-semibold uppercase text-slate-500">User Level</span>
+                                <input wire:model="userLevel" type="number" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            </label>
+                            <label>
+                                <span class="text-xs font-semibold uppercase text-slate-500">PIMS Role</span>
+                                <input wire:model="pimsRole" type="number" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            </label>
+                        </div>
+
+                        <section class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                            <div class="flex items-center justify-between gap-3">
+                                <h5 class="text-sm font-semibold text-slate-800">Role Templates</h5>
+                                <span class="text-xs text-slate-500">{{ count($selectedRoles) }} selected</span>
+                            </div>
+                            <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                                @foreach ($roles as $role)
+                                    <label class="flex items-start gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                                        <input wire:model="selectedRoles" value="{{ $role->name }}" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-slate-300">
+                                        <span>
+                                            <span class="block font-semibold text-slate-800">{{ $role->display_name ?: str($role->name)->headline() }}</span>
+                                            <span class="block text-xs text-slate-500">{{ $role->name }}</span>
+                                        </span>
                                     </label>
+                                @endforeach
+                            </div>
+                            @error('selectedRoles.*') <span class="mt-2 block text-xs text-red-600">{{ $message }}</span> @enderror
+                        </section>
+                    </div>
+                </section>
 
-                                    <div class="grid gap-3 sm:grid-cols-2">
-                                        <label>
-                                            <span class="text-xs font-semibold uppercase text-slate-500">User Level</span>
-                                            <input wire:model="userLevel" type="number" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                        </label>
-                                        <label>
-                                            <span class="text-xs font-semibold uppercase text-slate-500">PIMS Role</span>
-                                            <input wire:model="pimsRole" type="number" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                        </label>
-                                    </div>
+                <div class="space-y-4">
+                    <section class="rounded-md border border-slate-200 bg-white shadow-sm">
+                        <div class="border-b border-slate-200 px-4 py-3">
+                            <h4 class="text-sm font-semibold text-slate-800">Account Login</h4>
+                        </div>
+                        <div class="grid gap-3 p-4 sm:grid-cols-2">
+                            <label>
+                                <span class="text-xs font-semibold uppercase text-slate-500">Username</span>
+                                <input wire:model="username" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                @error('username') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                            </label>
+                            <label>
+                                <span class="text-xs font-semibold uppercase text-slate-500" x-text="editing ? 'New Password' : 'Password'">Password</span>
+                                <input wire:model="password" type="password" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" x-bind:placeholder="editing ? 'Leave blank to keep current' : ''">
+                                @error('password') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                            </label>
+                        </div>
+                    </section>
 
-                                    <section class="rounded-md border border-slate-200 bg-slate-50 p-3">
-                                        <div class="flex items-center justify-between gap-3">
-                                            <h5 class="text-sm font-semibold text-slate-800">Role Templates</h5>
-                                            <span class="text-xs text-slate-500">{{ count($selectedRoles) }} selected</span>
-                                        </div>
-                                        <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                                            @foreach ($roles as $role)
-                                                <label class="flex items-start gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
-                                                    <input wire:model="selectedRoles" value="{{ $role->name }}" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-slate-300">
-                                                    <span>
-                                                        <span class="block font-semibold text-slate-800">{{ $role->display_name ?: str($role->name)->headline() }}</span>
-                                                        <span class="block text-xs text-slate-500">{{ $role->name }}</span>
-                                                    </span>
-                                                </label>
-                                            @endforeach
-                                        </div>
-                                        @error('selectedRoles.*') <span class="mt-2 block text-xs text-red-600">{{ $message }}</span> @enderror
-                                    </section>
-                                </div>
-                            </section>
-
-                            <div class="space-y-4">
-                                <section class="rounded-md border border-slate-200 bg-white shadow-sm">
-                                    <div class="border-b border-slate-200 px-4 py-3">
-                                        <h4 class="text-sm font-semibold text-slate-800">Account Login</h4>
+                    <section class="rounded-md border border-slate-200 bg-white shadow-sm">
+                        <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                            <h4 class="text-sm font-semibold text-slate-800">Module Access</h4>
+                            <span class="text-xs text-slate-500">{{ count($selectedPermissions) }} direct grants</span>
+                        </div>
+                        <div class="divide-y divide-slate-100">
+                            @foreach ($permissionGroups as $group => $permissions)
+                                <div class="grid gap-3 px-4 py-3 md:grid-cols-[150px_minmax(0,1fr)]">
+                                    <div>
+                                        <p class="text-sm font-semibold text-slate-800">{{ $group }}</p>
+                                        <p class="text-xs text-slate-500">{{ count($permissions) }} actions</p>
                                     </div>
-                                    <div class="grid gap-3 p-4 sm:grid-cols-2">
-                                        <label>
-                                            <span class="text-xs font-semibold uppercase text-slate-500">Username</span>
-                                            <input wire:model="username" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                            @error('username') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                                        </label>
-                                        <label>
-                                            <span class="text-xs font-semibold uppercase text-slate-500">{{ $editingId ? 'New Password' : 'Password' }}</span>
-                                            <input wire:model="password" type="password" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="{{ $editingId ? 'Leave blank to keep current' : '' }}">
-                                            @error('password') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                                        </label>
-                                    </div>
-                                </section>
-
-                                <section class="rounded-md border border-slate-200 bg-white shadow-sm">
-                                    <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-                                        <h4 class="text-sm font-semibold text-slate-800">Module Access</h4>
-                                        <span class="text-xs text-slate-500">{{ count($selectedPermissions) }} direct grants</span>
-                                    </div>
-                                    <div class="divide-y divide-slate-100">
-                                        @foreach ($permissionGroups as $group => $permissions)
-                                            <div class="grid gap-3 px-4 py-3 md:grid-cols-[150px_minmax(0,1fr)]">
-                                                <div>
-                                                    <p class="text-sm font-semibold text-slate-800">{{ $group }}</p>
-                                                    <p class="text-xs text-slate-500">{{ count($permissions) }} actions</p>
-                                                </div>
-                                                <div class="grid gap-2 sm:grid-cols-2">
-                                                    @foreach ($permissions as $permission => $label)
-                                                        <label class="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                                                            <input wire:model="selectedPermissions" value="{{ $permission }}" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-slate-300">
-                                                            <span>
-                                                                <span class="block font-semibold text-slate-800">{{ $label }}</span>
-                                                                <span class="block text-xs text-slate-500">{{ $permission }}</span>
-                                                            </span>
-                                                        </label>
-                                                    @endforeach
-                                                </div>
-                                            </div>
+                                    <div class="grid gap-2 sm:grid-cols-2">
+                                        @foreach ($permissions as $permission => $label)
+                                            <label class="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                                                <input wire:model="selectedPermissions" value="{{ $permission }}" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-slate-300">
+                                                <span>
+                                                    <span class="block font-semibold text-slate-800">{{ $label }}</span>
+                                                    <span class="block text-xs text-slate-500">{{ $permission }}</span>
+                                                </span>
+                                            </label>
                                         @endforeach
                                     </div>
-                                    @error('selectedPermissions.*') <span class="block px-4 pb-3 text-xs text-red-600">{{ $message }}</span> @enderror
-                                </section>
-                            </div>
+                                </div>
+                            @endforeach
                         </div>
-                    </div>
+                        @error('selectedPermissions.*') <span class="block px-4 pb-3 text-xs text-red-600">{{ $message }}</span> @enderror
+                    </section>
+                </div>
+            </div>
 
-                    <div class="shrink-0 flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-4">
-                        <button wire:click="closeDrawer" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
-                        <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save Account</button>
-                    </div>
-                </form>
-            </aside>
-        </div>
-    @endif
+            <div class="flex items-center justify-end gap-2">
+                <button x-on:click="erpOverlay.close('user-account')" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
+                <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save Account</button>
+            </div>
+        </form>
+    </x-setup-form-drawer>
 </div>

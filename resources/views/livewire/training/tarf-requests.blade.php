@@ -8,7 +8,7 @@
             <a href="{{ route('home') }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">All apps</a>
             <a href="{{ route('training.calendar') }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Calendar</a>
             @if ($canManage)
-                <button wire:click="create" type="button" class="inline-flex items-center justify-center rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">
+                <button type="button" x-on:click="erpOverlay.open($wire, 'tarf-request', { editingTarfNo: null, trainingName: '', trainingVenue: '', sponsor: '', sponsorType: 1, startDate: @js(now()->toDateString()), endDate: @js(now()->toDateString()), hrs: '8', type: null, mode: 'f2f', description: '', requestorEmpId: @js((string) (auth()->user()?->emp_id ?? '')), participantEmpIds: [], employeeSearch: '' })" class="inline-flex items-center justify-center rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">
                     New TARF
                 </button>
             @endif
@@ -64,6 +64,13 @@
                     @php
                         $statusKey = \App\Support\Hris\TarfStatuses::keyFor((int) $tarf->status);
                         $statusName = \App\Support\Hris\TarfStatuses::nameFor((int) $tarf->status);
+                        $requestor = $tarf->requests->firstWhere('role', 1);
+                        $participantEmpIds = $tarf->requests
+                            ->where('role', '!=', 1)
+                            ->pluck('emp_id')
+                            ->map(fn ($id) => (string) $id)
+                            ->values()
+                            ->all();
                     @endphp
                     <tr wire:key="tarf-{{ $tarf->tarf_no }}">
                         <td class="px-4 py-3">
@@ -96,7 +103,7 @@
                             <a href="{{ route('training.show', $tarf->tarf_no) }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Open</a>
                             <a href="{{ route('training.print', $tarf->tarf_no) }}" target="_blank" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Print</a>
                             @if ($canManage && (int) $tarf->status === \App\Support\Hris\TarfStatuses::PENDING_PETU)
-                                <button wire:click="edit('{{ $tarf->tarf_no }}')" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Edit</button>
+                                <button type="button" x-on:click="erpOverlay.open($wire, 'tarf-request', { editingTarfNo: @js($tarf->tarf_no), trainingName: @js((string) $tarf->training_name), trainingVenue: @js((string) ($tarf->training_venue ?? '')), sponsor: @js((string) $tarf->sponsor), sponsorType: {{ (int) ($tarf->sponsor_type ?? 1) }}, startDate: @js(optional($tarf->start_date)?->toDateString() ?: ''), endDate: @js(optional($tarf->end_date)?->toDateString() ?: ''), hrs: @js((string) ($tarf->hrs ?? '8')), type: {{ (int) $tarf->type }}, mode: @js((string) ($tarf->mode ?: 'f2f')), description: @js((string) ($tarf->description ?? '')), requestorEmpId: @js((string) ($requestor?->emp_id ?? '')), participantEmpIds: @js($participantEmpIds), employeeSearch: '' }, true)" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Edit</button>
                                 <button wire:click="cancelRequest('{{ $tarf->tarf_no }}')" wire:confirm="Cancel this TARF?" type="button" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100">Cancel</button>
                             @endif
                         </td>
@@ -111,110 +118,96 @@
         <div class="border-t border-slate-100 px-4 py-3">{{ $tarfs->links() }}</div>
     </section>
 
-    @if ($drawerOpen)
-        <div class="fixed inset-0 z-40 flex justify-end bg-slate-900/40" wire:click="closeDrawer">
-            <div class="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-xl" wire:click.stop>
-                <div class="mb-4 flex items-start justify-between gap-3">
-                    <div>
-                        <h3 class="text-lg font-semibold">{{ $editingTarfNo ? 'Edit TARF' : 'New TARF / LDI' }}</h3>
-                        <p class="text-sm text-slate-500">{{ $editingTarfNo ?: 'Creates a pending PETU request.' }}</p>
-                    </div>
-                    <button wire:click="closeDrawer" type="button" class="rounded-md border border-slate-300 px-2 py-1 text-sm">Close</button>
-                </div>
-
-                <form wire:submit="save" class="space-y-3">
-                    <label class="block text-sm">
-                        <span class="font-medium text-slate-700">Training name</span>
-                        <input wire:model="trainingName" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                        @error('trainingName') <span class="text-xs text-rose-600">{{ $message }}</span> @enderror
-                    </label>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        <label class="block text-sm">
-                            <span class="font-medium text-slate-700">Venue</span>
-                            <input wire:model="trainingVenue" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="online or venue">
-                        </label>
-                        <label class="block text-sm">
-                            <span class="font-medium text-slate-700">Mode</span>
-                            <select wire:model="mode" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                <option value="f2f">Face to face</option>
-                                <option value="online">Online</option>
-                                <option value="hybrid">Hybrid</option>
-                            </select>
-                        </label>
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        <label class="block text-sm">
-                            <span class="font-medium text-slate-700">Sponsor</span>
-                            <input wire:model="sponsor" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            @error('sponsor') <span class="text-xs text-rose-600">{{ $message }}</span> @enderror
-                        </label>
-                        <label class="block text-sm">
-                            <span class="font-medium text-slate-700">Sponsor type</span>
-                            <select wire:model="sponsorType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                <option value="1">External</option>
-                                <option value="2">Internal</option>
-                            </select>
-                        </label>
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-3">
-                        <label class="block text-sm">
-                            <span class="font-medium text-slate-700">Start</span>
-                            <input wire:model="startDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                        </label>
-                        <label class="block text-sm">
-                            <span class="font-medium text-slate-700">End</span>
-                            <input wire:model="endDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                        </label>
-                        <label class="block text-sm">
-                            <span class="font-medium text-slate-700">Hours</span>
-                            <input wire:model="hrs" type="number" step="0.5" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                        </label>
-                    </div>
-                    <label class="block text-sm">
-                        <span class="font-medium text-slate-700">LDI type</span>
-                        <select wire:model="type" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            <option value="">Select type</option>
-                            @foreach ($types as $t)
-                                <option value="{{ $t->id }}">{{ $t->type }}</option>
-                            @endforeach
-                        </select>
-                        @error('type') <span class="text-xs text-rose-600">{{ $message }}</span> @enderror
-                    </label>
-                    <label class="block text-sm">
-                        <span class="font-medium text-slate-700">Requestor</span>
-                        <select wire:model="requestorEmpId" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            <option value="">Select employee</option>
-                            @foreach ($employees as $emp)
-                                <option value="{{ $emp->emp_id }}">{{ $emp->full_name }} ({{ $emp->emp_id }})</option>
-                            @endforeach
-                        </select>
-                        @error('requestorEmpId') <span class="text-xs text-rose-600">{{ $message }}</span> @enderror
-                    </label>
-                    @unless ($editingTarfNo)
-                        <div class="rounded-md border border-slate-200 p-3">
-                            <p class="mb-2 text-sm font-medium text-slate-700">Additional participants</p>
-                            <input wire:model.lazy="employeeSearch" type="search" class="mb-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employees">
-                            <div class="max-h-40 space-y-1 overflow-y-auto text-sm">
-                                @foreach ($employees as $emp)
-                                    <label class="flex items-center gap-2 rounded px-1 py-1 hover:bg-slate-50">
-                                        <input type="checkbox" @checked(in_array((string) $emp->emp_id, $participantEmpIds, true)) wire:click="toggleParticipant('{{ $emp->emp_id }}')">
-                                        <span>{{ $emp->full_name }} <span class="text-slate-400">({{ $emp->emp_id }})</span></span>
-                                    </label>
-                                @endforeach
-                            </div>
-                        </div>
-                        <label class="block text-sm">
-                            <span class="font-medium text-slate-700">Supporting documents</span>
-                            <input wire:model="supportingFiles" type="file" multiple class="mt-1 block w-full text-sm">
-                            <div wire:loading wire:target="supportingFiles" class="text-xs text-slate-500">Uploading…</div>
-                        </label>
-                    @endunless
-                    <div class="flex justify-end gap-2 pt-2">
-                        <button type="button" wire:click="closeDrawer" class="rounded-md border border-slate-300 px-3 py-2 text-sm">Cancel</button>
-                        <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save</button>
-                    </div>
-                </form>
+    <x-setup-form-drawer name="tarf-request" title="New TARF / LDI" edit-title="Edit TARF" size="lg">
+        <form wire:submit="save" class="space-y-3">
+            <label class="block text-sm">
+                <span class="font-medium text-slate-700">Training name</span>
+                <input wire:model="trainingName" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                @error('trainingName') <span class="text-xs text-rose-600">{{ $message }}</span> @enderror
+            </label>
+            <div class="grid gap-3 sm:grid-cols-2">
+                <label class="block text-sm">
+                    <span class="font-medium text-slate-700">Venue</span>
+                    <input wire:model="trainingVenue" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="online or venue">
+                </label>
+                <label class="block text-sm">
+                    <span class="font-medium text-slate-700">Mode</span>
+                    <select wire:model="mode" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <option value="f2f">Face to face</option>
+                        <option value="online">Online</option>
+                        <option value="hybrid">Hybrid</option>
+                    </select>
+                </label>
             </div>
-        </div>
-    @endif
+            <div class="grid gap-3 sm:grid-cols-2">
+                <label class="block text-sm">
+                    <span class="font-medium text-slate-700">Sponsor</span>
+                    <input wire:model="sponsor" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    @error('sponsor') <span class="text-xs text-rose-600">{{ $message }}</span> @enderror
+                </label>
+                <label class="block text-sm">
+                    <span class="font-medium text-slate-700">Sponsor type</span>
+                    <select wire:model="sponsorType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <option value="1">External</option>
+                        <option value="2">Internal</option>
+                    </select>
+                </label>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-3">
+                <label class="block text-sm">
+                    <span class="font-medium text-slate-700">Start</span>
+                    <input wire:model="startDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                </label>
+                <label class="block text-sm">
+                    <span class="font-medium text-slate-700">End</span>
+                    <input wire:model="endDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                </label>
+                <label class="block text-sm">
+                    <span class="font-medium text-slate-700">Hours</span>
+                    <input wire:model="hrs" type="number" step="0.5" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                </label>
+            </div>
+            <label class="block text-sm">
+                <span class="font-medium text-slate-700">LDI type</span>
+                <select wire:model="type" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <option value="">Select type</option>
+                    @foreach ($types as $t)
+                        <option value="{{ $t->id }}">{{ $t->type }}</option>
+                    @endforeach
+                </select>
+                @error('type') <span class="text-xs text-rose-600">{{ $message }}</span> @enderror
+            </label>
+            <label class="block text-sm">
+                <span class="font-medium text-slate-700">Requestor</span>
+                <select wire:model="requestorEmpId" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <option value="">Select employee</option>
+                    @foreach ($employees as $emp)
+                        <option value="{{ $emp->emp_id }}">{{ $emp->full_name }} ({{ $emp->emp_id }})</option>
+                    @endforeach
+                </select>
+                @error('requestorEmpId') <span class="text-xs text-rose-600">{{ $message }}</span> @enderror
+            </label>
+            <div class="rounded-md border border-slate-200 p-3" x-show="!editing" x-cloak>
+                <p class="mb-2 text-sm font-medium text-slate-700">Additional participants</p>
+                <input wire:model.lazy="employeeSearch" type="search" class="mb-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employees">
+                <div class="max-h-40 space-y-1 overflow-y-auto text-sm">
+                    @foreach ($employees as $emp)
+                        <label class="flex items-center gap-2 rounded px-1 py-1 hover:bg-slate-50">
+                            <input type="checkbox" @checked(in_array((string) $emp->emp_id, $participantEmpIds, true)) wire:click="toggleParticipant('{{ $emp->emp_id }}')">
+                            <span>{{ $emp->full_name }} <span class="text-slate-400">({{ $emp->emp_id }})</span></span>
+                        </label>
+                    @endforeach
+                </div>
+            </div>
+            <label class="block text-sm" x-show="!editing" x-cloak>
+                <span class="font-medium text-slate-700">Supporting documents</span>
+                <input wire:model="supportingFiles" type="file" multiple class="mt-1 block w-full text-sm">
+                <div wire:loading wire:target="supportingFiles" class="text-xs text-slate-500">Uploading…</div>
+            </label>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" x-on:click="erpOverlay.close('tarf-request')" class="rounded-md border border-slate-300 px-3 py-2 text-sm">Cancel</button>
+                <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save</button>
+            </div>
+        </form>
+    </x-setup-form-drawer>
 </div>

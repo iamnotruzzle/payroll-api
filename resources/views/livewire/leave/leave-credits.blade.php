@@ -134,102 +134,87 @@
 
     <div>{{ $employees->links() }}</div>
 
-    @if ($drawerOpen)
-        <div class="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true">
-            <button wire:click="closeDrawer" type="button" class="fixed inset-0 h-full w-full bg-slate-950/30" aria-label="Close credits form"></button>
-            <aside class="absolute inset-y-0 right-0 flex h-dvh w-full max-w-lg flex-col bg-white shadow-xl">
-                <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                    <div>
-                        <h3 class="text-base font-semibold">Edit leave credits</h3>
-                        <p class="text-xs text-slate-500">{{ $empId }}</p>
+    <x-setup-form-drawer name="leave-credits" title="Edit leave credits" size="lg">
+        <form wire:submit="save" class="space-y-4">
+            <p class="text-xs text-slate-500">{{ $empId }}</p>
+            @if ($computedDetail)
+                <div class="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                    <p class="font-semibold uppercase tracking-wide text-slate-500">Hire-date recompute</p>
+                    <p class="mt-1">{{ $computedDetail['status_label'] }} · hired {{ $computedDetail['date_hired'] ?? '—' }} · {{ $computedDetail['months_of_service'] }} mos · rate {{ number_format((float) $computedDetail['monthly_rate'], 3) }}</p>
+                    <p class="mt-2">VL calc {{ number_format((float) $computedDetail['vl']['computed'], 3) }} (earn {{ number_format((float) $computedDetail['vl']['earned'], 3) }} − used {{ number_format((float) $computedDetail['vl']['used'], 3) }} − UT {{ number_format((float) $computedDetail['vl']['undertime'], 3) }})</p>
+                    <p>SL calc {{ number_format((float) $computedDetail['sl']['computed'], 3) }} (earn {{ number_format((float) $computedDetail['sl']['earned'], 3) }} − used {{ number_format((float) $computedDetail['sl']['used'], 3) }})</p>
+                    @if (! ($computedDetail['accrual_eligible'] ?? false))
+                        <p class="mt-2 text-amber-700">{{ $computedDetail['accrual_skip_reason'] }}</p>
+                    @else
+                        <button wire:click="useComputedBalances" type="button" class="mt-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">Fill form from computed</button>
+                    @endif
+                    <div class="mt-3 space-y-1 border-t border-slate-200 pt-2">
+                        <p class="font-semibold uppercase tracking-wide text-slate-500">Other leave types</p>
+                        @foreach ($computedDetail['entitlements'] ?? [] as $ent)
+                            @if (($ent['max_value'] ?? 0) > 0)
+                                <p @class(['text-amber-700' => ! ($ent['eligible'] ?? true)])>
+                                    {{ $ent['leave_name'] }}: {{ number_format((float) ($ent['remaining'] ?? 0), 1) }} / {{ number_format((float) $ent['max_value'], 1) }}
+                                    ({{ $ent['period'] }}, used {{ number_format((float) $ent['used'], 1) }})
+                                    @if (! ($ent['eligible'] ?? true))
+                                        — {{ implode(' ', $ent['eligibility_notes'] ?? ['ineligible']) }}
+                                    @endif
+                                </p>
+                            @endif
+                        @endforeach
                     </div>
-                    <button wire:click="closeDrawer" type="button" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm">Close</button>
                 </div>
-                <form wire:submit="save" class="flex flex-1 flex-col overflow-hidden">
-                    <div class="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-                        @if ($computedDetail)
-                            <div class="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                                <p class="font-semibold uppercase tracking-wide text-slate-500">Hire-date recompute</p>
-                                <p class="mt-1">{{ $computedDetail['status_label'] }} · hired {{ $computedDetail['date_hired'] ?? '—' }} · {{ $computedDetail['months_of_service'] }} mos · rate {{ number_format((float) $computedDetail['monthly_rate'], 3) }}</p>
-                                <p class="mt-2">VL calc {{ number_format((float) $computedDetail['vl']['computed'], 3) }} (earn {{ number_format((float) $computedDetail['vl']['earned'], 3) }} − used {{ number_format((float) $computedDetail['vl']['used'], 3) }} − UT {{ number_format((float) $computedDetail['vl']['undertime'], 3) }})</p>
-                                <p>SL calc {{ number_format((float) $computedDetail['sl']['computed'], 3) }} (earn {{ number_format((float) $computedDetail['sl']['earned'], 3) }} − used {{ number_format((float) $computedDetail['sl']['used'], 3) }})</p>
-                                @if (! ($computedDetail['accrual_eligible'] ?? false))
-                                    <p class="mt-2 text-amber-700">{{ $computedDetail['accrual_skip_reason'] }}</p>
-                                @else
-                                    <button wire:click="useComputedBalances" type="button" class="mt-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">Fill form from computed</button>
-                                @endif
-                                <div class="mt-3 space-y-1 border-t border-slate-200 pt-2">
-                                    <p class="font-semibold uppercase tracking-wide text-slate-500">Other leave types</p>
-                                    @foreach ($computedDetail['entitlements'] ?? [] as $ent)
-                                        @if (($ent['max_value'] ?? 0) > 0)
-                                            <p @class(['text-amber-700' => ! ($ent['eligible'] ?? true)])>
-                                                {{ $ent['leave_name'] }}: {{ number_format((float) ($ent['remaining'] ?? 0), 1) }} / {{ number_format((float) $ent['max_value'], 1) }}
-                                                ({{ $ent['period'] }}, used {{ number_format((float) $ent['used'], 1) }})
-                                                @if (! ($ent['eligible'] ?? true))
-                                                    — {{ implode(' ', $ent['eligibility_notes'] ?? ['ineligible']) }}
-                                                @endif
-                                            </p>
-                                        @endif
-                                    @endforeach
-                                </div>
-                            </div>
-                        @endif
-                        <label class="block">
-                            <span class="text-xs font-semibold uppercase text-slate-500">Vacation leave</span>
-                            <input wire:model="vacationLeaveCredits" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            @error('vacationLeaveCredits') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                        </label>
-                        <label class="block">
-                            <span class="text-xs font-semibold uppercase text-slate-500">Sick leave</span>
-                            <input wire:model="sickLeaveCredits" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            @error('sickLeaveCredits') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                        </label>
-                        <label class="block">
-                            <span class="text-xs font-semibold uppercase text-slate-500">Remarks</span>
-                            <textarea wire:model="remarks" rows="3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
-                        </label>
+            @endif
+            <label class="block">
+                <span class="text-xs font-semibold uppercase text-slate-500">Vacation leave</span>
+                <input wire:model="vacationLeaveCredits" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                @error('vacationLeaveCredits') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+            </label>
+            <label class="block">
+                <span class="text-xs font-semibold uppercase text-slate-500">Sick leave</span>
+                <input wire:model="sickLeaveCredits" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                @error('sickLeaveCredits') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+            </label>
+            <label class="block">
+                <span class="text-xs font-semibold uppercase text-slate-500">Remarks</span>
+                <textarea wire:model="remarks" rows="3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
+            </label>
 
-                        <div class="rounded-md border border-slate-200">
-                            <div class="border-b border-slate-100 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500">
-                                Credit ledger (latest {{ $ledgerRows->count() }})
-                            </div>
-                            <div class="max-h-56 overflow-y-auto">
-                                <table class="min-w-full text-left text-xs">
-                                    <thead class="bg-white text-slate-500">
-                                        <tr>
-                                            <th class="px-3 py-2 font-semibold">Date</th>
-                                            <th class="px-3 py-2 font-semibold">Bucket</th>
-                                            <th class="px-3 py-2 font-semibold text-right">Delta</th>
-                                            <th class="px-3 py-2 font-semibold text-right">Balance</th>
-                                            <th class="px-3 py-2 font-semibold">Source</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-slate-100">
-                                        @forelse ($ledgerRows as $row)
-                                            <tr>
-                                                <td class="px-3 py-2">{{ optional($row->effective_date)->format('Y-m-d') ?: '—' }}</td>
-                                                <td class="px-3 py-2 font-semibold">{{ $row->bucket }}</td>
-                                                <td class="px-3 py-2 text-right @if ($row->delta < 0) text-rose-700 @elseif ($row->delta > 0) text-emerald-700 @endif">
-                                                    {{ $row->delta > 0 ? '+' : '' }}{{ number_format((float) $row->delta, 3) }}
-                                                </td>
-                                                <td class="px-3 py-2 text-right">{{ number_format((float) $row->balance_after, 3) }}</td>
-                                                <td class="px-3 py-2" title="{{ $row->remarks }}">{{ $row->source_label }}</td>
-                                            </tr>
-                                        @empty
-                                            <tr>
-                                                <td colspan="5" class="px-3 py-4 text-center text-slate-500">No ledger rows yet. Run <code class="text-[10px]">hris:seed-leave-credit-ledger</code> or save a credit change.</td>
-                                            </tr>
-                                        @endforelse
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mt-auto border-t border-slate-200 px-5 py-4">
-                        <button type="submit" class="w-full rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save credits</button>
-                    </div>
-                </form>
-            </aside>
-        </div>
-    @endif
+            <div class="rounded-md border border-slate-200">
+                <div class="border-b border-slate-100 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500">
+                    Credit ledger (latest {{ $ledgerRows->count() }})
+                </div>
+                <div class="max-h-56 overflow-y-auto">
+                    <table class="min-w-full text-left text-xs">
+                        <thead class="bg-white text-slate-500">
+                            <tr>
+                                <th class="px-3 py-2 font-semibold">Date</th>
+                                <th class="px-3 py-2 font-semibold">Bucket</th>
+                                <th class="px-3 py-2 font-semibold text-right">Delta</th>
+                                <th class="px-3 py-2 font-semibold text-right">Balance</th>
+                                <th class="px-3 py-2 font-semibold">Source</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            @forelse ($ledgerRows as $row)
+                                <tr>
+                                    <td class="px-3 py-2">{{ optional($row->effective_date)->format('Y-m-d') ?: '—' }}</td>
+                                    <td class="px-3 py-2 font-semibold">{{ $row->bucket }}</td>
+                                    <td class="px-3 py-2 text-right @if ($row->delta < 0) text-rose-700 @elseif ($row->delta > 0) text-emerald-700 @endif">
+                                        {{ $row->delta > 0 ? '+' : '' }}{{ number_format((float) $row->delta, 3) }}
+                                    </td>
+                                    <td class="px-3 py-2 text-right">{{ number_format((float) $row->balance_after, 3) }}</td>
+                                    <td class="px-3 py-2" title="{{ $row->remarks }}">{{ $row->source_label }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="px-3 py-4 text-center text-slate-500">No ledger rows yet. Run <code class="text-[10px]">hris:seed-leave-credit-ledger</code> or save a credit change.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <button type="submit" class="w-full rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save credits</button>
+        </form>
+    </x-setup-form-drawer>
 </div>

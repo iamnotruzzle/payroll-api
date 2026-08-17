@@ -7,6 +7,8 @@ use Livewire\Component;
 
 class Compensations extends Component
 {
+    public bool $showForm = false;
+
     public ?int $editingId = null;
 
     public string $name = '';
@@ -75,6 +77,7 @@ class Compensations extends Component
         $item->save();
 
         $this->resetForm();
+        $this->dispatch('erp-overlay-close', name: 'compensation-rule');
         session()->flash('status', 'Compensation rule saved.');
     }
 
@@ -94,12 +97,25 @@ class Compensations extends Component
         $this->supplementalTaxRate = $item->supplemental_tax_rate !== null ? (float) $item->supplemental_tax_rate : null;
         $this->sortOrder = (int) ($item->sort_order ?? 0);
         $this->isActive = (bool) $item->is_active;
+        $this->showForm = true;
+    }
+
+    public function create(): void
+    {
+        $this->resetForm();
+        $this->showForm = true;
+    }
+
+    public function closeForm(): void
+    {
+        $this->resetForm();
     }
 
     public function delete(int $id): void
     {
         PayrollAdditional::findOrFail($id)->delete();
         $this->resetForm();
+        $this->dispatch('erp-overlay-close', name: 'compensation-rule');
         session()->flash('status', 'Compensation rule deleted.');
     }
 
@@ -117,5 +133,7 @@ class Compensations extends Component
         $this->supplementalTaxRate = null;
         $this->sortOrder = 0;
         $this->isActive = true;
+        $this->showForm = false;
+        $this->resetValidation();
     }
 }

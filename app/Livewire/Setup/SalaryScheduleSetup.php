@@ -38,7 +38,7 @@ class SalaryScheduleSetup extends Component
         } $this->tranche = (int) $tranche;
         $this->effectiveDate = $date;
         $this->load();
-        $this->showForm = true;
+        $this->dispatch('erp-overlay-open', name: 'salary-schedule', editing: true);
     }
 
     public function create(): void
@@ -71,6 +71,7 @@ class SalaryScheduleSetup extends Component
         $count = $service->publishSalarySchedule($this->tranche, $this->effectiveDate, $this->matrix);
         $this->selection = $this->tranche.'|'.$this->effectiveDate;
         $this->showForm = false;
+        $this->dispatch('erp-overlay-close', name: 'salary-schedule');
         session()->flash('status', "Published {$count} salary cells. Prior schedules and finalized payrolls remain unchanged.");
     }
 

@@ -27,7 +27,7 @@
                     Edit profile
                 </button>
                 @if ($isActive)
-                    <button type="button" wire:click="openDeactivateModal"
+                    <button type="button" x-on:click="erpOverlay.open($wire, 'employee-deactivate')"
                             class="rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-100">
                         Deactivate
                     </button>
@@ -310,17 +310,11 @@
         @endif
     </div>
 
-    @if ($showDeactivateModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" wire:click.self="closeDeactivateModal">
-            <div class="w-full max-w-md rounded-lg border border-slate-200 bg-white p-4 shadow-lg">
-                <h3 class="text-lg font-semibold text-slate-900">Deactivate employee</h3>
-                <p class="mt-1 text-sm text-slate-600">Marks {{ $employee->full_name }} inactive for HRIS workflows.</p>
-
-                <div class="mt-4 flex justify-end gap-2">
-                    <button type="button" wire:click="closeDeactivateModal" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">Cancel</button>
-                    <button type="button" wire:click="deactivate" class="rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-500">Deactivate</button>
-                </div>
-            </div>
+    <x-setup-form-modal name="employee-deactivate" title="Deactivate employee" size="sm">
+        <p class="text-sm text-slate-600">Marks {{ $employee->full_name }} inactive for HRIS workflows.</p>
+        <div class="mt-4 flex justify-end gap-2">
+            <button type="button" x-on:click="erpOverlay.close('employee-deactivate')" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">Cancel</button>
+            <button type="button" wire:click="deactivate" class="rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-500">Deactivate</button>
         </div>
-    @endif
+    </x-setup-form-modal>
 </div>

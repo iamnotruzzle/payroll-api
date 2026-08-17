@@ -72,6 +72,7 @@ class TarfShow extends Component
         ]);
 
         $this->showReschedule = false;
+        $this->dispatch('erp-overlay-close', name: 'tarf-reschedule');
         session()->flash('status', 'TARF rescheduled.');
     }
 

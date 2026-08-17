@@ -67,6 +67,7 @@ class PositionSetup extends Component
         $this->reset(['positionId', 'positionTitle', 'positionSalaryGrade', 'positionRemarks']);
         $this->positionActive = true;
         $this->showForm = false;
+        $this->dispatch('erp-overlay-close', name: 'position');
         session()->flash('status', 'Position saved. Finalized payroll snapshots were not changed.');
     }
 

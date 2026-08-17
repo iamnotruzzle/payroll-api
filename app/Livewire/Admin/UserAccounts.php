@@ -46,7 +46,7 @@ class UserAccounts extends Component
     public function render()
     {
         $accounts = UserAccount::query()
-            ->with(['employee.department', 'roles'])
+            ->with(['employee.department', 'roles', 'permissions'])
             ->when($this->search !== '', function ($query) {
                 $search = trim($this->search);
                 $tokens = preg_split('/\s+/', $search) ?: [];
@@ -68,23 +68,27 @@ class UserAccounts extends Component
             ->orderBy('username')
             ->paginate($this->perPage);
 
+        $employeesWithoutAccounts = Employee::query()
+            ->select(['emp_id', 'firstname', 'middlename', 'lastname', 'extension', 'department_id', 'is_active'])
+            ->with('department')
+            ->where('is_active', 'Y')
+            ->whereDoesntHave('userAccount')
+            ->orderBy('lastname')
+            ->orderBy('firstname')
+            ->limit(75)
+            ->get();
+
+        $employees = $employeesWithoutAccounts
+            ->concat($accounts->pluck('employee')->filter())
+            ->unique('emp_id')
+            ->sortBy('lastname')
+            ->values();
+
         return view('livewire.admin.user-accounts', [
             'accounts' => $accounts,
             'roles' => Role::query()->where('guard_name', 'web')->orderBy('display_name')->orderBy('name')->get(),
             'permissionGroups' => RBACSeeder::groupedPermissions(),
-            'employees' => Employee::query()
-                ->select(['emp_id', 'firstname', 'middlename', 'lastname', 'extension', 'department_id', 'is_active'])
-                ->with('department')
-                ->where('is_active', 'Y')
-                ->whereDoesntHave('userAccount', function ($query) {
-                    if ($this->editingId) {
-                        $query->where('userid', '!=', $this->editingId);
-                    }
-                })
-                ->orderBy('lastname')
-                ->orderBy('firstname')
-                ->limit(75)
-                ->get(),
+            'employees' => $employees,
         ]);
     }
 
@@ -169,6 +173,7 @@ class UserAccounts extends Component
 
         $this->drawerOpen = false;
         $this->resetForm();
+        $this->dispatch('erp-overlay-close', name: 'user-account');
 
         session()->flash('status', 'User account saved.');
     }

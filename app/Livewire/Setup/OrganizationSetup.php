@@ -67,6 +67,7 @@ class OrganizationSetup extends Component
         $this->reset(['divisionId', 'divisionName', 'divisionSpecialTitle']);
         $this->divisionActive = true;
         $this->showDivisionForm = false;
+        $this->dispatch('erp-overlay-close', name: 'organization-division');
         session()->flash('status', 'Division saved.');
     }
 
@@ -100,6 +101,7 @@ class OrganizationSetup extends Component
         $this->reset(['departmentId', 'departmentName', 'departmentDivisionId']);
         $this->departmentActive = true;
         $this->showDepartmentForm = false;
+        $this->dispatch('erp-overlay-close', name: 'organization-department');
         session()->flash('status', 'Department saved.');
     }
 

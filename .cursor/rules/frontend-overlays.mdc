@@ -1,0 +1,31 @@
+---
+description: Use Alpine browser-teleported modals and drawers, never inline forms or Livewire @teleport overlays
+alwaysApply: true
+---
+
+# Frontend overlays
+
+Use Alpine.js overlays that ship in the first HTML response and open in the browser. Do not wait on a Livewire re-render to inject modal/drawer markup, and do not use Livewire `@teleport`.
+
+- Small forms: `<x-setup-form-modal name="entity-name" title="New …" edit-title="Edit …">`
+- Larger forms: `<x-setup-form-drawer name="entity-name" title="New …" edit-title="Edit …">`
+- Always render the component (no `@if ($showForm)` wrapper). Show/hide with Alpine `x-show` inside `x-teleport="body"`.
+- Open/close must not call Livewire (`create`, `edit`, `closeForm`, or `$wire.showForm = …`). Fill fields with `$wire.$set(..., false)` via `erpOverlay.open()`, then show the overlay in Alpine.
+- Keep Livewire for save, delete, and real data fetches only. After a successful save, `$this->dispatch('erp-overlay-close', name: 'entity-name')`.
+
+```blade
+{{-- BAD: server-injected overlay, or open/close via Livewire --}}
+@if ($showForm)
+    @teleport('body')
+        <div class="fixed inset-0">...</div>
+    @endteleport
+@endif
+<button wire:click="create">New</button>
+<button wire:click="closeForm">Cancel</button>
+
+{{-- GOOD: browser open/close, Livewire only on save --}}
+<button type="button" x-on:click="erpOverlay.open($wire, 'adjustment-type', { editingId: null, name: '' })">New</button>
+<x-setup-form-modal name="adjustment-type" title="New Adjustment Type" edit-title="Edit Adjustment Type" size="sm">
+    <form wire:submit="save">...</form>
+</x-setup-form-modal>
+```

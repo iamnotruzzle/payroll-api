@@ -70,6 +70,7 @@ class IpcrPeriods extends Component
         ]);
 
         $this->showCreate = false;
+        $this->dispatch('erp-overlay-close', name: 'ipcr-period');
         session()->flash('status', 'IPCR period saved.');
     }
 

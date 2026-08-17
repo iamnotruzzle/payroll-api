@@ -7,6 +7,8 @@ use Livewire\Component;
 
 class DeductionPrograms extends Component
 {
+    public bool $showForm = false;
+
     public ?int $editingId = null;
 
     public string $name = '';
@@ -68,6 +70,7 @@ class DeductionPrograms extends Component
         $this->dispatch('deduction-programs-changed');
 
         $this->resetForm();
+        $this->dispatch('erp-overlay-close', name: 'deduction-program');
         session()->flash('status', 'Deduction program saved.');
     }
 
@@ -85,6 +88,18 @@ class DeductionPrograms extends Component
         $this->impactType = (string) ($item->impact_type ?? 'employee_deduction');
         $this->isRecurring = (bool) ($item->is_recurring ?? true);
         $this->isActive = (bool) $item->is_active;
+        $this->showForm = true;
+    }
+
+    public function create(): void
+    {
+        $this->resetForm();
+        $this->showForm = true;
+    }
+
+    public function closeForm(): void
+    {
+        $this->resetForm();
     }
 
     public function delete(int $id): void
@@ -92,6 +107,7 @@ class DeductionPrograms extends Component
         PayrollDeduction::findOrFail($id)->delete();
         $this->dispatch('deduction-programs-changed');
         $this->resetForm();
+        $this->dispatch('erp-overlay-close', name: 'deduction-program');
         session()->flash('status', 'Deduction program deleted.');
     }
 
@@ -107,5 +123,7 @@ class DeductionPrograms extends Component
         $this->impactType = 'employee_deduction';
         $this->isRecurring = true;
         $this->isActive = true;
+        $this->showForm = false;
+        $this->resetValidation();
     }
 }

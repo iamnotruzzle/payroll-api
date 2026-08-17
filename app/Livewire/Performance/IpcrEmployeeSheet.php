@@ -115,6 +115,7 @@ class IpcrEmployeeSheet extends Component
         $this->showForm = false;
         $this->resetForm();
         session()->flash('status', 'IPCR target saved.');
+        $this->dispatch('erp-overlay-close', name: 'ipcr-target');
     }
 
     public function openRating(int $ipcrId): void
@@ -167,6 +168,7 @@ class IpcrEmployeeSheet extends Component
 
         $this->ratingIpcrId = null;
         session()->flash('status', 'IPCR rating saved.');
+        $this->dispatch('erp-overlay-close', name: 'ipcr-rating');
     }
 
     public function closeForm(): void
@@ -218,6 +220,7 @@ class IpcrEmployeeSheet extends Component
 
         $this->calibrateIpcrId = null;
         session()->flash('status', 'IPCR calibration saved.');
+        $this->dispatch('erp-overlay-close', name: 'ipcr-calibrate');
     }
 
     public function closeCalibration(): void
@@ -267,6 +270,7 @@ class IpcrEmployeeSheet extends Component
 
         $this->opcrIpcrId = null;
         session()->flash('status', 'OPCR details saved.');
+        $this->dispatch('erp-overlay-close', name: 'ipcr-opcr');
     }
 
     public function closeOpcr(): void

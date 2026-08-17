@@ -91,6 +91,7 @@ class MyTraining extends Component
         ], $this->empId);
 
         $this->showForm = false;
+        $this->dispatch('erp-overlay-close', name: 'my-training');
         session()->flash('status', 'Training request submitted.');
     }
 

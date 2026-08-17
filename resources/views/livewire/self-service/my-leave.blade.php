@@ -5,7 +5,7 @@
             <p class="text-sm text-slate-600">File and track your own leave requests.</p>
         </div>
         @if ($canFile)
-            <button wire:click="openForm" type="button" class="inline-flex items-center justify-center rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">
+            <button type="button" x-on:click="erpOverlay.open($wire, 'my-leave', { leaveType: null, dateMode: 'weekdays', startDate: @js(now()->toDateString()), endDate: @js(now()->toDateString()), selectedDatesCsv: '', daysWpay: '1', daysWopay: '0', autoSplitCredits: true, applicantNote: '' })" class="inline-flex items-center justify-center rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">
                 Apply leave
             </button>
         @endif
@@ -61,79 +61,66 @@
         </table>
     </section>
 
-    @if ($showForm)
-        <div class="fixed inset-0 z-50" style="height: 100dvh;">
-            <div wire:click="closeForm" class="absolute inset-0 bg-slate-950/35"></div>
-            <div class="relative z-10 flex min-h-screen w-full items-start justify-center overflow-y-auto px-3 py-6" style="min-height: 100dvh;">
-                <form wire:submit="submit" class="w-full max-w-xl rounded-md border border-slate-200 bg-white shadow-xl">
-                    <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                        <h3 class="font-semibold">Apply leave</h3>
-                        <button wire:click="closeForm" type="button" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm">Close</button>
-                    </div>
-                    <div class="grid gap-4 p-4 sm:grid-cols-2">
-                        <label class="sm:col-span-2">
-                            <span class="text-xs font-semibold uppercase text-slate-500">Leave type</span>
-                            <select wire:model="leaveType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                <option value="">Select type</option>
-                                @foreach ($leaveTypes as $type)
-                                    <option value="{{ $type->leave_type_id }}">{{ $type->leave_name }}</option>
-                                @endforeach
-                            </select>
-                            @error('leaveType') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                        </label>
-                        <label class="sm:col-span-2">
-                            <span class="text-xs font-semibold uppercase text-slate-500">Date mode</span>
-                            <select wire:model.live="dateMode" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                <option value="weekdays">Fill range as weekdays (Mon–Fri)</option>
-                                <option value="calendar">Fill range as calendar days</option>
-                                <option value="pick">Pick specific dates</option>
-                            </select>
-                        </label>
-                        <label>
-                            <span class="text-xs font-semibold uppercase text-slate-500">Start</span>
-                            <input wire:model.live="startDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            @error('startDate') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                        </label>
-                        <label>
-                            <span class="text-xs font-semibold uppercase text-slate-500">End</span>
-                            <input wire:model.live="endDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            @error('endDate') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                        </label>
-                        @if ($dateMode === 'pick')
-                            <label class="sm:col-span-2">
-                                <span class="text-xs font-semibold uppercase text-slate-500">Selected dates (CSV)</span>
-                                <textarea wire:model.lazy="selectedDatesCsv" rows="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm" placeholder="2026-08-03,2026-08-05"></textarea>
-                                @error('selectedDatesCsv') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                            </label>
-                        @else
-                            <p class="sm:col-span-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                                Selected days: <span class="font-semibold">{{ $previewDayCount }}</span>
-                            </p>
-                        @endif
-                        <label class="sm:col-span-2">
-                            <span class="inline-flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
-                                <input wire:model.live="autoSplitCredits" type="checkbox" class="rounded border-slate-300">
-                                Auto-split with-pay / without-pay from credits
-                            </span>
-                        </label>
-                        <label>
-                            <span class="text-xs font-semibold uppercase text-slate-500">Days with pay</span>
-                            <input wire:model="daysWpay" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" @disabled($autoSplitCredits)>
-                        </label>
-                        <label>
-                            <span class="text-xs font-semibold uppercase text-slate-500">Days w/o pay</span>
-                            <input wire:model="daysWopay" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" @disabled($autoSplitCredits)>
-                        </label>
-                        <label class="sm:col-span-2">
-                            <span class="text-xs font-semibold uppercase text-slate-500">Note</span>
-                            <textarea wire:model="applicantNote" rows="3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Reason (optional)"></textarea>
-                        </label>
-                    </div>
-                    <div class="border-t border-slate-200 px-4 py-3">
-                        <button type="submit" class="w-full rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Submit</button>
-                    </div>
-                </form>
+    <x-setup-form-modal name="my-leave" title="Apply leave" size="lg">
+        <form wire:submit="submit" class="grid gap-4 sm:grid-cols-2">
+            <label class="sm:col-span-2">
+                <span class="text-xs font-semibold uppercase text-slate-500">Leave type</span>
+                <select wire:model="leaveType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <option value="">Select type</option>
+                    @foreach ($leaveTypes as $type)
+                        <option value="{{ $type->leave_type_id }}">{{ $type->leave_name }}</option>
+                    @endforeach
+                </select>
+                @error('leaveType') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+            </label>
+            <label class="sm:col-span-2">
+                <span class="text-xs font-semibold uppercase text-slate-500">Date mode</span>
+                <select wire:model.live="dateMode" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <option value="weekdays">Fill range as weekdays (Mon–Fri)</option>
+                    <option value="calendar">Fill range as calendar days</option>
+                    <option value="pick">Pick specific dates</option>
+                </select>
+            </label>
+            <label>
+                <span class="text-xs font-semibold uppercase text-slate-500">Start</span>
+                <input wire:model.live="startDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                @error('startDate') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+            </label>
+            <label>
+                <span class="text-xs font-semibold uppercase text-slate-500">End</span>
+                <input wire:model.live="endDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                @error('endDate') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+            </label>
+            <label class="sm:col-span-2" x-show="$wire.dateMode === 'pick'" x-cloak>
+                <span class="text-xs font-semibold uppercase text-slate-500">Selected dates (CSV)</span>
+                <textarea wire:model.lazy="selectedDatesCsv" rows="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm" placeholder="2026-08-03,2026-08-05"></textarea>
+                @error('selectedDatesCsv') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+            </label>
+            <p class="sm:col-span-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600" x-show="$wire.dateMode !== 'pick'" x-cloak>
+                Selected days: <span class="font-semibold">{{ $previewDayCount }}</span>
+            </p>
+            <label class="sm:col-span-2">
+                <span class="inline-flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
+                    <input wire:model.live="autoSplitCredits" type="checkbox" class="rounded border-slate-300">
+                    Auto-split with-pay / without-pay from credits
+                </span>
+            </label>
+            <label>
+                <span class="text-xs font-semibold uppercase text-slate-500">Days with pay</span>
+                <input wire:model="daysWpay" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" @disabled($autoSplitCredits)>
+            </label>
+            <label>
+                <span class="text-xs font-semibold uppercase text-slate-500">Days w/o pay</span>
+                <input wire:model="daysWopay" type="number" step="0.001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" @disabled($autoSplitCredits)>
+            </label>
+            <label class="sm:col-span-2">
+                <span class="text-xs font-semibold uppercase text-slate-500">Note</span>
+                <textarea wire:model="applicantNote" rows="3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Reason (optional)"></textarea>
+            </label>
+            <div class="flex justify-end gap-2 sm:col-span-2">
+                <button type="button" x-on:click="erpOverlay.close('my-leave')" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm">Close</button>
+                <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Submit</button>
             </div>
-        </div>
-    @endif
+        </form>
+    </x-setup-form-modal>
 </div>

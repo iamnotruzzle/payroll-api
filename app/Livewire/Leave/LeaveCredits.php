@@ -51,6 +51,7 @@ class LeaveCredits extends Component
         $this->computedDetail = $computer->computeForEmployee($employee);
         $this->drawerOpen = true;
         $this->resetValidation();
+        $this->dispatch('erp-overlay-open', name: 'leave-credits', editing: true);
     }
 
     public function useComputedBalances(): void
@@ -87,6 +88,7 @@ class LeaveCredits extends Component
         $this->drawerOpen = false;
         $this->computedDetail = null;
         session()->flash('status', 'Leave credits updated.');
+        $this->dispatch('erp-overlay-close', name: 'leave-credits');
     }
 
     public function closeDrawer(): void
@@ -140,7 +142,7 @@ class LeaveCredits extends Component
 
     private function ledgerRowsForDrawer()
     {
-        if (! $this->drawerOpen || $this->empId === '') {
+        if ($this->empId === '') {
             return collect();
         }
 

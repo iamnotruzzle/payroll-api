@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-17T10:14:20.3693962+08:00",
+  "title": "Design System: MMMHMC Authentication Entry Surface",
+  "extensions": {
+    "colorMeta": {
+      "institutional-blue": { "role": "primary", "displayName": "Institutional Blue", "canonical": "#235d90", "tonalRamp": ["oklch(24% 0.07 250)", "oklch(34% 0.08 250)", "#235d90", "oklch(53% 0.09 250)", "oklch(63% 0.08 250)", "oklch(73% 0.065 250)", "oklch(84% 0.04 250)", "oklch(95% 0.015 250)"] },
+      "institutional-blue-deep": { "role": "primary", "displayName": "Institutional Blue Deep", "canonical": "#194b77", "tonalRamp": ["oklch(20% 0.06 250)", "oklch(28% 0.07 250)", "#194b77", "oklch(47% 0.08 250)", "oklch(58% 0.07 250)", "oklch(70% 0.055 250)", "oklch(83% 0.035 250)", "oklch(95% 0.012 250)"] },
+      "institutional-blue-night": { "role": "primary", "displayName": "Institutional Blue Night", "canonical": "#76a9d4", "tonalRamp": ["oklch(22% 0.055 245)", "oklch(32% 0.065 245)", "oklch(43% 0.075 245)", "oklch(55% 0.08 245)", "#76a9d4", "oklch(76% 0.055 245)", "oklch(86% 0.032 245)", "oklch(95% 0.012 245)"] },
+      "gateway-mist": { "role": "neutral", "displayName": "Gateway Mist", "canonical": "#f3f6f8", "tonalRamp": ["oklch(15% 0.01 245)", "oklch(27% 0.01 245)", "oklch(40% 0.01 245)", "oklch(54% 0.01 245)", "oklch(68% 0.01 245)", "oklch(81% 0.009 245)", "oklch(90% 0.007 245)", "#f3f6f8"] },
+      "gateway-night": { "role": "neutral", "displayName": "Gateway Night", "canonical": "#09121c", "tonalRamp": ["#09121c", "oklch(24% 0.018 245)", "oklch(36% 0.018 245)", "oklch(49% 0.016 245)", "oklch(63% 0.014 245)", "oklch(76% 0.011 245)", "oklch(87% 0.008 245)", "oklch(95% 0.004 245)"] },
+      "paper": { "role": "neutral", "displayName": "Paper", "canonical": "#ffffff", "tonalRamp": ["#262626", "#424242", "#626262", "#858585", "#aaaaaa", "#cccccc", "#e8e8e8", "#ffffff"] },
+      "night-panel": { "role": "neutral", "displayName": "Night Panel", "canonical": "#101f2d", "tonalRamp": ["#101f2d", "oklch(26% 0.024 245)", "oklch(38% 0.022 245)", "oklch(51% 0.019 245)", "oklch(64% 0.016 245)", "oklch(77% 0.012 245)", "oklch(88% 0.008 245)", "oklch(95% 0.004 245)"] },
+      "ink": { "role": "neutral", "displayName": "Institutional Ink", "canonical": "#172433", "tonalRamp": ["#172433", "oklch(27% 0.024 245)", "oklch(39% 0.021 245)", "oklch(52% 0.018 245)", "oklch(65% 0.014 245)", "oklch(78% 0.01 245)", "oklch(89% 0.006 245)", "oklch(96% 0.003 245)"] },
+      "ink-night": { "role": "neutral", "displayName": "Night Ink", "canonical": "#e8f0f7", "tonalRamp": ["oklch(18% 0.016 245)", "oklch(30% 0.018 245)", "oklch(43% 0.018 245)", "oklch(56% 0.016 245)", "oklch(69% 0.013 245)", "oklch(81% 0.01 245)", "#e8f0f7", "oklch(96% 0.004 245)"] },
+      "slate": { "role": "neutral", "displayName": "Working Slate", "canonical": "#52677b", "tonalRamp": ["oklch(19% 0.026 245)", "oklch(30% 0.032 245)", "#52677b", "oklch(52% 0.032 245)", "oklch(64% 0.027 245)", "oklch(76% 0.02 245)", "oklch(87% 0.012 245)", "oklch(95% 0.005 245)"] },
+      "slate-night": { "role": "neutral", "displayName": "Night Working Slate", "canonical": "#a8b9c9", "tonalRamp": ["oklch(19% 0.02 245)", "oklch(31% 0.024 245)", "oklch(43% 0.026 245)", "oklch(56% 0.025 245)", "oklch(68% 0.022 245)", "#a8b9c9", "oklch(87% 0.012 245)", "oklch(95% 0.005 245)"] },
+      "field": { "role": "neutral", "displayName": "Field Paper", "canonical": "#fbfcfd", "tonalRamp": ["#242526", "#414243", "#626364", "#858687", "#aaabac", "#cdcecf", "#e9eaeb", "#fbfcfd"] },
+      "field-night": { "role": "neutral", "displayName": "Night Field", "canonical": "#0c1925", "tonalRamp": ["#0c1925", "oklch(25% 0.022 245)", "oklch(37% 0.021 245)", "oklch(50% 0.018 245)", "oklch(63% 0.015 245)", "oklch(76% 0.011 245)", "oklch(87% 0.007 245)", "oklch(95% 0.004 245)"] },
+      "field-line": { "role": "neutral", "displayName": "Field Line", "canonical": "#bdcbd6", "tonalRamp": ["oklch(18% 0.015 245)", "oklch(30% 0.02 245)", "oklch(43% 0.022 245)", "oklch(56% 0.021 245)", "oklch(69% 0.018 245)", "#bdcbd6", "oklch(87% 0.01 245)", "oklch(95% 0.004 245)"] },
+      "field-line-night": { "role": "neutral", "displayName": "Night Field Line", "canonical": "#40576b", "tonalRamp": ["oklch(18% 0.024 245)", "oklch(29% 0.03 245)", "#40576b", "oklch(50% 0.031 245)", "oklch(63% 0.026 245)", "oklch(76% 0.019 245)", "oklch(87% 0.011 245)", "oklch(95% 0.004 245)"] },
+      "danger": { "role": "error", "displayName": "Access Danger", "canonical": "#b73a4b", "tonalRamp": ["oklch(22% 0.08 20)", "oklch(32% 0.12 20)", "#b73a4b", "oklch(55% 0.15 20)", "oklch(65% 0.12 20)", "oklch(76% 0.085 20)", "oklch(87% 0.045 20)", "oklch(95% 0.018 20)"] },
+      "danger-surface": { "role": "error", "displayName": "Access Danger Surface", "canonical": "#fff1f2", "tonalRamp": ["oklch(18% 0.035 20)", "oklch(30% 0.05 20)", "oklch(43% 0.06 20)", "oklch(56% 0.055 20)", "oklch(69% 0.045 20)", "oklch(81% 0.03 20)", "oklch(90% 0.018 20)", "#fff1f2"] },
+      "danger-night": { "role": "error", "displayName": "Night Access Danger", "canonical": "#ffb6bf", "tonalRamp": ["oklch(20% 0.06 20)", "oklch(31% 0.09 20)", "oklch(43% 0.12 20)", "oklch(55% 0.13 20)", "oklch(67% 0.11 20)", "oklch(78% 0.08 20)", "#ffb6bf", "oklch(95% 0.02 20)"] },
+      "danger-night-surface": { "role": "error", "displayName": "Night Danger Surface", "canonical": "#35161d", "tonalRamp": ["#35161d", "oklch(26% 0.055 20)", "oklch(38% 0.075 20)", "oklch(50% 0.08 20)", "oklch(63% 0.065 20)", "oklch(76% 0.045 20)", "oklch(87% 0.025 20)", "oklch(95% 0.01 20)"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Entry Display", "purpose": "Two-line authentication gateway statement only." },
+      "headline": { "displayName": "Task Headline", "purpose": "Sign-in and equivalent authentication task titles." },
+      "body": { "displayName": "Orientation Body", "purpose": "Primary explanatory copy beside the authentication task." },
+      "body-compact": { "displayName": "Field Text", "purpose": "Form values and placeholders." },
+      "label": { "displayName": "Operational Label", "purpose": "Field labels and compact task headings." },
+      "detail": { "displayName": "Support Detail", "purpose": "Field help, security, and assistance copy." },
+      "action": { "displayName": "Primary Action", "purpose": "Primary submit labels." }
+    },
+    "shadows": [
+      { "name": "signin-light", "value": "0 1.8rem 4.5rem -3.1rem rgba(28, 71, 108, .62)", "purpose": "The sole substantial elevation on the light authentication surface." },
+      { "name": "signin-dark", "value": "0 1.8rem 4.5rem -3rem rgba(0, 0, 0, .72)", "purpose": "Dark-theme counterpart for the elevated sign-in surface." },
+      { "name": "action-rest", "value": "0 .8rem 1.8rem -1.2rem rgba(35, 93, 144, .8)", "purpose": "Compact depth under the primary sign-in action." },
+      { "name": "action-hover", "value": "0 1rem 2rem -1.15rem rgba(35, 93, 144, .88)", "purpose": "Slightly stronger response when the primary action is hovered." }
+    ],
+    "motion": [
+      { "name": "portal-entrance", "value": "1.05s power2.out, 160ms stagger", "purpose": "Progressively reveal the headline, workforce constellation, and sign-in surface from a 14px rise." },
+      { "name": "system-orbit", "value": "44-56s linear infinite", "purpose": "Revolve the two workforce-system paths continuously in opposite directions; pause when hidden and omit under reduced motion." },
+      { "name": "system-pulse", "value": "2.8s sine.inOut yoyo infinite", "purpose": "Give the three connection points a slow continuous breathing rhythm without introducing a second accent." },
+      { "name": "control-response", "value": "220ms cubic-bezier(.16, 1, .3, 1)", "purpose": "Smooth hover, focus, and press feedback on fields and the primary action." },
+      { "name": "theme-indicator", "value": "280ms cubic-bezier(.16, 1, .3, 1)", "purpose": "Restrained movement of the theme control indicator." }
+    ],
+    "breakpoints": [
+      { "name": "task-stack", "value": "900px" },
+      { "name": "phone", "value": "600px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Sign-in Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single dominant action on authentication entry surfaces.",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">Sign in</button>",
+      "css": ".ds-btn-primary { display:flex; align-items:center; justify-content:center; width:100%; min-height:3.15rem; padding:0 1rem; border:0; border-radius:.6rem; background:#235d90; color:#fff; box-shadow:0 .8rem 1.8rem -1.2rem rgba(35,93,144,.8); font-family:'Manrope Variable',ui-sans-serif,system-ui,sans-serif; font-size:.82rem; font-weight:760; transition:transform 150ms ease,background-color 150ms ease,box-shadow 150ms ease; } .ds-btn-primary:hover { background:#194b77; box-shadow:0 1rem 2rem -1.15rem rgba(35,93,144,.88); transform:translateY(-1px); } .ds-btn-primary:active { transform:translateY(1px); } .ds-btn-primary:focus-visible { outline:3px solid rgba(35,93,144,.24); outline-offset:3px; } .ds-btn-primary:disabled { cursor:wait; opacity:.68; transform:none; } @media (prefers-reduced-motion:reduce) { .ds-btn-primary { transition:none; } }"
+    },
+    {
+      "name": "Employee ID Field",
+      "kind": "input",
+      "refersTo": "text-field",
+      "description": "A labeled authentication field with persistent operational help.",
+      "html": "<label class=\"ds-field\"><span>Employee ID</span><input placeholder=\"Enter your employee ID\" aria-describedby=\"ds-field-help\"><small id=\"ds-field-help\">Use the ID provided by Human Resources.</small></label>",
+      "css": ".ds-field { display:grid; gap:.48rem; color:#2f4458; font-family:'Manrope Variable',ui-sans-serif,system-ui,sans-serif; font-size:.75rem; font-weight:720; } .ds-field input { width:100%; min-height:3rem; padding:0 .85rem; border:1px solid #bdcbd6; border-radius:.6rem; outline:none; background:#fbfcfd; color:#172433; caret-color:#235d90; font:400 .88rem 'Manrope Variable',ui-sans-serif,system-ui,sans-serif; transition:border-color 150ms ease,box-shadow 150ms ease,background-color 150ms ease; } .ds-field input::placeholder { color:#52677b; opacity:1; } .ds-field input:hover { border-color:#8ba2b5; } .ds-field input:focus { border-color:#235d90; background:#fff; box-shadow:0 0 0 .2rem rgba(35,93,144,.13); } .ds-field input[aria-invalid='true'] { border-color:#b73a4b; } .ds-field small { color:#52677b; font-size:.71rem; font-weight:400; } :host-context(html[data-theme='dark']) .ds-field { color:#cedae4; } :host-context(html[data-theme='dark']) .ds-field input { border-color:#40576b; background:#0c1925; color:#e8f0f7; caret-color:#76a9d4; } :host-context(html[data-theme='dark']) .ds-field input::placeholder { color:#9badbd; } :host-context(html[data-theme='dark']) .ds-field input:focus { border-color:#76a9d4; background:#0a1722; box-shadow:0 0 0 .2rem rgba(118,169,212,.15); }"
+    },
+    {
+      "name": "Sign-in Card",
+      "kind": "card",
+      "refersTo": "signin-card",
+      "description": "The sole elevated task container on the authentication gateway.",
+      "html": "<section class=\"ds-signin-card\"><h2>Sign in to continue</h2><p>Use the credentials issued to you.</p><div class=\"ds-card-placeholder\">Authentication form</div></section>",
+      "css": ".ds-signin-card { padding:clamp(1.75rem,3vw,2.5rem); border-radius:1rem; background:#fff; color:#172433; box-shadow:0 1.8rem 4.5rem -3.1rem rgba(28,71,108,.62); font-family:'Manrope Variable',ui-sans-serif,system-ui,sans-serif; animation:ds-signin-enter 560ms 120ms cubic-bezier(.16,1,.3,1) both; } .ds-signin-card h2 { margin:0; font-size:1.85rem; font-weight:770; letter-spacing:-.025em; } .ds-signin-card>p { margin:.35rem 0 0; color:#52677b; font-size:.8rem; } .ds-card-placeholder { margin-top:1.75rem; padding:1rem; border:1px dashed #bdcbd6; border-radius:.6rem; color:#52677b; font-size:.75rem; } @keyframes ds-signin-enter { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } } :host-context(html[data-theme='dark']) .ds-signin-card { background:#101f2d; color:#e8f0f7; box-shadow:0 1.8rem 4.5rem -3rem rgba(0,0,0,.72); } :host-context(html[data-theme='dark']) .ds-signin-card>p { color:#a8b9c9; } :host-context(html[data-theme='dark']) .ds-card-placeholder { border-color:#40576b; color:#a8b9c9; } @media (max-width:600px) { .ds-signin-card { padding:1.4rem; border-radius:.85rem; } } @media (prefers-reduced-motion:reduce) { .ds-signin-card { animation:none; } }"
+    },
+    {
+      "name": "Remember Selection",
+      "kind": "custom",
+      "description": "A compact persisted-session control that stays subordinate to submit.",
+      "html": "<label class=\"ds-remember\"><input type=\"checkbox\"><span>Keep me signed in on this device</span></label>",
+      "css": ".ds-remember { display:flex; align-items:center; gap:.65rem; color:#42586c; font:400 .74rem 'Manrope Variable',ui-sans-serif,system-ui,sans-serif; cursor:pointer; } .ds-remember input { appearance:none; width:1.05rem; height:1.05rem; flex:none; border:1.5px solid #8ba2b5; border-radius:.25rem; background:#fff; } .ds-remember input:checked { border-color:#235d90; background:#235d90; } .ds-remember input:checked::after { display:block; width:.65rem; height:.35rem; margin:.2rem 0 0 .16rem; border-bottom:2px solid white; border-left:2px solid white; content:''; transform:rotate(-45deg); } .ds-remember input:focus-visible { outline:3px solid rgba(35,93,144,.2); outline-offset:2px; } :host-context(html[data-theme='dark']) .ds-remember { color:#b7c6d3; }"
+    },
+    {
+      "name": "Theme Toggle",
+      "kind": "custom",
+      "description": "A compact secondary utility for explicit light and dark theme control.",
+      "html": "<button class=\"ds-theme\" type=\"button\"><span>Light</span><i aria-hidden=\"true\"></i></button>",
+      "css": ".ds-theme { display:flex; align-items:center; gap:.5rem; min-height:2.5rem; padding:0 .2rem 0 .7rem; border:1px solid rgba(35,93,144,.18); border-radius:.65rem; background:rgba(255,255,255,.58); color:#42586c; font:700 .7rem 'Manrope Variable',ui-sans-serif,system-ui,sans-serif; transition:border-color 160ms ease,background-color 160ms ease; } .ds-theme i { position:relative; width:2.15rem; height:1.45rem; border-radius:.45rem; background:#d9e2e9; } .ds-theme i::after { position:absolute; top:.25rem; left:.25rem; width:.95rem; height:.95rem; border-radius:.28rem; background:#235d90; content:''; transition:transform 180ms cubic-bezier(.2,.7,.2,1); } .ds-theme:hover { border-color:#235d90; background:rgba(255,255,255,.9); } .ds-theme:focus-visible { outline:3px solid rgba(35,93,144,.22); outline-offset:2px; } :host-context(html[data-theme='dark']) .ds-theme { border-color:rgba(118,169,212,.2); background:rgba(18,34,49,.7); color:#bac9d6; } :host-context(html[data-theme='dark']) .ds-theme i { background:#263b4e; } :host-context(html[data-theme='dark']) .ds-theme i::after { background:#76a9d4; transform:translateX(.7rem); } @media (prefers-reduced-motion:reduce) { .ds-theme i::after { transition:none; } }"
+    },
+    {
+      "name": "Authentication Alert",
+      "kind": "custom",
+      "description": "A focused, persistent server-validation failure message.",
+      "html": "<div class=\"ds-login-alert\" role=\"alert\" tabindex=\"-1\"><strong>We couldn't sign you in.</strong><span>Check your credentials and try again.</span></div>",
+      "css": ".ds-login-alert { display:grid; gap:.2rem; padding:.8rem 1rem; border:1px solid #e7a3ab; border-radius:.7rem; background:#fff1f2; color:#a52b3b; font:400 .78rem 'Manrope Variable',ui-sans-serif,system-ui,sans-serif; } .ds-login-alert:focus-visible { outline:3px solid rgba(183,58,75,.22); outline-offset:2px; } :host-context(html[data-theme='dark']) .ds-login-alert { border-color:#71303a; background:#35161d; color:#ffb6bf; }"
+    },
+    {
+      "name": "Role Context Item",
+      "kind": "custom",
+      "description": "Flat orientation copy for employee and operational audiences, never an action card.",
+      "html": "<article class=\"ds-role-context\"><h3>Employee self-service</h3><p>Review your profile, DTR, schedule, leave, training, and payslips.</p></article>",
+      "css": ".ds-role-context { max-width:26ch; padding-top:1rem; border-top:1px solid rgba(35,93,144,.24); font-family:'Manrope Variable',ui-sans-serif,system-ui,sans-serif; } .ds-role-context h3 { margin:0; color:#23384c; font-size:.82rem; font-weight:760; letter-spacing:-.01em; } .ds-role-context p { margin:.55rem 0 0; color:#52677b; font-size:.76rem; line-height:1.6; } :host-context(html[data-theme='dark']) .ds-role-context { border-color:rgba(118,169,212,.26); } :host-context(html[data-theme='dark']) .ds-role-context h3 { color:#d9e5ee; } :host-context(html[data-theme='dark']) .ds-role-context p { color:#a8b9c9; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Trusted Threshold",
+    "overview": "The authentication entry surface is a calm, institutional threshold into sensitive employee systems. It feels dependable rather than promotional: direct language, a cool neutral field, one restrained blue accent, and a sign-in card that is unmistakably the primary task.\n\nThis record applies to login and closely related authentication entry surfaces only. It does not establish visual rules for payroll processing, HR administration, reporting, tables, or other authenticated product screens. Within this boundary, employee self-service and HR/Accounting role context remain useful orientation, never competition for the sign-in action.",
+    "keyCharacteristics": [
+      "Task-first hierarchy with sign-in as the dominant action.",
+      "Restrained institutional blue against cool, quiet neutrals.",
+      "Manrope Variable throughout, with firm weight contrast and compact support text.",
+      "A connected workforce constellation explains People, Time & Leave, and Payroll without competing with sign-in.",
+      "Light and dark themes that preserve the same hierarchy and interaction states.",
+      "Rounded controls and cards on a disciplined 10–16px surface scale.",
+      "Motion confined to the sign-in surface and removed under reduced-motion preferences."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Blue alone carries action, focus, and selective emphasis; do not introduce a second decorative accent on authentication entry surfaces.", "section": "colors" },
+      { "name": "The Parity Rule", "body": "Dark mode preserves semantic roles and contrast rather than mechanically inverting light-theme values.", "section": "colors" },
+      { "name": "The Weight-Not-Decoration Rule", "body": "Build hierarchy with Manrope's variable weights and measured scale; do not add ornamental typefaces, all-caps slogans, or exaggerated letter spacing to this surface.", "section": "typography" },
+      { "name": "The Task-Before-Context Rule", "body": "On narrow screens, sign-in must appear before role details and security context.", "section": "layout" },
+      { "name": "The Single Lift Rule", "body": "The sign-in surface is the only elevated container; role summaries, security notes, header, and footer remain flat.", "section": "elevation" },
+      { "name": "The 10–16 Rule", "body": "Keep the main control and surface radius vocabulary between roughly 10px and 16px; tiny checkbox and toggle internals are proportional exceptions, not new container shapes.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do make sign-in the strongest action and the only elevated container.",
+      "Do preserve Employee ID, password, remember-me, validation, help, and theme behaviors when reusing the surface.",
+      "Do maintain explicit light/dark token pairs and visible keyboard focus.",
+      "Do place sign-in before role details at 900px and below.",
+      "Do use the existing MMMHMC brand mark assets and Manrope Variable typography.",
+      "Do keep the workforce constellation explanatory, non-interactive, and subordinate to sign-in."
+    ],
+    "donts": [
+      "Don't turn authentication entry into a marketing landing page or give role summaries competing calls to action.",
+      "Don't use multicolor decorative gradients, extra accent hues, or decorative cards; background gradients must remain low-contrast atmosphere rather than competing emphasis.",
+      "Don't use pill-shaped fields or buttons; keep the main 10–16px radius vocabulary.",
+      "Don't promote these entry-surface rules into unrelated payroll or administration screens without separate evidence.",
+      "Don't hide access errors in transient toasts or color-only states.",
+      "Don't show the workforce constellation on narrow screens or turn its nodes into competing navigation cards."
+    ]
+  }
+}

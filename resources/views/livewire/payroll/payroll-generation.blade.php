@@ -1252,7 +1252,7 @@
                     </div>
                     <div class="flex gap-2">
                         <button x-on:click="programSelectorDrawerOpen = true; $nextTick(() => window.initPayrollEmployeePickers?.())" type="button" class="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">Select Programs</button>
-                        <button wire:click="openProgramManagerDrawer" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Manage Programs</button>
+                        <button type="button" x-on:click="erpOverlay.open($wire, 'program-manager-mandatory')" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Manage Programs</button>
                     </div>
                 </div>
 
@@ -1327,25 +1327,10 @@
                         </aside>
                     </div>
                 </template>
-            @if ($showProgramManagerDrawer)
-                <template x-teleport="body">
-                <div class="fixed inset-0 z-[1000]" role="dialog" aria-modal="true" aria-label="Manage deduction programs">
-                    <button wire:click="closeProgramManagerDrawer" type="button" class="absolute inset-0 bg-slate-950/35" aria-label="Close program manager"></button>
-                    <aside class="absolute inset-y-0 right-0 flex w-[92vw] max-w-6xl flex-col bg-slate-50 shadow-2xl">
-                        <div class="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
-                            <div>
-                                <h3 class="font-semibold text-slate-900">Manage Deduction Programs</h3>
-                                <p class="text-xs text-slate-500">Changes appear in payroll after this drawer is closed.</p>
-                            </div>
-                            <button wire:click="closeProgramManagerDrawer" type="button" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Close</button>
-                        </div>
-                        <div class="min-h-0 flex-1 overflow-y-auto p-5">
-                            <livewire:payroll.deduction-programs lazy />
-                        </div>
-                    </aside>
-                </div>
-                </template>
-            @endif
+            <x-setup-form-drawer name="program-manager-mandatory" title="Manage Deduction Programs" size="wide">
+                <p class="mb-4 text-xs text-slate-500">Changes appear in payroll after this drawer is closed.</p>
+                <livewire:payroll.deduction-programs lazy :key="'payroll-mandatory-programs'" />
+            </x-setup-form-drawer>
             <fieldset @disabled(! $canEditCurrentStep) class="contents">
             <div class="payroll-table-scroll overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
@@ -1540,7 +1525,7 @@
                 </div>
                 <div class="flex gap-2">
                     <button x-on:click="programSelectorDrawerOpen = true; $nextTick(() => window.initPayrollEmployeePickers?.())" type="button" class="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">Select Programs</button>
-                    <button wire:click="openProgramManagerDrawer" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Manage Deductions</button>
+                    <button type="button" x-on:click="erpOverlay.open($wire, 'program-manager-other')" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Manage Deductions</button>
                 </div>
                 <div class="flex w-full flex-wrap gap-1.5">
                     @foreach ($deductionPrograms as $program)
@@ -1728,39 +1713,29 @@
                 </div>
             </template>
 
-            @if ($showProgramManagerDrawer)
-                <template x-teleport="body">
-                    <div class="fixed inset-0 z-[1000]" role="dialog" aria-modal="true" aria-label="Manage other deductions">
-                        <button wire:click="closeProgramManagerDrawer" type="button" class="absolute inset-0 bg-slate-950/35" aria-label="Close deduction manager"></button>
-                        <aside class="absolute inset-y-0 right-0 flex w-[92vw] max-w-6xl flex-col bg-slate-50 shadow-2xl">
-                            <div class="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
-                                <div><h3 class="font-semibold text-slate-900">Manage Other Deductions</h3><p class="text-xs text-slate-500">Manage programs and import recurring employee membership.</p></div>
-                                <button wire:click="closeProgramManagerDrawer" type="button" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Close</button>
-                            </div>
-                            <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
-                                <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                                    <h4 class="font-semibold">Import Other Deduction Membership</h4>
-                                    <p class="mt-0.5 text-xs text-slate-600">A confirmed workbook replaces the selected program's persistent employee roster.</p>
-                                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
-                                        <label class="text-xs font-semibold uppercase text-slate-500">Program<select wire:model="programRosterProgramId" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case"><option value="">Choose program</option>@foreach ($deductionPrograms as $program)<option value="{{ $program->id }}">{{ $program->name }}</option>@endforeach</select></label>
-                                        <label class="text-xs font-semibold uppercase text-slate-500">Membership file<input wire:model="programRosterFile" type="file" accept=".xlsx,.xls" class="mt-1 block w-full rounded-md border border-slate-300 bg-white text-sm"></label>
-                                        <button wire:click="previewProgramRoster" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Validate Excel</button>
-                                        <button wire:click="exportProgramRosterTemplate" type="button" @disabled(! $programRosterProgramId) class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium disabled:opacity-50">Download Template</button>
-                                        @if ($programRosterPreview !== [])<button wire:click="confirmProgramRoster" type="button" class="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white sm:col-span-2">Replace Roster</button>@endif
-                                    </div>
-                                    @error('programRosterProgramId') <div class="mt-2 text-xs text-red-600">{{ $message }}</div> @enderror
-                                    @error('programRosterFile') <div class="mt-2 text-xs text-red-600">{{ $message }}</div> @enderror
-                                    @if (session('program_roster_status')) <div class="mt-2 text-sm text-emerald-700">{{ session('program_roster_status') }}</div> @endif
-                                    @if ($programRosterPreview !== [])
-                                        <div class="mt-3 max-h-64 overflow-auto rounded border border-slate-200"><table class="min-w-full text-xs"><thead class="sticky top-0 bg-slate-100 text-left"><tr><th class="p-2">Row</th><th class="p-2">Employee ID</th><th class="p-2">Employee</th><th class="p-2">Validation</th></tr></thead><tbody>@foreach ($programRosterPreview as $item)<tr class="border-t border-slate-100"><td class="p-2">{{ $item['row'] }}</td><td class="p-2">{{ $item['emp_id'] ?: '-' }}</td><td class="p-2">{{ $item['employee_name'] ?: '-' }}</td><td class="p-2 {{ $item['valid'] ? 'text-emerald-700' : 'text-red-700' }}">{{ $item['valid'] ? ($item['name_mismatch'] ? 'Valid · name differs from HRIS' : 'Valid') : implode(' ', $item['errors']) }}</td></tr>@endforeach</tbody></table></div>
-                                    @endif
-                                </section>
-                                <livewire:payroll.deduction-programs lazy />
-                            </div>
-                        </aside>
-                    </div>
-                </template>
-            @endif
+            <x-setup-form-drawer name="program-manager-other" title="Manage Other Deductions" size="wide">
+                <div class="space-y-5">
+                    <p class="text-xs text-slate-500">Manage programs and import recurring employee membership.</p>
+                    <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                        <h4 class="font-semibold">Import Other Deduction Membership</h4>
+                        <p class="mt-0.5 text-xs text-slate-600">A confirmed workbook replaces the selected program's persistent employee roster.</p>
+                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                            <label class="text-xs font-semibold uppercase text-slate-500">Program<select wire:model="programRosterProgramId" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case"><option value="">Choose program</option>@foreach ($deductionPrograms as $program)<option value="{{ $program->id }}">{{ $program->name }}</option>@endforeach</select></label>
+                            <label class="text-xs font-semibold uppercase text-slate-500">Membership file<input wire:model="programRosterFile" type="file" accept=".xlsx,.xls" class="mt-1 block w-full rounded-md border border-slate-300 bg-white text-sm"></label>
+                            <button wire:click="previewProgramRoster" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Validate Excel</button>
+                            <button wire:click="exportProgramRosterTemplate" type="button" @disabled(! $programRosterProgramId) class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium disabled:opacity-50">Download Template</button>
+                            @if ($programRosterPreview !== [])<button wire:click="confirmProgramRoster" type="button" class="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white sm:col-span-2">Replace Roster</button>@endif
+                        </div>
+                        @error('programRosterProgramId') <div class="mt-2 text-xs text-red-600">{{ $message }}</div> @enderror
+                        @error('programRosterFile') <div class="mt-2 text-xs text-red-600">{{ $message }}</div> @enderror
+                        @if (session('program_roster_status')) <div class="mt-2 text-sm text-emerald-700">{{ session('program_roster_status') }}</div> @endif
+                        @if ($programRosterPreview !== [])
+                            <div class="mt-3 max-h-64 overflow-auto rounded border border-slate-200"><table class="min-w-full text-xs"><thead class="sticky top-0 bg-slate-100 text-left"><tr><th class="p-2">Row</th><th class="p-2">Employee ID</th><th class="p-2">Employee</th><th class="p-2">Validation</th></tr></thead><tbody>@foreach ($programRosterPreview as $item)<tr class="border-t border-slate-100"><td class="p-2">{{ $item['row'] }}</td><td class="p-2">{{ $item['emp_id'] ?: '-' }}</td><td class="p-2">{{ $item['employee_name'] ?: '-' }}</td><td class="p-2 {{ $item['valid'] ? 'text-emerald-700' : 'text-red-700' }}">{{ $item['valid'] ? ($item['name_mismatch'] ? 'Valid · name differs from HRIS' : 'Valid') : implode(' ', $item['errors']) }}</td></tr>@endforeach</tbody></table></div>
+                        @endif
+                    </section>
+                    <livewire:payroll.deduction-programs lazy :key="'payroll-other-programs'" />
+                </div>
+            </x-setup-form-drawer>
 
             <fieldset @disabled(! $canEditCurrentStep) class="contents">
             <div class="grid min-h-0 gap-3 xl:col-span-2 xl:col-start-1 xl:row-start-2">
@@ -2109,7 +2084,7 @@
                     <a href="{{ route('payroll.loan-imports.template', $isAdditionalPremiumStep ? ['mode' => 'additional_premiums'] : []) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                         Export Template
                     </a>
-                    <button type="button" wire:click="openLoanImportModal" @disabled(! $canEditCurrentStep) class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                    <button type="button" x-on:click="erpOverlay.open($wire, 'payroll-loan-import', { loanImportPreview: [] })" @disabled(! $canEditCurrentStep) class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
                         {{ $stepImportLabel }}
                     </button>
                     <a href="{{ $isAdditionalPremiumStep ? route('payroll.additional-premiums') : route('payroll.loan-imports') }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
@@ -2300,121 +2275,108 @@
                     </div>
                 </div>
 
-            @if ($showLoanImportModal)
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm" style="height: 100dvh;">
-                    <div class="flex max-h-[90vh] w-full max-w-6xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
-                        <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
-                            <div>
-                                <h3 class="font-semibold text-slate-900">{{ $stepImportLabel }}</h3>
-                                <p class="mt-1 text-sm text-slate-600">Preview and validate the completed deduction template before saving it to payroll.</p>
+            <x-setup-form-drawer name="payroll-loan-import" :title="$stepImportLabel" size="wide">
+                <p class="mb-4 text-sm text-slate-600">Preview and validate the completed deduction template before saving it to payroll.</p>
+                <div class="space-y-4">
+                    <div
+                        class="grid gap-3 lg:grid-cols-[1fr_auto]"
+                        x-data="{ uploadingLoanFile: false, loanUploadProgress: 0, loanUploadError: '' }"
+                        x-on:livewire-upload-start="uploadingLoanFile = true; loanUploadProgress = 0; loanUploadError = ''"
+                        x-on:livewire-upload-finish="uploadingLoanFile = false; loanUploadProgress = 100"
+                        x-on:livewire-upload-error="uploadingLoanFile = false; loanUploadError = 'Upload failed. The workbook may exceed the server upload limit or the connection was interrupted.'"
+                        x-on:livewire-upload-cancel="uploadingLoanFile = false; loanUploadError = 'Upload cancelled.'"
+                        x-on:livewire-upload-progress="loanUploadProgress = $event.detail.progress"
+                    >
+                        <div>
+                            <label class="text-sm font-medium">{{ $isAdditionalPremiumStep ? 'Premium Excel file' : 'Loan Excel file' }}</label>
+                            <input wire:model="loanFile" type="file" accept=".xlsx,.xls,.xlsm,.csv" class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            @error('loanFile')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                            <div x-cloak x-show="uploadingLoanFile" x-transition class="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
+                                <div class="flex items-center justify-between gap-3 text-xs font-medium text-blue-800">
+                                    <span x-text="loanUploadProgress >= 100 ? 'Finalizing upload' : 'Uploading workbook'"></span>
+                                    <span x-text="`${loanUploadProgress}%`"></span>
+                                </div>
+                                <div class="mt-2 h-2 overflow-hidden rounded-full bg-blue-100">
+                                    <div class="h-full rounded-full bg-blue-600 transition-all duration-150" x-bind:style="`width: ${loanUploadProgress}%`"></div>
+                                </div>
                             </div>
-                            <button type="button" wire:click="closeLoanImportModal" class="rounded-md px-2 py-1 text-xl leading-none text-slate-500 hover:bg-slate-100" aria-label="Close import modal">
-                                &times;
+                            <div x-cloak x-show="loanUploadError" x-transition class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" x-text="loanUploadError"></div>
+                        </div>
+                        <div class="flex items-end">
+                            <button type="button" wire:click="previewLoanImport" wire:loading.attr="disabled" wire:target="previewLoanImport,loanFile" @disabled(! $canEditCurrentStep) class="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 lg:w-auto">
+                                Preview Rows
                             </button>
                         </div>
+                    </div>
 
-                        <div class="space-y-4 overflow-y-auto px-5 py-5">
-                            <div
-                                class="grid gap-3 lg:grid-cols-[1fr_auto]"
-                                x-data="{ uploadingLoanFile: false, loanUploadProgress: 0, loanUploadError: '' }"
-                                x-on:livewire-upload-start="uploadingLoanFile = true; loanUploadProgress = 0; loanUploadError = ''"
-                                x-on:livewire-upload-finish="uploadingLoanFile = false; loanUploadProgress = 100"
-                                x-on:livewire-upload-error="uploadingLoanFile = false; loanUploadError = 'Upload failed. The workbook may exceed the server upload limit or the connection was interrupted.'"
-                                x-on:livewire-upload-cancel="uploadingLoanFile = false; loanUploadError = 'Upload cancelled.'"
-                                x-on:livewire-upload-progress="loanUploadProgress = $event.detail.progress"
-                            >
-                                <div>
-                                    <label class="text-sm font-medium">{{ $isAdditionalPremiumStep ? 'Premium Excel file' : 'Loan Excel file' }}</label>
-                                    <input wire:model="loanFile" type="file" accept=".xlsx,.xls,.xlsm,.csv" class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                    @error('loanFile')
-                                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                                    @enderror
-                                    <div x-cloak x-show="uploadingLoanFile" x-transition class="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
-                                        <div class="flex items-center justify-between gap-3 text-xs font-medium text-blue-800">
-                                            <span x-text="loanUploadProgress >= 100 ? 'Finalizing upload' : 'Uploading workbook'"></span>
-                                            <span x-text="`${loanUploadProgress}%`"></span>
-                                        </div>
-                                        <div class="mt-2 h-2 overflow-hidden rounded-full bg-blue-100">
-                                            <div class="h-full rounded-full bg-blue-600 transition-all duration-150" x-bind:style="`width: ${loanUploadProgress}%`"></div>
-                                        </div>
-                                    </div>
-                                    <div x-cloak x-show="loanUploadError" x-transition class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" x-text="loanUploadError"></div>
-                                </div>
-                                <div class="flex items-end">
-                                    <button type="button" wire:click="previewLoanImport" wire:loading.attr="disabled" wire:target="previewLoanImport,loanFile" @disabled(! $canEditCurrentStep) class="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 lg:w-auto">
-                                        Preview Rows
-                                    </button>
-                                </div>
+                    <div wire:loading.flex wire:target="previewLoanImport,saveLoanImport,loanFile" class="items-center gap-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                        <span class="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700"></span>
+                        <span>Reading and validating deduction rows...</span>
+                    </div>
+
+                    @if (! empty($loanImportPreview))
+                        @if (($loanImportPreview['invalid_rows'] ?? 0) > 0)
+                            <div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                Fix the invalid rows in the workbook and preview again before saving.
                             </div>
+                        @endif
 
-                            <div wire:loading.flex wire:target="previewLoanImport,saveLoanImport,loanFile" class="items-center gap-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
-                                <span class="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700"></span>
-                                <span>Reading and validating deduction rows...</span>
+                        <div class="overflow-hidden rounded-lg border border-slate-200">
+                            <div class="payroll-table-scroll max-h-[420px] overflow-auto">
+                                <table class="min-w-[1280px] border-separate border-spacing-0 text-sm">
+                                    <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
+                                        <tr>
+                                            <th class="sticky left-0 z-20 border-b border-r border-slate-300 bg-slate-100 px-3 py-2">Row</th>
+                                            <th class="border-b border-r border-slate-300 px-3 py-2">Status</th>
+                                            <th class="border-b border-r border-slate-300 px-3 py-2">Due Month</th>
+                                            <th class="border-b border-r border-slate-300 px-3 py-2">Employee ID</th>
+                                            <th class="border-b border-r border-slate-300 px-3 py-2">Employee Name</th>
+                                            <th class="border-b border-r border-slate-300 px-3 py-2">Reference/Account No.</th>
+                                            <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Amount Due</th>
+                                            <th class="border-b border-r border-slate-300 px-3 py-2">Validation</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (($loanImportPreview['items'] ?? []) as $item)
+                                            <tr class="{{ ($item['validation_status'] ?? '') === 'valid' ? 'bg-white hover:bg-emerald-50/50' : 'bg-amber-50 hover:bg-amber-100/60' }}">
+                                                <td class="sticky left-0 border-b border-r border-slate-200 bg-inherit px-3 py-2 font-mono text-xs">{{ $item['row_number'] }}</td>
+                                                <td class="border-b border-r border-slate-200 px-3 py-2">
+                                                    <span class="rounded-full px-2 py-1 text-xs font-medium {{ ($item['validation_status'] ?? '') === 'valid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
+                                                        {{ ucfirst($item['validation_status'] ?? 'invalid') }}
+                                                    </span>
+                                                </td>
+                                                <td class="border-b border-r border-slate-200 px-3 py-2">{{ $item['due_month'] ?? '-' }}</td>
+                                                <td class="border-b border-r border-slate-200 px-3 py-2">{{ $item['employee_id'] ?: ($item['matched_emp_id'] ?? '') }}</td>
+                                                <td class="border-b border-r border-slate-200 px-3 py-2 font-medium">{{ $item['employee_name'] ?? '-' }}</td>
+                                                <td class="border-b border-r border-slate-200 px-3 py-2">{{ $item['loan_account_no'] ?? '-' }}</td>
+                                                <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format((float) ($item['amount_due'] ?? 0), 2) }}</td>
+                                                <td class="border-b border-r border-slate-200 px-3 py-2 text-xs text-slate-600">
+                                                    {{ ! empty($item['validation_errors']) ? implode(' ', $item['validation_errors']) : 'Ready to save.' }}
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
                             </div>
-
-                            @if (! empty($loanImportPreview))
-                                @if (($loanImportPreview['invalid_rows'] ?? 0) > 0)
-                                    <div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                                        Fix the invalid rows in the workbook and preview again before saving.
-                                    </div>
-                                @endif
-
-                                <div class="overflow-hidden rounded-lg border border-slate-200">
-                                    <div class="payroll-table-scroll max-h-[420px] overflow-auto">
-                                        <table class="min-w-[1280px] border-separate border-spacing-0 text-sm">
-                                            <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs uppercase text-slate-600">
-                                                <tr>
-                                                    <th class="sticky left-0 z-20 border-b border-r border-slate-300 bg-slate-100 px-3 py-2">Row</th>
-                                                    <th class="border-b border-r border-slate-300 px-3 py-2">Status</th>
-                                                    <th class="border-b border-r border-slate-300 px-3 py-2">Due Month</th>
-                                                    <th class="border-b border-r border-slate-300 px-3 py-2">Employee ID</th>
-                                                    <th class="border-b border-r border-slate-300 px-3 py-2">Employee Name</th>
-                                                    <th class="border-b border-r border-slate-300 px-3 py-2">Reference/Account No.</th>
-                                                    <th class="border-b border-r border-slate-300 px-3 py-2 text-right">Amount Due</th>
-                                                    <th class="border-b border-r border-slate-300 px-3 py-2">Validation</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach (($loanImportPreview['items'] ?? []) as $item)
-                                                    <tr class="{{ ($item['validation_status'] ?? '') === 'valid' ? 'bg-white hover:bg-emerald-50/50' : 'bg-amber-50 hover:bg-amber-100/60' }}">
-                                                        <td class="sticky left-0 border-b border-r border-slate-200 bg-inherit px-3 py-2 font-mono text-xs">{{ $item['row_number'] }}</td>
-                                                        <td class="border-b border-r border-slate-200 px-3 py-2">
-                                                            <span class="rounded-full px-2 py-1 text-xs font-medium {{ ($item['validation_status'] ?? '') === 'valid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
-                                                                {{ ucfirst($item['validation_status'] ?? 'invalid') }}
-                                                            </span>
-                                                        </td>
-                                                        <td class="border-b border-r border-slate-200 px-3 py-2">{{ $item['due_month'] ?? '-' }}</td>
-                                                        <td class="border-b border-r border-slate-200 px-3 py-2">{{ $item['employee_id'] ?: ($item['matched_emp_id'] ?? '') }}</td>
-                                                        <td class="border-b border-r border-slate-200 px-3 py-2 font-medium">{{ $item['employee_name'] ?? '-' }}</td>
-                                                        <td class="border-b border-r border-slate-200 px-3 py-2">{{ $item['loan_account_no'] ?? '-' }}</td>
-                                                        <td class="border-b border-r border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format((float) ($item['amount_due'] ?? 0), 2) }}</td>
-                                                        <td class="border-b border-r border-slate-200 px-3 py-2 text-xs text-slate-600">
-                                                            {{ ! empty($item['validation_errors']) ? implode(' ', $item['validation_errors']) : 'Ready to save.' }}
-                                                        </td>
-                                                    </tr>
-                                                @endforeach
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            @else
-                                <div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-                                    Upload an Excel file, then preview rows before saving.
-                                </div>
-                            @endif
                         </div>
-
-                        <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
-                            <button type="button" wire:click="closeLoanImportModal" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
-                                Cancel
-                            </button>
-                            <button type="button" wire:click="saveLoanImport" wire:loading.attr="disabled" wire:target="saveLoanImport" @disabled(! $canEditCurrentStep || empty($loanImportPreview) || (($loanImportPreview['invalid_rows'] ?? 0) > 0)) class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
-                                Save Import
-                            </button>
+                    @else
+                        <div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                            Upload an Excel file, then preview rows before saving.
                         </div>
-                            </div>
+                    @endif
+
+                    <div class="flex justify-end gap-2">
+                        <button type="button" x-on:click="erpOverlay.close('payroll-loan-import')" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                            Cancel
+                        </button>
+                        <button type="button" wire:click="saveLoanImport" wire:loading.attr="disabled" wire:target="saveLoanImport" @disabled(! $canEditCurrentStep || empty($loanImportPreview) || (($loanImportPreview['invalid_rows'] ?? 0) > 0)) class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                            Save Import
+                        </button>
+                    </div>
                 </div>
-            @endif
+            </x-setup-form-drawer>
 
             <template x-if="activeTab === 'deductions'">
             <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -2848,8 +2810,10 @@
             $activeReviewDeductionPrograms = $deductionPrograms->filter(fn ($program) => filter_var($deductionProgramSelections[(string) $program->id]['enabled'] ?? false, FILTER_VALIDATE_BOOL));
         @endphp
 
+        <div class="payroll-review-layout flex h-full min-h-0 flex-col gap-4">
+
         {{-- FINALIZE HEADER --}}
-        <div class="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div class="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
             <div>
                 <h3 class="font-semibold">Review</h3>
                 <p class="text-sm text-slate-600">
@@ -2885,13 +2849,13 @@
         </div>
 
         @error('finalize')
-            <div class="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div class="shrink-0 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {{ $message }}
             </div>
         @enderror
 
         @if (session('success'))
-            <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            <div class="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                 <div class="font-semibold">{{ session('success') }}</div>
                 @if ($finalizedRunId)
                     <p class="mt-1">
@@ -2902,7 +2866,65 @@
         @endif
 
         {{-- REVIEW TABLE --}}
-        <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <section
+            x-data="{ configurationOpen: false }"
+            class="shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white"
+            aria-labelledby="payroll-configuration-title"
+        >
+            <button
+                type="button"
+                class="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
+                x-on:click="configurationOpen = ! configurationOpen"
+                x-bind:aria-expanded="configurationOpen.toString()"
+                aria-controls="payroll-configuration-content"
+            >
+                <span class="min-w-0">
+                    <span id="payroll-configuration-title" class="block font-semibold text-slate-900">Payroll configuration</span>
+                    <span class="mt-0.5 block text-xs text-slate-500">Review the period, scope, employee coverage, and leave settings.</span>
+                </span>
+                <span class="inline-flex shrink-0 items-center gap-2 text-xs font-semibold text-indigo-700">
+                    <span x-text="configurationOpen ? 'Hide' : 'Show'"></span>
+                    <svg
+                        class="h-4 w-4 transition-transform duration-200"
+                        x-bind:class="configurationOpen ? 'rotate-180' : ''"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        aria-hidden="true"
+                    >
+                        <path d="m6 9 6 6 6-6"></path>
+                    </svg>
+                </span>
+            </button>
+
+            <div
+                id="payroll-configuration-content"
+                x-cloak
+                x-show="configurationOpen"
+                x-transition:enter="transition ease-out duration-200"
+                x-transition:enter-start="opacity-0 -translate-y-1"
+                x-transition:enter-end="opacity-100 translate-y-0"
+                x-transition:leave="transition ease-in duration-150"
+                x-transition:leave-start="opacity-100 translate-y-0"
+                x-transition:leave-end="opacity-0 -translate-y-1"
+                class="border-t border-slate-200 px-4 pb-4 pt-3"
+            >
+                <dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+                    @foreach ($reviewConfiguration as $item)
+                        <div @class([
+                            'min-w-0',
+                            'sm:col-span-2 xl:col-span-3 2xl:col-span-5' => $item['wide'] ?? false,
+                        ])>
+                            <dt class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ $item['label'] }}</dt>
+                            <dd class="mt-0.5 text-sm font-medium leading-5 text-slate-900">{{ $item['value'] }}</dd>
+                        </div>
+                    @endforeach
+                </dl>
+            </div>
+        </section>
+
+        <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
 
             <div class="border-b border-slate-200 px-4 py-3">
                 <h3 class="font-semibold">Review</h3>
@@ -2917,6 +2939,7 @@
                 'deductionPrograms' => $activeReviewDeductionPrograms,
             ])
 
+        </div>
         </div>
     @else
         <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

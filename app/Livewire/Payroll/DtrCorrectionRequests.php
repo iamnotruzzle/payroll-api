@@ -117,6 +117,7 @@ class DtrCorrectionRequests extends Component
         $this->requestType = PayrollDtrCorrectionRequest::TYPE_TIME_IN;
         $this->showRequestForm = false;
         session()->flash('status', 'DTR correction request submitted.');
+        $this->dispatch('erp-overlay-close', name: 'dtr-correction-new');
     }
 
     public function startEdit(int $requestId): void
@@ -163,6 +164,7 @@ class DtrCorrectionRequests extends Component
 
         $this->cancelEdit();
         session()->flash('status', 'DTR correction request updated.');
+        $this->dispatch('erp-overlay-close', name: 'dtr-correction-edit');
     }
 
     public function cancelEdit(): void

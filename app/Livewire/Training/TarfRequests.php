@@ -163,6 +163,7 @@ class TarfRequests extends Component
 
         $this->drawerOpen = false;
         $this->resetForm();
+        $this->dispatch('erp-overlay-close', name: 'tarf-request');
     }
 
     public function cancelRequest(string $tarfNo, TrainingService $trainingService): void

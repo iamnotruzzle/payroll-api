@@ -71,6 +71,8 @@ class ErpNavigation
             [
                 'key' => 'self-service',
                 'label' => 'Self Service',
+                'description' => 'Your profile, DTR, schedule, leave, training, and payslips.',
+                'launcher_group' => 'workspace',
                 'accent' => 'sky',
                 'icon' => 'user',
                 'href' => ($user?->can('self-service.profile') || $user?->can('self-service.access'))
@@ -137,6 +139,8 @@ class ErpNavigation
             [
                 'key' => 'employees',
                 'label' => 'Employees',
+                'description' => 'Employee directory, records, plantilla, and organization data.',
+                'launcher_group' => 'operations',
                 'accent' => 'violet',
                 'icon' => 'users',
                 'href' => route('employees.index'),
@@ -173,6 +177,8 @@ class ErpNavigation
             [
                 'key' => 'leave',
                 'label' => 'Leave',
+                'description' => 'Requests, approvals, credits, leave cards, and reports.',
+                'launcher_group' => 'operations',
                 'accent' => 'amber',
                 'icon' => 'umbrella',
                 'href' => ($user?->can('leave.view') || $user?->can('leave.request') || $user?->can('leave.approve'))
@@ -231,6 +237,8 @@ class ErpNavigation
             [
                 'key' => 'scheduling',
                 'label' => $isCnoSchedule ? 'Schedule (CNO)' : 'Schedule',
+                'description' => 'Schedules, staffing, rotations, coverage, and duty operations.',
+                'launcher_group' => 'operations',
                 'accent' => 'cyan',
                 'icon' => 'calendar-range',
                 'href' => route('schedule.dashboard'),
@@ -303,6 +311,8 @@ class ErpNavigation
             [
                 'key' => 'timekeeping',
                 'label' => 'Timekeeping',
+                'description' => 'Attendance, DTR encoding, corrections, and device references.',
+                'launcher_group' => 'operations',
                 'accent' => 'teal',
                 'icon' => 'file-clock',
                 'href' => $user?->can('timekeeping.view') ? route('payroll.dtr-encoding') : $soon('timekeeping', 'dtr'),
@@ -345,6 +355,8 @@ class ErpNavigation
             [
                 'key' => 'payroll',
                 'label' => 'Payroll',
+                'description' => 'Payroll runs, history, loans, deductions, and compensation rules.',
+                'launcher_group' => 'operations',
                 'accent' => 'indigo',
                 'icon' => 'wallet',
                 'href' => $user?->can('payroll.view') ? route('payroll.generation.configuration') : $soon('payroll', 'generation'),
@@ -398,6 +410,8 @@ class ErpNavigation
             [
                 'key' => 'training',
                 'label' => 'Training',
+                'description' => 'Training requests, approvals, development records, and calendar.',
+                'launcher_group' => 'operations',
                 'accent' => 'rose',
                 'icon' => 'graduation-cap',
                 'href' => ($user?->can('training.view') || $user?->can('training.manage') || $user?->can('training.approve'))
@@ -434,6 +448,8 @@ class ErpNavigation
             [
                 'key' => 'performance',
                 'label' => 'Performance',
+                'description' => 'IPCR periods, evaluation workflows, and approvals.',
+                'launcher_group' => 'operations',
                 'accent' => 'orange',
                 'icon' => 'award',
                 'href' => route('performance.periods'),
@@ -462,6 +478,8 @@ class ErpNavigation
             [
                 'key' => 'setup',
                 'label' => 'Setup',
+                'description' => 'Organization, scheduling, timekeeping, payroll, and access configuration.',
+                'launcher_group' => 'administration',
                 'accent' => 'cyan',
                 'icon' => 'settings',
                 'href' => route('setup.index'),
@@ -567,6 +585,8 @@ class ErpNavigation
             [
                 'key' => 'administration',
                 'label' => 'Settings',
+                'description' => 'User access, permissions, references, and system manuals.',
+                'launcher_group' => 'administration',
                 'accent' => 'slate',
                 'icon' => 'gears',
                 'href' => $user?->can('admin.users.view')
@@ -611,6 +631,38 @@ class ErpNavigation
             self::apps(),
             fn (array $app) => $app['visible'] ?? true
         ));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>|null  $apps
+     * @return list<array{key: string, label: string, description: string, modules: list<array<string, mixed>>}>
+     */
+    public static function launcherGroups(?array $apps = null): array
+    {
+        $apps ??= self::visibleApps();
+
+        $definitions = [
+            'workspace' => ['label' => 'My Workspace', 'description' => 'Your personal records and employee services.'],
+            'operations' => ['label' => 'Workforce Operations', 'description' => 'People, time, development, and payroll operations.'],
+            'administration' => ['label' => 'Administration', 'description' => 'Configuration, access, references, and system controls.'],
+        ];
+
+        $groups = [];
+
+        foreach ($definitions as $key => $definition) {
+            $modules = array_values(array_filter(
+                $apps,
+                fn (array $app): bool => ($app['launcher_group'] ?? 'operations') === $key,
+            ));
+
+            if ($modules === []) {
+                continue;
+            }
+
+            $groups[] = ['key' => $key, ...$definition, 'modules' => $modules];
+        }
+
+        return $groups;
     }
 
     /**

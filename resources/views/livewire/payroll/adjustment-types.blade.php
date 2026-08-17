@@ -1,7 +1,16 @@
 <div class="space-y-4">
-    <div>
-        <h2 class="text-xl font-semibold">Adjustment Types</h2>
-        <p class="text-sm text-slate-600">Manage payroll adjustment columns used in Payroll Generation.</p>
+    <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <h2 class="text-xl font-semibold">Adjustment Types</h2>
+            <p class="text-sm text-slate-600">Manage payroll adjustment columns used in Payroll Generation.</p>
+        </div>
+        <button
+            type="button"
+            x-on:click="erpOverlay.open($wire, 'adjustment-type', { editingId: null, name: '', isActive: true, sortOrder: 0 })"
+            class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]"
+        >
+            New Adjustment Type
+        </button>
     </div>
 
     @if (session('status'))
@@ -9,33 +18,6 @@
             {{ session('status') }}
         </div>
     @endif
-
-    <form wire:submit="save" class="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_140px_140px_auto] md:items-end">
-            <label>
-                <span class="text-xs font-semibold uppercase text-slate-500">Name</span>
-                <input wire:model="name" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="e.g. Differential">
-                @error('name') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-            </label>
-            <label>
-                <span class="text-xs font-semibold uppercase text-slate-500">Sort</span>
-                <input wire:model="sortOrder" type="number" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                @error('sortOrder') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-            </label>
-            <label class="inline-flex min-h-[2.25rem] items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
-                <input wire:model="isActive" type="checkbox" class="h-4 w-4 rounded border-slate-300">
-                <span>Active</span>
-            </label>
-            <div class="flex gap-2">
-                <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">
-                    {{ $editingId ? 'Update' : 'Add' }}
-                </button>
-                @if ($editingId)
-                    <button wire:click="resetForm" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
-                @endif
-            </div>
-        </div>
-    </form>
 
     <section class="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
@@ -60,7 +42,11 @@
                             </span>
                         </td>
                         <td class="px-4 py-3 text-right">
-                            <button wire:click="edit({{ $type->id }})" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Edit</button>
+                            <button
+                                type="button"
+                                x-on:click="erpOverlay.open($wire, 'adjustment-type', { editingId: {{ $type->id }}, name: @js($type->name), isActive: @js((bool) $type->is_active), sortOrder: {{ (int) $type->sort_order }} }, true)"
+                                class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50"
+                            >Edit</button>
                         </td>
                     </tr>
                 @empty
@@ -71,4 +57,29 @@
             </tbody>
         </table>
     </section>
+
+    <x-setup-form-modal name="adjustment-type" title="New Adjustment Type" edit-title="Edit Adjustment Type" size="sm">
+        <form wire:submit="save" class="space-y-4">
+            <label class="block">
+                <span class="text-xs font-semibold uppercase text-slate-500">Name</span>
+                <input wire:model="name" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="e.g. Differential">
+                @error('name') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+            </label>
+            <div class="grid grid-cols-2 gap-3">
+                <label class="block">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Sort</span>
+                    <input wire:model="sortOrder" type="number" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    @error('sortOrder') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                </label>
+                <label class="inline-flex min-h-[2.25rem] items-end gap-2 pb-2 text-sm font-medium text-slate-700">
+                    <input wire:model="isActive" type="checkbox" class="h-4 w-4 rounded border-slate-300">
+                    <span>Active</span>
+                </label>
+            </div>
+            <div class="flex justify-end gap-2 border-t pt-4">
+                <button x-on:click="erpOverlay.close('adjustment-type')" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
+                <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]" x-text="editing ? 'Update' : 'Save'">Save</button>
+            </div>
+        </form>
+    </x-setup-form-modal>
 </div>

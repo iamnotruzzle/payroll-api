@@ -170,6 +170,7 @@ class LoanImports extends Component
             $file->getClientOriginalName(),
             $this->mode,
         );
+        $this->dispatch('erp-overlay-open', name: 'loan-import-preview');
     }
 
     public function saveLoanImport(): void
@@ -208,6 +209,7 @@ class LoanImports extends Component
             'status',
             "Imported {$import->total_rows} row(s): {$import->valid_rows} ready."
         );
+        $this->dispatch('erp-overlay-close', name: 'loan-import-preview');
     }
 
     public function import(): void

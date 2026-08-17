@@ -55,7 +55,7 @@
             open = false;
             window.erpOverlay.getState(name).open = false;
         "
-        class="erp-overlay erp-overlay--drawer"
+        class="erp-overlay erp-overlay--modal"
         role="dialog"
         aria-modal="true"
         :aria-label="editing && @js($editTitle) ? @js($editTitle) : @js($title)"

@@ -100,6 +100,7 @@ class PlantillaSetup extends Component
         $service->savePlantilla($this->itemId, ['item_number' => $d['itemNumber'], 'position_id' => $d['positionId'], 'department_id' => $d['departmentId'], 'salary_grade' => $d['salaryGrade'], 'fund_type' => $d['fundType'], 'authorization_year' => $d['authorizationYear'] ?: null, 'status' => $d['status'], 'effective_from' => $d['effectiveFrom'], 'effective_to' => $d['effectiveTo'] ?: null, 'remarks' => $d['remarks']], auth()->user()?->emp_id);
         $this->resetForm();
         $this->showItemForm = false;
+        $this->dispatch('erp-overlay-close', name: 'plantilla-item');
         session()->flash('status', 'Plantilla item saved.');
     }
 
@@ -123,6 +124,7 @@ class PlantillaSetup extends Component
         $this->assignmentDate = now()->toDateString();
         $this->nature = 'original';
         $this->showAssignmentForm = false;
+        $this->dispatch('erp-overlay-close', name: 'plantilla-assignment');
         session()->flash('status', 'Plantilla assignment recorded with effective-dated employment history.');
     }
 

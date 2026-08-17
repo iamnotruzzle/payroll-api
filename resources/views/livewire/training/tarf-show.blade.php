@@ -11,7 +11,7 @@
                 <a href="{{ route('self-service.training') }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">My Training</a>
             @endcanany
             @if ($canReschedule)
-                <button type="button" wire:click="openReschedule" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Reschedule</button>
+                <button type="button" x-on:click="erpOverlay.open($wire, 'tarf-reschedule', { rescheduleStart: @js(optional($tarf->start_date)->format('Y-m-d') ?: ''), rescheduleEnd: @js(optional($tarf->end_date)->format('Y-m-d') ?: ''), rescheduleHrs: @js($tarf->hrs !== null ? (string) $tarf->hrs : ''), rescheduleNotes: '' })" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Reschedule</button>
             @endif
             <a href="{{ route('training.print', $tarf->tarf_no) }}" target="_blank" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Print</a>
         </div>
@@ -21,21 +21,18 @@
         <div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('status') }}</div>
     @endif
 
-    @if ($showReschedule)
-        <section class="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 class="mb-3 text-sm font-semibold uppercase text-slate-500">Reschedule</h3>
-            <form wire:submit="saveReschedule" class="grid gap-3 sm:grid-cols-2">
-                <label class="block text-sm">Start<input wire:model="rescheduleStart" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
-                <label class="block text-sm">End<input wire:model="rescheduleEnd" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
-                <label class="block text-sm">Hours<input wire:model="rescheduleHrs" type="number" step="0.5" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
-                <label class="block text-sm sm:col-span-2">Notes<textarea wire:model="rescheduleNotes" rows="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea></label>
-                <div class="flex gap-2 sm:col-span-2">
-                    <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white">Save dates</button>
-                    <button type="button" wire:click="cancelReschedule" class="rounded-md border border-slate-300 px-3 py-2 text-sm">Cancel</button>
-                </div>
-            </form>
-        </section>
-    @endif
+    <x-setup-form-modal name="tarf-reschedule" title="Reschedule" size="sm">
+        <form wire:submit="saveReschedule" class="grid gap-3 sm:grid-cols-2">
+            <label class="block text-sm">Start<input wire:model="rescheduleStart" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
+            <label class="block text-sm">End<input wire:model="rescheduleEnd" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
+            <label class="block text-sm">Hours<input wire:model="rescheduleHrs" type="number" step="0.5" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
+            <label class="block text-sm sm:col-span-2">Notes<textarea wire:model="rescheduleNotes" rows="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea></label>
+            <div class="flex gap-2 sm:col-span-2">
+                <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white">Save dates</button>
+                <button type="button" x-on:click="erpOverlay.close('tarf-reschedule')" class="rounded-md border border-slate-300 px-3 py-2 text-sm">Cancel</button>
+            </div>
+        </form>
+    </x-setup-form-modal>
 
     <section class="grid gap-4 lg:grid-cols-3">
         <div class="rounded-md border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">

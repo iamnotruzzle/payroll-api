@@ -29,7 +29,7 @@
             <h2 class="text-xl font-semibold">DTR Correction Requests</h2>
             <p class="text-sm text-slate-600">Review correction requests and act on assigned approvals.</p>
         </div>
-        <button wire:click="openRequestForm" type="button" class="inline-flex items-center justify-center rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">
+        <button type="button" x-on:click="erpOverlay.open($wire, 'dtr-correction-new', { dtrDate: @js(now()->toDateString()), requestType: 'TIME_IN', requestedTimeIn: null, requestedTimeOut: null, requestedTimeoutNextday: false, reason: '' })" class="inline-flex items-center justify-center rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">
             New Request
         </button>
     </div>
@@ -40,173 +40,137 @@
         </div>
     @endif
 
-    @if ($showRequestForm)
-        <div class="fixed inset-0 z-50" style="height: 100dvh;">
-            <div wire:click="closeRequestForm" class="absolute inset-0 bg-slate-950/35"></div>
-            <div class="relative z-10 flex min-h-screen w-full items-start justify-center overflow-y-auto px-3 py-6 sm:px-6" style="min-height: 100dvh;">
-                <form wire:submit="submit" class="w-full max-w-3xl rounded-md border border-slate-200 bg-white shadow-xl">
-                    <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                        <div>
-                            <h3 class="font-semibold text-slate-900">New DTR Correction</h3>
-                            <p class="text-sm text-slate-600">This request will be routed to your configured DTR correction approver.</p>
-                        </div>
-                        <button wire:click="closeRequestForm" type="button" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                            Close
-                        </button>
+    <x-setup-form-modal name="dtr-correction-new" title="New DTR Correction" size="lg">
+        <form wire:submit="submit" class="space-y-4">
+            <p class="text-sm text-slate-600">This request will be routed to your configured DTR correction approver.</p>
+            <div class="grid gap-4 sm:grid-cols-2">
+                <label>
+                    <span class="text-xs font-semibold uppercase text-slate-500">DTR Date</span>
+                    <input wire:model="dtrDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    @error('dtrDate') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                </label>
+
+                <label>
+                    <span class="text-xs font-semibold uppercase text-slate-500">Correction Type</span>
+                    <select wire:model="requestType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        @foreach ($requestTypes as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    @error('requestType') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                </label>
+
+                <label x-show="$wire.requestType === 'TIME_IN' || $wire.requestType === 'BOTH'" x-cloak>
+                    <span class="text-xs font-semibold uppercase text-slate-500">Time In</span>
+                    <input wire:model="requestedTimeIn" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    @error('requestedTimeIn') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                </label>
+
+                <div class="space-y-2" x-show="$wire.requestType === 'TIME_OUT' || $wire.requestType === 'BOTH'" x-cloak>
+                    <label class="block">
+                        <span class="text-xs font-semibold uppercase text-slate-500">Time Out</span>
+                        <input wire:model="requestedTimeOut" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        @error('requestedTimeOut') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                    </label>
+
+                    <label class="inline-flex min-h-[2rem] items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                        <input wire:model="requestedTimeoutNextday" type="checkbox" class="h-4 w-4 rounded border-slate-300">
+                        <span>Time out is next day</span>
+                    </label>
+                </div>
+
+                <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 sm:col-span-2">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Configured Approver</span>
+                    <div class="mt-1 font-semibold text-slate-800">
+                        {{ $configuredApprover?->full_name ?? 'No approver configured' }}
                     </div>
+                    @if (! $configuredApprover)
+                        <p class="mt-1 text-xs text-red-600">Set an approver on the DTR Approvers page before submitting a correction request.</p>
+                    @endif
+                </div>
 
-                    <div class="grid gap-4 p-4 sm:grid-cols-2">
-                        <label>
-                            <span class="text-xs font-semibold uppercase text-slate-500">DTR Date</span>
-                            <input wire:model="dtrDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            @error('dtrDate') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                        </label>
+                <label class="sm:col-span-2">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Reason</span>
+                    <textarea wire:model="reason" rows="4" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Timekeeper was down"></textarea>
+                    @error('reason') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                </label>
 
-                        <label>
-                            <span class="text-xs font-semibold uppercase text-slate-500">Correction Type</span>
-                            <select wire:model.live="requestType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                @foreach ($requestTypes as $value => $label)
-                                    <option value="{{ $value }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
-                            @error('requestType') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                        </label>
-
-                        @if ($this->showTimeIn())
-                            <label>
-                                <span class="text-xs font-semibold uppercase text-slate-500">Time In</span>
-                                <input wire:model="requestedTimeIn" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                @error('requestedTimeIn') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                            </label>
-                        @endif
-
-                        @if ($this->showTimeOut())
-                            <div class="space-y-2">
-                                <label class="block">
-                                    <span class="text-xs font-semibold uppercase text-slate-500">Time Out</span>
-                                    <input wire:model="requestedTimeOut" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                    @error('requestedTimeOut') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                                </label>
-
-                                <label class="inline-flex min-h-[2rem] items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
-                                    <input wire:model="requestedTimeoutNextday" type="checkbox" class="h-4 w-4 rounded border-slate-300">
-                                    <span>Time out is next day</span>
-                                </label>
-                            </div>
-                        @endif
-
-                        <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 sm:col-span-2">
-                            <span class="text-xs font-semibold uppercase text-slate-500">Configured Approver</span>
-                            <div class="mt-1 font-semibold text-slate-800">
-                                {{ $configuredApprover?->full_name ?? 'No approver configured' }}
-                            </div>
-                            @if (! $configuredApprover)
-                                <p class="mt-1 text-xs text-red-600">Set an approver on the DTR Approvers page before submitting a correction request.</p>
-                            @endif
-                        </div>
-
-                        <label class="sm:col-span-2">
-                            <span class="text-xs font-semibold uppercase text-slate-500">Reason</span>
-                            <textarea wire:model="reason" rows="4" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Timekeeper was down"></textarea>
-                            @error('reason') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                        </label>
-
-                        <label class="sm:col-span-2">
-                            <span class="text-xs font-semibold uppercase text-slate-500">Image Attachment</span>
-                            <input wire:model="attachment" type="file" accept="image/*" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            <span class="mt-1 block text-xs font-normal text-slate-500">PNG, JPG, GIF, or WebP up to 5 MB.</span>
-                            <div wire:loading wire:target="attachment" class="mt-1 text-xs text-slate-500">Uploading image...</div>
-                            @error('attachment') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                        </label>
-                    </div>
-
-                    <div class="flex justify-end gap-2 border-t border-slate-200 px-4 py-3">
-                        <button wire:click="closeRequestForm" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
-                            Cancel
-                        </button>
-                        <button type="submit" @disabled(! $configuredApprover) class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6] disabled:cursor-not-allowed disabled:bg-slate-300">
-                            Submit Request
-                        </button>
-                    </div>
-                </form>
+                <label class="sm:col-span-2">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Image Attachment</span>
+                    <input wire:model="attachment" type="file" accept="image/*" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <span class="mt-1 block text-xs font-normal text-slate-500">PNG, JPG, GIF, or WebP up to 5 MB.</span>
+                    <div wire:loading wire:target="attachment" class="mt-1 text-xs text-slate-500">Uploading image...</div>
+                    @error('attachment') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                </label>
             </div>
-        </div>
-    @endif
 
-    @if ($editingRequestId)
-        <div class="fixed inset-0 z-50" style="height: 100dvh;">
-            <div wire:click="cancelEdit" class="absolute inset-0 bg-slate-950/35"></div>
-            <div class="relative z-10 flex min-h-screen w-full items-start justify-center overflow-y-auto px-3 py-6 sm:px-6" style="min-height: 100dvh;">
-                <form wire:submit="saveEdit" class="w-full max-w-3xl rounded-md border border-slate-200 bg-white shadow-xl">
-                    <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                        <div>
-                            <h3 class="font-semibold text-slate-900">Update DTR Correction</h3>
-                            <p class="text-sm text-slate-600">Pending requests can be changed until they are approved or rejected.</p>
-                        </div>
-                        <button wire:click="cancelEdit" type="button" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                            Close
-                        </button>
-                    </div>
-
-                    <div class="grid gap-4 p-4 sm:grid-cols-2">
-                        <label>
-                            <span class="text-xs font-semibold uppercase text-slate-500">DTR Date</span>
-                            <input wire:model="editDtrDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                            @error('editDtrDate') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                        </label>
-
-                        <label>
-                            <span class="text-xs font-semibold uppercase text-slate-500">Correction Type</span>
-                            <select wire:model.live="editRequestType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                @foreach ($requestTypes as $value => $label)
-                                    <option value="{{ $value }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
-                            @error('editRequestType') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                        </label>
-
-                        @if ($this->showEditTimeIn())
-                            <label>
-                                <span class="text-xs font-semibold uppercase text-slate-500">Time In</span>
-                                <input wire:model="editRequestedTimeIn" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                @error('editRequestedTimeIn') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                            </label>
-                        @endif
-
-                        @if ($this->showEditTimeOut())
-                            <div class="space-y-2">
-                                <label class="block">
-                                    <span class="text-xs font-semibold uppercase text-slate-500">Time Out</span>
-                                    <input wire:model="editRequestedTimeOut" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                    @error('editRequestedTimeOut') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                                </label>
-
-                                <label class="inline-flex min-h-[2rem] items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
-                                    <input wire:model="editRequestedTimeoutNextday" type="checkbox" class="h-4 w-4 rounded border-slate-300">
-                                    <span>Time out is next day</span>
-                                </label>
-                            </div>
-                        @endif
-
-                        <label class="sm:col-span-2">
-                            <span class="text-xs font-semibold uppercase text-slate-500">Reason</span>
-                            <textarea wire:model="editReason" rows="4" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
-                            @error('editReason') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                        </label>
-                    </div>
-
-                    <div class="flex justify-end gap-2 border-t border-slate-200 px-4 py-3">
-                        <button wire:click="cancelEdit" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
-                            Cancel
-                        </button>
-                        <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">
-                            Save Changes
-                        </button>
-                    </div>
-                </form>
+            <div class="flex justify-end gap-2">
+                <button x-on:click="erpOverlay.close('dtr-correction-new')" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" @disabled(! $configuredApprover) class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6] disabled:cursor-not-allowed disabled:bg-slate-300">
+                    Submit Request
+                </button>
             </div>
-        </div>
-    @endif
+        </form>
+    </x-setup-form-modal>
+
+    <x-setup-form-modal name="dtr-correction-edit" title="Update DTR Correction" size="lg">
+        <form wire:submit="saveEdit" class="space-y-4">
+            <p class="text-sm text-slate-600">Pending requests can be changed until they are approved or rejected.</p>
+            <div class="grid gap-4 sm:grid-cols-2">
+                <label>
+                    <span class="text-xs font-semibold uppercase text-slate-500">DTR Date</span>
+                    <input wire:model="editDtrDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    @error('editDtrDate') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                </label>
+
+                <label>
+                    <span class="text-xs font-semibold uppercase text-slate-500">Correction Type</span>
+                    <select wire:model="editRequestType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        @foreach ($requestTypes as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    @error('editRequestType') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                </label>
+
+                <label x-show="$wire.editRequestType === 'TIME_IN' || $wire.editRequestType === 'BOTH'" x-cloak>
+                    <span class="text-xs font-semibold uppercase text-slate-500">Time In</span>
+                    <input wire:model="editRequestedTimeIn" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    @error('editRequestedTimeIn') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                </label>
+
+                <div class="space-y-2" x-show="$wire.editRequestType === 'TIME_OUT' || $wire.editRequestType === 'BOTH'" x-cloak>
+                    <label class="block">
+                        <span class="text-xs font-semibold uppercase text-slate-500">Time Out</span>
+                        <input wire:model="editRequestedTimeOut" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        @error('editRequestedTimeOut') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                    </label>
+
+                    <label class="inline-flex min-h-[2rem] items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                        <input wire:model="editRequestedTimeoutNextday" type="checkbox" class="h-4 w-4 rounded border-slate-300">
+                        <span>Time out is next day</span>
+                    </label>
+                </div>
+
+                <label class="sm:col-span-2">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Reason</span>
+                    <textarea wire:model="editReason" rows="4" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
+                    @error('editReason') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                </label>
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <button x-on:click="erpOverlay.close('dtr-correction-edit')" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </x-setup-form-modal>
 
     <div class="grid gap-4 xl:grid-cols-2">
         <section class="rounded-md border border-slate-200 bg-white shadow-sm">
@@ -324,7 +288,7 @@
                             </div>
                             <div class="flex flex-wrap items-center gap-2">
                                 @if ($request->status === 'PENDING')
-                                    <button wire:click="startEdit({{ $request->id }})" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-slate-50">Update</button>
+                                    <button type="button" x-on:click="erpOverlay.open($wire, 'dtr-correction-edit', { editingRequestId: {{ $request->id }}, editDtrDate: @js($request->dtr_date->toDateString()), editRequestType: @js($request->request_type), editRequestedTimeIn: @js($request->requested_time_in ? substr((string) $request->requested_time_in, 0, 5) : null), editRequestedTimeOut: @js($request->requested_time_out ? substr((string) $request->requested_time_out, 0, 5) : null), editRequestedTimeoutNextday: @js((bool) $request->requested_timeout_nextday), editReason: @js((string) $request->reason) }, true)" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-slate-50">Update</button>
                                     <button wire:click="cancelRequest({{ $request->id }})" wire:confirm="Cancel this pending DTR correction request?" type="button" class="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-100">Cancel</button>
                                 @endif
                                 <span class="rounded-full px-2 py-1 text-xs font-semibold {{ $request->status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' : ($request->status === 'REJECTED' ? 'bg-red-50 text-red-700' : ($request->status === 'CANCELLED' ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-700')) }}">

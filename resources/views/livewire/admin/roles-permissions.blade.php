@@ -6,8 +6,8 @@
         </div>
         @can('admin.roles.manage')
             <div class="flex flex-wrap gap-2">
-                <button wire:click="openPermissionModal" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Add Permission</button>
-                <button wire:click="createRole" type="button" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Add Role</button>
+                <button type="button" x-on:click="erpOverlay.open($wire, 'admin-permission', { permissionName: '' })" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Add Permission</button>
+                <button type="button" x-on:click="erpOverlay.open($wire, 'admin-role', { editingId: null, name: '', displayName: '', description: '', isActive: true, selectedPermissions: [] })" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Add Role</button>
             </div>
         @endcan
     </div>
@@ -43,7 +43,7 @@
                 </div>
                 <div class="mt-4 text-right">
                     @can('admin.roles.manage')
-                        <button wire:click="editRole({{ $role->id }})" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Edit</button>
+                        <button type="button" x-on:click="erpOverlay.open($wire, 'admin-role', { editingId: {{ $role->id }}, name: @js($role->name), displayName: @js((string) ($role->display_name ?: str($role->name)->headline())), description: @js((string) $role->description), isActive: @js((bool) $role->is_active), selectedPermissions: @js($role->permissions->pluck('name')->values()->all()) }, true)" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50">Edit</button>
                     @else
                         <span class="text-xs text-slate-400">View only</span>
                     @endcan
@@ -80,102 +80,79 @@
         </div>
     </section>
 
-    @if ($drawerOpen)
-        <div class="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true">
-            <button wire:click="closeDrawer" type="button" class="fixed inset-0 h-full w-full bg-slate-950/30" aria-label="Close role drawer"></button>
-            <aside class="absolute inset-y-0 right-0 flex h-dvh max-h-dvh w-full max-w-2xl flex-col overflow-hidden bg-white shadow-xl">
-                <div class="shrink-0 flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                    <div>
-                        <h3 class="text-base font-semibold">{{ $editingId ? 'Edit Role' : 'Add Role' }}</h3>
-                        <p class="text-xs text-slate-500">Use the accordions below to assign permissions.</p>
-                    </div>
-                    <button wire:click="closeDrawer" type="button" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Close</button>
+    <x-setup-form-drawer name="admin-role" title="Add Role" edit-title="Edit Role" description="Use the accordions below to assign permissions." size="xl">
+        <form wire:submit="saveRole" class="space-y-4">
+            <div class="grid gap-3 sm:grid-cols-2">
+                <label>
+                    <span class="text-xs font-semibold uppercase text-slate-500">Role Key</span>
+                    <input wire:model="name" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="payroll-processor">
+                    @error('name') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                </label>
+                <label>
+                    <span class="text-xs font-semibold uppercase text-slate-500">Display Name</span>
+                    <input wire:model="displayName" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    @error('displayName') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                </label>
+            </div>
+
+            <label class="block">
+                <span class="text-xs font-semibold uppercase text-slate-500">Description</span>
+                <textarea wire:model="description" rows="3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
+                @error('description') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+            </label>
+
+            <label class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                <input wire:model="isActive" type="checkbox" class="h-4 w-4 rounded border-slate-300">
+                <span>Active</span>
+            </label>
+
+            <section class="rounded-md border border-slate-200">
+                <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                    <h4 class="text-sm font-semibold text-slate-800">Permissions</h4>
+                    <span class="text-xs text-slate-500">{{ count($selectedPermissions) }} selected</span>
                 </div>
-
-                <form wire:submit="saveRole" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-                    <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4">
-                        <div class="grid gap-3 sm:grid-cols-2">
-                            <label>
-                                <span class="text-xs font-semibold uppercase text-slate-500">Role Key</span>
-                                <input wire:model="name" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="payroll-processor">
-                                @error('name') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                            </label>
-                            <label>
-                                <span class="text-xs font-semibold uppercase text-slate-500">Display Name</span>
-                                <input wire:model="displayName" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                @error('displayName') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                            </label>
-                        </div>
-
-                        <label class="block">
-                            <span class="text-xs font-semibold uppercase text-slate-500">Description</span>
-                            <textarea wire:model="description" rows="3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea>
-                            @error('description') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                        </label>
-
-                        <label class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
-                            <input wire:model="isActive" type="checkbox" class="h-4 w-4 rounded border-slate-300">
-                            <span>Active</span>
-                        </label>
-
-                        <section class="rounded-md border border-slate-200">
-                            <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-                                <h4 class="text-sm font-semibold text-slate-800">Permissions</h4>
-                                <span class="text-xs text-slate-500">{{ count($selectedPermissions) }} selected</span>
-                            </div>
-                            <div class="divide-y divide-slate-100">
-                                @foreach ($permissionGroups as $group => $permissions)
-                                    <details @if($loop->first) open @endif>
-                                        <summary class="flex items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50">
-                                            <span>{{ $group }}</span>
-                                            <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">{{ count($permissions) }}</span>
-                                        </summary>
-                                        <div class="grid gap-2 px-4 pb-4 sm:grid-cols-2">
-                                            @foreach ($permissions as $permission => $label)
-                                                <label class="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                                                    <input wire:model="selectedPermissions" value="{{ $permission }}" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-slate-300">
-                                                    <span>
-                                                        <span class="block font-semibold text-slate-800">{{ $label }}</span>
-                                                        <span class="block text-xs text-slate-500">{{ $permission }}</span>
-                                                    </span>
-                                                </label>
-                                            @endforeach
-                                        </div>
-                                    </details>
+                <div class="divide-y divide-slate-100">
+                    @foreach ($permissionGroups as $group => $permissions)
+                        <details @if($loop->first) open @endif>
+                            <summary class="flex items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+                                <span>{{ $group }}</span>
+                                <span class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">{{ count($permissions) }}</span>
+                            </summary>
+                            <div class="grid gap-2 px-4 pb-4 sm:grid-cols-2">
+                                @foreach ($permissions as $permission => $label)
+                                    <label class="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                                        <input wire:model="selectedPermissions" value="{{ $permission }}" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-slate-300">
+                                        <span>
+                                            <span class="block font-semibold text-slate-800">{{ $label }}</span>
+                                            <span class="block text-xs text-slate-500">{{ $permission }}</span>
+                                        </span>
+                                    </label>
                                 @endforeach
                             </div>
-                            @error('selectedPermissions.*') <span class="block px-4 pb-3 text-xs text-red-600">{{ $message }}</span> @enderror
-                        </section>
-                    </div>
+                        </details>
+                    @endforeach
+                </div>
+                @error('selectedPermissions.*') <span class="block px-4 pb-3 text-xs text-red-600">{{ $message }}</span> @enderror
+            </section>
 
-                    <div class="shrink-0 flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-4">
-                        <button wire:click="closeDrawer" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
-                        <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save Role</button>
-                    </div>
-                </form>
-            </aside>
-        </div>
-    @endif
+            <div class="flex items-center justify-end gap-2 border-t border-slate-200 pt-4">
+                <button x-on:click="erpOverlay.close('admin-role')" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
+                <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save Role</button>
+            </div>
+        </form>
+    </x-setup-form-drawer>
 
-    @if ($permissionModalOpen)
-        <div class="fixed inset-0 z-50 grid place-items-center overflow-y-auto px-4 py-6" role="dialog" aria-modal="true">
-            <button wire:click="closePermissionModal" type="button" class="fixed inset-0 h-full w-full bg-slate-950/30" aria-label="Close permission modal"></button>
-            <form wire:submit="savePermission" class="relative flex max-h-[calc(100dvh-3rem)] w-full max-w-md flex-col overflow-hidden rounded-md bg-white shadow-xl">
-                <div class="shrink-0 border-b border-slate-200 px-5 py-4">
-                    <h3 class="text-base font-semibold">Add Permission</h3>
-                </div>
-                <div class="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-4">
-                    <label class="block">
-                        <span class="text-xs font-semibold uppercase text-slate-500">Permission Key</span>
-                        <input wire:model="permissionName" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="module.action">
-                        @error('permissionName') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                    </label>
-                </div>
-                <div class="shrink-0 flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
-                    <button wire:click="closePermissionModal" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
-                    <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save Permission</button>
-                </div>
-            </form>
-        </div>
-    @endif
+    <x-setup-form-modal name="admin-permission" title="Add Permission" size="sm">
+        <form wire:submit="savePermission" class="space-y-3">
+            <label class="block">
+                <span class="text-xs font-semibold uppercase text-slate-500">Permission Key</span>
+                <input wire:model="permissionName" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="module.action">
+                @error('permissionName') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+            </label>
+            <div class="flex justify-end gap-2">
+                <button x-on:click="erpOverlay.close('admin-permission')" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
+                <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save Permission</button>
+            </div>
+        </form>
+    </x-setup-form-modal>
 </div>

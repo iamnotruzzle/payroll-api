@@ -5,7 +5,7 @@
             <p class="text-sm text-slate-600">Your TARF / LDI requests and invitations.</p>
         </div>
         @if ($canRequest)
-            <button wire:click="openForm" type="button" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Request training</button>
+            <button type="button" x-on:click="erpOverlay.open($wire, 'my-training', { trainingName: '', trainingVenue: '', sponsor: '', sponsorType: 1, startDate: @js(now()->toDateString()), endDate: @js(now()->toDateString()), hrs: '8', type: null, mode: 'f2f' })" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Request training</button>
         @endif
     </div>
 
@@ -36,43 +36,41 @@
         </section>
     @endif
 
-    @if ($showForm)
-        <section class="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-            <form wire:submit="submit" class="grid gap-3 sm:grid-cols-2">
-                <label class="block text-sm sm:col-span-2">Training name<input wire:model="trainingName" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
-                <label class="block text-sm">Venue<input wire:model="trainingVenue" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
-                <label class="block text-sm">Mode
-                    <select wire:model="mode" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                        <option value="f2f">Face to face</option>
-                        <option value="online">Online</option>
-                        <option value="hybrid">Hybrid</option>
-                    </select>
-                </label>
-                <label class="block text-sm">Sponsor<input wire:model="sponsor" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
-                <label class="block text-sm">Sponsor type
-                    <select wire:model="sponsorType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                        <option value="1">External</option>
-                        <option value="2">Internal</option>
-                    </select>
-                </label>
-                <label class="block text-sm">Start<input wire:model="startDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
-                <label class="block text-sm">End<input wire:model="endDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
-                <label class="block text-sm">Hours<input wire:model="hrs" type="number" step="0.5" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
-                <label class="block text-sm">Type
-                    <select wire:model="type" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                        <option value="">Select</option>
-                        @foreach ($types as $t)
-                            <option value="{{ $t->id }}">{{ $t->type }}</option>
-                        @endforeach
-                    </select>
-                </label>
-                <div class="flex gap-2 sm:col-span-2">
-                    <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white">Submit</button>
-                    <button type="button" wire:click="closeForm" class="rounded-md border border-slate-300 px-3 py-2 text-sm">Cancel</button>
-                </div>
-            </form>
-        </section>
-    @endif
+    <x-setup-form-drawer name="my-training" title="Request training" size="lg">
+        <form wire:submit="submit" class="grid gap-3 sm:grid-cols-2">
+            <label class="block text-sm sm:col-span-2">Training name<input wire:model="trainingName" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
+            <label class="block text-sm">Venue<input wire:model="trainingVenue" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
+            <label class="block text-sm">Mode
+                <select wire:model="mode" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <option value="f2f">Face to face</option>
+                    <option value="online">Online</option>
+                    <option value="hybrid">Hybrid</option>
+                </select>
+            </label>
+            <label class="block text-sm">Sponsor<input wire:model="sponsor" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
+            <label class="block text-sm">Sponsor type
+                <select wire:model="sponsorType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <option value="1">External</option>
+                    <option value="2">Internal</option>
+                </select>
+            </label>
+            <label class="block text-sm">Start<input wire:model="startDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
+            <label class="block text-sm">End<input wire:model="endDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
+            <label class="block text-sm">Hours<input wire:model="hrs" type="number" step="0.5" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
+            <label class="block text-sm">Type
+                <select wire:model="type" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <option value="">Select</option>
+                    @foreach ($types as $t)
+                        <option value="{{ $t->id }}">{{ $t->type }}</option>
+                    @endforeach
+                </select>
+            </label>
+            <div class="flex gap-2 sm:col-span-2">
+                <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white">Submit</button>
+                <button type="button" x-on:click="erpOverlay.close('my-training')" class="rounded-md border border-slate-300 px-3 py-2 text-sm">Cancel</button>
+            </div>
+        </form>
+    </x-setup-form-drawer>
 
     <section class="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         <table class="min-w-full divide-y divide-slate-200 text-sm">

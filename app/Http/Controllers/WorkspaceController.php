@@ -14,7 +14,7 @@ class WorkspaceController extends Controller
 
         return view('home', [
             'title' => 'Apps',
-            'modules' => ErpNavigation::visibleApps(),
+            'moduleGroups' => ErpNavigation::launcherGroups(),
             'employeeName' => $user?->loadMissing('employee')->employee?->full_name ?: $user?->emp_id,
         ]);
     }

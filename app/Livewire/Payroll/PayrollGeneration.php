@@ -903,6 +903,7 @@ class PayrollGeneration extends Component
             'loan_import_status',
             "Imported {$import->total_rows} ".$this->currentDeductionLabel()." row(s): {$import->valid_rows} ready, {$import->invalid_rows} needing review."
         );
+        $this->dispatch('erp-overlay-close', name: 'payroll-loan-import');
     }
 
     public function importTaxAnnualizationLookup(): void
@@ -1472,6 +1473,9 @@ class PayrollGeneration extends Component
             'previousMraPeriod' => $previousMraPeriod,
             'previousMraReport' => $previousMraReport,
             'totals' => $totals,
+            'reviewConfiguration' => $this->currentStep === 7
+                ? $this->reviewConfiguration($allRows->count())
+                : [],
             'payrollGenerationAccess' => $this->payrollGenerationAccess(),
             'unfilteredRowCount' => $allRows->count(),
             'externalOverrides' => $this->activeExternalEmployeeOverrides(),
@@ -1997,6 +2001,7 @@ class PayrollGeneration extends Component
                 'mra_minutes' => (int) ($mraAdjustment?->undertime_tardy_minutes ?? 0),
                 'has_mra_adjustment' => $mraAdjustment !== null,
                 'leave_deduction' => $leaveDeduction,
+                'leave_review_items' => $this->leaveReviewItems($leaveDeduction),
                 'gross_basic_salary' => $baseBasicSalary,
                 'basic_salary' => $basicSalary,
                 'compensations' => $computed,
@@ -2698,6 +2703,74 @@ class PayrollGeneration extends Component
             'processed_dates' => $processedInRange->all(),
             'already_processed' => $processedInRange->isNotEmpty(),
             'fully_processed' => $includedDates->isEmpty() && $processedInRange->isNotEmpty(),
+        ];
+    }
+
+    private function leaveReviewItems(array $leaveDeduction): array
+    {
+        $items = collect($leaveDeduction['items'] ?? [])
+            ->reject(fn (array $item) => filter_var($item['excluded'] ?? false, FILTER_VALIDATE_BOOL))
+            ->map(function (array $item) {
+                $dates = collect($item['included_dates'] ?? [])
+                    ->filter()
+                    ->map(fn (string $date) => CarbonImmutable::parse($date))
+                    ->unique(fn (CarbonImmutable $date) => $date->toDateString())
+                    ->sort()
+                    ->values();
+
+                return [
+                    'type' => (string) ($item['leave_type'] ?? 'Leave'),
+                    'dates' => $dates,
+                ];
+            })
+            ->filter(fn (array $item) => $item['dates']->isNotEmpty())
+            ->values();
+
+        $monthCount = $items
+            ->flatMap(fn (array $item) => $item['dates'])
+            ->map(fn (CarbonImmutable $date) => $date->format('Y-m'))
+            ->unique()
+            ->count();
+
+        return $items->map(function (array $item) use ($monthCount) {
+            $dates = $monthCount > 1
+                ? $item['dates']->groupBy(fn (CarbonImmutable $date) => $date->format('Y-m'))
+                    ->map(fn (Collection $monthDates) => $monthDates->first()->format('F').' '.$monthDates->pluck('day')->implode(', '))
+                    ->implode('; ')
+                : $item['dates']->pluck('day')->implode(', ');
+
+            return ['type' => $item['type'], 'dates' => $dates];
+        })->all();
+    }
+
+    private function reviewConfiguration(int $employeeCount): array
+    {
+        $period = CarbonImmutable::createFromFormat('!Y-m', $this->period);
+        $leaveStart = CarbonImmutable::parse($this->leavePeriodStart);
+        $leaveEnd = CarbonImmutable::parse($this->leavePeriodEnd);
+        $leaveCoverage = $leaveStart->isSameMonth($leaveEnd)
+            ? $leaveStart->format('F j').'–'.$leaveEnd->format('j, Y')
+            : $leaveStart->format('F j, Y').'–'.$leaveEnd->format('F j, Y');
+        $leaveTypes = $this->selectedLeaveTypeIds === []
+            ? 'None selected'
+            : LeaveType::query()->whereIn('leave_type_id', $this->selectedLeaveTypeIds)
+                ->orderBy('leave_name')->pluck('leave_name')->filter()->implode(', ');
+        $divisions = Division::query()->whereIn('division_id', $this->selectedDivisionIds)
+            ->orderBy('division')->pluck('division')->filter()->implode(', ');
+        $departments = Department::query()->whereIn('department_id', $this->selectedDepartmentIds)
+            ->orderBy('department')->pluck('department')->filter()->implode(', ');
+
+        return [
+            ['label' => 'Payroll period', 'value' => $period->format('F Y')],
+            ['label' => 'Payroll type', 'value' => str(PayrollType::CODE_GENERAL)->headline()->toString()],
+            ['label' => 'Employees', 'value' => number_format($employeeCount)],
+            ['label' => 'Employee type', 'value' => Employee::employeeTypeLabel($this->employeeTypeFilter)],
+            ['label' => 'Working days', 'value' => (string) $this->workingDays],
+            ['label' => 'GSIS days', 'value' => (string) $this->gsisDays],
+            ['label' => 'Leave coverage', 'value' => $leaveCoverage],
+            ['label' => 'Included leave types', 'value' => $leaveTypes !== '' ? $leaveTypes : 'None selected', 'wide' => true],
+            ['label' => 'Divisions', 'value' => $divisions !== '' ? $divisions : 'None selected', 'wide' => true],
+            ['label' => 'Departments', 'value' => $departments !== '' ? $departments : 'All departments in the selected divisions', 'wide' => true],
         ];
     }
 

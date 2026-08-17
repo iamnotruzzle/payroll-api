@@ -3,11 +3,53 @@ import './bootstrap';
 import $ from 'jquery';
 import select2 from 'select2/dist/js/select2.full.js';
 import 'select2/dist/css/select2.css';
+import { gsap } from 'gsap';
 
 window.$ = $;
 window.jQuery = $;
 
 select2(window, $);
+
+window.__erpOverlayState = window.__erpOverlayState || {};
+
+window.erpOverlay = {
+    getState(name) {
+        window.__erpOverlayState[name] ??= { open: false, editing: false, pristine: true };
+
+        return window.__erpOverlayState[name];
+    },
+
+    fill($wire, values = {}) {
+        if (!$wire || typeof $wire.$set !== 'function') {
+            return;
+        }
+
+        Object.entries(values).forEach(([key, value]) => {
+            $wire.$set(key, value, false);
+        });
+    },
+
+    open($wire, name, values = {}, editing = false) {
+        this.fill($wire, values);
+        const state = this.getState(name);
+        state.open = true;
+        state.editing = Boolean(editing);
+        state.pristine = true;
+        window.dispatchEvent(new CustomEvent('erp-overlay-open', { detail: { name, editing: state.editing } }));
+    },
+
+    close(name = null) {
+        if (name) {
+            this.getState(name).open = false;
+        } else {
+            Object.keys(window.__erpOverlayState).forEach((key) => {
+                this.getState(key).open = false;
+            });
+        }
+
+        window.dispatchEvent(new CustomEvent('erp-overlay-close', { detail: { name } }));
+    },
+};
 
 const initThemeToggle = () => {
     const root = document.documentElement;
@@ -29,6 +71,158 @@ const initThemeToggle = () => {
         });
     });
     update();
+};
+
+const initPortalMotion = () => {
+    const portal = document.querySelector('.erp-portal-body');
+
+    if (!portal || portal.dataset.motionBound === 'true') {
+        return;
+    }
+
+    portal.dataset.motionBound = 'true';
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return;
+    }
+
+    const ambientAnimations = [];
+    const context = gsap.context(() => {
+        const revealItems = portal.querySelectorAll('[data-portal-reveal], [data-portal-signin]');
+        const system = portal.querySelector('[data-portal-system]');
+
+        gsap.from(revealItems, {
+            autoAlpha: 0,
+            y: 14,
+            duration: 1.05,
+            stagger: 0.16,
+            ease: 'power2.out',
+            clearProps: 'opacity,visibility,transform',
+        });
+
+        if (system && window.getComputedStyle(system).display !== 'none') {
+            gsap.from('[data-portal-system-node]', {
+                autoAlpha: 0,
+                scale: 0.94,
+                duration: 0.9,
+                stagger: 0.13,
+                delay: 0.38,
+                ease: 'power2.out',
+                clearProps: 'opacity,visibility,transform',
+            });
+
+            ambientAnimations.push(
+                gsap.to('[data-portal-orbit]', {
+                    rotate: (index) => index % 2 === 0 ? 360 : -360,
+                    duration: (index) => index % 2 === 0 ? 56 : 44,
+                    repeat: -1,
+                    ease: 'none',
+                    transformOrigin: '50% 50%',
+                }),
+                gsap.to('[data-portal-pulse]', {
+                    scale: 1.35,
+                    autoAlpha: 0.52,
+                    duration: 2.8,
+                    stagger: 0.42,
+                    repeat: -1,
+                    yoyo: true,
+                    ease: 'sine.inOut',
+                }),
+            );
+        }
+    }, portal);
+
+    const syncAmbientMotion = () => {
+        ambientAnimations.forEach((animation) => animation.paused(document.hidden));
+    };
+    const cleanupPortalMotion = () => {
+        document.removeEventListener('visibilitychange', syncAmbientMotion);
+        context.revert();
+    };
+
+    document.addEventListener('visibilitychange', syncAmbientMotion);
+    window.addEventListener('pagehide', cleanupPortalMotion, { once: true });
+};
+
+const initLauncherMotion = () => {
+    const launcher = document.querySelector('[data-launcher-root]');
+
+    if (!launcher || launcher.dataset.motionBound === 'true') {
+        return;
+    }
+
+    launcher.dataset.motionBound = 'true';
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return;
+    }
+
+    const ambientAnimations = [];
+    const context = gsap.context(() => {
+        const intro = launcher.querySelector('[data-launcher-intro]');
+        const groups = launcher.querySelectorAll('[data-launcher-group]');
+        const cards = launcher.querySelectorAll('[data-launcher-card]');
+
+        gsap.from(intro, {
+            autoAlpha: 0,
+            y: 18,
+            filter: 'blur(5px)',
+            duration: 1.15,
+            ease: 'power3.out',
+            clearProps: 'opacity,visibility,transform,filter',
+        });
+
+        gsap.from(groups, {
+            autoAlpha: 0,
+            y: 16,
+            duration: 1.05,
+            stagger: 0.2,
+            delay: 0.22,
+            ease: 'power2.out',
+            clearProps: 'opacity,visibility,transform',
+        });
+
+        gsap.from(cards, {
+            autoAlpha: 0,
+            y: 14,
+            duration: 1,
+            stagger: 0.09,
+            delay: 0.42,
+            ease: 'power2.out',
+            clearProps: 'opacity,visibility,transform',
+        });
+
+        launcher.querySelectorAll('[data-launcher-orbit]').forEach((orbit, index) => {
+            ambientAnimations.push(gsap.to(orbit, {
+                rotate: index % 2 === 0 ? 360 : -360,
+                duration: index % 2 === 0 ? 72 : 60,
+                repeat: -1,
+                ease: 'none',
+                transformOrigin: '50% 50%',
+            }));
+        });
+
+        ambientAnimations.push(gsap.to('[data-launcher-haze]', {
+            x: -16,
+            y: 12,
+            scale: 1.06,
+            duration: 18,
+            repeat: -1,
+            yoyo: true,
+            ease: 'sine.inOut',
+        }));
+    }, launcher);
+
+    const syncAmbientMotion = () => {
+        ambientAnimations.forEach((animation) => animation.paused(document.hidden));
+    };
+    const cleanupLauncherMotion = () => {
+        document.removeEventListener('visibilitychange', syncAmbientMotion);
+        context.revert();
+    };
+
+    document.addEventListener('visibilitychange', syncAmbientMotion);
+    window.addEventListener('pagehide', cleanupLauncherMotion, { once: true });
 };
 
 const initPayrollEmployeePickers = () => {
@@ -434,6 +628,8 @@ window.addEventListener('resize', initPayrollTableScrollbars);
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             initThemeToggle();
+            initPortalMotion();
+            initLauncherMotion();
             installLivewireHooks();
             initPayrollEmployeePickers();
             initHistoricalOrganizationPickers();
@@ -441,6 +637,8 @@ window.addEventListener('resize', initPayrollTableScrollbars);
         });
     } else {
         initThemeToggle();
+        initPortalMotion();
+        initLauncherMotion();
         installLivewireHooks();
         initPayrollEmployeePickers();
         initHistoricalOrganizationPickers();

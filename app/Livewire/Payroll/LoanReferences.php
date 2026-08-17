@@ -135,6 +135,7 @@ class LoanReferences extends Component
         $this->resetEntityForm();
         $this->selectedEntityId = $item->id;
         $this->showEntityModal = false;
+        $this->dispatch('erp-overlay-close', name: 'loan-entity');
         session()->flash('status', 'Loan entity saved.');
     }
 
@@ -157,6 +158,8 @@ class LoanReferences extends Component
 
         PayrollLoanEntity::findOrFail($id)->delete();
         $this->resetEntityForm();
+        $this->showEntityModal = false;
+        $this->dispatch('erp-overlay-close', name: 'loan-entity');
         $this->selectedEntityId = PayrollLoanEntity::query()->orderBy('sort_order')->value('id');
         session()->flash('status', 'Loan entity deleted.');
     }
@@ -199,6 +202,7 @@ class LoanReferences extends Component
         $this->resetTypeForm();
         $this->selectedEntityId = $item->entity_id;
         $this->showTypeModal = false;
+        $this->dispatch('erp-overlay-close', name: 'loan-type');
         session()->flash('status', 'Loan type saved.');
     }
 
@@ -222,6 +226,8 @@ class LoanReferences extends Component
     {
         PayrollLoanType::findOrFail($id)->delete();
         $this->resetTypeForm();
+        $this->showTypeModal = false;
+        $this->dispatch('erp-overlay-close', name: 'loan-type');
         session()->flash('status', 'Loan type deleted.');
     }
 

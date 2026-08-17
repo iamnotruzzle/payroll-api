@@ -33,6 +33,7 @@ class RolesPermissions extends Component
     public function render()
     {
         $roles = Role::query()
+            ->with('permissions')
             ->withCount(['permissions', 'users'])
             ->where('guard_name', 'web')
             ->orderBy('display_name')
@@ -120,6 +121,7 @@ class RolesPermissions extends Component
 
         $this->drawerOpen = false;
         $this->resetRoleForm();
+        $this->dispatch('erp-overlay-close', name: 'admin-role');
 
         session()->flash('status', 'Role saved.');
     }
@@ -153,6 +155,7 @@ class RolesPermissions extends Component
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         $this->permissionModalOpen = false;
+        $this->dispatch('erp-overlay-close', name: 'admin-permission');
         session()->flash('status', 'Permission added.');
     }
 

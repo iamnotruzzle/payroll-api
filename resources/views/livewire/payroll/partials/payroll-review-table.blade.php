@@ -5,15 +5,16 @@
     $deductionProgramCount = $deductionPrograms->count();
     $adjustmentTypes = collect($adjustmentTypes ?? []);
     $adjustmentTypeCount = $adjustmentTypes->count();
-    $reviewTableWidth = max(3290, 3180 + ($compensations->count() * 120) + ($adjustmentTypeCount * 140) + ($deductionProgramCount * 150) + ($loanColumnCount * 120));
+    $reviewTableWidth = max(3510, 3400 + ($compensations->count() * 120) + ($adjustmentTypeCount * 140) + ($deductionProgramCount * 150) + ($loanColumnCount * 120));
 @endphp
 
-<div class="payroll-table-scroll overflow-x-auto">
+<div class="payroll-table-scroll min-h-0 flex-1 overflow-auto">
     <table class="divide-y divide-slate-200 text-sm" style="min-width: {{ $reviewTableWidth }}px;">
         <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>
                 <th colspan="3" class="payroll-sticky-employee-info-group border-b border-r-2 border-slate-300 px-4 py-3 text-center">Employee Information</th>
                 <th colspan="3" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Pay Basis</th>
+                <th rowspan="2" class="min-w-[220px] border-b border-r-2 border-slate-300 px-4 py-3 text-left align-bottom">Leaves</th>
                 <th colspan="{{ 2 + $compensations->count() }}" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Earnings</th>
                 <th colspan="{{ 2 + $adjustmentTypeCount }}" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Compensation Adjustment</th>
                 <th colspan="10" class="border-b border-r-2 border-slate-300 px-4 py-3 text-center">Mandatory Deductions</th>
@@ -99,6 +100,16 @@
                     <td class="px-4 py-3 text-right">{{ $row['salary_grade'] ?? '-' }}</td>
                     <td class="px-4 py-3 text-right">{{ $row['step'] }}</td>
                     <td class="border-r-2 border-slate-200 px-4 py-3 text-right">{{ number_format($row['deduction_days'], 3) }}</td>
+                    <td class="min-w-[220px] border-r-2 border-slate-200 px-4 py-3 align-top">
+                        @forelse ($row['leave_review_items'] ?? [] as $leaveItem)
+                            <div class="{{ ! $loop->first ? 'mt-1.5 border-t border-slate-100 pt-1.5' : '' }}">
+                                <div class="text-xs font-semibold text-slate-800">{{ $leaveItem['type'] }}</div>
+                                <div class="mt-0.5 text-xs tabular-nums text-slate-600">{{ $leaveItem['dates'] }}</div>
+                            </div>
+                        @empty
+                            <span class="text-slate-400">—</span>
+                        @endforelse
+                    </td>
                     <td class="px-4 py-3 text-right">{{ number_format($row['basic_salary'], 2) }}</td>
                     @foreach ($compensations as $item)
                         <td class="px-4 py-3 text-right">{{ number_format($row['compensations'][$item->id]['amount'] ?? 0, 2) }}</td>
@@ -146,7 +157,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ 28 + $compensations->count() + $adjustmentTypeCount + max(1, $deductionProgramCount) + $loanColumnCount }}" class="px-4 py-8 text-center text-slate-500">
+                    <td colspan="{{ 29 + $compensations->count() + $adjustmentTypeCount + max(1, $deductionProgramCount) + $loanColumnCount }}" class="px-4 py-8 text-center text-slate-500">
                         No active HRIS employees found for the selected department.
                     </td>
                 </tr>
@@ -155,7 +166,7 @@
         @if ($rows->isNotEmpty())
             <tfoot class="bg-slate-50 font-semibold">
                 <tr>
-                    <td colspan="6" class="border-r-2 border-slate-300 px-4 py-3">Totals</td>
+                    <td colspan="7" class="border-r-2 border-slate-300 px-4 py-3">Totals</td>
                     <td class="px-4 py-3 text-right">{{ number_format($totals['basic_salary'], 2) }}</td>
                     @foreach ($compensations as $item)
                         <td class="px-4 py-3 text-right">{{ number_format($totals['compensations'][$item->id] ?? 0, 2) }}</td>

@@ -113,6 +113,7 @@ class StatutoryContributions extends Component
         $this->selectedContributionId = $contribution->id;
         $this->resetContributionForm();
         $this->showContributionModal = false;
+        $this->dispatch('erp-overlay-close', name: 'statutory-contribution');
         session()->flash('status', 'Mandatory deduction saved.');
     }
 
@@ -143,6 +144,7 @@ class StatutoryContributions extends Component
         $this->resetContributionForm();
         $this->resetBracketForm();
         $this->showContributionModal = false;
+        $this->dispatch('erp-overlay-close', name: 'statutory-contribution');
         session()->flash('status', 'Mandatory deduction deleted.');
     }
 
@@ -188,6 +190,7 @@ class StatutoryContributions extends Component
 
         $this->resetBracketForm();
         $this->showBracketModal = false;
+        $this->dispatch('erp-overlay-close', name: 'statutory-bracket');
         session()->flash('status', 'Contribution bracket saved.');
     }
 
@@ -221,6 +224,7 @@ class StatutoryContributions extends Component
 
         $this->resetBracketForm();
         $this->showBracketModal = false;
+        $this->dispatch('erp-overlay-close', name: 'statutory-bracket');
         session()->flash('status', 'Contribution bracket deleted.');
     }
 

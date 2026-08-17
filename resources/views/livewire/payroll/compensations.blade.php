@@ -1,27 +1,94 @@
 <section class="space-y-4">
-    <div>
-        <h2 class="text-xl font-semibold">Compensation Rules</h2>
-        <p class="text-sm text-slate-600">Manage fixed, percentage, and formula-based compensation columns used in payroll previews.</p>
+    <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <h2 class="text-xl font-semibold">Compensation Rules</h2>
+            <p class="text-sm text-slate-600">Manage fixed, percentage, and formula-based compensation columns used in payroll previews.</p>
+        </div>
+        <button
+            type="button"
+            x-on:click="erpOverlay.open($wire, 'compensation-rule', { editingId: null, name: '', computationType: 'fixed', value: 0, formula: null, variableName: null, includeInNetPay: true, taxTreatment: 'regular_taxable', annualExemptLimit: null, supplementalTaxRate: null, sortOrder: 0, isActive: true })"
+            class="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600"
+        >
+            New Rule
+        </button>
     </div>
 
     @if (session('status'))
         <div class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>
     @endif
 
-    <div class="grid gap-4 xl:grid-cols-[540px_minmax(0,1fr)]">
-        <form wire:submit="save" class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 class="font-semibold">{{ $editingId ? 'Edit Rule' : 'New Rule' }}</h3>
+    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-200 px-4 py-3">
+            <h3 class="font-semibold">Rules</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                    <tr>
+                        <th class="px-4 py-3">Name</th>
+                        <th class="px-4 py-3">Type</th>
+                        <th class="px-4 py-3 text-right">Value</th>
+                        <th class="px-4 py-3">Formula</th>
+                        <th class="px-4 py-3">Tax Treatment</th>
+                        <th class="px-4 py-3">Status</th>
+                        <th class="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @forelse ($items as $item)
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-4 py-3">
+                                <div class="font-medium">{{ $item->name }}</div>
+                                <div class="text-xs text-slate-500">{{ $item->variable_name ?: str($item->name)->snake() }}</div>
+                            </td>
+                            <td class="px-4 py-3">{{ ucfirst($item->computation_type ?: ($item->is_percentage ? 'percentage' : 'fixed')) }}</td>
+                            <td class="px-4 py-3 text-right">{{ number_format((float) $item->value, 4) }}</td>
+                            <td class="max-w-[420px] px-4 py-3 font-mono text-xs break-words">{{ $item->formula ?: '-' }}</td>
+                            <td class="px-4 py-3">
+                                <div class="text-xs font-medium">{{ str($item->tax_treatment ?: 'regular_taxable')->replace('_', ' ')->title() }}</div>
+                                <div class="text-xs text-slate-500">{{ ($item->include_in_net_pay ?? true) ? 'Included in net pay' : 'Tax only / reference' }}</div>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="rounded-full px-2 py-1 text-xs font-medium {{ $item->is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">
+                                    {{ $item->is_active ? 'Active' : 'Inactive' }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <button
+                                    type="button"
+                                    x-on:click="erpOverlay.open($wire, 'compensation-rule', { editingId: {{ $item->id }}, name: @js($item->name), computationType: @js($item->computation_type ?: ($item->is_percentage ? 'percentage' : 'fixed')), value: {{ (float) $item->value }}, formula: @js($item->formula), variableName: @js($item->variable_name), includeInNetPay: @js($item->include_in_net_pay ?? true), taxTreatment: @js($item->tax_treatment ?: 'regular_taxable'), annualExemptLimit: @js($item->annual_exempt_limit !== null ? (float) $item->annual_exempt_limit : null), supplementalTaxRate: @js($item->supplemental_tax_rate !== null ? (float) $item->supplemental_tax_rate : null), sortOrder: {{ (int) ($item->sort_order ?? 0) }}, isActive: @js((bool) $item->is_active) }, true)"
+                                    class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                                >Edit</button>
+                                <button wire:click="delete({{ $item->id }})" wire:confirm="Delete this compensation rule?" class="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50">Delete</button>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="7" class="px-4 py-8 text-center text-slate-500">No compensation rules yet.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
 
-            <div class="mt-4 space-y-3">
+    <x-setup-form-drawer
+            name="compensation-rule"
+            title="New Rule"
+            edit-title="Edit Rule"
+            description="Fixed, percentage, and formula-based compensation used in payroll previews."
+            size="xl"
+        >
+            <form wire:submit="save" class="space-y-4">
                 <div>
                     <label class="text-sm font-medium">Name</label>
-                    <input wire:model.blur="name" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <input wire:model="name" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     @error('name') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
                     <label class="text-sm font-medium">Computation</label>
-                    <select wire:model.change="computationType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <select wire:model="computationType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                         <option value="fixed">Fixed amount</option>
                         <option value="percentage">Percentage of basic salary</option>
                         <option value="formula">Formula</option>
@@ -30,13 +97,12 @@
 
                 <div>
                     <label class="text-sm font-medium">Value</label>
-                    <input wire:model.blur="value" type="number" step="0.0001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <input wire:model="value" type="number" step="0.0001" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     <p class="mt-1 text-xs text-slate-500">For percentage, use 25 or 0.25 for 25%.</p>
                     @error('value') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
-                @if ($computationType === 'formula')
-                    <div
+                <div x-show="$wire.computationType === 'formula'" x-cloak
                         class="erp-formula-editor overflow-hidden rounded-md border border-slate-300 bg-white"
                         x-data="{
                             insert(text) {
@@ -79,7 +145,7 @@
 
                         <textarea
                             x-ref="editor"
-                            wire:model.blur="formula"
+                    <input wire:model="formula"
                             rows="4"
                             spellcheck="false"
                             placeholder="max(0, configured_value - (configured_value / 30) * subsistence_deduct_days)"
@@ -142,11 +208,10 @@
 
                         @error('formula') <p class="border-t border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
-                @endif
 
                 <div>
                     <label class="text-sm font-medium">Variable Name</label>
-                    <input wire:model.blur="variableName" type="text" placeholder="hazard_pay" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <input wire:model="variableName" type="text" placeholder="hazard_pay" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     @error('variableName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
@@ -155,13 +220,13 @@
                     <p class="mt-1 text-xs text-slate-600">Controls whether this item affects net pay and how it enters withholding tax.</p>
 
                     <label class="mt-3 flex items-center gap-2 text-sm font-medium">
-                        <input wire:model.change="includeInNetPay" type="checkbox" class="rounded border-slate-300">
+                        <input wire:model="includeInNetPay" type="checkbox" class="rounded border-slate-300">
                         Include in employee net pay
                     </label>
 
                     <div class="mt-3">
                         <label class="text-sm font-medium">Treatment</label>
-                        <select wire:model.change="taxTreatment" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <select wire:model="taxTreatment" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             <option value="regular_taxable">Regular taxable, annualized</option>
                             <option value="non_taxable">Non-taxable</option>
                             <option value="de_minimis_annual_limit">De minimis with annual exempt limit</option>
@@ -170,97 +235,39 @@
                         @error('taxTreatment') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
 
-                    @if ($taxTreatment === 'de_minimis_annual_limit')
-                        <div class="mt-3">
+                    <div class="mt-3" x-show="$wire.taxTreatment === 'de_minimis_annual_limit'" x-cloak>
                             <label class="text-sm font-medium">Annual Exempt Limit</label>
-                            <input wire:model.blur="annualExemptLimit" type="number" step="0.01" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            <input wire:model="annualExemptLimit" type="number" step="0.01" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             @error('annualExemptLimit') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
-                    @endif
 
-                    @if ($taxTreatment === 'supplemental_flat_rate')
-                        <div class="mt-3">
+                    <div class="mt-3" x-show="$wire.taxTreatment === 'supplemental_flat_rate'" x-cloak>
                             <label class="text-sm font-medium">Supplemental Tax Rate</label>
-                            <input wire:model.blur="supplementalTaxRate" type="number" step="0.0001" min="0" max="1" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            <input wire:model="supplementalTaxRate" type="number" step="0.0001" min="0" max="1" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             <p class="mt-1 text-xs text-slate-500">Use 0.15 for 15%.</p>
                             @error('supplementalTaxRate') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
-                    @endif
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="text-sm font-medium">Sort</label>
-                        <input wire:model.blur="sortOrder" type="number" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                        <input wire:model="sortOrder" type="number" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     </div>
                     <label class="flex items-end gap-2 pb-2 text-sm font-medium">
-                        <input wire:model.change="isActive" type="checkbox" class="rounded border-slate-300">
+                        <input wire:model="isActive" type="checkbox" class="rounded border-slate-300">
                         Active
                     </label>
                 </div>
-            </div>
 
-            <div class="mt-4 flex gap-2">
-                <button class="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600">
-                    Save Rule
-                </button>
-                @if ($editingId)
-                    <button type="button" wire:click="resetForm" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                <div class="flex justify-end gap-2 border-t pt-4">
+                    <button type="button" x-on:click="erpOverlay.close('compensation-rule')" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50">
                         Cancel
                     </button>
-                @endif
-            </div>
-        </form>
-
-        <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-4 py-3">
-                <h3 class="font-semibold">Rules</h3>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                        <tr>
-                            <th class="px-4 py-3">Name</th>
-                            <th class="px-4 py-3">Type</th>
-                            <th class="px-4 py-3 text-right">Value</th>
-                            <th class="px-4 py-3">Formula</th>
-                            <th class="px-4 py-3">Tax Treatment</th>
-                            <th class="px-4 py-3">Status</th>
-                            <th class="px-4 py-3 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        @forelse ($items as $item)
-                            <tr class="hover:bg-slate-50">
-                                <td class="px-4 py-3">
-                                    <div class="font-medium">{{ $item->name }}</div>
-                                    <div class="text-xs text-slate-500">{{ $item->variable_name ?: str($item->name)->snake() }}</div>
-                                </td>
-                                <td class="px-4 py-3">{{ ucfirst($item->computation_type ?: ($item->is_percentage ? 'percentage' : 'fixed')) }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format((float) $item->value, 4) }}</td>
-                                <td class="max-w-[420px] px-4 py-3 font-mono text-xs break-words">{{ $item->formula ?: '-' }}</td>
-                                <td class="px-4 py-3">
-                                    <div class="text-xs font-medium">{{ str($item->tax_treatment ?: 'regular_taxable')->replace('_', ' ')->title() }}</div>
-                                    <div class="text-xs text-slate-500">{{ ($item->include_in_net_pay ?? true) ? 'Included in net pay' : 'Tax only / reference' }}</div>
-                                </td>
-                                <td class="px-4 py-3">
-                                    <span class="rounded-full px-2 py-1 text-xs font-medium {{ $item->is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">
-                                        {{ $item->is_active ? 'Active' : 'Inactive' }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3 text-right">
-                                    <button wire:click="edit({{ $item->id }})" class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-50">Edit</button>
-                                    <button wire:click="delete({{ $item->id }})" wire:confirm="Delete this compensation rule?" class="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50">Delete</button>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="px-4 py-8 text-center text-slate-500">No compensation rules yet.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+                    <button class="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600">
+                        Save Rule
+                    </button>
+                </div>
+            </form>
+        </x-setup-form-drawer>
 </section>

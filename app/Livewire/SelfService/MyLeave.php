@@ -123,6 +123,7 @@ class MyLeave extends Component
         $leaveService->apply($payload, $this->empId);
 
         $this->showForm = false;
+        $this->dispatch('erp-overlay-close', name: 'my-leave');
         session()->flash('status', 'Your leave request was filed.');
     }
 
