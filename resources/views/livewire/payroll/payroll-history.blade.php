@@ -89,6 +89,14 @@
                                             <span class="font-medium text-slate-700">Employee:</span>
                                             {{ $configuration['employee_type'] }}
                                         </div>
+                                        <div class="max-w-[760px] truncate" title="{{ $configuration['divisions'] }}">
+                                            <span class="font-medium text-slate-700">Divisions:</span>
+                                            {{ $configuration['divisions'] }}
+                                        </div>
+                                        <div class="max-w-[760px] truncate" title="{{ $configuration['departments'] }}">
+                                            <span class="font-medium text-slate-700">Departments:</span>
+                                            {{ $configuration['departments'] }}
+                                        </div>
                                         <div class="max-w-[760px] truncate" title="{{ implode(', ', $configuration['leave_types']) }}">
                                             <span class="font-medium text-slate-700">Leaves:</span>
                                             {{ implode(', ', $configuration['leave_types']) }}
@@ -100,9 +108,20 @@
                             </td>
                             <td class="px-3 py-2">{{ $batch->snapshot_created_at?->format('M d, Y h:i A') }}</td>
                             <td class="px-3 py-2 text-right align-top">
-                                <button wire:click="selectBatch({{ $batch->id }})" class="h-8 whitespace-nowrap rounded-md border border-slate-300 px-3 text-xs font-medium hover:bg-slate-50">
-                                    View Snapshot
-                                </button>
+                                <div class="flex items-center justify-end gap-2 whitespace-nowrap">
+                                    <button wire:click="selectBatch({{ $batch->id }})" class="h-8 whitespace-nowrap rounded-md border border-slate-300 px-3 text-xs font-medium hover:bg-slate-50">
+                                        View Snapshot
+                                    </button>
+                                    <button
+                                        wire:click="exportSnapshot({{ $batch->id }})"
+                                        wire:loading.attr="disabled"
+                                        wire:target="exportSnapshot({{ $batch->id }})"
+                                        class="h-8 whitespace-nowrap rounded-md bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
+                                    >
+                                        <span wire:loading.remove wire:target="exportSnapshot({{ $batch->id }})">Export Excel</span>
+                                        <span wire:loading wire:target="exportSnapshot({{ $batch->id }})">Exporting...</span>
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     @empty

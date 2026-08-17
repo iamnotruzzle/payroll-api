@@ -4009,13 +4009,24 @@ class PayrollGeneration extends Component
             return;
         }
 
+        $configurationKey = $this->draftConfigurationKey();
+        if (PayrollBatch::query()->where('configuration_key', $configurationKey)->exists()) {
+            $this->addError(
+                'finalize',
+                'This payroll configuration has already been finalized. Open Payroll History to view the existing snapshot.'
+            );
+
+            return;
+        }
+
         $comparisonSource = data_get($this->existingDraftState(), 'comparison_source');
         $run = DB::connection('payroll')->transaction(function () use (
             $rows,
             $compensations,
             $deductionPrograms,
             $totals,
-            $comparisonSource
+            $comparisonSource,
+            $configurationKey
         ) {
             $periodStart = $this->selectedPeriodStart();
             $periodEnd = $periodStart->endOfMonth();
@@ -4066,6 +4077,7 @@ class PayrollGeneration extends Component
             $batch = PayrollBatch::create([
                 'department_id' => $this->departmentId,
                 'division_id' => $this->divisionId,
+                'configuration_key' => $configurationKey,
                 'payroll_period' => $this->period,
                 'payroll_type' => $payrollType->name,
                 'payroll_type_code' => $payrollType->code,
@@ -4174,7 +4186,13 @@ class PayrollGeneration extends Component
         PayrollGenerationDraft::query()
             ->where(function ($query) {
                 $query->where('configuration_key', $this->draftConfigurationKey())
-                    ->when($this->activeDraftId, fn ($query) => $query->orWhereKey($this->activeDraftId));
+                    ->when(
+                        $this->activeDraftId,
+                        fn ($query) => $query->orWhere(
+                            $query->getModel()->getQualifiedKeyName(),
+                            $this->activeDraftId
+                        )
+                    );
             })
             ->delete();
         $this->activeDraftId = null;
@@ -4397,6 +4415,7 @@ class PayrollGeneration extends Component
             'statutory_contribution_details' => $row['statutory_contribution_details'],
             'tax' => $row['tax'],
             'program_deductions' => $row['program_deductions'],
+            'mandatory_program_deductions' => $row['mandatory_program_deductions'],
             'additional_premiums' => $row['additional_premiums'],
             'loan_deductions' => $row['loan_deductions'],
             'loan_refunds' => $row['loan_refunds'] ?? ['total' => 0],

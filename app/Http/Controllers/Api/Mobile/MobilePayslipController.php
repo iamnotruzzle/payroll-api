@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Mobile;
 
 use App\Models\Payroll\PayrollBatchRecord;
+use App\Services\Payroll\PayslipPrintService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\View\View;
 
@@ -40,23 +41,13 @@ class MobilePayslipController extends MobileController
         ]);
     }
 
-    public function print(int $recordId): View
+    public function print(int $recordId, PayslipPrintService $payslipPrint): View
     {
         $record = $this->ownedRecord($recordId);
-        $snapshot = $record->snapshot_json ?? [];
-
         return view('self-service.payslip-print', [
             'record' => $record,
             'batch' => $record->batch,
-            'snapshot' => $snapshot,
-            'employee' => $snapshot['employee'] ?? [],
-            'earnings' => $snapshot['earnings'] ?? [],
-            'statutory' => $snapshot['statutory_deductions'] ?? [],
-            'programs' => $snapshot['program_deductions'] ?? [],
-            'premiums' => $snapshot['additional_premiums'] ?? [],
-            'loans' => $snapshot['loan_deductions'] ?? [],
-            'tax' => $snapshot['tax'] ?? [],
-            'totals' => $snapshot['totals'] ?? [],
+            'pdfBase64' => base64_encode($payslipPrint->binary($record)),
             'backUrl' => '#',
         ]);
     }

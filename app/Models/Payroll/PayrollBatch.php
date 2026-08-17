@@ -13,6 +13,7 @@ class PayrollBatch extends Model
     protected $fillable = [
         'department_id',
         'division_id',
+        'configuration_key',
         'payroll_period',
         'payroll_type',
         'payroll_type_code',

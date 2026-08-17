@@ -4,6 +4,8 @@ namespace App\Livewire\Payroll;
 
 use App\Models\Hris\Employee;
 use App\Models\Hris\LeaveType;
+use App\Models\Hris\Department;
+use Illuminate\Support\Collection;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -11,6 +13,7 @@ use App\Models\Payroll\PayrollBatch;
 use App\Models\Payroll\PayrollBatchRecord;
 use App\Models\Payroll\PayrollGenerationDraft;
 use App\Models\Payroll\PayrollType;
+use App\Services\Payroll\RegularPayrollTemplateExportService;
 
 class PayrollHistory extends Component
 {
@@ -51,6 +54,15 @@ class PayrollHistory extends Component
     public function selectBatch(int $batchId): void
     {
         $this->selectedBatchId = $batchId;
+    }
+
+    public function exportSnapshot(int $batchId, RegularPayrollTemplateExportService $exporter)
+    {
+        $batch = PayrollBatch::query()->findOrFail($batchId);
+        $path = $exporter->exportSnapshot($batch);
+        $filename = 'MMMHMC_PAYROLL_SNAPSHOT_'.$batch->payroll_period.'_BATCH_'.$batch->id.'.xlsx';
+
+        return response()->download($path, $filename)->deleteFileAfterSend(true);
     }
 
     public function getSelectedBatchRecordsProperty()
@@ -114,7 +126,7 @@ class PayrollHistory extends Component
 
     public function getDraftsProperty()
     {
-        return PayrollGenerationDraft::query()
+        $draftIds = PayrollGenerationDraft::query()
             ->when(
                 $this->period,
                 fn ($q) => $q->where('payroll_period', $this->period)
@@ -137,7 +149,21 @@ class PayrollHistory extends Component
                 })
             )
             ->latest('saved_at')
-            ->paginate(10, ['*'], 'draftsPage');
+            ->paginate(10, ['id'], 'draftsPage');
+
+        $draftsById = PayrollGenerationDraft::query()
+            ->whereKey($draftIds->getCollection()->pluck('id'))
+            ->get()
+            ->keyBy('id');
+
+        $draftIds->setCollection(
+            $draftIds->getCollection()
+                ->map(fn (PayrollGenerationDraft $draft) => $draftsById->get($draft->id))
+                ->filter()
+                ->values()
+        );
+
+        return $draftIds;
     }
 
     public function continueDraft(int $draftId)
@@ -167,7 +193,7 @@ class PayrollHistory extends Component
         PayrollGenerationDraft::query()->whereKey($draftId)->delete();
     }
 
-    public function generationConfigurationFor(PayrollBatch $batch): array
+    public function generationConfigurationFor(PayrollBatch $batch, array $scope = []): array
     {
         $leaveTypeIds = $batch->included_leave_type_ids;
 
@@ -177,6 +203,8 @@ class PayrollHistory extends Component
             'working_days' => $batch->working_days,
             'gsis_days' => $batch->gsis_days,
             'employee_type' => $this->employeeTypeLabel($batch->employee_type),
+            'divisions' => $scope['divisions'] ?? 'Not recorded',
+            'departments' => $scope['departments'] ?? 'Not recorded',
             'leave_type_ids_recorded' => is_array($leaveTypeIds),
             'leave_types' => $this->includedLeaveTypeLabels(is_array($leaveTypeIds) ? $leaveTypeIds : null),
         ];
@@ -209,13 +237,18 @@ class PayrollHistory extends Component
         $drafts = $this->drafts;
         $records = $this->selectedBatchRecords;
         $selectedBatch = $this->selectedBatch;
+        $scopeBatches = $batches->getCollection();
+        if ($selectedBatch && ! $scopeBatches->contains('id', $selectedBatch->id)) {
+            $scopeBatches = $scopeBatches->push($selectedBatch);
+        }
+        $finalizedScopes = $this->finalizedScopesFor($scopeBatches);
         $selectedBatchConfiguration = $selectedBatch
-            ? $this->generationConfigurationFor($selectedBatch)
+            ? $this->generationConfigurationFor($selectedBatch, $finalizedScopes[$selectedBatch->id] ?? [])
             : null;
         $batchConfigurations = $batches
             ->getCollection()
             ->mapWithKeys(fn (PayrollBatch $batch) => [
-                $batch->id => $this->generationConfigurationFor($batch),
+                $batch->id => $this->generationConfigurationFor($batch, $finalizedScopes[$batch->id] ?? []),
             ])
             ->all();
         $draftConfigurations = $drafts
@@ -310,6 +343,49 @@ class PayrollHistory extends Component
         return $ids
             ->map(fn (int $id) => $labels[$id] ?? "Leave #{$id}")
             ->all();
+    }
+
+    private function finalizedScopesFor(Collection $batches): array
+    {
+        $batchIds = $batches->pluck('id')->filter()->values();
+        if ($batchIds->isEmpty()) {
+            return [];
+        }
+
+        $departmentIdsByBatch = PayrollBatchRecord::query()
+            ->whereIn('payroll_batch_id', $batchIds)
+            ->whereNotNull('department_id')
+            ->select(['payroll_batch_id', 'department_id'])
+            ->distinct()
+            ->get()
+            ->groupBy('payroll_batch_id')
+            ->map(fn (Collection $records) => $records->pluck('department_id')->map(fn ($id) => (int) $id));
+
+        $fallbackDepartmentIds = $batches
+            ->filter(fn (PayrollBatch $batch) => $batch->department_id)
+            ->mapWithKeys(fn (PayrollBatch $batch) => [$batch->id => collect([(int) $batch->department_id])]);
+
+        $allDepartmentIds = $departmentIdsByBatch
+            ->union($fallbackDepartmentIds)
+            ->flatten()
+            ->unique()
+            ->values();
+
+        $departments = Department::query()
+            ->with('division:division_id,division')
+            ->whereIn('department_id', $allDepartmentIds)
+            ->get(['department_id', 'department', 'division_id'])
+            ->keyBy('department_id');
+
+        return $batches->mapWithKeys(function (PayrollBatch $batch) use ($departmentIdsByBatch, $fallbackDepartmentIds, $departments) {
+            $ids = $departmentIdsByBatch->get($batch->id, $fallbackDepartmentIds->get($batch->id, collect()));
+            $scopeDepartments = $ids->map(fn (int $id) => $departments->get($id))->filter();
+
+            return [$batch->id => [
+                'divisions' => $scopeDepartments->pluck('division.division')->filter()->unique()->sort()->implode(', ') ?: 'Not recorded',
+                'departments' => $scopeDepartments->pluck('department')->filter()->unique()->sort()->implode(', ') ?: 'Not recorded',
+            ]];
+        })->all();
     }
 
     private function normalizedDraftIds(mixed $values): array

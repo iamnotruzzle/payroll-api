@@ -202,6 +202,19 @@ const initLauncherMotion = () => {
             }));
         });
 
+        launcher.querySelectorAll('[data-launcher-signal]').forEach((signal, index) => {
+            ambientAnimations.push(gsap.fromTo(signal, {
+                x: 0,
+            }, {
+                x: () => Math.max(0, signal.parentElement.clientWidth - signal.offsetWidth),
+                duration: 11 + (index * 2),
+                delay: index * 1.8,
+                repeat: -1,
+                repeatDelay: 1.4,
+                ease: 'none',
+            }));
+        });
+
         ambientAnimations.push(gsap.to('[data-launcher-haze]', {
             x: -16,
             y: 12,

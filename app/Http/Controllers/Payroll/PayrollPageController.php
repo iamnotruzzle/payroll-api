@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Hris\Employee;
 use App\Models\Payroll\PayrollBatchRecord;
 use App\Services\Payroll\DailyTimeRecordPrintService;
+use App\Services\Payroll\PayslipPrintService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -87,27 +88,17 @@ class PayrollPageController extends Controller
         return $dtrPrintService->pdfBulkResponse($payloads);
     }
 
-    public function historyPayslipPrint(int $recordId): View
+    public function historyPayslipPrint(int $recordId, PayslipPrintService $payslipPrint): View
     {
         $record = PayrollBatchRecord::query()
             ->with('batch')
             ->whereKey($recordId)
             ->firstOrFail();
 
-        $snapshot = $record->snapshot_json ?? [];
-
         return view('self-service.payslip-print', [
             'record' => $record,
             'batch' => $record->batch,
-            'snapshot' => $snapshot,
-            'employee' => $snapshot['employee'] ?? [],
-            'earnings' => $snapshot['earnings'] ?? [],
-            'statutory' => $snapshot['statutory_deductions'] ?? [],
-            'programs' => $snapshot['program_deductions'] ?? [],
-            'premiums' => $snapshot['additional_premiums'] ?? [],
-            'loans' => $snapshot['loan_deductions'] ?? [],
-            'tax' => $snapshot['tax'] ?? [],
-            'totals' => $snapshot['totals'] ?? [],
+            'pdfBase64' => base64_encode($payslipPrint->binary($record)),
             'backUrl' => route('payroll.history'),
         ]);
     }

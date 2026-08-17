@@ -196,14 +196,16 @@ Authentication surfaces use gently rounded rectangles with no pill-shaped primar
 
 The `/home` surface extends the authentication entry system into a permission-aware application launcher. This boundary applies only to launcher mode; authenticated module pages, sidebars, tables, and workflows retain their existing product-shell rules.
 
-**Creative North Star: “The Calm Work Index.”** The launcher should feel like a precise institutional directory rather than a dashboard or consumer app grid. One large workspace heading establishes place, role-based groups make scanning predictable, and editorial tiles give each permitted module enough context to choose confidently.
+**Creative North Star: “The Clinical Command Index.”** The launcher should feel like a precise institutional control surface rather than a dashboard or consumer app grid. One compact workspace frame establishes place, role-based groups make scanning predictable, and technical launch rows give each permitted module enough context to choose confidently.
 
 - **Grouping:** My Workspace contains employee self-service; Workforce Operations contains people, time, leave, development, and payroll tools; Administration contains configuration and access tools. Empty groups are removed after permission filtering.
 - **Hierarchy:** Self Service spans the full desktop row as the employee anchor. Operational applications use equal compact launch rows so the complete permission set remains visible without scrolling on standard desktop viewports.
 - **Palette:** Institutional Blue and cool blue-neutral tonal variants are the only launcher accents. Module identity comes from typography, position, and subtle tonal variation—not a rainbow icon palette.
-- **Tile behavior:** Module name is primary, icon is secondary, and a reserved description region prevents layout shift. Descriptions reveal on mouse hover and keyboard focus on desktop, and remain visible on touch and narrow layouts.
+- **Tile behavior:** Module name is primary, icon is secondary, and a one-line description sits under the name so every tile has a readable caption. Long copy truncates with an ellipsis. Taller stacked cards on touch and narrow layouts wrap the full description. The trailing arrow sits optically centered in its square.
 - **Availability:** Unfinished modules include a written “Coming soon” state plus a neutral status dot; availability never relies on color alone.
 - **Atmosphere:** A quiet cool surface replaces the old grid field. Two geometric orbital points revolve over 60–72 seconds, with all automatic motion paused in hidden tabs and disabled for reduced-motion preferences.
+- **Technical detailing:** Sparse axes, calibration marks, connection nodes, corner brackets, and signal rails create clinical-command precision without introducing fake telemetry, decorative grid fields, or a second accent color.
+- **Interaction material:** Tiles remain neutral at rest. Hover and keyboard focus introduce a module-toned wash, one short signal sweep, stronger corner registration, and a restrained two-pixel lift; pressed state settles the surface back into place.
 - **Responsive grid:** Four compact columns on wide desktops, two columns at tablet widths, and one column on phones. At 900px and above the launcher fits the working viewport; narrower layouts return to natural document scrolling so text and touch targets remain comfortable.
 - **Shape and interaction:** Launcher tiles use the established 1rem surface radius. Hover, focus, and press feedback stays within 220–300ms, with a clearly offset keyboard focus ring.
 

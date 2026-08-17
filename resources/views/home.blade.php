@@ -6,14 +6,24 @@
             <span class="erp-launcher-orbit erp-launcher-orbit--outer" data-launcher-orbit><i></i></span>
             <span class="erp-launcher-orbit erp-launcher-orbit--inner" data-launcher-orbit><i></i></span>
             <span class="erp-launcher-haze" data-launcher-haze></span>
+            <span class="erp-launcher-axis erp-launcher-axis--horizontal"></span>
+            <span class="erp-launcher-axis erp-launcher-axis--vertical"></span>
+            <span class="erp-launcher-calibration"></span>
         </div>
 
         <header class="erp-launcher-intro" data-launcher-intro>
-            <h1>Your workspace</h1>
-            <p>
-                Choose an application to continue{{ $employeeName ? ', '.$employeeName : '' }}.
-                Your access follows your assigned role and permissions.
-            </p>
+            <div class="erp-launcher-intro-copy">
+                <h1>Your workspace</h1>
+                <p>
+                    Choose an application to continue{{ $employeeName ? ', '.$employeeName : '' }}.
+                    Your access follows your assigned role and permissions.
+                </p>
+            </div>
+            <div class="erp-launcher-access-note" aria-label="Secure role-based access">
+                <span aria-hidden="true"></span>
+                <strong>Secure access</strong>
+                <small>Role-based workspace</small>
+            </div>
         </header>
 
         <div class="erp-launcher-groups">
@@ -22,6 +32,7 @@
                     <header class="erp-launcher-group-heading">
                         <h2 id="launcher-group-{{ $group['key'] }}">{{ $group['label'] }}</h2>
                         <p>{{ $group['description'] }}</p>
+                        <span class="erp-launcher-signal-track" aria-hidden="true"><i data-launcher-signal></i></span>
                     </header>
 
                     <div class="erp-launcher-grid">
@@ -35,8 +46,9 @@
                                 data-module="{{ $module['key'] }}"
                                 data-launcher-card
                                 aria-describedby="launcher-description-{{ $module['key'] }}"
-                                title="{{ $isAvailable ? 'Open '.$module['label'] : $module['label'].' (module under construction)' }}"
+                                title="{{ $isAvailable ? $module['label'].' — '.$module['description'] : $module['label'].' (module under construction)' }}"
                             >
+                                <span class="erp-launcher-card-corners" aria-hidden="true"></span>
                                 <span class="erp-launcher-card-topline">
                                     <span class="erp-launcher-icon" aria-hidden="true">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -55,7 +67,7 @@
                                 </span>
 
                                 <span class="erp-launcher-card-action" aria-hidden="true">
-                                    {{ $isAvailable ? 'Open application' : 'View status' }}
+                                    <span class="erp-launcher-card-action-label">{{ $isAvailable ? 'Open application' : 'View status' }}</span>
                                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M4 10h11M11 6l4 4-4 4" />
                                     </svg>

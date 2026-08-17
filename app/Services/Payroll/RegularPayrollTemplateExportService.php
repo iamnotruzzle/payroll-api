@@ -2,7 +2,10 @@
 
 namespace App\Services\Payroll;
 
+use App\Models\Hris\Employee;
+use App\Models\Payroll\PayrollBatch;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -61,6 +64,36 @@ class RegularPayrollTemplateExportService
 
     private const ADDITIONAL_PREMIUM_COLUMN = 'EN';
 
+    private const SNAPSHOT_LOAN_AMOUNT_COLUMNS = [
+        'gsis_emergency' => 'BY',
+        'gsis_computer' => 'CC',
+        'gsis_conso' => 'CG',
+        'gsis_policy' => 'CK',
+        'gsis_optional' => 'CO',
+        'gsis_uoli' => 'CO',
+        'gsis_housing' => 'CS',
+        'gsis_gfal' => 'CW',
+        'gsis_gsel' => 'DA',
+        'gsis_gbel' => 'DE',
+        'gsis_mpl' => 'DI',
+        'gsis_mpl_lite' => 'DM',
+        'pagibig_mpl' => 'DR',
+        'pagibig_calamity' => 'DV',
+        'pagibig_mp2' => 'DZ',
+        'pagibig_mp2_a' => 'DZ',
+        'pagibig_mp2_b' => 'ED',
+        'pagibig_mp2_c' => 'EH',
+        'pagibig_mp2_d' => 'EL',
+        'dbp' => 'EQ',
+        'lbp' => 'EU',
+        'ucpb' => 'EY',
+        'ucpb_w1' => 'EY',
+        'ucpb_w2' => 'FC',
+        'coco' => 'FH',
+        'mmmh_coop' => 'FH',
+        'other_loans' => 'FG',
+    ];
+
     public function export(Collection $rows, Collection $compensations, Collection $deductionPrograms, string $period): string
     {
         if ($rows->isEmpty()) {
@@ -85,6 +118,291 @@ class RegularPayrollTemplateExportService
         (new Xlsx($spreadsheet))->save($path);
 
         return $path;
+    }
+
+    public function exportSnapshot(PayrollBatch $batch): string
+    {
+        $records = $batch->records()->orderBy('id')->get();
+        if ($records->isEmpty()) {
+            throw new InvalidArgumentException('This payroll snapshot has no employee records to export.');
+        }
+
+        $employees = collect();
+        if (Schema::connection('hris')->hasTable('tbl_employee')) {
+            $employees = Employee::query()
+                ->with(['department:department_id,department,division_id', 'department.division:division_id,division'])
+                ->whereIn('emp_id', $records->pluck('emp_id')->filter()->all())
+                ->get(['emp_id', 'department_id', 'tin_no', 'gsis_no', 'phic_no', 'pagibig_no'])
+                ->keyBy('emp_id');
+        }
+
+        $rows = $records->map(function ($record) use ($employees) {
+            $snapshot = $record->snapshot_json ?? [];
+            $employeeSnapshot = $snapshot['employee'] ?? [];
+            $payBasis = $snapshot['pay_basis'] ?? [];
+            $earnings = $snapshot['earnings'] ?? [];
+            $totals = $snapshot['totals'] ?? [];
+            $employee = $employees->get($record->emp_id);
+
+            return [
+                'emp_id' => $employeeSnapshot['emp_id'] ?? $record->emp_id,
+                'division' => $employee?->department?->division?->division,
+                'department' => $employeeSnapshot['department'] ?? $employee?->department?->department,
+                'tin_no' => $employee?->tin_no,
+                'fund_type' => null,
+                'gsis_no' => $employee?->gsis_no,
+                'phic_no' => $employee?->phic_no,
+                'hdmf_no' => $employee?->pagibig_no,
+                'employee_name' => $employeeSnapshot['employee_name'] ?? $record->emp_id,
+                'position' => $employeeSnapshot['position'] ?? null,
+                'salary_grade' => $employeeSnapshot['salary_grade'] ?? $payBasis['salary_grade'] ?? null,
+                'step' => $employeeSnapshot['step'] ?? $payBasis['step'] ?? null,
+                'deduction_days' => $payBasis['deduction_days'] ?? 0,
+                'leave_deduction' => $payBasis['leave_deduction'] ?? [],
+                'basic_salary' => $earnings['basic_salary'] ?? 0,
+                'compensations' => $earnings['compensations'] ?? [],
+                'compensation_adjustments' => $earnings['adjustments'] ?? [],
+                'statutory_deductions' => $snapshot['statutory_deductions'] ?? [],
+                'statutory_government_shares' => $snapshot['statutory_government_shares'] ?? [],
+                'mandatory_deduction_adjustments' => $snapshot['mandatory_deduction_adjustments'] ?? [],
+                'mandatory_program_deductions' => $snapshot['mandatory_program_deductions'] ?? ['items' => [], 'total' => 0],
+                'tax' => $snapshot['tax'] ?? [],
+                'loan_deductions' => $snapshot['loan_deductions'] ?? ['columns' => [], 'total' => 0],
+                'program_deductions' => $snapshot['program_deductions'] ?? ['items' => [], 'total' => 0],
+                'additional_premiums' => $snapshot['additional_premiums'] ?? ['items' => [], 'total' => 0],
+                'gross' => $earnings['gross'] ?? $totals['gross'] ?? $record->gross,
+                'net_compensation' => $earnings['net_compensation'] ?? $totals['net_compensation'] ?? 0,
+                'total_mandatory_deductions' => $totals['total_mandatory_deductions'] ?? 0,
+                'net_before_other_deductions' => $totals['net_before_other_deductions'] ?? 0,
+                'total_other_deductions' => $totals['total_other_deductions'] ?? 0,
+                'net_after_tax' => $totals['net_after_tax'] ?? 0,
+                'net_after_program_deductions' => $totals['net_after_program_deductions'] ?? 0,
+                'net_after_additional_premiums' => $totals['net_after_additional_premiums'] ?? 0,
+                'net_after_loan_deductions' => $totals['net_after_loan_deductions'] ?? $record->net,
+                'fifteenth' => $totals['fifteenth'] ?? $record->fifteenth,
+                'thirtieth' => $totals['thirtieth'] ?? $record->thirtieth,
+            ];
+        });
+
+        return $this->exportWorkbookAlignedSnapshot($rows, $batch->payroll_period);
+    }
+
+    private function exportWorkbookAlignedSnapshot(Collection $rows, string $period): string
+    {
+        $layout = $this->snapshotLayout();
+        $path = $layout['template_path'];
+        if (! is_file($path)) {
+            throw new InvalidArgumentException("Payroll snapshot template not found at {$path}.");
+        }
+
+        $spreadsheet = IOFactory::load($path);
+        $sheet = $spreadsheet->getSheetByName($layout['sheet']) ?? $spreadsheet->getActiveSheet();
+        $sheet->setTitle($layout['sheet']);
+        $this->prepareSnapshotRows($sheet, $rows->count(), $layout['first_data_row']);
+        $this->fillSnapshotRows($sheet, $rows, $layout['first_data_row']);
+
+        $lastRow = $layout['first_data_row'] + $rows->count() - 1;
+        if ($layout['print_area_last_column'] !== null) {
+            $sheet->getPageSetup()->setPrintArea("A1:{$layout['print_area_last_column']}{$lastRow}");
+        }
+        $sheet->setSelectedCell('A1');
+        $spreadsheet->setActiveSheetIndex($spreadsheet->getIndex($sheet));
+        $spreadsheet->getProperties()
+            ->setTitle('MMMHMC Payroll Snapshot '.$period)
+            ->setSubject('Workbook-aligned finalized payroll snapshot')
+            ->setCreator(config('app.name', 'Payroll API'));
+
+        $target = sys_get_temp_dir().DIRECTORY_SEPARATOR.'MMMHMC_PAYROLL_SNAPSHOT_'.$period.'_'.now()->format('Ymd_His').'.xlsx';
+        (new Xlsx($spreadsheet))->save($target);
+
+        return $target;
+    }
+
+    private function snapshotLayout(): array
+    {
+        return [
+            'template_path' => (string) config('payroll.snapshot_template_path'),
+            'sheet' => 'allied',
+            'first_data_row' => 5,
+            'print_area_last_column' => null,
+        ];
+    }
+
+    private function prepareSnapshotRows(Worksheet $sheet, int $rowCount, int $firstDataRow): void
+    {
+        $height = $sheet->getRowDimension($firstDataRow)->getRowHeight();
+        $lastDataRow = $firstDataRow + $rowCount - 1;
+
+        foreach ($this->snapshotStyledColumns() as $column) {
+            $style = $sheet->getStyle("{$column}{$firstDataRow}")->exportArray();
+            $sheet->getStyle("{$column}{$firstDataRow}:{$column}{$lastDataRow}")->applyFromArray($style);
+        }
+
+        for ($offset = 0; $offset < $rowCount; $offset++) {
+            $row = $firstDataRow + $offset;
+            $sheet->getRowDimension($row)->setRowHeight($height);
+            $sheet->getRowDimension($row)->setVisible(true);
+        }
+    }
+
+    private function snapshotStyledColumns(): array
+    {
+        $mapped = preg_split('/\s+/', trim(<<<'COLUMNS'
+            A B C D G H I J K P Q R S T U V W X Y Z AE AF AG AI AJ AL AM AO AP AR AS
+            AU AV AW AX AY AZ BB BC BD BE BF BG BH BI BJ BL BM BN BO BP BQ BR BS BT
+            FJ FK FL FM FO GB GC GD GE GF GG GH GM GN GO GP GQ GS GT GU
+            IE IG IH IJ IK IL IM IP IR IS IU IV IW IX IY
+            JD JE JF JG JH JI JJ JL JM JN JO JP JQ JR JS JT JU JV JW JX JY JZ KA KB KC KD KE KG
+            COLUMNS));
+
+        return array_values(array_unique(array_merge($mapped, array_values(self::SNAPSHOT_LOAN_AMOUNT_COLUMNS))));
+    }
+
+    private function fillSnapshotRows(Worksheet $sheet, Collection $rows, int $firstDataRow): void
+    {
+        foreach ($rows->values() as $index => $row) {
+            $excelRow = $firstDataRow + $index;
+            $leave = $row['leave_deduction'] ?? [];
+            $statutory = $row['statutory_deductions'] ?? [];
+            $shares = $row['statutory_government_shares'] ?? [];
+            $adjustments = $row['compensation_adjustments'] ?? [];
+            $mandatoryAdjustments = $row['mandatory_deduction_adjustments']['items'] ?? [];
+            $mandatoryPrograms = collect($row['mandatory_program_deductions']['items'] ?? []);
+            $programs = collect($row['program_deductions']['items'] ?? []);
+            $tax = $row['tax'] ?? [];
+            $basicBreakdown = $tax['tax_on_basic_breakdown'] ?? [];
+            $hazardBreakdown = $tax['tax_on_hazard_breakdown'] ?? [];
+            $subsistence = $this->compensationAmount($row, ['subsistence']);
+            $laundry = $this->compensationAmount($row, ['laundry']);
+            $pera = $this->compensationAmount($row, ['pera', 'personal economic relief']);
+            $hazard = $this->hazardAmount($row);
+            $loans = $row['loan_deductions']['columns'] ?? [];
+
+            $this->setCells($sheet, $excelRow, [
+                'A' => $index + 1,
+                'B' => $row['emp_id'] ?? null,
+                'C' => $row['division'] ?? null,
+                'D' => $row['department'] ?? null,
+                'G' => $row['tin_no'] ?? null,
+                'H' => $row['fund_type'] ?? null,
+                'I' => $row['gsis_no'] ?? null,
+                'J' => $row['phic_no'] ?? null,
+                'K' => $row['hdmf_no'] ?? null,
+                'P' => $row['employee_name'] ?? null,
+                'Q' => $row['position'] ?? null,
+                'R' => $row['salary_grade'] ?? null,
+                'S' => $row['step'] ?? null,
+                'T' => implode(', ', $leave['periods'] ?? []),
+                'U' => $this->nonZero($leave['leave_without_pay_days'] ?? $leave['lwop_days'] ?? 0),
+                'V' => $this->nonZero($leave['unauthorized_days'] ?? 0),
+                'W' => $this->nonZero($leave['tev_days'] ?? 0),
+                'X' => implode(', ', $leave['periods'] ?? []),
+                'Y' => $this->nonZero($leave['working_days'] ?? 0),
+                'Z' => $this->nonZero($leave['calendar_days'] ?? 0),
+                'AE' => $this->nonZero($leave['paid_days'] ?? 0),
+                'AF' => $this->nonZero($leave['gsis_days'] ?? 0),
+                'AG' => $this->money($tax['salary'] ?? $row['basic_salary'] ?? 0),
+                'AI' => $this->money($row['basic_salary'] ?? 0),
+                'AJ' => $this->money($row['basic_salary'] ?? 0),
+                'AL' => $subsistence,
+                'AM' => $subsistence,
+                'AO' => $laundry,
+                'AP' => $laundry,
+                'AR' => $pera,
+                'AS' => $pera,
+                'AU' => $this->money($adjustments['basic_salary'] ?? 0),
+                'AV' => $this->money($adjustments['subsistence'] ?? 0),
+                'AW' => $this->money($adjustments['laundry'] ?? 0),
+                'AX' => $this->money($adjustments['pera'] ?? 0),
+                'AY' => $adjustments['remarks'] ?? null,
+                'AZ' => $this->money($row['net_compensation'] ?? $row['gross'] ?? 0),
+                'BB' => $this->money($statutory['life_retirement'] ?? 0),
+                'BC' => $this->money($shares['government_life_retirement'] ?? 0),
+                'BD' => $this->money($shares['ec'] ?? 0),
+                'BE' => $this->money($statutory['phic'] ?? 0),
+                'BF' => $this->money($shares['government_phic'] ?? 0),
+                'BG' => $this->money($statutory['mandatory_pagibig'] ?? 0),
+                'BH' => $this->programAmount($mandatoryPrograms, ['hdmf ps 2 ms', 'hdmf (ps) 2 ms']) ?: $this->money($statutory['hdmf_ps_2_ms'] ?? 0),
+                'BI' => $this->money($shares['government_pagibig'] ?? 0),
+                'BJ' => $this->programAmount($mandatoryPrograms, ['ea deduction']) ?: $this->money($statutory['ea_deduction'] ?? 0),
+                'BL' => $this->money($mandatoryAdjustments['life_retirement'] ?? 0),
+                'BM' => $this->money($mandatoryAdjustments['government_life_retirement'] ?? 0),
+                'BN' => $this->money($mandatoryAdjustments['ec'] ?? 0),
+                'BO' => $this->money($mandatoryAdjustments['phic'] ?? 0),
+                'BP' => $this->money($mandatoryAdjustments['government_phic'] ?? 0),
+                'BQ' => $this->money($mandatoryAdjustments['mandatory_pagibig'] ?? 0),
+                'BR' => $this->money($mandatoryAdjustments['government_pagibig'] ?? 0),
+                'BS' => $this->money($mandatoryAdjustments['ea_deduction'] ?? 0),
+                'BT' => $this->money($row['total_mandatory_deductions'] ?? 0),
+                'FJ' => $this->programAmount($programs, ['death aid']),
+                'FK' => $this->programAmount($programs, ['penalty bac', 'bac']),
+                'FL' => $this->programAmount($programs, ['longevity']),
+                'FM' => $this->programAmount($programs, ['mmsu']),
+                'FO' => $this->money($row['total_other_deductions'] ?? 0),
+                'GB' => max(0, $this->money(($row['net_compensation'] ?? 0) - ($tax['monthly_taxable_income'] ?? 0))),
+                'GC' => $this->money($tax['monthly_taxable_income'] ?? 0),
+                'GD' => $this->money($tax['withholding_tax_gross'] ?? $tax['tax_on_basic'] ?? 0),
+                'GE' => $this->money($tax['withholding_tax_adjustment'] ?? $tax['tax_adjustment'] ?? 0),
+                'GF' => $this->money($row['net_after_loan_deductions'] ?? 0),
+                'GG' => $this->money($row['fifteenth'] ?? 0),
+                'GH' => $this->money($row['thirtieth'] ?? 0),
+                'GM' => $this->money($tax['salary'] ?? $row['basic_salary'] ?? 0),
+                'GN' => $this->hazardPercent($row),
+                'GO' => $hazard,
+                'GP' => $this->money($tax['hazard_adjustment'] ?? 0),
+                'GQ' => $hazard,
+                'GS' => $this->money($tax['current_hazard_tax_due'] ?? $tax['tax_on_hazard'] ?? 0),
+                'GT' => $this->money($tax['hazard_tax_adjustment'] ?? 0),
+                'GU' => $this->money($hazard - ($tax['tax_on_hazard'] ?? 0)),
+                'IE' => $this->money($tax['monthly_taxable_income'] ?? 0),
+                'IG' => $this->money($basicBreakdown['compensation_level'] ?? $basicBreakdown['base'] ?? 0),
+                'IH' => $this->money($basicBreakdown['excess'] ?? 0),
+                'IJ' => $this->money($basicBreakdown['fixed_tax'] ?? $basicBreakdown['base_tax'] ?? 0),
+                'IK' => $this->money($basicBreakdown['excess_tax'] ?? 0),
+                'IL' => $this->money($tax['tax_on_basic'] ?? 0),
+                'IM' => $this->money($tax['tax_adjustment'] ?? 0),
+                'IP' => $this->money($tax['monthly_taxable_income_with_hazard'] ?? 0),
+                'IR' => $this->money($hazardBreakdown['compensation_level'] ?? $hazardBreakdown['base'] ?? 0),
+                'IS' => $this->money($hazardBreakdown['excess'] ?? 0),
+                'IU' => $this->money($hazardBreakdown['fixed_tax'] ?? $hazardBreakdown['base_tax'] ?? 0),
+                'IV' => $this->money($hazardBreakdown['excess_tax'] ?? 0),
+                'IW' => $this->money(($tax['tax_on_basic'] ?? 0) + ($tax['tax_on_hazard'] ?? 0)),
+                'IX' => $this->money($tax['tax_on_basic'] ?? 0),
+                'IY' => $this->money($tax['tax_on_hazard'] ?? 0),
+                'JD' => $tax['future_months'] ?? null,
+                'JE' => $tax['annualization_leave_without_pay_months'] ?? null,
+                'JF' => $tax['hazard_subsistence_deduction_months'] ?? null,
+                'JG' => $this->money($tax['previous_basic'] ?? 0), 'JH' => $this->money($tax['current_basic'] ?? 0),
+                'JI' => $this->money($tax['future_basic'] ?? 0), 'JJ' => $this->money($tax['total_basic'] ?? 0),
+                'JL' => $this->money($tax['previous_hazard'] ?? 0), 'JM' => $this->money($tax['current_hazard'] ?? 0),
+                'JN' => $this->money($tax['future_hazard'] ?? 0), 'JO' => $this->money($tax['total_hazard'] ?? 0),
+                'JP' => $this->money($tax['previous_subsistence'] ?? 0), 'JQ' => $this->money($tax['current_subsistence'] ?? 0),
+                'JR' => $this->money($tax['future_subsistence'] ?? 0), 'JS' => $this->money($tax['total_subsistence'] ?? 0),
+                'JT' => $this->money($tax['previous_mandatory_deductions'] ?? 0), 'JU' => $this->money($tax['current_mandatory_deductions'] ?? 0),
+                'JV' => $this->money($tax['future_mandatory_deductions'] ?? 0), 'JW' => $this->money($tax['annual_mandatory_deductions'] ?? 0),
+                'JX' => $this->money($tax['monthly_withholding_taxable_income'] ?? $tax['monthly_taxable_income'] ?? 0),
+                'JY' => $this->money($tax['annual_taxable_income'] ?? 0), 'JZ' => $this->money($tax['annual_tax_due'] ?? 0),
+                'KA' => $this->money($tax['previous_tax_withheld'] ?? 0), 'KB' => $this->money($tax['current_tax_withheld'] ?? 0),
+                'KC' => $this->money($tax['future_tax_withheld'] ?? 0), 'KD' => $this->money($tax['total_tax_withheld'] ?? 0),
+                'KE' => $this->money($tax['under_over_withheld'] ?? 0), 'KG' => $this->money($tax['monthly_tax_due'] ?? 0),
+            ]);
+
+            $this->setSnapshotLoanCells($sheet, $excelRow, $loans);
+        }
+    }
+
+    private function setSnapshotLoanCells(Worksheet $sheet, int $row, array $loans): void
+    {
+        $amounts = [];
+        foreach (self::SNAPSHOT_LOAN_AMOUNT_COLUMNS as $key => $column) {
+            $amount = $this->money($loans[$key] ?? 0);
+            if ($amount !== 0.0) {
+                $amounts[$column] = round(($amounts[$column] ?? 0) + $amount, 2);
+            }
+        }
+        foreach ($amounts as $column => $amount) {
+            $sheet->setCellValue("{$column}{$row}", $amount);
+        }
     }
 
     private function loadTemplate(): Spreadsheet
@@ -137,6 +455,7 @@ class RegularPayrollTemplateExportService
             $programs = collect($row['program_deductions']['items'] ?? []);
             $mandatoryPrograms = collect($row['mandatory_program_deductions']['items'] ?? []);
             $adjustments = $row['compensation_adjustments'] ?? [];
+            $mandatoryAdjustments = $row['mandatory_deduction_adjustments']['items'] ?? [];
             $totalOtherDeductions = $row['total_other_deductions']
                 ?? (($row['program_deductions']['total'] ?? 0) + ($row['additional_premiums']['total'] ?? 0) + ($row['loan_deductions']['total'] ?? 0));
 
@@ -180,15 +499,15 @@ class RegularPayrollTemplateExportService
                 'AU' => $this->money($governmentShares['government_pagibig'] ?? 0),
                 'AV' => $this->programAmount($mandatoryPrograms, ['ea deduction'])
                     ?: $this->money($statutory['ea_deduction'] ?? 0),
-                'AW' => 0,
-                'AX' => 0,
-                'AY' => 0,
-                'AZ' => 0,
-                'BA' => 0,
-                'BB' => 0,
-                'BC' => 0,
-                'BD' => 0,
-                'BE' => "=ROUND(SUM(AN{$excelRow}:AV{$excelRow})+SUM(AW{$excelRow}:BD{$excelRow}),2)",
+                'AW' => $this->money($mandatoryAdjustments['life_retirement'] ?? 0),
+                'AX' => $this->money($mandatoryAdjustments['government_life_retirement'] ?? 0),
+                'AY' => $this->money($mandatoryAdjustments['ec'] ?? 0),
+                'AZ' => $this->money($mandatoryAdjustments['phic'] ?? 0),
+                'BA' => $this->money($mandatoryAdjustments['government_phic'] ?? 0),
+                'BB' => $this->money($mandatoryAdjustments['mandatory_pagibig'] ?? 0),
+                'BC' => $this->money($mandatoryAdjustments['government_pagibig'] ?? 0),
+                'BD' => $this->money($mandatoryAdjustments['ea_deduction'] ?? 0),
+                'BE' => $this->money($row['total_mandatory_deductions'] ?? 0),
                 'EK' => $this->programAmount($programs, ['death aid']),
                 'EL' => $this->programAmount($programs, ['penalty bac', 'bac']),
                 'EM' => $this->programAmount($programs, ['mmsu']),

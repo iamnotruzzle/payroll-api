@@ -10,6 +10,25 @@ use Tests\TestCase;
 
 class RegularPayrollTemplateExportServiceTest extends TestCase
 {
+    public function test_snapshot_template_preserves_the_allied_workbook_layout(): void
+    {
+        $sheet = IOFactory::load(config('payroll.snapshot_template_path'))->getSheetByName('allied');
+
+        $this->assertNotNull($sheet);
+        $this->assertSame('GROSS COMPENSATION', (string) $sheet->getCell('AJ1')->getValue());
+        $this->assertSame('MANDATORY DEDUCTIONS', (string) $sheet->getCell('BB1')->getValue());
+        $this->assertSame('OTHER DEDCUTIONS', (string) $sheet->getCell('BV1')->getValue());
+        $this->assertSame('TAX ON BASIC', (string) $sheet->getCell('IE1')->getValue());
+        $this->assertSame('TAX ON HAZARD', (string) $sheet->getCell('IP1')->getValue());
+        $this->assertSame('ANNUALIZATION', (string) $sheet->getCell('JB1')->getValue());
+        $this->assertSame('EMP NO.', (string) $sheet->getCell('B3')->getValue());
+        $this->assertSame('TOTAL MANDATORY DEDCUTIONS', (string) $sheet->getCell('BT3')->getValue());
+        $this->assertSame(14.0, $sheet->getStyle('A3')->getFont()->getSize());
+        $this->assertSame('Arial Narrow', $sheet->getStyle('A3')->getFont()->getName());
+        $this->assertSame(93.0, $sheet->getRowDimension(3)->getRowHeight());
+        $this->assertSame(30.0, $sheet->getRowDimension(5)->getRowHeight());
+    }
+
     public function test_it_exports_review_table_statutory_tax_loan_and_split_pay_values(): void
     {
         Config::set('database.connections.payroll', [
@@ -34,7 +53,8 @@ class RegularPayrollTemplateExportServiceTest extends TestCase
             $this->assertSame(25.0, $sheet->getCell('AT7')->getValue());
             $this->assertSame(200.66, $sheet->getCell('AU7')->getValue());
             $this->assertSame(50.0, $sheet->getCell('AV7')->getValue());
-            $this->assertSame(0, $sheet->getCell('AW7')->getValue());
+            $this->assertSame(10.0, $sheet->getCell('AW7')->getValue());
+            $this->assertSame(5763.0, $sheet->getCell('BE7')->getValue());
             $this->assertSame(55.55, $sheet->getCell('EN7')->getValue());
             $this->assertSame(265.65, $sheet->getCell('EO7')->getValue());
             $this->assertSame(1234.56, $sheet->getCell('EV7')->getValue());
