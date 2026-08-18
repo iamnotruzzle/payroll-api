@@ -37,11 +37,37 @@
         @unless($isLauncher)
             x-data="{
                 sidebarOpen: localStorage.getItem('erp-sidebar-open') !== 'false',
+                appGridOpen: false,
+                appGridReturnFocus: null,
                 toggleSidebar() {
                     this.sidebarOpen = ! this.sidebarOpen;
                     localStorage.setItem('erp-sidebar-open', this.sidebarOpen ? 'true' : 'false');
+                },
+                openAppGrid() {
+                    this.appGridReturnFocus = document.activeElement;
+                    this.appGridOpen = true;
+                    this.$nextTick(() => this.$refs.appGridClose?.focus());
+                },
+                closeAppGrid() {
+                    this.appGridOpen = false;
+                    this.$nextTick(() => (this.appGridReturnFocus || this.$refs.appGridTrigger)?.focus());
+                },
+                trapAppGridFocus(event) {
+                    if (! this.appGridOpen || ! this.$refs.appGridPanel) return;
+                    const focusable = [...this.$refs.appGridPanel.querySelectorAll('a[href], button:not([disabled])')];
+                    if (focusable.length === 0) return;
+                    const first = focusable[0];
+                    const last = focusable[focusable.length - 1];
+                    if (event.shiftKey && document.activeElement === first) {
+                        event.preventDefault();
+                        last.focus();
+                    } else if (! event.shiftKey && document.activeElement === last) {
+                        event.preventDefault();
+                        first.focus();
+                    }
                 }
             }"
+            x-on:keydown.alt.a.window.prevent="if (! appGridOpen) openAppGrid()"
             :class="sidebarOpen ? 'lg:grid-cols-[248px_minmax(0,1fr)]' : 'lg:grid-cols-[minmax(0,1fr)]'"
         @endunless
         class="{{ $isLauncher ? 'erp-launcher-scene min-h-screen' : 'erp-app-shell min-h-screen lg:grid' }}"
@@ -61,14 +87,22 @@
                         </div>
 
                         <div class="erp-sidebar-home border-b px-3 py-3">
-                            <a href="{{ route('home') }}" class="erp-nav-link erp-nav-link-depth-1 {{ request()->routeIs('home') ? 'erp-nav-link-active' : '' }}">
+                            <button
+                                type="button"
+                                class="erp-nav-link erp-nav-link-depth-1 w-full"
+                                x-on:click="openAppGrid()"
+                                :aria-expanded="appGridOpen.toString()"
+                                aria-haspopup="dialog"
+                                title="Open app grid (Alt+A)"
+                            >
                                 <span class="erp-nav-item-icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="{{ $icons['grid'] }}"></path>
                                     </svg>
                                 </span>
                                 <span class="truncate font-semibold">All Apps</span>
-                            </a>
+                                <kbd class="erp-app-grid-shortcut">Alt A</kbd>
+                            </button>
                         </div>
                     </div>
 
@@ -169,11 +203,20 @@
 
                     <div class="flex items-center gap-3 text-right">
                         @unless ($isLauncher)
-                            <a href="{{ route('home') }}" class="erp-theme-toggle hidden sm:grid" title="All apps" aria-label="All apps">
+                            <button
+                                x-ref="appGridTrigger"
+                                type="button"
+                                class="erp-theme-toggle grid"
+                                x-on:click="openAppGrid()"
+                                :aria-expanded="appGridOpen.toString()"
+                                aria-haspopup="dialog"
+                                title="Open app grid (Alt+A)"
+                                aria-label="Open app grid"
+                            >
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                                     <path d="{{ $icons['grid'] }}"></path>
                                 </svg>
-                            </a>
+                            </button>
                         @endunless
                         <button type="button" class="erp-theme-toggle" data-theme-toggle aria-label="Switch to dark mode" title="Switch theme">
                             <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
@@ -239,6 +282,10 @@
                 {{ $slot }}
             </main>
         </section>
+
+        @unless ($isLauncher)
+            <x-app-grid-modal />
+        @endunless
     </div>
 
     @livewireScripts

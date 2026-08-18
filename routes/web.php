@@ -65,7 +65,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/setup/salary-schedules', [SetupPageController::class, 'salarySchedules'])->name('setup.salary-schedules');
     Route::get('/setup/plantilla', [SetupPageController::class, 'plantilla'])->name('setup.plantilla');
 
-    Route::middleware('permission:self-service.dtr|self-service.access')->group(function () {
+    Route::middleware('role:super-admin')->group(function () {
         Route::get('/time-punch', [TimePunchController::class, 'index'])->name('time-punch.index');
         Route::post('/time-punch', [TimePunchController::class, 'store'])->name('time-punch.store');
     });

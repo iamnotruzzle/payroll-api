@@ -4269,3 +4269,384 @@ html[data-theme="dark"] .payroll-generation-step .bg-amber-100 {
         transition-duration: .01ms !important;
     }
 }
+
+/* Navbar quick launcher: a focused desktop-style glass app grid. */
+html.erp-app-grid-open,
+html.erp-app-grid-open body {
+    overflow: hidden;
+}
+
+.erp-app-grid-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    min-width: 0;
+    place-items: center;
+    padding: clamp(1rem, 4vw, 3rem);
+    color: var(--erp-text);
+}
+
+.erp-app-grid-backdrop {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    min-height: 100%;
+    border: 0;
+    border-radius: 0;
+    background:
+        radial-gradient(circle at 18% 12%, rgba(118, 169, 212, .18), transparent 30rem),
+        rgba(9, 18, 28, .62);
+    backdrop-filter: blur(18px) saturate(115%);
+}
+
+.erp-app-grid-panel {
+    position: relative;
+    display: flex;
+    width: min(56rem, 100%);
+    max-height: min(46rem, calc(100dvh - 2rem));
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--erp-primary) 24%, transparent);
+    border-radius: 1rem;
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, .82), rgba(232, 240, 247, .66)),
+        var(--erp-surface);
+    box-shadow:
+        0 2.5rem 7rem -3rem rgba(3, 10, 18, .78),
+        inset 0 1px rgba(255, 255, 255, .72);
+    backdrop-filter: blur(30px) saturate(145%);
+    animation: erp-app-grid-enter 240ms cubic-bezier(.2, .75, .25, 1) both;
+}
+
+@keyframes erp-app-grid-enter {
+    from {
+        opacity: 0;
+        transform: translateY(.75rem) scale(.985);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.erp-app-grid-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.35rem 1.5rem 1.1rem;
+}
+
+.erp-app-grid-header h2 {
+    margin: 0;
+    color: var(--erp-text);
+    font-size: 1.35rem;
+    font-weight: 780;
+    letter-spacing: -.025em !important;
+    line-height: 1.15;
+}
+
+.erp-app-grid-header p {
+    margin: .35rem 0 0;
+    color: var(--erp-muted);
+    font-size: .8rem;
+    line-height: 1.5;
+}
+
+.erp-app-grid-close {
+    display: inline-flex;
+    min-height: 2.35rem;
+    align-items: center;
+    gap: .45rem;
+    border: 1px solid var(--erp-line-strong);
+    border-radius: .65rem;
+    background: rgba(255, 255, 255, .5);
+    color: var(--erp-muted);
+    padding: .45rem .7rem;
+    font-size: .75rem;
+    font-weight: 720;
+    transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.erp-app-grid-close svg {
+    width: .95rem;
+    height: .95rem;
+}
+
+.erp-app-grid-close:hover {
+    border-color: color-mix(in srgb, var(--erp-primary) 38%, transparent);
+    background: color-mix(in srgb, var(--erp-primary) 9%, rgba(255, 255, 255, .72));
+    color: var(--erp-primary);
+}
+
+.erp-app-grid-close:focus-visible,
+.erp-app-grid-item:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--erp-primary) 38%, transparent);
+    outline-offset: 3px;
+}
+
+.erp-app-grid-list {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: clamp(.7rem, 1.5vw, 1rem);
+    min-height: 0;
+    overflow-y: auto;
+    padding: .65rem 1.5rem 1.5rem;
+    scrollbar-gutter: stable;
+}
+
+.erp-app-grid-item {
+    position: relative;
+    display: grid;
+    min-width: 0;
+    min-height: 8rem;
+    align-content: center;
+    justify-items: center;
+    gap: .62rem;
+    border: 1px solid transparent;
+    border-radius: .85rem;
+    color: var(--erp-text);
+    padding: .85rem .55rem;
+    text-align: center;
+    transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 180ms cubic-bezier(.2, .75, .25, 1);
+}
+
+.erp-app-grid-item:hover {
+    border-color: color-mix(in srgb, var(--erp-primary) 16%, transparent);
+    background: rgba(255, 255, 255, .38);
+    box-shadow: 0 1rem 2.5rem -2rem var(--erp-shadow);
+    transform: translateY(-2px);
+}
+
+.erp-app-grid-item--active::after {
+    position: absolute;
+    top: .7rem;
+    right: .7rem;
+    width: .42rem;
+    height: .42rem;
+    border: 1px solid var(--erp-primary);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--erp-primary) 32%, transparent);
+    box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--erp-primary) 8%, transparent);
+    content: "";
+}
+
+.erp-app-grid-icon {
+    display: grid;
+    width: 3.65rem;
+    height: 3.65rem;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--erp-primary) 18%, transparent);
+    border-radius: .95rem;
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, .88), rgba(232, 240, 247, .7)),
+        var(--erp-surface);
+    color: var(--erp-primary);
+    box-shadow:
+        0 .9rem 1.8rem -1.4rem var(--erp-shadow),
+        inset 0 1px rgba(255, 255, 255, .78);
+    transition: transform 180ms cubic-bezier(.2, .75, .25, 1), box-shadow 180ms ease;
+}
+
+.erp-app-grid-icon svg {
+    width: 1.55rem;
+    height: 1.55rem;
+}
+
+.erp-app-grid-item:hover .erp-app-grid-icon,
+.erp-app-grid-item:focus-visible .erp-app-grid-icon {
+    box-shadow:
+        0 1.1rem 2.2rem -1.3rem color-mix(in srgb, var(--erp-primary) 42%, transparent),
+        inset 0 1px rgba(255, 255, 255, .86);
+    transform: translateY(-1px) scale(1.025);
+}
+
+.erp-app-grid-label {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: .78rem;
+    font-weight: 750;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.erp-app-grid-status {
+    color: var(--erp-muted);
+    font-size: .62rem;
+    font-weight: 650;
+    line-height: 1;
+}
+
+.erp-app-grid-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-top: 1px solid color-mix(in srgb, var(--erp-primary) 12%, transparent);
+    padding: .9rem 1.5rem 1rem;
+    color: var(--erp-muted);
+    font-size: .7rem;
+}
+
+.erp-app-grid-footer-note {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+}
+
+.erp-app-grid-shortcut {
+    display: inline-flex;
+    min-width: 2.55rem;
+    min-height: 1.35rem;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    border: 1px solid color-mix(in srgb, var(--erp-primary) 18%, transparent);
+    border-radius: .35rem;
+    background: color-mix(in srgb, var(--erp-primary) 6%, var(--erp-surface));
+    box-shadow: inset 0 -1px color-mix(in srgb, var(--erp-primary) 12%, transparent);
+    color: var(--erp-muted);
+    font-family: inherit;
+    font-size: .58rem;
+    font-weight: 750;
+    letter-spacing: .02em;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.erp-sidebar-home .erp-nav-link {
+    text-align: left;
+}
+
+.erp-sidebar-home .erp-app-grid-shortcut {
+    margin-left: auto;
+}
+
+.erp-app-grid-footer-note .erp-app-grid-shortcut {
+    margin-left: 0;
+}
+
+.erp-app-grid-footer a {
+    color: var(--erp-primary);
+    font-weight: 750;
+    text-underline-offset: .2rem;
+}
+
+.erp-app-grid-footer a:hover {
+    text-decoration: underline;
+}
+
+.erp-app-grid-footer a:focus-visible {
+    border-radius: .25rem;
+    outline: 2px solid color-mix(in srgb, var(--erp-primary) 42%, transparent);
+    outline-offset: 3px;
+}
+
+html[data-theme="dark"] .erp-app-grid-panel {
+    background:
+        linear-gradient(145deg, rgba(16, 31, 45, .88), rgba(18, 44, 64, .72)),
+        var(--erp-surface);
+    box-shadow:
+        0 2.5rem 7rem -3rem rgba(0, 0, 0, .9),
+        inset 0 1px rgba(255, 255, 255, .08);
+}
+
+html[data-theme="dark"] .erp-app-grid-close,
+html[data-theme="dark"] .erp-app-grid-item:hover {
+    background: rgba(118, 169, 212, .07);
+}
+
+html[data-theme="dark"] .erp-app-grid-icon {
+    background:
+        linear-gradient(145deg, rgba(30, 58, 80, .94), rgba(14, 31, 45, .86)),
+        var(--erp-surface);
+    box-shadow:
+        0 .9rem 1.8rem -1.4rem rgba(0, 0, 0, .8),
+        inset 0 1px rgba(255, 255, 255, .08);
+}
+
+@media (max-width: 860px) {
+    .erp-app-grid-list {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .erp-app-grid-overlay {
+        align-items: end;
+        padding: .75rem;
+    }
+
+    .erp-app-grid-panel {
+        max-height: calc(100dvh - 1.5rem);
+        border-radius: .85rem;
+    }
+
+    .erp-app-grid-header {
+        padding: 1.1rem 1rem .8rem;
+    }
+
+    .erp-app-grid-close span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+    }
+
+    .erp-app-grid-list {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .45rem;
+        padding: .5rem .75rem 1rem;
+    }
+
+    .erp-app-grid-item {
+        min-height: 7rem;
+        padding-inline: .35rem;
+    }
+
+    .erp-app-grid-icon {
+        width: 3.25rem;
+        height: 3.25rem;
+        border-radius: .85rem;
+    }
+
+    .erp-app-grid-footer {
+        padding: .8rem 1rem .9rem;
+    }
+}
+
+@media (max-width: 420px) {
+    .erp-app-grid-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-height: 600px) and (min-width: 641px) {
+    .erp-app-grid-overlay {
+        padding: .75rem;
+    }
+
+    .erp-app-grid-panel {
+        max-height: calc(100dvh - 1.5rem);
+    }
+
+    .erp-app-grid-item {
+        min-height: 6.6rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .erp-app-grid-panel {
+        animation: none;
+    }
+
+    .erp-app-grid-item,
+    .erp-app-grid-icon,
+    .erp-app-grid-close {
+        transition-duration: .01ms !important;
+    }
+}
