@@ -1,4 +1,7 @@
 *
+!forms/
 !private/
 !public/
 !.gitignore
+forms/*
+!forms/NEW_LEAVE_FORM.pdf
