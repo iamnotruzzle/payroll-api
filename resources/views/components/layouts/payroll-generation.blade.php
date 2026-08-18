@@ -15,8 +15,8 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
-<body class="erp-body bg-[#f5f5f9] text-[#2f3349] antialiased">
-    <main class="erp-content min-h-screen w-full">
+<body class="erp-body erp-payroll-workspace antialiased">
+    <main class="erp-content erp-payroll-workspace-frame min-h-screen w-full">
         {{ $slot }}
     </main>
 

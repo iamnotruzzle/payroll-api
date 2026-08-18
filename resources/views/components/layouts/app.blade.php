@@ -20,7 +20,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
-<body class="erp-body bg-[#f5f5f9] text-[#2f3349] antialiased">
+<body class="erp-body antialiased">
     @php
         $mode = $mode ?? 'app';
         $isLauncher = $mode === 'launcher';
@@ -44,13 +44,13 @@
             }"
             :class="sidebarOpen ? 'lg:grid-cols-[248px_minmax(0,1fr)]' : 'lg:grid-cols-[minmax(0,1fr)]'"
         @endunless
-        class="{{ $isLauncher ? 'erp-launcher-scene min-h-screen' : 'min-h-screen lg:grid' }}"
+        class="{{ $isLauncher ? 'erp-launcher-scene min-h-screen' : 'erp-app-shell min-h-screen lg:grid' }}"
     >
         @unless ($isLauncher)
-            <aside x-cloak x-show="sidebarOpen" x-transition.opacity.duration.150ms class="erp-sidebar border-b border-[#e4e6ef] bg-white lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden lg:border-b-0 lg:border-r">
+            <aside x-cloak x-show="sidebarOpen" x-transition.opacity.duration.150ms class="erp-sidebar border-b lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden lg:border-b-0 lg:border-r">
                 <div class="flex h-full min-h-0 max-h-screen flex-col">
-                    <div class="erp-sidebar-pinned sticky top-0 z-20 shrink-0 bg-white">
-                        <div class="flex items-center gap-2 border-b border-[#eceef6] px-4 py-4">
+                    <div class="erp-sidebar-pinned sticky top-0 z-20 shrink-0">
+                        <div class="erp-sidebar-brand flex items-center gap-2 border-b px-4 py-4">
                             <a href="{{ route('home') }}" class="erp-brand flex min-w-0 flex-1 items-center gap-3">
                                 <x-brand.mark size="md" />
                                 <div class="min-w-0">
@@ -60,7 +60,7 @@
                             </a>
                         </div>
 
-                        <div class="border-b border-[#eceef6] px-3 py-3">
+                        <div class="erp-sidebar-home border-b px-3 py-3">
                             <a href="{{ route('home') }}" class="erp-nav-link erp-nav-link-depth-1 {{ request()->routeIs('home') ? 'erp-nav-link-active' : '' }}">
                                 <span class="erp-nav-item-icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -75,7 +75,7 @@
                     <nav class="erp-sidebar-scroll min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3 text-sm">
                         @if ($currentApp)
                             <div class="erp-nav-group">
-                                <p class="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-[#8a8d93]">
+                                <p class="erp-nav-group-label px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide">
                                     {{ $currentApp['label'] }}
                                 </p>
                                 @foreach ($currentApp['menu_sections'] ?? [] as $section)
@@ -90,7 +90,7 @@
                                             <button
                                                 type="button"
                                                 x-on:click="expanded = ! expanded; localStorage.setItem(@js($sectionKey), expanded ? 'true' : 'false')"
-                                                class="erp-nav-section-toggle flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#a1a5b7]"
+                                                class="erp-nav-section-toggle flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider"
                                                 :aria-expanded="expanded.toString()"
                                             >
                                                 <span>{{ $section['label'] }}</span>
@@ -120,7 +120,7 @@
                             </div>
                         @else
                             <div class="erp-nav-group space-y-0.5">
-                                <p class="px-2.5 pb-2 text-[11px] font-semibold uppercase tracking-wide text-[#8a8d93]">Apps</p>
+                                <p class="erp-nav-group-label px-2.5 pb-2 text-[11px] font-semibold uppercase tracking-wide">Apps</p>
                                 @foreach ($apps as $app)
                                     <a class="erp-nav-link erp-nav-link-depth-1" href="{{ $app['href'] }}">
                                         <span class="erp-nav-item-icon" aria-hidden="true">
@@ -141,8 +141,8 @@
             </aside>
         @endunless
 
-        <section class="min-w-0">
-            <header class="sticky top-0 z-30 border-b border-[#e4e6ef] bg-white/90 px-4 py-2 backdrop-blur sm:px-5">
+        <section class="erp-app-main min-w-0">
+            <header class="erp-topbar sticky top-0 z-30 border-b px-4 py-2 sm:px-5">
                 <div class="flex w-full items-center justify-between gap-3">
                     <div class="flex min-w-0 items-center gap-3">
                         @if ($isLauncher)
@@ -158,8 +158,8 @@
                                 <svg x-show="sidebarOpen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
                                 <svg x-show="! sidebarOpen" x-cloak viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/><path d="M3 5h3v14H3z"/></svg>
                             </button>
-                            <div class="erp-system-status hidden items-center gap-2 text-xs font-semibold sm:flex">
-                                <span class="erp-status-dot"></span>
+                            <div class="erp-system-status hidden items-center gap-2 text-xs font-semibold sm:flex" aria-label="Current application">
+                                <span class="erp-status-dot" aria-hidden="true"></span>
                                 <span class="erp-subtle">
                                     <span class="erp-system-label">{{ $currentApp['label'] ?? 'Workspace' }}</span>
                                 </span>
@@ -188,11 +188,11 @@
                                 aria-haspopup="menu"
                             >
                                 <span class="hidden sm:block">
-                                    <span class="block text-sm font-semibold leading-tight text-[#2f3349]">{{ $employeeName }}</span>
-                                    <span class="block text-xs leading-tight text-[#697a8d]">{{ $account?->emp_id }}</span>
+                                    <span class="erp-user-name block text-sm font-semibold leading-tight">{{ $employeeName }}</span>
+                                    <span class="erp-user-id block text-xs leading-tight">{{ $account?->emp_id }}</span>
                                 </span>
-                                <span class="grid h-8 w-8 place-items-center rounded-full bg-[#f1f2ff] text-xs font-bold text-[#696cff]">{{ $initial }}</span>
-                                <svg class="h-3.5 w-3.5 text-slate-500 transition-transform" :class="{ 'rotate-180': userMenuOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <span class="erp-user-avatar grid h-8 w-8 place-items-center rounded-full text-xs font-bold">{{ $initial }}</span>
+                                <svg class="erp-user-chevron h-3.5 w-3.5 transition-transform" :class="{ 'rotate-180': userMenuOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                                     <path d="m6 9 6 6 6-6"></path>
                                 </svg>
                             </button>
@@ -205,17 +205,17 @@
                                 class="erp-user-menu absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-xl border p-2 text-left"
                                 role="menu"
                             >
-                                <div class="border-b border-slate-200 px-3 py-2.5">
-                                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Signed in as</p>
-                                    <p class="mt-1 truncate text-sm font-semibold text-slate-900">{{ $employeeName }}</p>
-                                    <p class="truncate text-xs text-slate-500">Employee ID {{ $account?->emp_id }}</p>
+                                <div class="erp-user-menu-summary border-b px-3 py-2.5">
+                                    <p class="erp-user-menu-label text-[10px] font-bold uppercase tracking-wider">Signed in as</p>
+                                    <p class="erp-user-menu-name mt-1 truncate text-sm font-semibold">{{ $employeeName }}</p>
+                                    <p class="erp-user-menu-id truncate text-xs">Employee ID {{ $account?->emp_id }}</p>
                                 </div>
-                                <a href="{{ route('home') }}" class="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" role="menuitem">
+                                <a href="{{ route('home') }}" class="erp-user-menu-item mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold" role="menuitem">
                                     All apps
                                 </a>
                                 <form method="POST" action="{{ route('logout') }}" class="mt-1">
                                     @csrf
-                                    <button type="submit" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50" role="menuitem">
+                                    <button type="submit" class="erp-user-menu-item erp-user-menu-item--danger flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold" role="menuitem">
                                         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                                             <path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
                                         </svg>
@@ -228,9 +228,9 @@
                 </div>
             </header>
 
-            <main class="erp-content w-full px-3 py-4 sm:px-5 {{ $isLauncher ? 'erp-content-launcher' : '' }}">
+            <main class="erp-content w-full px-3 py-4 sm:px-5 {{ $isLauncher ? 'erp-content-launcher' : 'erp-content-app' }}">
                 @if (auth()->check() && (int) (auth()->user()->login_attempt ?? 1) === 0)
-                    <div class="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    <div class="erp-shell-notice mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                         Please
                         <a href="{{ route('self-service.profile') }}" class="font-semibold underline">review and save your profile</a>
                         before using other modules.

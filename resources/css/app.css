@@ -80,65 +80,65 @@ input[type="number"] {
 }
 
 .erp-body {
-    --erp-primary: #2563eb;
-    --erp-primary-hover: #1d4ed8;
-    --erp-primary-soft: #eaf2ff;
-    --erp-accent: #0891b2;
-    --erp-bg: #eff6ff;
+    --erp-primary: #235d90;
+    --erp-primary-hover: #194b77;
+    --erp-primary-soft: #e8f0f7;
+    --erp-accent: #587892;
+    --erp-bg: #f3f6f8;
     --erp-surface: #ffffff;
-    --erp-surface-raised: rgba(255, 255, 255, 0.94);
-    --erp-line: rgba(37, 99, 235, 0.14);
-    --erp-line-strong: rgba(37, 99, 235, 0.23);
-    --erp-text: #172554;
-    --erp-muted: #3d4f66;
-    --erp-faint: #5b6d86;
-    --erp-ambient-a: rgba(37, 99, 235, 0.13);
-    --erp-ambient-b: rgba(8, 145, 178, 0.09);
-    --erp-shell: rgba(255, 255, 255, 0.86);
-    --erp-shadow: rgba(30, 64, 175, 0.13);
+    --erp-surface-raised: rgba(255, 255, 255, 0.97);
+    --erp-line: rgba(35, 93, 144, 0.14);
+    --erp-line-strong: rgba(35, 93, 144, 0.25);
+    --erp-text: #172433;
+    --erp-muted: #52677b;
+    --erp-faint: #6f8293;
+    --erp-ambient-a: rgba(35, 93, 144, 0.1);
+    --erp-ambient-b: rgba(88, 120, 146, 0.07);
+    --erp-shell: rgba(255, 255, 255, 0.94);
+    --erp-shadow: rgba(25, 75, 119, 0.15);
     background-color: var(--erp-bg) !important;
     color: var(--erp-text) !important;
     transition: background-color 180ms ease, color 180ms ease;
 }
 
 html {
-    --erp-text: #172554;
-    --erp-muted: #3d4f66;
-    --erp-faint: #5b6d86;
+    --erp-text: #172433;
+    --erp-muted: #52677b;
+    --erp-faint: #6f8293;
     --erp-surface: #ffffff;
-    --erp-surface-raised: rgba(255, 255, 255, 0.94);
-    --erp-line: rgba(37, 99, 235, 0.14);
-    --erp-line-strong: rgba(37, 99, 235, 0.23);
+    --erp-surface-raised: rgba(255, 255, 255, 0.97);
+    --erp-line: rgba(35, 93, 144, 0.14);
+    --erp-line-strong: rgba(35, 93, 144, 0.25);
 }
 
 html[data-theme="dark"] {
     color-scheme: dark;
-    background: #080c18;
-    --erp-text: #e6f0ff;
-    --erp-muted: #d7e6f8;
-    --erp-faint: #b4c7de;
-    --erp-surface: #0d1b2d;
-    --erp-surface-raised: rgba(17, 34, 56, 0.96);
-    --erp-line: rgba(96, 165, 250, 0.16);
-    --erp-line-strong: rgba(96, 165, 250, 0.27);
+    background: #09121c;
+    --erp-text: #e8f0f7;
+    --erp-muted: #b4c4d2;
+    --erp-faint: #91a6b8;
+    --erp-surface: #101f2d;
+    --erp-surface-raised: rgba(16, 31, 45, 0.98);
+    --erp-line: rgba(118, 169, 212, 0.16);
+    --erp-line-strong: rgba(118, 169, 212, 0.28);
 }
 
 html[data-theme="dark"] .erp-body {
-    --erp-primary: #60a5fa;
-    --erp-primary-hover: #3b82f6;
-    --erp-primary-soft: #172b4f;
-    --erp-accent: #22d3ee;
-    --erp-bg: #07111f;
-    --erp-surface: #0d1b2d;
-    --erp-surface-raised: rgba(17, 34, 56, 0.96);
-    --erp-line: rgba(96, 165, 250, 0.16);
-    --erp-line-strong: rgba(96, 165, 250, 0.27);
-    --erp-text: #e6f0ff;
-    --erp-muted: #d7e6f8;
-    --erp-faint: #b4c7de;
-    --erp-ambient-a: rgba(37, 99, 235, 0.16);
-    --erp-ambient-b: rgba(6, 182, 212, 0.09);
-    --erp-shell: rgba(10, 27, 47, 0.88);
+    --erp-primary: #76a9d4;
+    --erp-primary-hover: #9cc3e3;
+    --erp-primary-soft: #162d42;
+    --erp-accent: #8fb7d7;
+    --erp-bg: #09121c;
+    --erp-surface: #101f2d;
+    --erp-surface-raised: rgba(16, 31, 45, 0.98);
+    --erp-line: rgba(118, 169, 212, 0.16);
+    --erp-line-strong: rgba(118, 169, 212, 0.28);
+    --erp-text: #e8f0f7;
+    --erp-muted: #b4c4d2;
+    --erp-faint: #91a6b8;
+    --erp-ambient-a: rgba(118, 169, 212, 0.12);
+    --erp-ambient-b: rgba(88, 120, 146, 0.08);
+    --erp-shell: rgba(16, 31, 45, 0.95);
     --erp-shadow: rgba(0, 0, 0, 0.42);
 }
 
@@ -151,10 +151,8 @@ html[data-theme="dark"] .erp-body {
     background:
         radial-gradient(circle at 7% 0%, var(--erp-ambient-a), transparent 30rem),
         radial-gradient(circle at 93% 8%, var(--erp-ambient-b), transparent 34rem),
-        linear-gradient(color-mix(in srgb, var(--erp-primary) 5%, transparent) 1px, transparent 1px),
-        linear-gradient(90deg, color-mix(in srgb, var(--erp-primary) 5%, transparent) 1px, transparent 1px),
         linear-gradient(180deg, color-mix(in srgb, var(--erp-surface) 90%, var(--erp-bg)), var(--erp-bg));
-    background-size: auto, auto, 40px 40px, 40px 40px, auto;
+    background-size: auto;
 }
 
 .erp-brand-mark {
@@ -3804,4 +3802,470 @@ html[data-theme="dark"] .erp-body [class*="hover:bg-indigo-"]:not([class*="bg-in
     border-color: #3730a3 !important;
     background: #4338ca !important;
     color: #ffffff !important;
+}
+
+/* Authenticated shell: the Working Index extends the entry-surface language. */
+.erp-app-shell {
+    background: transparent;
+}
+
+.erp-app-main {
+    min-height: 100dvh;
+}
+
+.erp-sidebar {
+    border-color: var(--erp-line) !important;
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--erp-primary) 7%, var(--erp-surface)) 0, var(--erp-surface) 11rem),
+        var(--erp-surface) !important;
+    box-shadow: 14px 0 34px -30px var(--erp-shadow) !important;
+    backdrop-filter: none;
+}
+
+.erp-sidebar-pinned {
+    background: transparent !important;
+    box-shadow: none;
+}
+
+.erp-sidebar-brand,
+.erp-sidebar-home {
+    border-color: var(--erp-line) !important;
+}
+
+.erp-sidebar-brand {
+    position: relative;
+}
+
+.erp-sidebar-brand::after {
+    position: absolute;
+    right: 1rem;
+    bottom: -1px;
+    width: 2.5rem;
+    height: 1px;
+    content: "";
+    background: var(--erp-primary);
+    opacity: .7;
+}
+
+.erp-brand-eyebrow {
+    color: var(--erp-primary);
+}
+
+.erp-nav-group-label,
+.erp-nav-section-toggle {
+    color: var(--erp-faint);
+}
+
+.erp-nav-section-toggle:hover {
+    background: color-mix(in srgb, var(--erp-primary) 6%, transparent);
+    color: var(--erp-primary);
+}
+
+.erp-nav-section-toggle:focus-visible,
+.erp-nav-link:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--erp-primary) 42%, transparent);
+    outline-offset: 2px;
+}
+
+.erp-nav-link {
+    min-height: 2.35rem;
+    border-radius: .65rem;
+}
+
+.erp-nav-link:hover {
+    border-color: color-mix(in srgb, var(--erp-primary) 14%, transparent);
+    background: color-mix(in srgb, var(--erp-primary) 7%, var(--erp-surface));
+    color: var(--erp-text) !important;
+    transform: translateX(1px);
+}
+
+.erp-nav-link-active,
+.erp-nav-link-active:hover {
+    border-color: color-mix(in srgb, var(--erp-primary) 18%, transparent);
+    background: color-mix(in srgb, var(--erp-primary) 10%, var(--erp-surface)) !important;
+    color: var(--erp-primary) !important;
+    box-shadow: inset 1px 0 0 var(--erp-primary);
+}
+
+.erp-nav-link-active .erp-nav-item-icon {
+    background: transparent;
+    color: var(--erp-primary) !important;
+    box-shadow: none;
+}
+
+.erp-nav-link-active [x-text] {
+    color: var(--erp-primary) !important;
+}
+
+.erp-topbar {
+    border-color: var(--erp-line) !important;
+    background: color-mix(in srgb, var(--erp-surface) 96%, transparent) !important;
+    box-shadow: 0 12px 28px -28px var(--erp-shadow);
+    backdrop-filter: blur(14px) saturate(115%);
+}
+
+.erp-system-status {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: .3rem 0;
+    box-shadow: none;
+}
+
+.erp-status-dot {
+    border: 1px solid var(--erp-primary);
+    background: color-mix(in srgb, var(--erp-primary) 22%, var(--erp-surface));
+    box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--erp-primary) 7%, transparent);
+    animation: none;
+}
+
+.erp-system-label {
+    color: var(--erp-primary);
+    font-size: .66rem;
+    letter-spacing: .075em !important;
+}
+
+.erp-theme-toggle {
+    width: 2.35rem;
+    min-height: 2.35rem !important;
+    border-radius: .65rem;
+    background: var(--erp-surface);
+    box-shadow: 0 .5rem 1rem -.85rem var(--erp-shadow);
+    backdrop-filter: none;
+}
+
+.erp-theme-toggle:hover {
+    background: color-mix(in srgb, var(--erp-primary) 7%, var(--erp-surface));
+}
+
+.erp-user-trigger {
+    min-height: 2.5rem;
+    border-radius: .7rem;
+    padding-inline: .45rem;
+}
+
+.erp-user-name,
+.erp-user-menu-name {
+    color: var(--erp-text);
+}
+
+.erp-user-id,
+.erp-user-chevron,
+.erp-user-menu-id,
+.erp-user-menu-label {
+    color: var(--erp-muted);
+}
+
+.erp-user-avatar {
+    border: 1px solid color-mix(in srgb, var(--erp-primary) 16%, transparent);
+    background: var(--erp-primary-soft);
+    color: var(--erp-primary);
+}
+
+.erp-user-menu {
+    border-radius: .85rem !important;
+    background: var(--erp-surface) !important;
+    box-shadow: 0 1.25rem 3rem -1.8rem var(--erp-shadow);
+    backdrop-filter: none;
+}
+
+.erp-user-menu-summary {
+    border-color: var(--erp-line) !important;
+}
+
+.erp-user-menu-item {
+    color: var(--erp-muted);
+}
+
+.erp-user-menu-item:hover,
+.erp-user-menu-item:focus-visible {
+    background: color-mix(in srgb, var(--erp-primary) 7%, var(--erp-surface));
+    color: var(--erp-text);
+}
+
+.erp-user-menu-item:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--erp-primary) 42%, transparent);
+    outline-offset: 1px;
+}
+
+.erp-user-menu-item--danger {
+    color: #b73a4b;
+}
+
+.erp-user-menu-item--danger:hover,
+.erp-user-menu-item--danger:focus-visible {
+    background: #fff1f2;
+    color: #9f293b;
+}
+
+html[data-theme="dark"] .erp-user-menu-item--danger {
+    color: #ffb6bf;
+}
+
+html[data-theme="dark"] .erp-user-menu-item--danger:hover,
+html[data-theme="dark"] .erp-user-menu-item--danger:focus-visible {
+    background: #35161d;
+    color: #ffd2d7;
+}
+
+.erp-content-app {
+    min-height: calc(100dvh - 3.4rem);
+}
+
+.erp-shell-notice {
+    border-color: color-mix(in srgb, #a16207 28%, transparent) !important;
+    background: color-mix(in srgb, #fef3c7 82%, var(--erp-surface)) !important;
+}
+
+html[data-theme="dark"] .erp-shell-notice {
+    background: color-mix(in srgb, #78350f 38%, var(--erp-surface)) !important;
+    color: #fde68a !important;
+}
+
+@media (max-width: 1023px) {
+    .erp-sidebar {
+        max-height: min(46dvh, 28rem);
+        box-shadow: 0 16px 30px -28px var(--erp-shadow) !important;
+    }
+
+    .erp-sidebar-scroll {
+        scrollbar-gutter: stable;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .erp-nav-link,
+    .erp-nav-section-toggle,
+    .erp-theme-toggle,
+    .erp-user-trigger,
+    .erp-user-menu-item {
+        transition-duration: .01ms !important;
+    }
+}
+
+/* Shared modal and drawer chrome. Interaction remains Alpine-owned. */
+.erp-overlay-backdrop {
+    background: rgba(9, 18, 28, .64);
+    backdrop-filter: blur(3px);
+}
+
+.erp-overlay-panel {
+    border: 1px solid var(--erp-line);
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--erp-primary) 4%, var(--erp-surface)) 0, var(--erp-surface) 7rem),
+        var(--erp-surface);
+    box-shadow: 0 2rem 5rem -2.5rem rgba(9, 18, 28, .72);
+}
+
+.erp-overlay--modal .erp-overlay-panel {
+    border-radius: .85rem;
+}
+
+.erp-overlay--drawer .erp-overlay-panel {
+    border-width: 0 0 0 1px;
+    border-color: var(--erp-line);
+}
+
+.erp-overlay-header {
+    position: relative;
+    min-height: 4.2rem;
+    border-color: var(--erp-line);
+    padding: 1.1rem 1.25rem 1rem;
+}
+
+.erp-overlay-header::after {
+    position: absolute;
+    bottom: -1px;
+    left: 1.25rem;
+    width: 3rem;
+    height: 1px;
+    content: "";
+    background: var(--erp-primary);
+}
+
+.erp-overlay-title {
+    font-size: 1.08rem;
+    font-weight: 760;
+    letter-spacing: -.018em !important;
+}
+
+.erp-overlay-description {
+    max-width: 62ch;
+    color: var(--erp-muted) !important;
+}
+
+.erp-overlay-close {
+    min-height: 2.25rem;
+    border-color: var(--erp-line-strong);
+    border-radius: .6rem;
+    background: var(--erp-surface);
+    color: var(--erp-muted) !important;
+    transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.erp-overlay-close:hover {
+    border-color: color-mix(in srgb, var(--erp-primary) 35%, var(--erp-line));
+    background: var(--erp-primary-soft);
+    color: var(--erp-primary) !important;
+}
+
+.erp-overlay-close:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--erp-primary) 42%, transparent);
+    outline-offset: 2px;
+}
+
+.erp-overlay-body {
+    scrollbar-gutter: stable;
+}
+
+html[data-theme="dark"] .erp-overlay-backdrop {
+    background: rgba(3, 8, 14, .72);
+}
+
+@media (max-width: 640px) {
+    .erp-overlay--modal {
+        align-items: flex-end;
+        padding: .75rem;
+    }
+
+    .erp-overlay--modal .erp-overlay-panel {
+        width: 100% !important;
+        max-width: 100% !important;
+        max-height: calc(100dvh - 1.5rem);
+    }
+
+    .erp-overlay-header,
+    .erp-overlay-body {
+        padding-inline: 1rem;
+    }
+
+    .erp-overlay-header::after {
+        left: 1rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .erp-overlay,
+    .erp-overlay-panel,
+    .erp-overlay-close {
+        transition-duration: .01ms !important;
+    }
+}
+
+/* Dedicated payroll workspace: shared material, specialized operating frame. */
+.erp-payroll-workspace::before {
+    background:
+        radial-gradient(circle at 88% 0%, var(--erp-ambient-a), transparent 32rem),
+        linear-gradient(180deg, color-mix(in srgb, var(--erp-surface) 94%, var(--erp-bg)), var(--erp-bg));
+}
+
+.erp-payroll-workspace-frame {
+    isolation: isolate;
+}
+
+.payroll-generation-header {
+    position: relative;
+    z-index: 30;
+    border-color: var(--erp-line) !important;
+    background: color-mix(in srgb, var(--erp-surface) 97%, transparent) !important;
+    box-shadow: 0 12px 28px -28px var(--erp-shadow);
+    backdrop-filter: blur(14px) saturate(115%);
+}
+
+.payroll-generation-header::after {
+    position: absolute;
+    bottom: -1px;
+    left: 1.25rem;
+    width: 3.5rem;
+    height: 1px;
+    content: "";
+    background: var(--erp-primary);
+    opacity: .72;
+}
+
+.payroll-generation-title {
+    color: var(--erp-text);
+    font-weight: 760;
+    letter-spacing: -.022em !important;
+}
+
+.payroll-generation-scope {
+    color: var(--erp-muted) !important;
+}
+
+.payroll-generation-utility {
+    min-height: 2.35rem;
+    border-color: var(--erp-line-strong) !important;
+    background: var(--erp-surface) !important;
+    color: var(--erp-muted) !important;
+    transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.payroll-generation-utility:hover {
+    border-color: color-mix(in srgb, var(--erp-primary) 35%, var(--erp-line)) !important;
+    background: var(--erp-primary-soft) !important;
+    color: var(--erp-primary) !important;
+}
+
+.payroll-generation-utility:focus-visible,
+.payroll-generation-step:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--erp-primary) 42%, transparent);
+    outline-offset: 2px;
+}
+
+.payroll-generation-sidebar {
+    border-color: var(--erp-line) !important;
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--erp-primary) 7%, var(--erp-surface)) 0, var(--erp-surface) 12rem),
+        var(--erp-surface) !important;
+    box-shadow: 14px 0 34px -30px var(--erp-shadow);
+    scrollbar-gutter: stable;
+}
+
+.payroll-generation-step {
+    border-color: var(--erp-line);
+    background: var(--erp-surface);
+    color: var(--erp-muted);
+}
+
+.payroll-generation-step:hover {
+    border-color: color-mix(in srgb, var(--erp-primary) 18%, transparent);
+    background: color-mix(in srgb, var(--erp-primary) 6%, var(--erp-surface));
+    color: var(--erp-text);
+}
+
+.payroll-generation-step--active,
+.payroll-generation-step--active:hover {
+    border-color: color-mix(in srgb, var(--erp-primary) 24%, transparent);
+    background: color-mix(in srgb, var(--erp-primary) 11%, var(--erp-surface));
+    color: var(--erp-primary);
+    font-weight: 700;
+    box-shadow: inset 1px 0 0 var(--erp-primary);
+}
+
+html[data-theme="dark"] .payroll-generation-step .bg-emerald-50 {
+    background: rgba(6, 78, 59, .42) !important;
+    color: #a7f3d0 !important;
+}
+
+html[data-theme="dark"] .payroll-generation-step .bg-amber-100 {
+    background: rgba(120, 53, 15, .45) !important;
+    color: #fde68a !important;
+}
+
+@media (max-width: 1023px) {
+    .payroll-generation-header::after {
+        left: 1rem;
+    }
+
+    .payroll-generation-sidebar {
+        box-shadow: 0 16px 30px -28px var(--erp-shadow);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .payroll-generation-utility,
+    .payroll-generation-step {
+        transition-duration: .01ms !important;
+    }
 }

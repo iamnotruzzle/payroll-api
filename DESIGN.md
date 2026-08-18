@@ -209,6 +209,38 @@ The `/home` surface extends the authentication entry system into a permission-aw
 - **Responsive grid:** Four compact columns on wide desktops, two columns at tablet widths, and one column on phones. At 900px and above the launcher fits the working viewport; narrower layouts return to natural document scrolling so text and touch targets remain comfortable.
 - **Shape and interaction:** Launcher tiles use the established 1rem surface radius. Hover, focus, and press feedback stays within 220–300ms, with a clearly offset keyboard focus ring.
 
+## Authenticated Application Shell
+
+The default authenticated shell extends the same institutional language into task-heavy screens. It is an **Operate** surface: navigation clarity, density, and stable geometry take priority over the more expressive atmosphere used at login and on the launcher.
+
+**Creative North Star: “The Working Index.”** The shell should feel like the persistent operating layer beneath the Clinical Command Index: quiet enough for long sessions, exact enough for HR and payroll work, and visibly part of the same product.
+
+- **Shell palette:** Institutional Blue (`#235d90`) is the only interactive accent in light mode; Institutional Blue Night (`#76a9d4`) carries the same role in dark mode. Cool paper, ink, slate, and field tones map directly from the entry system.
+- **Page frame:** The content field is a quiet tonal surface without a decorative grid. Low-contrast ambient blue may collect near the top edge, but it must not compete with forms, tables, or alerts.
+- **Sidebar:** The sidebar is a stable cool-paper rail with a fine blue-neutral divider. Brand, All Apps, current module, and section navigation follow a clear top-to-bottom hierarchy. Active links use a pale blue field, blue text, and a one-pixel registration mark rather than a saturated fill.
+- **Top bar:** The top bar is a compact continuation of the page surface with a fine divider and restrained depth. Module context leads; All Apps, theme, and account controls remain secondary. Controls share the 0.65–0.7rem utility radius and a visible offset focus ring.
+- **Account menu:** The trigger and menu use the same paper/ink/slate roles as the shell. The avatar is a small blue-tinted identifier, not a second brand mark. Destructive logout styling remains semantic red.
+- **Responsive behavior:** Desktop keeps a 248px persistent navigation rail when open. Below the desktop breakpoint the rail becomes a bounded navigation region above content; controls remain at least 36px high, labels truncate safely, and opening or closing the rail never changes route state.
+- **Motion:** Shell chrome uses only short 140–220ms state transitions. It does not inherit the portal or launcher entrance choreography or ambient orbital motion.
+- **Accessibility:** Keyboard focus uses a clearly offset blue ring; current navigation is conveyed by text, tone, and registration mark; touch targets remain usable; light and dark themes preserve semantic contrast.
+
+### Shared Overlays
+
+- **Structure:** Modals and drawers remain present in the first response and open entirely in Alpine. Livewire remains responsible only for save, delete, and real data loads.
+- **Surface:** Panels use Paper / Night Panel, a fine blue-neutral edge, a 0.85rem modal radius, and restrained offset depth. Drawers keep a square viewport edge and a single divider against the backdrop.
+- **Header:** A compact technical header uses a short blue registration line, clear title, optional description, and a labeled Close control. Body content scrolls independently.
+- **Backdrop:** Use a dark blue-black veil with modest blur only to preserve focus separation; it must not become decorative glass.
+
+## Dedicated Payroll Workspace
+
+Payroll generation retains its chrome-free, viewport-owned layout because step navigation, unsaved-change protection, and wide payroll tables require a specialized operating frame.
+
+- **Continuity:** Apply the shared Manrope typography, institutional palette, page field, focus rings, utility controls, and surface treatment without adding the standard application sidebar or top bar.
+- **Header:** The payroll title and scope lead. Exit, theme, and configuration controls use the shared utility-control language and remain visible without dominating the workflow.
+- **Step rail:** The fixed 300px desktop rail is the workspace navigation. Active steps use the same pale-blue field and registration mark as active app navigation, while accessible/read-only badges retain explicit text.
+- **Responsive behavior:** The rail returns to document flow on narrower screens; the main payroll table keeps its existing independent overflow and sticky-column behavior.
+- **Safety:** Unsaved-change confirmation, draft status, loading states, and configuration routes are behaviorally unchanged. Visual unification must never weaken these states or hide their labels.
+
 ## Components
 
 ### Buttons

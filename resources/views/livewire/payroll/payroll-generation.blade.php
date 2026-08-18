@@ -359,11 +359,11 @@
         },
     }"
 >
-    <header class="shrink-0 border-b border-[#e4e6ef] bg-white px-4 py-3 sm:px-5 lg:ml-[300px]">
+    <header class="payroll-generation-header shrink-0 border-b px-4 py-3 sm:px-5 lg:ml-[300px]">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <h2 class="text-xl font-semibold">Payroll Generation</h2>
+                    <h2 class="payroll-generation-title text-xl font-semibold">Payroll Generation</h2>
                     @if (session('draft_success') || $draftNotice)
                         @php
                             $draftBadgeIsSuccess = (bool) session('draft_success');
@@ -382,14 +382,14 @@
                         </span>
                     @endif
                 </div>
-                <p class="text-sm text-slate-600">
+                <p class="payroll-generation-scope text-sm text-slate-600">
                     {{ $scopeLabel }} · {{ \Carbon\CarbonImmutable::createFromFormat('!Y-m', $period)->format('F Y') }} · {{ $employeeTypeLabel }}
                 </p>
             </div>
             <div class="flex items-center gap-2">
                 <a
                     href="{{ url('/') }}"
-                    class="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    class="payroll-generation-utility inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium"
                     x-on:click="if (stepDirty && !window.confirm('You have unsaved payroll changes. Leave this page and discard them?')) $event.preventDefault()"
                     title="Exit payroll generation"
                 >
@@ -402,7 +402,7 @@
                     <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
                     <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
                 </button>
-                <a href="{{ route('payroll.generation.configuration', ['division_ids' => implode(',', $selectedDivisionIds ?? []), 'department_ids' => implode(',', $selectedDepartmentIds ?? []), 'division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'gsis_days' => $gsisDays, 'leave_type_ids' => $selectedLeaveTypeIds === [] ? 'none' : implode(',', $selectedLeaveTypeIds), 'leave_period_start' => $leavePeriodStart, 'leave_period_end' => $leavePeriodEnd, 'employee_type' => $employeeTypeQueryValue]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                <a href="{{ route('payroll.generation.configuration', ['division_ids' => implode(',', $selectedDivisionIds ?? []), 'department_ids' => implode(',', $selectedDepartmentIds ?? []), 'division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_GENERAL, 'period' => $period, 'working_days' => $workingDays, 'gsis_days' => $gsisDays, 'leave_type_ids' => $selectedLeaveTypeIds === [] ? 'none' : implode(',', $selectedLeaveTypeIds), 'leave_period_start' => $leavePeriodStart, 'leave_period_end' => $leavePeriodEnd, 'employee_type' => $employeeTypeQueryValue]) }}" class="payroll-generation-utility rounded-md border px-4 py-2 text-sm font-medium">
                     Change Configuration
                 </a>
             </div>
@@ -413,7 +413,7 @@
     </header>
 
     <div class="min-h-0 flex-1 lg:grid lg:grid-cols-[300px_minmax(0,1fr)]">
-    <aside class="payroll-generation-sidebar overflow-x-hidden border-b border-[#e4e6ef] bg-white lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:h-screen lg:w-[300px] lg:overflow-y-auto lg:border-b-0 lg:border-r">
+    <aside class="payroll-generation-sidebar overflow-x-hidden border-b lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:h-screen lg:w-[300px] lg:overflow-y-auto lg:border-b-0 lg:border-r">
         <div class="space-y-4 p-4">
     <div
         x-cloak
@@ -631,16 +631,16 @@
                 @php
                     $stepCanEdit = (bool) ($payrollGenerationAccess['steps'][$number]['can_edit'] ?? false);
                     $stepBadgeLabel = $stepCanEdit ? 'Accessible' : 'Read-only';
-                    $stepBadgeClasses = $currentStep === $number
-                        ? ($stepCanEdit ? 'bg-white/20 text-white ring-1 ring-white/35' : 'bg-amber-100 text-amber-950')
-                        : ($stepCanEdit ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-slate-100 text-slate-500 ring-1 ring-slate-200');
+                    $stepBadgeClasses = $stepCanEdit
+                        ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                        : 'bg-amber-100 text-amber-950 ring-1 ring-amber-200';
                 @endphp
                 <button
                     type="button"
                     x-on:click="leaveStep({{ $currentStep }}, {{ $number }})"
                     wire:loading.attr="disabled"
                     wire:target="{{ $payrollLoadingTargets }}"
-                    class="flex min-h-20 flex-col justify-between rounded-md border px-3 py-2 text-left text-sm transition {{ $currentStep === $number ? 'border-[#5f61e6] bg-[#5f61e6] font-semibold text-white shadow-sm shadow-[#696cff]/25' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' }}"
+                    class="payroll-generation-step {{ $currentStep === $number ? 'payroll-generation-step--active' : '' }} flex min-h-20 flex-col justify-between rounded-md border px-3 py-2 text-left text-sm transition"
                 >
                     <span class="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide">
                         <span>Step {{ $number }}</span>
