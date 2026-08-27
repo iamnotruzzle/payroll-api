@@ -61,9 +61,12 @@ class ConnectedCanonicalSyncService
                     $localId = $empId ? ($localIds[$empId] ?? null) : null;
 
                     return $localId ? [$key => $row->{$key}, 'model_type' => \App\Models\Payroll\PayrollUserAccount::class, 'model_id' => $localId] : null;
-                })->filter()->all();
-                if ($rows !== []) {
-                    DB::connection('payroll')->table($table)->insert($rows);
+                })
+                    ->filter()
+                    ->unique(fn (array $row) => $row[$key].'|'.$row['model_type'].'|'.$row['model_id'])
+                    ->values();
+                foreach ($rows->chunk(500) as $chunk) {
+                    DB::connection('payroll')->table($table)->insert($chunk->all());
                 }
             }
         });
