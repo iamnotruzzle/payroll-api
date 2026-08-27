@@ -241,7 +241,15 @@ class CanonicalWorkbookService
     {
         if (! $rows) {
             return;
-        } DB::connection('payroll')->table($table)->upsert(array_map($map, $rows), $unique, array_values(array_diff(array_keys($map($rows[0])), $unique)));
+        }
+
+        $updateColumns = array_values(array_diff(array_keys($map($rows[0])), $unique));
+
+        foreach (array_chunk($rows, 500) as $chunk) {
+            DB::connection('payroll')
+                ->table($table)
+                ->upsert(array_map($map, $chunk), $unique, $updateColumns);
+        }
     }
 
     private function meta(PayrollSourceBatch $b): array
