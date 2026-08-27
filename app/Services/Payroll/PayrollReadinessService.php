@@ -39,6 +39,12 @@ class PayrollReadinessService
             $errors[] = "No timekeeping data is active for {$period}.";
         }
 
-        return ['ready' => $errors === [], 'errors' => $errors, 'counts' => $counts, 'latest_batch' => PayrollSourceBatch::query()->where('status', 'active')->latest('activated_at')->first()];
+        $latestBatch = PayrollSourceBatch::query()
+            ->select(['id', 'kind', 'source', 'status', 'effective_period', 'activated_at'])
+            ->where('status', 'active')
+            ->latest('activated_at')
+            ->first();
+
+        return ['ready' => $errors === [], 'errors' => $errors, 'counts' => $counts, 'latest_batch' => $latestBatch];
     }
 }

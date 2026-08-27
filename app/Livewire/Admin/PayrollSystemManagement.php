@@ -125,6 +125,12 @@ class PayrollSystemManagement extends Component
             }
         }
 
-        return view('livewire.admin.payroll-system-management', ['currentMode' => $modes->current(), 'allowedModes' => $modes->allowed(), 'forced' => $modes->forced(), 'readiness' => $readiness->check($this->period ?: null), 'connections' => $connections, 'batches' => PayrollSourceBatch::query()->latest()->limit(20)->get(), 'selectedBatch' => $this->selectedBatchId ? PayrollSourceBatch::query()->find($this->selectedBatchId) : null]);
+        $batches = PayrollSourceBatch::query()
+            ->select(['id', 'kind', 'source', 'status', 'original_filename', 'activated_at', 'created_at'])
+            ->latest()
+            ->limit(20)
+            ->get();
+
+        return view('livewire.admin.payroll-system-management', ['currentMode' => $modes->current(), 'allowedModes' => $modes->allowed(), 'forced' => $modes->forced(), 'readiness' => $readiness->check($this->period ?: null), 'connections' => $connections, 'batches' => $batches, 'selectedBatch' => $this->selectedBatchId ? PayrollSourceBatch::query()->find($this->selectedBatchId) : null]);
     }
 }
