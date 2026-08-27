@@ -8,18 +8,17 @@ use App\Models\Payroll\Canonical\Employee;
 use App\Models\Payroll\Canonical\LeaveType;
 use App\Models\Payroll\PayrollBatch;
 use App\Models\Payroll\PayrollGenerationDraft;
-use App\Models\Payroll\PayrollSourceBatch;
+use App\Models\Payroll\PayrollHoliday;
 use App\Models\Payroll\PayrollType;
-use App\Services\Payroll\CanonicalWorkbookService;
+use App\Services\Payroll\HolidayService;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Component;
-use Livewire\WithFileUploads;
 
 class PayrollConfiguration extends Component
 {
-    use WithFileUploads;
-
     private const DEFAULT_UNCHECKED_LEAVE_TYPE_IDS = [4, 14, 15, 16, 20, 22];
 
     public ?int $divisionId = null;
@@ -52,9 +51,19 @@ class PayrollConfiguration extends Component
 
     public ?string $noticedConfigurationKey = null;
 
-    public $timekeepingFile;
+    public ?int $holidayEditingId = null;
 
-    public ?int $timekeepingBatchId = null;
+    public string $holidayDate = '';
+
+    public string $holidayName = '';
+
+    public string $holidayType = 'REGULAR';
+
+    public string $holidayScope = 'FULL_DAY';
+
+    public bool $holidayIsPaid = true;
+
+    public bool $holidayIsActive = true;
 
     public function mount(): void
     {
@@ -136,52 +145,69 @@ class PayrollConfiguration extends Component
         $this->noticedConfigurationKey = null;
     }
 
-    public function downloadTimekeepingTemplate(CanonicalWorkbookService $service)
+    public function saveHoliday(HolidayService $service): void
     {
-        abort_unless(auth()->user()?->can('payroll.system.import'), 403);
-
-        return response()
-            ->download($service->template('Timekeeping'), 'payroll-timekeeping-template.xlsx')
-            ->deleteFileAfterSend(true);
-    }
-
-    public function stageTimekeeping(CanonicalWorkbookService $service): void
-    {
-        abort_unless(auth()->user()?->can('payroll.system.import'), 403);
+        abort_unless($this->canManageHolidayCalendar(), 403);
         $data = $this->validate([
-            'period' => ['required', 'date_format:Y-m'],
-            'timekeepingFile' => ['required', 'file', 'mimes:xlsx,xlsm,xls,csv,txt', 'max:30720'],
+            'holidayEditingId' => ['nullable', 'integer'],
+            'holidayDate' => ['required', 'date_format:Y-m-d'],
+            'holidayName' => ['required', 'string', 'max:255'],
+            'holidayType' => ['required', Rule::in(['REGULAR', 'SPECIAL', 'WORK_SUSPENSION'])],
+            'holidayScope' => ['required', Rule::in(['FULL_DAY', 'FIRST_HALF', 'SECOND_HALF'])],
+            'holidayIsPaid' => ['boolean'],
+            'holidayIsActive' => ['boolean'],
         ]);
 
-        $batch = $service->stage(
-            $this->timekeepingFile->getRealPath(),
-            $this->timekeepingFile->getClientOriginalName(),
-            $data['period'],
-            auth()->user()?->emp_id,
-            'Timekeeping',
-        );
+        if (! str_starts_with($data['holidayDate'], $this->period.'-')) {
+            throw ValidationException::withMessages([
+                'holidayDate' => 'Choose a date within the selected payroll month.',
+            ]);
+        }
+        if ($service->duplicateExists($data['holidayDate'], (int) ($data['holidayEditingId'] ?? 0))) {
+            throw ValidationException::withMessages([
+                'holidayDate' => 'A holiday or work suspension already exists for this date.',
+            ]);
+        }
 
-        $this->timekeepingBatchId = $batch->id;
-        $this->timekeepingFile = null;
+        $service->save([
+            'holiday_date' => $data['holidayDate'],
+            'name' => $data['holidayName'],
+            'holiday_type' => $data['holidayType'],
+            'holiday_scope' => $data['holidayScope'],
+            'label_code' => 'HOLIDAY',
+            'is_paid' => $data['holidayIsPaid'],
+            'is_active' => $data['holidayIsActive'],
+        ], (int) ($data['holidayEditingId'] ?? 0));
 
-        session()->flash(
-            'timekeeping_status',
-            $batch->status === 'validated'
-                ? "Timekeeping batch #{$batch->id} passed validation and is ready to activate."
-                : "Timekeeping batch #{$batch->id} contains validation errors.",
-        );
+        $this->resetHolidayForm();
+        $this->dispatch('erp-overlay-close', name: 'payroll-holiday');
+        session()->flash('holiday_status', 'Holiday calendar updated.');
     }
 
-    public function activateTimekeeping(CanonicalWorkbookService $service): void
+    private function resetHolidayForm(): void
     {
-        abort_unless(auth()->user()?->can('payroll.system.import'), 403);
-        $batch = PayrollSourceBatch::query()
-            ->where('kind', 'timekeeping')
-            ->findOrFail($this->timekeepingBatchId);
+        $this->holidayEditingId = null;
+        $this->holidayDate = '';
+        $this->holidayName = '';
+        $this->holidayType = 'REGULAR';
+        $this->holidayScope = 'FULL_DAY';
+        $this->holidayIsPaid = true;
+        $this->holidayIsActive = true;
+        $this->resetValidation([
+            'holidayDate',
+            'holidayName',
+            'holidayType',
+            'holidayScope',
+            'holidayIsPaid',
+            'holidayIsActive',
+        ]);
+    }
 
-        $service->activate($batch, auth()->user()?->emp_id);
-        $this->timekeepingBatchId = null;
-        session()->flash('timekeeping_status', "Timekeeping batch #{$batch->id} is now active.");
+    private function canManageHolidayCalendar(): bool
+    {
+        $user = auth()->user();
+
+        return (bool) ($user?->can('timekeeping.manage') || $user?->can('payroll.generation.hr'));
     }
 
     private function validatedConfiguration(): array
@@ -529,6 +555,20 @@ class PayrollConfiguration extends Component
 
     public function render()
     {
+        try {
+            $month = CarbonImmutable::createFromFormat('!Y-m', $this->period);
+            $periodLabel = $month->format('F Y');
+            $holidays = Schema::connection('payroll')->hasTable('payroll_holidays')
+                ? PayrollHoliday::query()
+                    ->whereBetween('holiday_date', [$month->startOfMonth()->toDateString(), $month->endOfMonth()->toDateString()])
+                    ->orderBy('holiday_date')
+                    ->get()
+                : collect();
+        } catch (\Throwable) {
+            $periodLabel = 'the selected month';
+            $holidays = collect();
+        }
+
         return view('livewire.payroll.payroll-configuration', [
             'divisions' => Division::query()->orderBy('name')->get(),
             'payrollTypes' => PayrollType::query()
@@ -544,11 +584,9 @@ class PayrollConfiguration extends Component
                 ->orderBy('name')
                 ->orderBy('external_id')
                 ->get(),
-            'timekeepingBatch' => $this->timekeepingBatchId
-                ? PayrollSourceBatch::query()
-                    ->select(['id', 'kind', 'source', 'status', 'effective_period', 'statistics', 'errors'])
-                    ->find($this->timekeepingBatchId)
-                : null,
+            'holidays' => $holidays,
+            'periodLabel' => $periodLabel,
+            'canManageHolidays' => $this->canManageHolidayCalendar(),
         ]);
     }
 }

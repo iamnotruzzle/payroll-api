@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Schema;
 
 class PayrollReadinessService
 {
-    public function check(?string $period = null): array
+    public function check(?string $period = null, bool $requireTimekeeping = true): array
     {
         $errors = [];
         if (! Schema::connection('payroll')->hasTable('payroll_canonical_employees')) {
@@ -32,10 +32,10 @@ class PayrollReadinessService
         if (! $counts['leave_types']) {
             $errors[] = 'No leave types are loaded.';
         }
-        if (! $counts['timekeeping_periods']) {
+        if ($requireTimekeeping && ! $counts['timekeeping_periods']) {
             $errors[] = 'No timekeeping period is loaded.';
         }
-        if ($period && ! DB::connection('payroll')->table('payroll_canonical_timekeeping')->where('period', $period)->exists()) {
+        if ($requireTimekeeping && $period && ! DB::connection('payroll')->table('payroll_canonical_timekeeping')->where('period', $period)->exists()) {
             $errors[] = "No timekeeping data is active for {$period}.";
         }
 

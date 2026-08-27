@@ -6,57 +6,6 @@
         </div>
     </div>
 
-    @can('payroll.system.import')
-        <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                    <h3 class="text-sm font-semibold uppercase text-slate-500">Timekeeping Import</h3>
-                    <p class="mt-1 text-xs text-slate-500">Upload Excel or CSV data for the selected payroll month, validate it, then activate it for payroll generation.</p>
-                </div>
-                <button type="button" wire:click="downloadTimekeepingTemplate" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
-                    Download Excel template
-                </button>
-            </div>
-
-            @if (session('timekeeping_status'))
-                <div class="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">{{ session('timekeeping_status') }}</div>
-            @endif
-
-            <div class="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
-                <div>
-                    <input wire:model="timekeepingFile" type="file" accept=".xlsx,.xlsm,.xls,.csv,text/csv" class="w-full rounded-md border border-slate-300 p-2 text-sm">
-                    @error('timekeepingFile') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                </div>
-                <button type="button" wire:click="stageTimekeeping" wire:loading.attr="disabled" wire:target="timekeepingFile,stageTimekeeping" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
-                    <span wire:loading.remove wire:target="stageTimekeeping">Stage &amp; validate</span>
-                    <span wire:loading wire:target="stageTimekeeping">Validating...</span>
-                </button>
-                @if ($timekeepingBatch?->status === 'validated')
-                    <button type="button" wire:click="activateTimekeeping" wire:loading.attr="disabled" wire:target="activateTimekeeping" class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-60">
-                        Activate batch #{{ $timekeepingBatch->id }}
-                    </button>
-                @endif
-            </div>
-
-            @if ($timekeepingBatch)
-                <div class="mt-3 text-xs text-slate-600">
-                    Batch #{{ $timekeepingBatch->id }} · {{ ucfirst($timekeepingBatch->source) }} · {{ ucfirst($timekeepingBatch->status) }}
-                    @if ($timekeepingBatch->effective_period)
-                        · Period {{ $timekeepingBatch->effective_period }}
-                    @endif
-                    · {{ data_get($timekeepingBatch->statistics, 'Timekeeping', 0) }} rows
-                </div>
-                @if ($timekeepingBatch->errors)
-                    <ul class="mt-2 list-disc space-y-1 pl-5 text-xs text-red-700">
-                        @foreach ($timekeepingBatch->errors as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                @endif
-            @endif
-        </section>
-    @endcan
-
     <form wire:submit="proceed" class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div class="grid divide-y divide-slate-100 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)] lg:divide-x lg:divide-y-0">
             <div class="space-y-4 p-4">
@@ -160,6 +109,59 @@
                     </div>
                 </div>
 
+                <div class="rounded-md border border-slate-200">
+                    <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-3 py-3">
+                        <div>
+                            <div class="text-sm font-medium">Holidays &amp; Work Suspensions</div>
+                            <p class="mt-1 text-xs text-slate-500">Calendar entries for {{ $periodLabel }} used by DTR and MRA processing.</p>
+                        </div>
+                        @if ($canManageHolidays)
+                            <button
+                                type="button"
+                                x-on:click="erpOverlay.open($wire, 'payroll-holiday', { holidayEditingId: null, holidayDate: @js($period.'-01'), holidayName: '', holidayType: 'REGULAR', holidayScope: 'FULL_DAY', holidayIsPaid: true, holidayIsActive: true })"
+                                class="rounded-md border border-blue-300 bg-white px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                            >
+                                Add calendar entry
+                            </button>
+                        @endif
+                    </div>
+                    @if (session('holiday_status'))
+                        <div class="border-b border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">{{ session('holiday_status') }}</div>
+                    @endif
+                    <div class="divide-y divide-slate-100">
+                        @forelse ($holidays as $holiday)
+                            <div class="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
+                                <div class="flex min-w-0 items-start gap-3">
+                                    <time class="w-12 shrink-0 text-center">
+                                        <span class="block text-xs font-semibold uppercase text-slate-500">{{ $holiday->holiday_date->format('D') }}</span>
+                                        <span class="block text-sm font-semibold text-slate-800">{{ $holiday->holiday_date->format('M d') }}</span>
+                                    </time>
+                                    <div class="min-w-0">
+                                        <div class="truncate text-sm font-medium text-slate-800">{{ $holiday->name }}</div>
+                                        <div class="mt-0.5 text-xs text-slate-500">
+                                            {{ $holiday->holiday_type === 'WORK_SUSPENSION' ? 'Work suspension' : ucfirst(strtolower($holiday->holiday_type)).' holiday' }}
+                                            · {{ str($holiday->holiday_scope)->replace('_', ' ')->lower()->title() }}
+                                            · {{ $holiday->is_paid ? 'Paid' : 'Unpaid' }}
+                                            @unless ($holiday->is_active) · Inactive @endunless
+                                        </div>
+                                    </div>
+                                </div>
+                                @if ($canManageHolidays)
+                                    <button
+                                        type="button"
+                                        x-on:click="erpOverlay.open($wire, 'payroll-holiday', { holidayEditingId: {{ $holiday->id }}, holidayDate: @js($holiday->holiday_date->format('Y-m-d')), holidayName: @js($holiday->name), holidayType: @js($holiday->holiday_type), holidayScope: @js($holiday->holiday_scope), holidayIsPaid: @js((bool) $holiday->is_paid), holidayIsActive: @js((bool) $holiday->is_active) }, true)"
+                                        class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                    >
+                                        Edit
+                                    </button>
+                                @endif
+                            </div>
+                        @empty
+                            <div class="px-3 py-5 text-center text-xs text-slate-500">No holidays or work suspensions recorded for this payroll month.</div>
+                        @endforelse
+                    </div>
+                </div>
+
                 <div class="rounded-md border border-slate-200 p-3">
                     <div class="text-sm font-medium">Inclusive Dates for Leaves</div>
                     <p class="mt-1 text-xs text-slate-500">Only HRIS leave dates within this range will be processed. Dates finalized in an earlier payroll run remain blocked.</p>
@@ -241,4 +243,59 @@
             @endif
         </div>
     </form>
+
+    @if ($canManageHolidays)
+        <x-setup-form-modal name="payroll-holiday" title="New Calendar Entry" edit-title="Edit Calendar Entry" size="sm">
+            <form wire:submit="saveHoliday" class="space-y-4">
+                <label class="block">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Date</span>
+                    <input wire:model="holidayDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    @error('holidayDate') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                </label>
+                <label class="block">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Name</span>
+                    <input wire:model="holidayName" type="text" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="e.g. National Heroes Day">
+                    @error('holidayName') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                </label>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label class="block">
+                        <span class="text-xs font-semibold uppercase text-slate-500">Entry type</span>
+                        <select wire:model="holidayType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            <option value="REGULAR">Regular holiday</option>
+                            <option value="SPECIAL">Special holiday</option>
+                            <option value="WORK_SUSPENSION">Work suspension</option>
+                        </select>
+                        @error('holidayType') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-semibold uppercase text-slate-500">Coverage</span>
+                        <select wire:model="holidayScope" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                            <option value="FULL_DAY">Full day</option>
+                            <option value="FIRST_HALF">First half</option>
+                            <option value="SECOND_HALF">Second half</option>
+                        </select>
+                        @error('holidayScope') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
+                    </label>
+                </div>
+                <div class="grid gap-2 sm:grid-cols-2">
+                    <label class="inline-flex min-h-9 items-center gap-2 text-sm font-medium text-slate-700">
+                        <input wire:model="holidayIsPaid" type="checkbox" class="h-4 w-4 rounded border-slate-300">
+                        <span>Paid day</span>
+                    </label>
+                    <label class="inline-flex min-h-9 items-center gap-2 text-sm font-medium text-slate-700">
+                        <input wire:model="holidayIsActive" type="checkbox" class="h-4 w-4 rounded border-slate-300">
+                        <span>Active</span>
+                    </label>
+                </div>
+                <p class="text-xs text-slate-500">Changes affect the shared DTR and MRA calendar for all employees.</p>
+                <div class="flex justify-end gap-2 border-t pt-4">
+                    <button x-on:click="erpOverlay.close('payroll-holiday')" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
+                    <button type="submit" wire:loading.attr="disabled" wire:target="saveHoliday" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
+                        <span wire:loading.remove wire:target="saveHoliday" x-text="editing ? 'Update entry' : 'Save entry'"></span>
+                        <span wire:loading wire:target="saveHoliday">Saving...</span>
+                    </button>
+                </div>
+            </form>
+        </x-setup-form-modal>
+    @endif
 </section>

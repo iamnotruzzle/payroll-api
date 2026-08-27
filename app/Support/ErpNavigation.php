@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Enums\PayrollOperatingMode;
+use App\Services\Payroll\PayrollOperatingModeService;
 use App\Services\Schedule\ScheduleScopeService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -628,9 +630,15 @@ class ErpNavigation
      */
     public static function visibleApps(): array
     {
+        $user = Auth::user();
+        $standalonePayrollOnly = $user
+            && ! $user->hasRole('super-admin')
+            && app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone;
+
         return array_values(array_filter(
             self::apps(),
-            fn (array $app) => $app['visible'] ?? true
+            fn (array $app) => ($app['visible'] ?? true)
+                && (! $standalonePayrollOnly || in_array($app['key'] ?? null, ['payroll', 'timekeeping'], true))
         ));
     }
 

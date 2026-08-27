@@ -729,7 +729,7 @@
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
                 <div>
-                    <h3 class="font-semibold">MRA Validation</h3>
+                    <h3 class="font-semibold">DTR / MRA Inputs</h3>
                     <p class="text-sm text-slate-600">
                     Source:
                     {{ $previousMraPeriod['start']->format('M d, Y') }} to {{ $previousMraPeriod['end']->format('M d, Y') }}
@@ -742,6 +742,65 @@
                 </div>
                 @include('livewire.payroll.partials.step-save-button')
             </div>
+            @if ($canEditStep1HrFields)
+                <div class="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div class="max-w-2xl">
+                            <div class="text-sm font-medium text-slate-800">Bulk import</div>
+                            <p class="mt-0.5 text-xs text-slate-600">Import DTR/MRA deduction days and logbook LWOP from Excel or CSV, or enter values directly in the employee table below.</p>
+                        </div>
+                        <button type="button" wire:click="downloadDtrMraTemplate" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100">
+                            Download template
+                        </button>
+                    </div>
+                    <div class="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                        <div>
+                            <input wire:model="dtrMraFile" type="file" accept=".xlsx,.xlsm,.xls,.csv,text/csv" class="w-full rounded-md border border-slate-300 bg-white p-2 text-sm">
+                            @error('dtrMraFile') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                        <button type="button" wire:click="previewDtrMraImport" wire:loading.attr="disabled" wire:target="dtrMraFile,previewDtrMraImport" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
+                            <span wire:loading.remove wire:target="previewDtrMraImport">Review import</span>
+                            <span wire:loading wire:target="previewDtrMraImport">Reading file...</span>
+                        </button>
+                    </div>
+                    @if ($dtrMraImportMessage)
+                        <p class="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">{{ $dtrMraImportMessage }}</p>
+                    @endif
+                    @if ($dtrMraImportPreview !== [])
+                        @php
+                            $validDtrMraRows = collect($dtrMraImportPreview)->where('valid', true)->count();
+                            $invalidDtrMraRows = count($dtrMraImportPreview) - $validDtrMraRows;
+                        @endphp
+                        <div class="mt-3 overflow-hidden rounded-md border border-slate-200 bg-white">
+                            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-3 py-2 text-xs">
+                                <span class="font-medium text-slate-700">{{ $validDtrMraRows }} valid · {{ $invalidDtrMraRows }} need attention</span>
+                                <div class="flex gap-2">
+                                    <button type="button" wire:click="cancelDtrMraImport" class="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
+                                    <button type="button" wire:click="applyDtrMraImport" @disabled($validDtrMraRows === 0) class="rounded-md bg-emerald-600 px-3 py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-50">Apply valid rows</button>
+                                </div>
+                            </div>
+                            <div class="max-h-52 overflow-auto">
+                                <table class="min-w-full divide-y divide-slate-200 text-xs">
+                                    <thead class="sticky top-0 bg-slate-50 text-left text-slate-500">
+                                        <tr><th class="px-3 py-2">Row</th><th class="px-3 py-2">Employee</th><th class="px-3 py-2 text-right">DTR/MRA days</th><th class="px-3 py-2 text-right">Logbook LWOP</th><th class="px-3 py-2">Status</th></tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100">
+                                        @foreach ($dtrMraImportPreview as $previewRow)
+                                            <tr>
+                                                <td class="px-3 py-2">{{ $previewRow['row'] }}</td>
+                                                <td class="px-3 py-2"><span class="font-medium">{{ $previewRow['emp_id'] ?: 'Missing ID' }}</span><span class="ml-1 text-slate-500">{{ $previewRow['employee_name'] }}</span></td>
+                                                <td class="px-3 py-2 text-right">{{ is_null($previewRow['deduction_days']) ? '—' : number_format($previewRow['deduction_days'], 3) }}</td>
+                                                <td class="px-3 py-2 text-right">{{ is_null($previewRow['logbook_lwop_days']) ? '—' : number_format($previewRow['logbook_lwop_days'], 3) }}</td>
+                                                <td class="px-3 py-2 {{ $previewRow['valid'] ? 'text-emerald-700' : 'text-red-700' }}">{{ $previewRow['valid'] ? 'Ready' : implode(' ', $previewRow['errors']) }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            @endif
             <div class="grid gap-3 border-b border-slate-200 bg-blue-50/50 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_180px_180px_auto] sm:items-end">
                 <div>
                     <div class="text-sm font-medium text-slate-800">Inclusive Dates for Leaves</div>
@@ -792,7 +851,7 @@
                             <th class="px-4 py-3 text-right">Prior MRA Days</th>
                             <th class="px-4 py-3 text-right">HRIS LWOP</th>
                             <th class="px-4 py-3 text-right">Logbook LWOP</th>
-                            <th class="px-4 py-3 text-right">Unauthorized Days</th>
+                            <th class="px-4 py-3 text-right">DTR/MRA Deduction Days</th>
                             <th class="px-4 py-3 text-right">Paid Days</th>
                             <th class="px-4 py-3 text-right">GSIS Days</th>
                             <th class="px-4 py-3 text-right">Adjusted Basic Salary</th>

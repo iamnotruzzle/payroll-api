@@ -31,6 +31,7 @@ use App\Models\Payroll\PayrollProcessedLeaveDate;
 use App\Models\Payroll\PayrollRun;
 use App\Models\Payroll\PayrollTimekeepingSummary;
 use App\Models\Payroll\PayrollType;
+use App\Services\Payroll\DtrMraInputImportService;
 use App\Services\Payroll\EmployeeRosterImportService;
 use App\Services\Payroll\LegacyPayrollGenerationTestSource;
 use App\Services\Payroll\PayrollLoanImportService;
@@ -120,6 +121,12 @@ class PayrollGeneration extends Component
     public array $deductionDayOverrides = [];
 
     public array $logbookLwopDayOverrides = [];
+
+    public $dtrMraFile;
+
+    public array $dtrMraImportPreview = [];
+
+    public ?string $dtrMraImportMessage = null;
 
     public array $leaveDeductionOverrides = [];
 
@@ -968,6 +975,69 @@ class PayrollGeneration extends Component
         $this->taxAnnualizationImportMessage = "Applied tax inputs for {$validRows->count()} employee(s). Save the step to retain them in the draft.";
     }
 
+    public function downloadDtrMraTemplate(DtrMraInputImportService $service)
+    {
+        if (! $this->ensureStepCanBeEdited(1) || ! $this->canEditStep1HrFields()) {
+            abort(403);
+        }
+
+        $path = $service->template($this->employeeFilterOptions());
+
+        return response()->download($path, "dtr-mra-inputs-{$this->period}.xlsx")->deleteFileAfterSend(true);
+    }
+
+    public function previewDtrMraImport(DtrMraInputImportService $service): void
+    {
+        if (! $this->ensureStepCanBeEdited(1) || ! $this->canEditStep1HrFields()) {
+            return;
+        }
+
+        $this->validate([
+            'dtrMraFile' => ['required', 'file', 'mimes:xlsx,xlsm,xls,csv,txt', 'max:30720'],
+        ]);
+
+        $this->dtrMraImportPreview = $service->preview(
+            $this->dtrMraFile->getRealPath(),
+            $this->employeeFilterOptions(),
+        );
+        $this->dtrMraImportMessage = null;
+    }
+
+    public function applyDtrMraImport(): void
+    {
+        if (! $this->ensureStepCanBeEdited(1) || ! $this->canEditStep1HrFields()) {
+            return;
+        }
+
+        $validRows = collect($this->dtrMraImportPreview)->where('valid', true);
+        if ($validRows->isEmpty()) {
+            $this->addError('dtrMraFile', 'The file has no valid DTR/MRA input rows.');
+
+            return;
+        }
+
+        foreach ($validRows as $row) {
+            $empId = (string) $row['emp_id'];
+            if ($row['deduction_days'] !== null) {
+                $this->deductionDayOverrides[$empId] = $row['deduction_days'];
+            }
+            if ($row['logbook_lwop_days'] !== null) {
+                $this->logbookLwopDayOverrides[$empId] = $row['logbook_lwop_days'];
+            }
+        }
+
+        $this->dtrMraFile = null;
+        $this->dtrMraImportPreview = [];
+        $this->dtrMraImportMessage = "Applied DTR/MRA inputs for {$validRows->count()} employee(s). Save Step 1 to retain them.";
+    }
+
+    public function cancelDtrMraImport(): void
+    {
+        $this->dtrMraFile = null;
+        $this->dtrMraImportPreview = [];
+        $this->resetValidation('dtrMraFile');
+    }
+
     public function saveDraft(): void
     {
         if (! $this->ensureStepCanBeEdited($this->currentStep)) {
@@ -977,6 +1047,9 @@ class PayrollGeneration extends Component
         if ($this->selectedDivisionIds === [] && $this->selectedDepartmentIds === []) {
             $this->addError('draft', 'Choose a division before saving this payroll draft.');
 
+            return;
+        }
+        if ($this->currentStep === 1 && ! $this->validateStandaloneDtrMraInputs('draft')) {
             return;
         }
 
@@ -2550,6 +2623,30 @@ class PayrollGeneration extends Component
         return round(max(0, (float) $override), 3);
     }
 
+    private function validateStandaloneDtrMraInputs(string $errorKey): bool
+    {
+        if (app(PayrollOperatingModeService::class)->current()->value !== 'standalone') {
+            return true;
+        }
+        if ($this->previousMraReport($this->previousMraPeriod())) {
+            return true;
+        }
+
+        $employeeIds = $this->employeeFilterOptions()->pluck('emp_id')->map('strval');
+        $enteredIds = collect(array_keys($this->deductionDayOverrides))->map('strval');
+        $missing = $employeeIds->diff($enteredIds);
+        if ($missing->isEmpty()) {
+            return true;
+        }
+
+        $this->addError(
+            $errorKey,
+            "Step 1 requires DTR/MRA deduction days for every employee in Standalone mode. {$missing->count()} employee(s) still have no value; enter 0 when there is no deduction, or import the completed template.",
+        );
+
+        return false;
+    }
+
     private function logbookLwopDaysFor(string $empId): float
     {
         $override = $this->logbookLwopDayOverrides[$empId] ?? null;
@@ -4028,10 +4125,14 @@ class PayrollGeneration extends Component
 
     public function finalizePayroll(): void
     {
-        $readiness = app(PayrollReadinessService::class)->check($this->period);
+        $standalone = app(PayrollOperatingModeService::class)->current()->value === 'standalone';
+        $readiness = app(PayrollReadinessService::class)->check($this->period, requireTimekeeping: ! $standalone);
         if (! $readiness['ready']) {
             $this->addError('finalize', implode(' ', $readiness['errors']));
 
+            return;
+        }
+        if (! $this->validateStandaloneDtrMraInputs('finalize')) {
             return;
         }
 
