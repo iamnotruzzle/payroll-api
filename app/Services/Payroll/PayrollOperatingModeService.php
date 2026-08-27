@@ -44,12 +44,6 @@ class PayrollOperatingModeService
         if (! in_array($mode, $this->allowed(), true)) {
             throw ValidationException::withMessages(['mode' => 'Mode is not permitted by PAYROLL_OPERATION_MODES.']);
         }
-        if ($mode === PayrollOperatingMode::Standalone) {
-            $readiness = app(PayrollReadinessService::class)->check();
-            if (! $readiness['ready']) {
-                throw ValidationException::withMessages(['mode' => 'Stand-alone readiness failed: '.implode(' ', $readiness['errors'])]);
-            }
-        }
         $snapshot = app(PayrollReadinessService::class)->check();
         DB::connection('payroll')->transaction(function () use ($mode, $from, $by, $snapshot) {
             PayrollSystemSetting::query()->updateOrCreate(['key' => 'operating_mode'], ['value' => ['mode' => $mode->value, 'changed_at' => now()->toIso8601String()], 'updated_by' => $by]);
