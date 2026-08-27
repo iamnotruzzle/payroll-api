@@ -6,6 +6,57 @@
         </div>
     </div>
 
+    @can('payroll.system.import')
+        <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h3 class="text-sm font-semibold uppercase text-slate-500">Timekeeping Import</h3>
+                    <p class="mt-1 text-xs text-slate-500">Upload Excel or CSV data for the selected payroll month, validate it, then activate it for payroll generation.</p>
+                </div>
+                <button type="button" wire:click="downloadTimekeepingTemplate" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                    Download Excel template
+                </button>
+            </div>
+
+            @if (session('timekeeping_status'))
+                <div class="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">{{ session('timekeeping_status') }}</div>
+            @endif
+
+            <div class="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+                <div>
+                    <input wire:model="timekeepingFile" type="file" accept=".xlsx,.xlsm,.xls,.csv,text/csv" class="w-full rounded-md border border-slate-300 p-2 text-sm">
+                    @error('timekeepingFile') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <button type="button" wire:click="stageTimekeeping" wire:loading.attr="disabled" wire:target="timekeepingFile,stageTimekeeping" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
+                    <span wire:loading.remove wire:target="stageTimekeeping">Stage &amp; validate</span>
+                    <span wire:loading wire:target="stageTimekeeping">Validating...</span>
+                </button>
+                @if ($timekeepingBatch?->status === 'validated')
+                    <button type="button" wire:click="activateTimekeeping" wire:loading.attr="disabled" wire:target="activateTimekeeping" class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-60">
+                        Activate batch #{{ $timekeepingBatch->id }}
+                    </button>
+                @endif
+            </div>
+
+            @if ($timekeepingBatch)
+                <div class="mt-3 text-xs text-slate-600">
+                    Batch #{{ $timekeepingBatch->id }} · {{ ucfirst($timekeepingBatch->source) }} · {{ ucfirst($timekeepingBatch->status) }}
+                    @if ($timekeepingBatch->effective_period)
+                        · Period {{ $timekeepingBatch->effective_period }}
+                    @endif
+                    · {{ data_get($timekeepingBatch->statistics, 'Timekeeping', 0) }} rows
+                </div>
+                @if ($timekeepingBatch->errors)
+                    <ul class="mt-2 list-disc space-y-1 pl-5 text-xs text-red-700">
+                        @foreach ($timekeepingBatch->errors as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                @endif
+            @endif
+        </section>
+    @endcan
+
     <form wire:submit="proceed" class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div class="grid divide-y divide-slate-100 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)] lg:divide-x lg:divide-y-0">
             <div class="space-y-4 p-4">

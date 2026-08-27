@@ -38,7 +38,7 @@ class CanonicalWorkbookService
         return $path;
     }
 
-    public function stage(string $path, string $filename, ?string $period, ?string $by): PayrollSourceBatch
+    public function stage(string $path, string $filename, ?string $period, ?string $by, ?string $only = null): PayrollSourceBatch
     {
         $checksum = hash_file('sha256', $path);
         $book = IOFactory::load($path);
@@ -47,6 +47,16 @@ class CanonicalWorkbookService
         $stats = [];
         foreach ($book->getWorksheetIterator() as $sheet) {
             $name = $sheet->getTitle();
+            if ($only !== null) {
+                if (! in_array($only, self::SHEETS, true)) {
+                    throw ValidationException::withMessages(['file' => 'Unknown canonical import type.']);
+                }
+                if ($book->getSheetCount() === 1) {
+                    $name = $only;
+                } elseif (strcasecmp($name, $only) !== 0) {
+                    continue;
+                }
+            }
             if (! in_array($name, self::SHEETS, true)) {
                 continue;
             } $rows = $sheet->toArray(null, true, true, true);
@@ -71,7 +81,7 @@ class CanonicalWorkbookService
         }
         $errors = [...$errors, ...$this->validatePayload($payload, $period)];
         try {
-            return PayrollSourceBatch::query()->create(['kind' => count($payload) > 1 ? 'consolidated' : strtolower(str_replace(' ', '_', array_key_first($payload) ?? 'unknown')), 'source' => 'workbook', 'status' => $errors === [] ? 'validated' : 'invalid', 'schema_version' => config('payroll_standalone.workbook_version'), 'original_filename' => $filename, 'checksum' => $checksum, 'effective_period' => $period, 'statistics' => $stats, 'errors' => $errors, 'payload' => $payload, 'created_by' => $by]);
+            return PayrollSourceBatch::query()->create(['kind' => count($payload) > 1 ? 'consolidated' : strtolower(str_replace(' ', '_', array_key_first($payload) ?? 'unknown')), 'source' => strtolower(pathinfo($filename, PATHINFO_EXTENSION)) === 'csv' ? 'csv' : 'workbook', 'status' => $errors === [] ? 'validated' : 'invalid', 'schema_version' => config('payroll_standalone.workbook_version'), 'original_filename' => $filename, 'checksum' => $checksum, 'effective_period' => $period, 'statistics' => $stats, 'errors' => $errors, 'payload' => $payload, 'created_by' => $by]);
         } catch (\Illuminate\Database\UniqueConstraintViolationException) {
             throw ValidationException::withMessages(['file' => 'This workbook has already been staged for the selected period.']);
         }

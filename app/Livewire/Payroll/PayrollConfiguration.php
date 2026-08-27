@@ -8,13 +8,18 @@ use App\Models\Payroll\Canonical\Employee;
 use App\Models\Payroll\Canonical\LeaveType;
 use App\Models\Payroll\PayrollBatch;
 use App\Models\Payroll\PayrollGenerationDraft;
+use App\Models\Payroll\PayrollSourceBatch;
 use App\Models\Payroll\PayrollType;
+use App\Services\Payroll\CanonicalWorkbookService;
 use Carbon\CarbonImmutable;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class PayrollConfiguration extends Component
 {
+    use WithFileUploads;
+
     private const DEFAULT_UNCHECKED_LEAVE_TYPE_IDS = [4, 14, 15, 16, 20, 22];
 
     public ?int $divisionId = null;
@@ -46,6 +51,10 @@ class PayrollConfiguration extends Component
     public array $existingGenerations = [];
 
     public ?string $noticedConfigurationKey = null;
+
+    public $timekeepingFile;
+
+    public ?int $timekeepingBatchId = null;
 
     public function mount(): void
     {
@@ -125,6 +134,54 @@ class PayrollConfiguration extends Component
         $this->showExistingGenerationNotice = false;
         $this->existingGenerations = [];
         $this->noticedConfigurationKey = null;
+    }
+
+    public function downloadTimekeepingTemplate(CanonicalWorkbookService $service)
+    {
+        abort_unless(auth()->user()?->can('payroll.system.import'), 403);
+
+        return response()
+            ->download($service->template('Timekeeping'), 'payroll-timekeeping-template.xlsx')
+            ->deleteFileAfterSend(true);
+    }
+
+    public function stageTimekeeping(CanonicalWorkbookService $service): void
+    {
+        abort_unless(auth()->user()?->can('payroll.system.import'), 403);
+        $data = $this->validate([
+            'period' => ['required', 'date_format:Y-m'],
+            'timekeepingFile' => ['required', 'file', 'mimes:xlsx,xlsm,xls,csv,txt', 'max:30720'],
+        ]);
+
+        $batch = $service->stage(
+            $this->timekeepingFile->getRealPath(),
+            $this->timekeepingFile->getClientOriginalName(),
+            $data['period'],
+            auth()->user()?->emp_id,
+            'Timekeeping',
+        );
+
+        $this->timekeepingBatchId = $batch->id;
+        $this->timekeepingFile = null;
+
+        session()->flash(
+            'timekeeping_status',
+            $batch->status === 'validated'
+                ? "Timekeeping batch #{$batch->id} passed validation and is ready to activate."
+                : "Timekeeping batch #{$batch->id} contains validation errors.",
+        );
+    }
+
+    public function activateTimekeeping(CanonicalWorkbookService $service): void
+    {
+        abort_unless(auth()->user()?->can('payroll.system.import'), 403);
+        $batch = PayrollSourceBatch::query()
+            ->where('kind', 'timekeeping')
+            ->findOrFail($this->timekeepingBatchId);
+
+        $service->activate($batch, auth()->user()?->emp_id);
+        $this->timekeepingBatchId = null;
+        session()->flash('timekeeping_status', "Timekeeping batch #{$batch->id} is now active.");
     }
 
     private function validatedConfiguration(): array
@@ -487,6 +544,11 @@ class PayrollConfiguration extends Component
                 ->orderBy('name')
                 ->orderBy('external_id')
                 ->get(),
+            'timekeepingBatch' => $this->timekeepingBatchId
+                ? PayrollSourceBatch::query()
+                    ->select(['id', 'kind', 'source', 'status', 'effective_period', 'statistics', 'errors'])
+                    ->find($this->timekeepingBatchId)
+                : null,
         ]);
     }
 }
