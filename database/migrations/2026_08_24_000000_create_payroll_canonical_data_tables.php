@@ -103,7 +103,10 @@ return new class extends Migration
             $table->text('lbp_account_no')->nullable();
             $table->string('fund_type')->nullable();
             $table->timestamps();
-            $table->index(['department_external_id', 'is_active']);
+            $table->index(
+                ['department_external_id', 'is_active'],
+                'canonical_employees_department_active_idx'
+            );
         });
         $schema->create('payroll_canonical_salary_rates', function (Blueprint $table) {
             $table->id();
@@ -173,16 +176,18 @@ return new class extends Migration
             $table->timestamps();
             $table->unique(['name', 'guard_name']);
         });
-        $schema->create('roles', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->string('display_name')->nullable();
-            $table->text('description')->nullable();
-            $table->boolean('is_active')->default(true);
-            $table->string('guard_name');
-            $table->timestamps();
-            $table->unique(['name', 'guard_name']);
-        });
+        if (! $schema->hasTable('roles')) {
+            $schema->create('roles', function (Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->string('display_name')->nullable();
+                $table->text('description')->nullable();
+                $table->boolean('is_active')->default(true);
+                $table->string('guard_name');
+                $table->timestamps();
+                $table->unique(['name', 'guard_name']);
+            });
+        }
         $schema->create('model_has_permissions', function (Blueprint $table) {
             $table->unsignedBigInteger('permission_id');
             $table->string('model_type');
