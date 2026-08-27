@@ -24,7 +24,7 @@ class ConnectedCanonicalSyncService
         $payload['Leaves'] = DB::connection('hris')->table('tbl_employee_leave')->whereNotNull('start_date')->whereNotNull('end_date')->get()->map(fn ($r) => ['leave_id' => (string) $r->leave_id, 'employee_id' => $r->emp_id, 'leave_type_id' => $r->leave_type, 'start_date' => $r->start_date, 'end_date' => $r->end_date, 'days_with_pay' => $r->days_wpay ?? 0, 'days_without_pay' => $r->days_wopay ?? 0, 'cancelled' => isset($cancelled[$r->leave_id]), '_row' => $r->leave_id])->all();
         $sourceAccounts = DB::connection('hris')->table('tbl_useraccount')->get();
         $payload['Accounts'] = $sourceAccounts->map(fn ($r) => ['employee_id' => $r->emp_id, 'username' => $r->username, 'password_hash' => $r->password, 'is_active' => true, '_row' => $r->userid])->all();
-        $batch = PayrollSourceBatch::query()->create(['kind' => 'connected_full', 'source' => 'connected', 'status' => 'validated', 'schema_version' => '1.0', 'checksum' => hash('sha256', json_encode($payload)), 'statistics' => collect($payload)->map->count()->all(), 'errors' => [], 'payload' => $payload, 'created_by' => $by]);
+        $batch = PayrollSourceBatch::query()->create(['kind' => 'connected_full', 'source' => 'connected', 'status' => 'validated', 'schema_version' => '1.0', 'checksum' => hash('sha256', json_encode($payload)), 'statistics' => collect($payload)->map(fn (array $rows): int => count($rows))->all(), 'errors' => [], 'payload' => $payload, 'created_by' => $by]);
         app(CanonicalWorkbookService::class)->activate($batch, $by);
         $this->syncAccessControl($sourceAccounts);
 
