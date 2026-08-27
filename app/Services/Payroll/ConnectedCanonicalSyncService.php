@@ -21,7 +21,15 @@ class ConnectedCanonicalSyncService
         if (Schema::connection('hris')->hasTable('tbl_employee_leave_log')) {
             $cancelled = DB::connection('hris')->table('tbl_employee_leave_log')->whereIn('action', [2, 3])->pluck('leave_id')->flip()->all();
         }
-        $payload['Leaves'] = DB::connection('hris')->table('tbl_employee_leave')->whereNotNull('start_date')->whereNotNull('end_date')->get()->map(fn ($r) => ['leave_id' => (string) $r->leave_id, 'employee_id' => $r->emp_id, 'leave_type_id' => $r->leave_type, 'start_date' => $r->start_date, 'end_date' => $r->end_date, 'days_with_pay' => $r->days_wpay ?? 0, 'days_without_pay' => $r->days_wopay ?? 0, 'cancelled' => isset($cancelled[$r->leave_id]), '_row' => $r->leave_id])->all();
+        $payload['Leaves'] = DB::connection('hris')->table('tbl_employee_leave')
+            ->whereNotNull('start_date')
+            ->whereNotNull('end_date')
+            ->where('start_date', '>=', '1000-01-01')
+            ->where('end_date', '>=', '1000-01-01')
+            ->get()
+            ->filter(fn ($r) => $this->isValidDate($r->start_date) && $this->isValidDate($r->end_date))
+            ->map(fn ($r) => ['leave_id' => (string) $r->leave_id, 'employee_id' => $r->emp_id, 'leave_type_id' => $r->leave_type, 'start_date' => $r->start_date, 'end_date' => $r->end_date, 'days_with_pay' => $r->days_wpay ?? 0, 'days_without_pay' => $r->days_wopay ?? 0, 'cancelled' => isset($cancelled[$r->leave_id]), '_row' => $r->leave_id])
+            ->all();
         $sourceAccounts = DB::connection('hris')->table('tbl_useraccount')->get();
         $payload['Accounts'] = $sourceAccounts->map(fn ($r) => ['employee_id' => $r->emp_id, 'username' => $r->username, 'password_hash' => $r->password, 'is_active' => true, '_row' => $r->userid])->all();
         $batch = PayrollSourceBatch::query()->create(['kind' => 'connected_full', 'source' => 'connected', 'status' => 'validated', 'schema_version' => '1.0', 'checksum' => hash('sha256', json_encode($payload)), 'statistics' => collect($payload)->map(fn (array $rows): int => count($rows))->all(), 'errors' => [], 'payload' => $payload, 'created_by' => $by]);
@@ -59,5 +67,15 @@ class ConnectedCanonicalSyncService
                 }
             }
         });
+    }
+
+    private function isValidDate(mixed $value): bool
+    {
+        $value = trim((string) $value);
+        if (! preg_match('/^(\d{4})-\d{2}-\d{2}/', $value, $matches) || (int) $matches[1] < 1000) {
+            return false;
+        }
+
+        return strtotime($value) !== false;
     }
 }

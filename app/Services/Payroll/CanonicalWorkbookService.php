@@ -266,11 +266,25 @@ class CanonicalWorkbookService
     {
         if (! $v) {
             return null;
-        } if (is_numeric($v)) {
+        }
+
+        if (is_numeric($v)) {
             return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($v)->format('Y-m-d');
         }
 
-        return date('Y-m-d', strtotime((string) $v));
+        $value = trim((string) $v);
+        if ($value === '' || preg_match('/^0{4}-0{2}-0{2}/', $value)) {
+            return null;
+        }
+
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            return null;
+        }
+
+        $date = date('Y-m-d', $timestamp);
+
+        return (int) substr($date, 0, 4) >= 1000 ? $date : null;
     }
 
     private function key(string $v): string
