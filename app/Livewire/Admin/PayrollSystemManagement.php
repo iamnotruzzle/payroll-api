@@ -22,7 +22,7 @@ class PayrollSystemManagement extends Component
 
     public string $period = '';
 
-    public string $confirmation = '';
+    public string $adminPassword = '';
 
     public string $selectedMode = '';
 
@@ -44,15 +44,21 @@ class PayrollSystemManagement extends Component
 
     public function switchMode(PayrollOperatingModeService $modes): void
     {
-        abort_unless(auth()->user()?->hasRole('super-admin'), 403);
-        $this->validate(['selectedMode' => ['required', 'in:connected,standalone'], 'confirmation' => ['required', 'string']]);
+        $user = auth()->user();
+        abort_unless($user?->hasRole('super-admin'), 403);
+        $this->validate(['selectedMode' => ['required', 'in:connected,standalone'], 'adminPassword' => ['required', 'string']]);
+        if (! Hash::check($this->adminPassword, $user->getAuthPassword())) {
+            $this->addError('adminPassword', 'The super administrator password is incorrect.');
+
+            return;
+        }
         if ($modes->current() === PayrollOperatingMode::Standalone && $this->selectedMode === PayrollOperatingMode::Connected->value && $this->reconciliation === null) {
             $this->addError('selectedMode', 'Preview reconnect conflicts before returning to connected mode.');
 
             return;
         }
-        $modes->change(PayrollOperatingMode::from($this->selectedMode), $this->confirmation, auth()->user()?->emp_id);
-        $this->confirmation = '';
+        $modes->change(PayrollOperatingMode::from($this->selectedMode), $user->emp_id);
+        $this->adminPassword = '';
         session()->flash('status', 'Payroll operating mode changed.');
     }
 

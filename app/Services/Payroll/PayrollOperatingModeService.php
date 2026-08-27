@@ -35,7 +35,7 @@ class PayrollOperatingModeService
         return filled(config('payroll_standalone.forced_mode'));
     }
 
-    public function change(PayrollOperatingMode $mode, string $confirmation, ?string $by): void
+    public function change(PayrollOperatingMode $mode, ?string $by): void
     {
         $from = $this->current();
         if ($this->forced()) {
@@ -43,9 +43,6 @@ class PayrollOperatingModeService
         }
         if (! in_array($mode, $this->allowed(), true)) {
             throw ValidationException::withMessages(['mode' => 'Mode is not permitted by PAYROLL_OPERATION_MODES.']);
-        }
-        if ($confirmation !== 'SWITCH TO '.strtoupper($mode->value)) {
-            throw ValidationException::withMessages(['confirmation' => 'Confirmation phrase does not match.']);
         }
         if ($mode === PayrollOperatingMode::Standalone) {
             $readiness = app(PayrollReadinessService::class)->check();
