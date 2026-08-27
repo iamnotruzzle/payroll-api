@@ -199,6 +199,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/admin/roles-permissions', [AdminPageController::class, 'rolesPermissions'])->name('admin.roles-permissions');
     });
 
+    Route::get('/admin/payroll-system', [AdminPageController::class, 'payrollSystem'])->name('admin.payroll-system');
+
     Route::middleware('permission:schedule.view')->group(function () {
         Route::get('/schedule', [SchedulePageController::class, 'dashboard'])->name('schedule.dashboard');
         Route::get('/schedule/months/{schedule}', [SchedulePageController::class, 'show'])->name('schedule.show');

@@ -32,7 +32,7 @@ class WebLoginController extends Controller
 
         $user = $request->user()?->loadMissing('employee');
 
-        if ($user?->employee?->is_active !== 'Y') {
+        if (! (bool) $user?->is_active || ! (bool) $user?->employee?->is_active) {
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();

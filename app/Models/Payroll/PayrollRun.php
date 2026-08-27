@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class PayrollRun extends Model
 {
     protected $connection = 'payroll';
+
     protected $table = 'payroll_generates';
 
     protected $fillable = [
@@ -16,6 +17,8 @@ class PayrollRun extends Model
         'department_id',
         'department_name',
         'status',
+        'operating_mode',
+        'source_batch_ids',
         'generated_by',
         'gross_pay',
         'total_additions',
@@ -32,5 +35,6 @@ class PayrollRun extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+        'source_batch_ids' => 'array',
     ];
 }

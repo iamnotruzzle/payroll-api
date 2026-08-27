@@ -606,6 +606,7 @@ class ErpNavigation
                         'items' => [
                             $user?->can('admin.users.view') ? ['label' => 'User Accounts', 'route' => 'admin.user-accounts', 'icon' => 'users', 'active' => request()->routeIs('admin.user-accounts')] : null,
                             $user?->can('admin.roles.view') ? ['label' => 'Roles and Permissions', 'route' => 'admin.roles-permissions', 'icon' => 'shield-check', 'active' => request()->routeIs('admin.roles-permissions')] : null,
+                            ($user?->hasRole('super-admin') || $user?->can('payroll.system.import')) ? ['label' => 'Payroll System', 'route' => 'admin.payroll-system', 'icon' => 'settings', 'active' => request()->routeIs('admin.payroll-system')] : null,
                         ],
                     ],
                     [

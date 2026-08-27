@@ -67,7 +67,7 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', App\Models\Hris\UserAccount::class),
+            'model' => env('AUTH_MODEL', App\Models\Payroll\PayrollUserAccount::class),
         ],
 
         // 'users' => [

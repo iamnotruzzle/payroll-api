@@ -2,12 +2,12 @@
 
 namespace App\Livewire\Payroll;
 
-use App\Models\Hris\Department;
-use App\Models\Hris\Division;
-use App\Models\Hris\Employee;
-use App\Models\Hris\EmployeeLeave;
-use App\Models\Hris\LeaveType;
-use App\Models\Hris\Position;
+use App\Models\Payroll\Canonical\Department;
+use App\Models\Payroll\Canonical\Division;
+use App\Models\Payroll\Canonical\Employee;
+use App\Models\Payroll\Canonical\EmployeeLeave;
+use App\Models\Payroll\Canonical\LeaveType;
+use App\Models\Payroll\Canonical\SalaryRate;
 use App\Models\Payroll\PayrollAdditional;
 use App\Models\Payroll\PayrollAdjustmentType;
 use App\Models\Payroll\PayrollAuditLog;
@@ -32,14 +32,18 @@ use App\Models\Payroll\PayrollRun;
 use App\Models\Payroll\PayrollTimekeepingSummary;
 use App\Models\Payroll\PayrollType;
 use App\Services\Payroll\EmployeeRosterImportService;
+use App\Services\Payroll\LegacyPayrollGenerationTestSource;
 use App\Services\Payroll\PayrollLoanImportService;
 use App\Services\Payroll\PayrollLoanReferenceService;
+use App\Services\Payroll\PayrollOperatingModeService;
+use App\Services\Payroll\PayrollReadinessService;
 use App\Services\Payroll\PayrollTaxService;
 use App\Services\Payroll\RegularPayrollTemplateExportService;
 use App\Services\Payroll\StatutoryContributionService;
 use App\Services\Payroll\TaxInputImportService;
 use App\Support\Hris\LeaveDates;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -215,7 +219,7 @@ class PayrollGeneration extends Component
     {
         $userDepartmentId = auth()->user()?->employee?->department_id;
         $userDivisionId = $userDepartmentId
-            ? Department::query()->where('department_id', $userDepartmentId)->value('division_id')
+            ? Department::query()->where('external_id', $userDepartmentId)->value('division_external_id')
             : null;
 
         $this->selectedDivisionIds = $this->parseIdList(request()->query('division_ids', request()->query('division_id')));
@@ -227,9 +231,9 @@ class PayrollGeneration extends Component
 
         if ($this->selectedDepartmentIds !== [] && $this->selectedDivisionIds !== []) {
             $this->selectedDepartmentIds = Department::query()
-                ->whereIn('department_id', $this->selectedDepartmentIds)
-                ->whereIn('division_id', $this->selectedDivisionIds)
-                ->pluck('department_id')
+                ->whereIn('external_id', $this->selectedDepartmentIds)
+                ->whereIn('division_external_id', $this->selectedDivisionIds)
+                ->pluck('external_id')
                 ->map(fn ($id) => (int) $id)
                 ->all();
             $this->syncLegacyScopeIds();
@@ -926,7 +930,7 @@ class PayrollGeneration extends Component
     {
         $employees = Employee::query()
             ->when(true, fn ($query) => $this->applyEmployeeScope($query))
-            ->where('is_active', 'Y')
+            ->where('is_active', true)
             ->when(true, fn ($query) => $this->applyPayrollEmployeeType($query))
             ->when($this->appliedEmployeeFilterIds !== [], fn ($query) => $query->whereIn('emp_id', $this->appliedEmployeeFilterIds))
             ->orderBy('lastname')
@@ -1472,6 +1476,7 @@ class PayrollGeneration extends Component
             'rows' => $rows,
             'previousMraPeriod' => $previousMraPeriod,
             'previousMraReport' => $previousMraReport,
+            'operatingMode' => app(PayrollOperatingModeService::class)->current(),
             'totals' => $totals,
             'reviewConfiguration' => $this->currentStep === 7
                 ? $this->reviewConfiguration($allRows->count())
@@ -1575,35 +1580,37 @@ class PayrollGeneration extends Component
 
         $adjustmentTypes = $this->selectedAdjustmentTypes();
 
-        $employees = Employee::query()
-            ->select([
-                'emp_id',
-                'firstname',
-                'middlename',
-                'lastname',
-                'extension',
-                'suffix',
-                'position_id',
-                'department_id',
-                'step',
-                'empstat_id',
-                'date_hired',
-                'tin_no',
-                'gsis_no',
-                'phic_no',
-                'pagibig_no',
-                'is_active',
-            ])
-            ->when(Schema::connection('hris')->hasColumn('tbl_employee', 'is_external'), fn ($query) => $query->addSelect('is_external'))
-            ->when(Schema::connection('hris')->hasColumn('tbl_employee', 'vacation_leave_credits'), fn ($query) => $query->addSelect('vacation_leave_credits'))
-            ->when(Schema::connection('hris')->hasColumn('tbl_employee', 'sick_leave_credits'), fn ($query) => $query->addSelect('sick_leave_credits'))
-            ->with([
-                'position:position_id,position_title,salary_grade,remarks',
-                'department:department_id,department,division_id',
-                'department.division:division_id,division',
-            ])
+        $canonical = Schema::connection('payroll')->hasTable('payroll_canonical_employees');
+        $employeeClass = $canonical ? Employee::class : app(LegacyPayrollGenerationTestSource::class)->employeeClass();
+        $employeeColumns = $canonical ? [
+            'emp_id',
+            'firstname',
+            'middlename',
+            'lastname',
+            'extension',
+            'suffix',
+            'position_external_id',
+            'department_external_id',
+            'step',
+            'empstat_id',
+            'date_hired',
+            'tin_no',
+            'gsis_no',
+            'phic_no',
+            'pagibig_no',
+            'is_active',
+            'is_external',
+            'vacation_leave_credits',
+            'sick_leave_credits',
+        ] : ['emp_id', 'firstname', 'middlename', 'lastname', 'extension', 'suffix', 'position_id', 'department_id', 'step', 'empstat_id', 'date_hired', 'tin_no', 'gsis_no', 'phic_no', 'pagibig_no', 'is_active'];
+        $employees = $employeeClass::query()
+            ->select($employeeColumns)
+            ->with($canonical ? [
+                'position',
+                'department.division',
+            ] : ['position:position_id,position_title,salary_grade,remarks', 'department:department_id,department,division_id', 'department.division:division_id,division'])
             ->when(true, fn ($query) => $this->applyEmployeeScope($query))
-            ->where('is_active', 'Y')
+            ->where('is_active', $canonical ? true : 'Y')
             ->when(true, fn ($query) => $this->applyPayrollEmployeeType($query))
             ->when($this->appliedEmployeeFilterIds !== [], fn ($query) => $query->whereIn('emp_id', $this->appliedEmployeeFilterIds))
             ->orderBy('lastname')
@@ -1657,32 +1664,40 @@ class PayrollGeneration extends Component
             ]))
             ->groupBy('matched_emp_id');
         $previousTaxAnnualization = $this->previousTaxAnnualizationByEmployee($empIds, $periodStart);
-        $leaveQuery = EmployeeLeave::query()
+        $leaveClass = $canonical ? EmployeeLeave::class : app(LegacyPayrollGenerationTestSource::class)->leaveClass();
+        $leaveQuery = $leaveClass::query()
             ->with('leaveType')
             ->whereIn('emp_id', $empIds)
-            ->where('status', 0)
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
             // Keep the indexed columns bare; DATE(column) forces a scan of the
             // legacy leave table (currently hundreds of thousands of rows).
             ->where('start_date', '<=', $leavePeriodEnd->endOfDay()->toDateTimeString())
             ->where('end_date', '>=', $leavePeriodStart->startOfDay()->toDateTimeString())
-            ->whereDoesntHave('logs', fn ($query) => $query->whereIn('action', self::EXCLUDED_LEAVE_LOG_ACTIONS));
+            ->when(
+                $canonical,
+                fn ($query) => $query->where('is_cancelled', false),
+                fn ($query) => $query->where('status', 0)->whereDoesntHave('logs', fn ($logs) => $logs->whereIn('action', self::EXCLUDED_LEAVE_LOG_ACTIONS))
+            );
 
         if ($this->selectedLeaveTypeIds === []) {
             $leaveQuery->whereRaw('1 = 0');
         } else {
-            $leaveQuery->whereIn('leave_type', $this->selectedLeaveTypeIds);
+            $leaveQuery->whereIn($canonical ? 'leave_type_external_id' : 'leave_type', $this->selectedLeaveTypeIds);
         }
 
         $leaves = $leaveQuery->get()->groupBy('emp_id');
-        $cancelledLeaves = EmployeeLeave::query()
+        $cancelledLeaves = $leaveClass::query()
             ->whereIn('emp_id', $empIds)
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
             ->where('start_date', '<=', $leavePeriodEnd->endOfDay()->toDateTimeString())
             ->where('end_date', '>=', $leavePeriodStart->startOfDay()->toDateTimeString())
-            ->whereHas('logs', fn ($query) => $query->whereIn('action', self::EXCLUDED_LEAVE_LOG_ACTIONS))
+            ->when(
+                $canonical,
+                fn ($query) => $query->where('is_cancelled', true),
+                fn ($query) => $query->whereHas('logs', fn ($logs) => $logs->whereIn('action', self::EXCLUDED_LEAVE_LOG_ACTIONS))
+            )
             ->get()
             ->groupBy('emp_id');
         $excludedLeaveDates = $this->excludedLeaveDates($empIds, $periodStart, $periodEnd);
@@ -1704,9 +1719,12 @@ class PayrollGeneration extends Component
                 ->get()
                 ->keyBy('emp_id')
             : collect();
+        $canonicalTimekeeping = Schema::connection('payroll')->hasTable('payroll_canonical_timekeeping')
+            ? DB::connection('payroll')->table('payroll_canonical_timekeeping')->where('period', $this->period)->whereIn('emp_id', $empIds)->get()->keyBy('emp_id')
+            : collect();
         $labelOptions = PayrollDtrLabelOption::query()->get()->keyBy('code');
 
-        return $employees->map(function (Employee $employee) use ($compensations, $deductionPrograms, $adjustmentTypes, $salaryMatrix, $loanReferenceByEntity, $loanReferenceLookup, $leaves, $cancelledLeaves, $processedLeaveDates, $excludedLeaveDates, $labels, $adjustments, $mraAdjustments, $labelOptions, $loanItems, $previousTaxAnnualization, $periodStart, $leavePeriodStart, $leavePeriodEnd) {
+        return $employees->map(function (Model $employee) use ($compensations, $deductionPrograms, $adjustmentTypes, $salaryMatrix, $loanReferenceByEntity, $loanReferenceLookup, $leaves, $cancelledLeaves, $processedLeaveDates, $excludedLeaveDates, $labels, $adjustments, $mraAdjustments, $labelOptions, $loanItems, $previousTaxAnnualization, $periodStart, $leavePeriodStart, $leavePeriodEnd, $canonicalTimekeeping) {
             $payBasis = $this->editablePayBasisFor($employee);
             $salaryGrade = $payBasis['salary_grade'];
             $step = $payBasis['step'];
@@ -1728,6 +1746,14 @@ class PayrollGeneration extends Component
                 $labelOptions,
                 $excludedLeaveDates->get($employee->emp_id, collect()),
             );
+            if ($timekeeping = $canonicalTimekeeping->get($employee->emp_id)) {
+                $fallbackDeductionDays = round(
+                    (float) $timekeeping->absent_days
+                    + (float) $timekeeping->leave_days_without_pay
+                    + (((float) $timekeeping->undertime_hours + (float) $timekeeping->tardy_hours) / 8),
+                    3
+                );
+            }
             $mraAdjustment = $mraAdjustments->get($employee->emp_id);
             $mraDeductionDays = (float) ($mraAdjustment?->adjustment_days ?? $fallbackDeductionDays);
             $payrollLeaveDays = $leaveDeduction['laundry_days'];
@@ -2197,7 +2223,7 @@ class PayrollGeneration extends Component
         }
     }
 
-    private function programDeductionsFor(Employee $employee, Collection $programs, float $basicSalary): array
+    private function programDeductionsFor(Model $employee, Collection $programs, float $basicSalary): array
     {
         return $programs
             ->filter(fn (PayrollDeduction $program) => $this->programAppliesToEmployee($program, $employee->emp_id))
@@ -2535,7 +2561,7 @@ class PayrollGeneration extends Component
         return round(max(0, (float) $override), 3);
     }
 
-    private function editablePayBasisFor(Employee $employee): array
+    private function editablePayBasisFor(Model $employee): array
     {
         $empId = $employee->emp_id;
         $defaultSalaryGrade = (int) ($employee->position?->salary_grade ?? 0);
@@ -2632,7 +2658,7 @@ class PayrollGeneration extends Component
         ];
     }
 
-    private function editableLeaveDateFor(EmployeeLeave $leave, CarbonImmutable $periodStart, CarbonImmutable $periodEnd, Collection $processedDates): array
+    private function editableLeaveDateFor(Model $leave, CarbonImmutable $periodStart, CarbonImmutable $periodEnd, Collection $processedDates): array
     {
         $key = (string) $leave->leave_id;
         $authoritativeDates = collect(LeaveDates::for($leave));
@@ -2753,12 +2779,12 @@ class PayrollGeneration extends Component
             : $leaveStart->format('F j, Y').'–'.$leaveEnd->format('F j, Y');
         $leaveTypes = $this->selectedLeaveTypeIds === []
             ? 'None selected'
-            : LeaveType::query()->whereIn('leave_type_id', $this->selectedLeaveTypeIds)
-                ->orderBy('leave_name')->pluck('leave_name')->filter()->implode(', ');
-        $divisions = Division::query()->whereIn('division_id', $this->selectedDivisionIds)
-            ->orderBy('division')->pluck('division')->filter()->implode(', ');
-        $departments = Department::query()->whereIn('department_id', $this->selectedDepartmentIds)
-            ->orderBy('department')->pluck('department')->filter()->implode(', ');
+            : LeaveType::query()->whereIn('external_id', $this->selectedLeaveTypeIds)
+                ->orderBy('name')->pluck('name')->filter()->implode(', ');
+        $divisions = Division::query()->whereIn('external_id', $this->selectedDivisionIds)
+            ->orderBy('name')->pluck('name')->filter()->implode(', ');
+        $departments = Department::query()->whereIn('external_id', $this->selectedDepartmentIds)
+            ->orderBy('name')->pluck('name')->filter()->implode(', ');
 
         return [
             ['label' => 'Payroll period', 'value' => $period->format('F Y')],
@@ -3089,15 +3115,22 @@ class PayrollGeneration extends Component
 
     private function excludedLeaveDates(array $empIds, CarbonImmutable $periodStart, CarbonImmutable $periodEnd): Collection
     {
-        return EmployeeLeave::query()
+        $canonical = Schema::connection('payroll')->hasTable('payroll_canonical_leaves');
+        $leaveClass = $canonical ? EmployeeLeave::class : app(LegacyPayrollGenerationTestSource::class)->leaveClass();
+
+        return $leaveClass::query()
             ->whereIn('emp_id', $empIds)
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
             ->where('start_date', '<=', $periodEnd->endOfDay()->toDateTimeString())
             ->where('end_date', '>=', $periodStart->startOfDay()->toDateTimeString())
-            ->whereHas('logs', fn ($query) => $query->whereIn('action', self::EXCLUDED_LEAVE_LOG_ACTIONS))
+            ->when(
+                $canonical,
+                fn ($query) => $query->where('is_cancelled', true),
+                fn ($query) => $query->whereHas('logs', fn ($logs) => $logs->whereIn('action', self::EXCLUDED_LEAVE_LOG_ACTIONS))
+            )
             ->get()
-            ->flatMap(function (EmployeeLeave $leave) use ($periodStart, $periodEnd) {
+            ->flatMap(function (Model $leave) use ($periodStart, $periodEnd) {
                 $dates = [];
                 $start = CarbonImmutable::parse($leave->start_date)->max($periodStart);
                 $end = CarbonImmutable::parse($leave->end_date)->min($periodEnd);
@@ -3176,13 +3209,14 @@ class PayrollGeneration extends Component
 
     private function applyEmployeeScope($query)
     {
+        $canonical = $query->getModel() instanceof Employee;
         if ($this->selectedDepartmentIds !== []) {
-            return $query->whereIn('department_id', $this->selectedDepartmentIds);
+            return $query->whereIn($canonical ? 'department_external_id' : 'department_id', $this->selectedDepartmentIds);
         }
 
         return $query->whereHas(
             'department',
-            fn ($departmentQuery) => $departmentQuery->whereIn('division_id', $this->selectedDivisionIds)
+            fn ($departmentQuery) => $departmentQuery->whereIn($canonical ? 'division_external_id' : 'division_id', $this->selectedDivisionIds)
         );
     }
 
@@ -3218,7 +3252,7 @@ class PayrollGeneration extends Component
         });
     }
 
-    private function isExternalEmployee(Employee $employee): bool
+    private function isExternalEmployee(Model $employee): bool
     {
         if ((int) $employee->empstat_id === Employee::EMPSTAT_EXTERNAL || (bool) $employee->is_external) {
             return true;
@@ -3259,18 +3293,18 @@ class PayrollGeneration extends Component
 
     private function departmentOptions(): Collection
     {
-        return DB::connection('hris')
-            ->table('tbl_department')
-            ->select(['department_id', 'department', 'division_id'])
+        return DB::connection('payroll')
+            ->table('payroll_canonical_departments')
+            ->selectRaw('external_id as department_id, name as department, division_external_id as division_id')
             ->orderBy('department')
             ->get();
     }
 
     private function divisionOptions(): Collection
     {
-        return DB::connection('hris')
-            ->table('tbl_division')
-            ->select(['division_id', 'division'])
+        return DB::connection('payroll')
+            ->table('payroll_canonical_divisions')
+            ->selectRaw('external_id as division_id, name as division')
             ->orderBy('division')
             ->get();
     }
@@ -3281,11 +3315,11 @@ class PayrollGeneration extends Component
             return collect();
         }
 
-        $query = DB::connection('hris')
-            ->table('tbl_employee as employees')
-            ->leftJoin('tbl_position as positions', 'positions.position_id', '=', 'employees.position_id')
-            ->leftJoin('tbl_department as departments', 'departments.department_id', '=', 'employees.department_id')
-            ->leftJoin('tbl_division as divisions', 'divisions.division_id', '=', 'departments.division_id')
+        $query = DB::connection('payroll')
+            ->table('payroll_canonical_employees as employees')
+            ->leftJoin('payroll_canonical_positions as positions', 'positions.external_id', '=', 'employees.position_external_id')
+            ->leftJoin('payroll_canonical_departments as departments', 'departments.external_id', '=', 'employees.department_external_id')
+            ->leftJoin('payroll_canonical_divisions as divisions', 'divisions.external_id', '=', 'departments.division_external_id')
             ->select([
                 'employees.emp_id',
                 'employees.firstname',
@@ -3293,14 +3327,14 @@ class PayrollGeneration extends Component
                 'employees.lastname',
                 'employees.extension',
                 'employees.suffix',
-                'positions.position_title',
+                'positions.title as position_title',
             ])
-            ->where('employees.is_active', 'Y');
+            ->where('employees.is_active', true);
 
         if ($this->selectedDepartmentIds !== []) {
-            $query->whereIn('employees.department_id', $this->selectedDepartmentIds);
+            $query->whereIn('employees.department_external_id', $this->selectedDepartmentIds);
         } else {
-            $query->whereIn('departments.division_id', $this->selectedDivisionIds);
+            $query->whereIn('departments.division_external_id', $this->selectedDivisionIds);
         }
 
         $this->applyRawEmployeeTypeScope($query);
@@ -3331,7 +3365,7 @@ class PayrollGeneration extends Component
             foreach ($types as $type) {
                 $typeQuery->orWhere(function ($employeeQuery) use ($type) {
                     if ($type === Employee::EMPLOYEE_TYPE_EXTERNAL) {
-                        $employeeQuery->whereRaw('LOWER(TRIM(divisions.division)) = ?', [Employee::EXTERNAL_DIVISION_NAME]);
+                        $employeeQuery->whereRaw('LOWER(TRIM(divisions.name)) = ?', [Employee::EXTERNAL_DIVISION_NAME]);
 
                         return;
                     }
@@ -3340,8 +3374,8 @@ class PayrollGeneration extends Component
                         ->where('employees.empstat_id', $this->employeeStatusIdForType($type))
                         ->where(function ($divisionQuery) {
                             $divisionQuery
-                                ->whereNull('divisions.division')
-                                ->orWhereRaw('LOWER(TRIM(divisions.division)) != ?', [Employee::EXTERNAL_DIVISION_NAME]);
+                                ->whereNull('divisions.name')
+                                ->orWhereRaw('LOWER(TRIM(divisions.name)) != ?', [Employee::EXTERNAL_DIVISION_NAME]);
                         });
                 });
             }
@@ -3381,8 +3415,8 @@ class PayrollGeneration extends Component
     {
         if (count($this->selectedDepartmentIds) === 1) {
             return Department::query()
-                ->where('department_id', $this->selectedDepartmentIds[0])
-                ->value('department') ?: 'Selected Department';
+                ->where('external_id', $this->selectedDepartmentIds[0])
+                ->value('name') ?: 'Selected Department';
         }
 
         if (count($this->selectedDepartmentIds) > 1) {
@@ -3391,8 +3425,8 @@ class PayrollGeneration extends Component
 
         if (count($this->selectedDivisionIds) === 1) {
             $division = Division::query()
-                ->where('division_id', $this->selectedDivisionIds[0])
-                ->value('division');
+                ->where('external_id', $this->selectedDivisionIds[0])
+                ->value('name');
 
             return $division ? "{$division} Division" : 'Selected Division';
         }
@@ -3425,7 +3459,7 @@ class PayrollGeneration extends Component
     private function validLeaveTypeIds(): array
     {
         return LeaveType::query()
-            ->pluck('leave_type_id')
+            ->pluck('external_id')
             ->map(fn ($id) => (int) $id)
             ->all();
     }
@@ -3770,7 +3804,7 @@ class PayrollGeneration extends Component
             ->all();
     }
 
-    private function formatPayrollEmployeeName(Employee $employee): string
+    private function formatPayrollEmployeeName(Model $employee): string
     {
         $lastName = trim((string) $employee->lastname);
         $firstName = trim((string) $employee->firstname);
@@ -3785,14 +3819,26 @@ class PayrollGeneration extends Component
 
     private function salaryMatrix(): array
     {
-        $grades = DB::connection('hris')
-            ->table('tbl_salary_grade')
-            ->select(['salary_grade', 'step_increment', 'salary', 'effectivity_date'])
-            ->whereDate('effectivity_date', '<=', $this->selectedPeriodStart()->endOfMonth()->toDateString())
-            ->orderByDesc('effectivity_date')
+        if (! Schema::connection('payroll')->hasTable('payroll_canonical_salary_rates')) {
+            $grades = app(LegacyPayrollGenerationTestSource::class)
+                ->salaryGroups($this->selectedPeriodStart()->endOfMonth()->toDateString());
+
+            return $this->salaryMatrixFromGroups($grades);
+        }
+
+        $grades = SalaryRate::query()
+            ->selectRaw('salary_grade, step as step_increment, salary, effective_from as effectivity_date')
+            ->whereDate('effective_from', '<=', $this->selectedPeriodStart()->endOfMonth()->toDateString())
+            ->where(fn ($query) => $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', $this->selectedPeriodStart()->toDateString()))
+            ->orderByDesc('effective_from')
             ->get()
             ->groupBy(fn ($grade) => $grade->salary_grade.'|'.$grade->step_increment);
 
+        return $this->salaryMatrixFromGroups($grades);
+    }
+
+    private function salaryMatrixFromGroups(Collection $grades): array
+    {
         $matrix = [];
         foreach ($grades as $key => $items) {
             [$salaryGrade, $step] = explode('|', $key);
@@ -3846,7 +3892,7 @@ class PayrollGeneration extends Component
         return round($amount * (1 - (0.5 * (float) ($variables['is_part_time'] ?? 0))), 2);
     }
 
-    private function isPartTimeEmployee(Employee $employee): bool
+    private function isPartTimeEmployee(Model $employee): bool
     {
         if ((int) $employee->empstat_id === Employee::EMPSTAT_PART_TIME) {
             return true;
@@ -3982,6 +4028,13 @@ class PayrollGeneration extends Component
 
     public function finalizePayroll(): void
     {
+        $readiness = app(PayrollReadinessService::class)->check($this->period);
+        if (! $readiness['ready']) {
+            $this->addError('finalize', implode(' ', $readiness['errors']));
+
+            return;
+        }
+
         if (! $this->ensureStepCanBeEdited(8, 'You can review this payroll but cannot finalize it.')) {
             return;
         }
@@ -4057,6 +4110,8 @@ class PayrollGeneration extends Component
                 'department_id' => $this->departmentId,
                 'department_name' => $scopeName,
                 'status' => 1,
+                'operating_mode' => app(PayrollOperatingModeService::class)->current()->value,
+                'source_batch_ids' => DB::connection('payroll')->table('payroll_source_batches')->where('status', 'active')->pluck('id')->all(),
                 'generated_by' => $generatedBy,
                 'gross_pay' => $totals['net_compensation'],
                 'total_additions' => collect($totals['compensations'])->sum()
@@ -4167,8 +4222,6 @@ class PayrollGeneration extends Component
                 ]);
             }
 
-            $this->syncHrisPayBasis($rows);
-
             PayrollAuditLog::create([
                 'payroll_generate_id' => $run->id,
                 'action' => 'payroll.finalized',
@@ -4207,32 +4260,6 @@ class PayrollGeneration extends Component
         ];
 
         session()->flash('success', "Payroll run #{$run->id} finalized and saved.");
-    }
-
-    private function syncHrisPayBasis(Collection $rows): void
-    {
-        foreach ($rows as $row) {
-            $step = $this->stepValue($row['step'] ?? null, (int) ($row['hris_step'] ?? 1));
-            Employee::query()
-                ->where('emp_id', $row['emp_id'])
-                ->where(function ($query) use ($step) {
-                    $query->whereNull('step')->orWhere('step', '!=', $step);
-                })
-                ->update(['step' => $step]);
-
-            $positionId = $row['position_id'] ?? null;
-            $salaryGrade = $this->salaryGradeValue($row['salary_grade'] ?? null, (int) ($row['hris_salary_grade'] ?? 0));
-            if (! $positionId || $salaryGrade <= 0) {
-                continue;
-            }
-
-            Position::query()
-                ->where('position_id', $positionId)
-                ->where(function ($query) use ($salaryGrade) {
-                    $query->whereNull('salary_grade')->orWhere('salary_grade', '!=', $salaryGrade);
-                })
-                ->update(['salary_grade' => $salaryGrade]);
-        }
     }
 
     private function payrollLinesForRow(array $row): array

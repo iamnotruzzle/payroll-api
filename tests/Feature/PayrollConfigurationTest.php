@@ -57,6 +57,28 @@ class PayrollConfigurationTest extends TestCase
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
+        Schema::connection('payroll')->create('payroll_canonical_divisions', function (Blueprint $table) {
+            $table->id();
+            $table->integer('external_id')->unique();
+            $table->string('name');
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+        Schema::connection('payroll')->create('payroll_canonical_departments', function (Blueprint $table) {
+            $table->id();
+            $table->integer('external_id')->unique();
+            $table->integer('division_external_id');
+            $table->string('name');
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+        Schema::connection('payroll')->create('payroll_canonical_leave_types', function (Blueprint $table) {
+            $table->id();
+            $table->integer('external_id')->unique();
+            $table->string('name');
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
 
         Schema::connection('payroll')->create('payroll_batches', function (Blueprint $table) {
             $table->id();
@@ -99,6 +121,8 @@ class PayrollConfigurationTest extends TestCase
         DB::connection('hris')->table('tbl_department')->insert([
             ['department_id' => 20, 'division_id' => 10, 'department' => 'Billing and Claims'],
         ]);
+        DB::connection('payroll')->table('payroll_canonical_divisions')->insert(['external_id' => 10, 'name' => 'Finance Division', 'created_at' => now(), 'updated_at' => now()]);
+        DB::connection('payroll')->table('payroll_canonical_departments')->insert(['external_id' => 20, 'division_external_id' => 10, 'name' => 'Billing and Claims', 'created_at' => now(), 'updated_at' => now()]);
         DB::connection('payroll')->table('payroll_types')->insert([
             'code' => 'general',
             'name' => 'General',

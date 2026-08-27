@@ -42,7 +42,7 @@ return [
          * attachModels, or detachModels, this model class will be used to
          * resolve those IDs. If null, defaults to the guard's model.
          */
-        'default_model' => App\Models\Hris\UserAccount::class,
+        'default_model' => App\Models\Payroll\PayrollUserAccount::class,
     ],
 
     'table_names' => [

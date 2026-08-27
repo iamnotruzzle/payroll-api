@@ -2,7 +2,7 @@
 
 namespace App\Services\Payroll;
 
-use App\Models\Hris\Employee;
+use App\Models\Payroll\Canonical\Employee;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -80,7 +80,7 @@ class EmployeeRosterImportService
             } elseif (isset($seen[$row['emp_id']])) {
                 $errors[] = 'Duplicate employee ID.';
             } elseif (! $employee) {
-                $errors[] = 'Employee ID was not found in HRIS.';
+                $errors[] = 'Employee ID was not found in the active payroll roster.';
             }
             $seen[$row['emp_id']] = true;
 

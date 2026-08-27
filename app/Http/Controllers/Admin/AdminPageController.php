@@ -16,4 +16,11 @@ class AdminPageController extends Controller
     {
         return view('admin.roles-permissions');
     }
+
+    public function payrollSystem(): View
+    {
+        abort_unless(auth()->user()?->hasRole('super-admin') || auth()->user()?->can('payroll.system.import'), 403);
+
+        return view('admin.payroll-system');
+    }
 }

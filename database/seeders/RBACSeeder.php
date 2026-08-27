@@ -2,11 +2,13 @@
 
 namespace Database\Seeders;
 
-use App\Models\Hris\UserAccount;
+use App\Models\Hris\UserAccount as HrisUserAccount;
+use App\Models\Payroll\PayrollUserAccount;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Support\Rbac\LegacyHrisRoleMapper;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\PermissionRegistrar;
 
 class RBACSeeder extends Seeder
@@ -107,6 +109,10 @@ class RBACSeeder extends Seeder
                 'payroll.approve' => 'Review and finalize payroll outputs',
                 'payroll.generation.hr' => 'Edit HR-owned payroll generation steps',
                 'payroll.generation.accounting' => 'Edit Accounting-owned payroll generation fields and steps',
+                'payroll.system.mode' => 'Change payroll operating mode',
+                'payroll.system.sync' => 'Synchronize connected payroll sources',
+                'payroll.system.import' => 'Stage and activate stand-alone payroll inputs',
+                'payroll.system.rollback' => 'Rollback an activated payroll input batch',
             ],
             'Timekeeping' => [
                 'timekeeping.view' => 'Access DTR and timekeeping workspace',
@@ -172,6 +178,9 @@ class RBACSeeder extends Seeder
                     'payroll.approve',
                     'payroll.generation.hr',
                     'payroll.generation.accounting',
+                    'payroll.system.sync',
+                    'payroll.system.import',
+                    'payroll.system.rollback',
                     'timekeeping.view',
                     'timekeeping.manage',
                     'timekeeping.approve',
@@ -315,15 +324,16 @@ class RBACSeeder extends Seeder
 
     private function assignInitialAdminRoles(): void
     {
-        UserAccount::query()
+        $model = $this->accountModel();
+        $model::query()
             ->whereIn('emp_id', LegacyHrisRoleMapper::DEFAULT_SUPER_ADMIN_EMPLOYEE_IDS)
             ->get()
-            ->each(fn (UserAccount $account) => $account->assignRole('super-admin'));
+            ->each(fn ($account) => $account->assignRole('super-admin'));
 
-        $hasSuperAdmin = UserAccount::role('super-admin')->exists();
+        $hasSuperAdmin = $model::role('super-admin')->exists();
 
-        if (! $hasSuperAdmin) {
-            UserAccount::query()
+        if (! $hasSuperAdmin && $model === HrisUserAccount::class) {
+            $model::query()
                 ->where(function ($query) {
                     $query->where('user_level', '<=', 1)
                         ->orWhere('pims_role', '<=', 1);
@@ -331,27 +341,37 @@ class RBACSeeder extends Seeder
                 ->orderBy('userid')
                 ->limit(3)
                 ->get()
-                ->each(fn (UserAccount $account) => $account->assignRole('super-admin'));
+                ->each(fn ($account) => $account->assignRole('super-admin'));
         }
 
-        UserAccount::query()
-            ->where(function ($query) {
-                $query->where('user_level', 2)
-                    ->orWhere('pims_role', 2);
-            })
-            ->whereDoesntHave('roles')
-            ->limit(25)
-            ->get()
-            ->each(fn (UserAccount $account) => $account->assignRole('admin'));
+        if ($model === HrisUserAccount::class) {
+            $model::query()
+                ->where(function ($query) {
+                    $query->where('user_level', 2)
+                        ->orWhere('pims_role', 2);
+                })
+                ->whereDoesntHave('roles')
+                ->limit(25)
+                ->get()
+                ->each(fn ($account) => $account->assignRole('admin'));
+        }
     }
 
     private function assignDesignatedUserRoles(): void
     {
+        $model = $this->accountModel();
         foreach (self::DESIGNATED_USER_ROLE_ASSIGNMENTS as $employeeId => $roles) {
-            UserAccount::query()
+            $model::query()
                 ->where('emp_id', $employeeId)
                 ->get()
-                ->each(fn (UserAccount $account) => $account->assignRole($roles));
+                ->each(fn ($account) => $account->assignRole($roles));
         }
+    }
+
+    private function accountModel(): string
+    {
+        return Schema::connection('payroll')->hasTable('payroll_user_accounts')
+            ? PayrollUserAccount::class
+            : HrisUserAccount::class;
     }
 }

@@ -363,7 +363,7 @@
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <h2 class="payroll-generation-title text-xl font-semibold">Payroll Generation</h2>
+                    <h2 class="payroll-generation-title text-xl font-semibold">Payroll Generation <span class="ml-2 rounded-full border px-2 py-0.5 text-xs font-medium">{{ strtoupper($operatingMode->value) }}</span></h2>
                     @if (session('draft_success') || $draftNotice)
                         @php
                             $draftBadgeIsSuccess = (bool) session('draft_success');

@@ -2,10 +2,10 @@
 
 namespace App\Livewire\Payroll;
 
-use App\Models\Hris\Department;
-use App\Models\Hris\Division;
-use App\Models\Hris\Employee;
-use App\Models\Hris\LeaveType;
+use App\Models\Payroll\Canonical\Department;
+use App\Models\Payroll\Canonical\Division;
+use App\Models\Payroll\Canonical\Employee;
+use App\Models\Payroll\Canonical\LeaveType;
 use App\Models\Payroll\PayrollBatch;
 use App\Models\Payroll\PayrollGenerationDraft;
 use App\Models\Payroll\PayrollType;
@@ -51,7 +51,7 @@ class PayrollConfiguration extends Component
     {
         $userDepartmentId = auth()->user()?->employee?->department_id;
         $userDivisionId = $userDepartmentId
-            ? Department::query()->where('department_id', $userDepartmentId)->value('division_id')
+            ? Department::query()->where('external_id', $userDepartmentId)->value('division_external_id')
             : null;
 
         $this->selectedDivisionIds = $this->parseIdList(request()->query('division_ids', request()->query('division_id')));
@@ -70,9 +70,9 @@ class PayrollConfiguration extends Component
 
         if ($this->selectedDepartmentIds !== [] && $this->selectedDivisionIds !== []) {
             $this->selectedDepartmentIds = Department::query()
-                ->whereIn('department_id', $this->selectedDepartmentIds)
-                ->whereIn('division_id', $this->selectedDivisionIds)
-                ->pluck('department_id')
+                ->whereIn('external_id', $this->selectedDepartmentIds)
+                ->whereIn('division_external_id', $this->selectedDivisionIds)
+                ->pluck('external_id')
                 ->map(fn ($id) => (int) $id)
                 ->all();
             $this->syncLegacyScopeIds();
@@ -132,15 +132,15 @@ class PayrollConfiguration extends Component
         $this->gsisDays = $this->daysInPayrollMonth($this->period);
         $data = $this->validate([
             'selectedDivisionIds' => ['required', 'array', 'min:1'],
-            'selectedDivisionIds.*' => ['integer', 'exists:hris.tbl_division,division_id'],
+            'selectedDivisionIds.*' => ['integer', 'exists:payroll.payroll_canonical_divisions,external_id'],
             'selectedDepartmentIds' => ['array'],
-            'selectedDepartmentIds.*' => ['integer', 'exists:hris.tbl_department,department_id'],
+            'selectedDepartmentIds.*' => ['integer', 'exists:payroll.payroll_canonical_departments,external_id'],
             'payrollType' => ['required', Rule::exists('payroll.payroll_types', 'code')->where('is_active', true)],
             'period' => ['required', 'date_format:Y-m'],
             'workingDays' => ['required', 'integer', 'min:1', 'max:31'],
             'gsisDays' => ['required', 'integer', 'min:0', 'max:31'],
             'selectedLeaveTypeIds' => ['array'],
-            'selectedLeaveTypeIds.*' => ['integer', 'exists:hris.tbl_leave_type,leave_type_id'],
+            'selectedLeaveTypeIds.*' => ['integer', 'exists:payroll.payroll_canonical_leave_types,external_id'],
             'leavePeriodStart' => ['required', 'date'],
             'leavePeriodEnd' => ['required', 'date', 'after_or_equal:leavePeriodStart'],
             'employeeTypeFilter' => ['required', 'array', 'min:1'],
@@ -154,8 +154,8 @@ class PayrollConfiguration extends Component
 
         if ($data['selectedDepartmentIds'] !== []) {
             $departmentDivisionIds = Department::query()
-                ->whereIn('department_id', $data['selectedDepartmentIds'])
-                ->pluck('division_id')
+                ->whereIn('external_id', $data['selectedDepartmentIds'])
+                ->pluck('division_external_id')
                 ->all();
             $data['selectedDivisionIds'] = $this->normalizedIds([
                 ...$data['selectedDivisionIds'],
@@ -297,8 +297,8 @@ class PayrollConfiguration extends Component
 
         if ($selectedDepartmentIds !== [] && $batchDepartmentId === 0 && $batchDivisionId > 0) {
             return Department::query()
-                ->whereIn('department_id', $selectedDepartmentIds)
-                ->where('division_id', $batchDivisionId)
+                ->whereIn('external_id', $selectedDepartmentIds)
+                ->where('division_external_id', $batchDivisionId)
                 ->exists();
         }
 
@@ -321,8 +321,8 @@ class PayrollConfiguration extends Component
 
         if ($selectedDepartmentIds !== [] && $draftDepartmentIds === [] && $draftDivisionIds !== []) {
             return Department::query()
-                ->whereIn('department_id', $selectedDepartmentIds)
-                ->whereIn('division_id', $draftDivisionIds)
+                ->whereIn('external_id', $selectedDepartmentIds)
+                ->whereIn('division_external_id', $draftDivisionIds)
                 ->exists();
         }
 
@@ -366,8 +366,8 @@ class PayrollConfiguration extends Component
         }
 
         return Department::query()
-            ->whereIn('division_id', $divisionIds)
-            ->pluck('department_id')
+            ->whereIn('division_external_id', $divisionIds)
+            ->pluck('external_id')
             ->map(fn ($id) => (int) $id)
             ->all();
     }
@@ -465,7 +465,7 @@ class PayrollConfiguration extends Component
     private function validLeaveTypeIds(): array
     {
         return LeaveType::query()
-            ->pluck('leave_type_id')
+            ->pluck('external_id')
             ->map(fn ($id) => (int) $id)
             ->all();
     }
@@ -473,19 +473,19 @@ class PayrollConfiguration extends Component
     public function render()
     {
         return view('livewire.payroll.payroll-configuration', [
-            'divisions' => Division::query()->orderBy('division')->get(),
+            'divisions' => Division::query()->orderBy('name')->get(),
             'payrollTypes' => PayrollType::query()
                 ->where('is_active', true)
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->get(),
             'departments' => Department::query()
-                ->orderBy('department')
+                ->orderBy('name')
                 ->get(),
             'employeeTypeOptions' => Employee::employeeTypeOptions(),
             'leaveTypes' => LeaveType::query()
-                ->orderBy('leave_name')
-                ->orderBy('leave_type_id')
+                ->orderBy('name')
+                ->orderBy('external_id')
                 ->get(),
         ]);
     }
