@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api.device' => \App\Http\Middleware\AuthenticateDeviceApiKey::class,
             'api.access' => \App\Http\Middleware\EnsureApiAccess::class,
             'profile.updated' => \App\Http\Middleware\EnsureProfileUpdated::class,
+            'super-admin.elevation' => \App\Http\Middleware\ApplySuperAdminElevation::class,
             'standalone.payroll' => \App\Http\Middleware\EnsureStandalonePayrollAccess::class,
         ]);
 
@@ -36,6 +37,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->appendToGroup('web', [
             'profile.updated',
+            'super-admin.elevation',
             'standalone.payroll',
         ]);
 

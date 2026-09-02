@@ -252,6 +252,9 @@
                                     <p class="erp-user-menu-label text-[10px] font-bold uppercase tracking-wider">Signed in as</p>
                                     <p class="erp-user-menu-name mt-1 truncate text-sm font-semibold">{{ $employeeName }}</p>
                                     <p class="erp-user-menu-id truncate text-xs">Employee ID {{ $account?->emp_id }}</p>
+                                    @if (session('super_admin_elevated'))
+                                        <p class="mt-1 text-xs font-semibold text-amber-700">Elevated super-admin session</p>
+                                    @endif
                                 </div>
                                 <a href="{{ route('home') }}" class="erp-user-menu-item mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold" role="menuitem">
                                     All apps
@@ -288,6 +291,7 @@
         @endunless
     </div>
 
+    <livewire:super-admin-quick-switch />
     @livewireScripts
 </body>
 </html>
