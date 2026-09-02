@@ -5,6 +5,7 @@ namespace App\Livewire\Admin;
 use Database\Seeders\RBACSeeder;
 use App\Models\Hris\Employee;
 use App\Models\Hris\UserAccount;
+use App\Models\Payroll\PayrollUserAccount;
 use App\Models\Role;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Url;
@@ -170,6 +171,7 @@ class UserAccounts extends Component
 
         $account->syncRoles($data['selectedRoles']);
         $account->syncPermissions($data['selectedPermissions']);
+        $this->syncPayrollAccount($account, $data['selectedRoles'], $data['selectedPermissions'], (string) ($data['password'] ?? ''));
 
         $this->drawerOpen = false;
         $this->resetForm();
@@ -187,6 +189,11 @@ class UserAccounts extends Component
         $account->password = $temporary;
         $account->login_attempt = 0;
         $account->save();
+        if ($localAccount = PayrollUserAccount::query()->where('emp_id', $account->emp_id)->first()) {
+            $localAccount->password = $temporary;
+            $localAccount->login_attempt = 0;
+            $localAccount->save();
+        }
 
         session()->flash('status', "Password reset for {$account->username}. Temporary password: {$temporary}");
     }
@@ -233,5 +240,21 @@ class UserAccounts extends Component
             'selectedPermissions',
         ]);
         $this->resetValidation();
+    }
+
+    private function syncPayrollAccount(UserAccount $account, array $roles, array $permissions, string $password): void
+    {
+        $localAccount = PayrollUserAccount::query()->where('emp_id', $account->emp_id)->first();
+        if (! $localAccount) {
+            return;
+        }
+
+        $localAccount->username = $account->username;
+        if ($password !== '') {
+            $localAccount->password = $password;
+        }
+        $localAccount->save();
+        $localAccount->syncRoles($roles);
+        $localAccount->syncPermissions($permissions);
     }
 }
