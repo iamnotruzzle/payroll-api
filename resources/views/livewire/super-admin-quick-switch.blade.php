@@ -1,12 +1,17 @@
 <div
     x-data
-    x-on:keydown.ctrl.shift.s.window.prevent="erpOverlay.open($wire, 'super-admin-switch', { password: '' })"
+    x-on:keydown.window="
+        if (! $event.ctrlKey || ! $event.altKey || $event.shiftKey || $event.metaKey) return;
+        if (($event.key || '').toLowerCase() !== 's') return;
+        $event.preventDefault();
+        erpOverlay.open($wire, 'super-admin-switch', { password: '' });
+    "
 >
     <x-setup-form-modal name="super-admin-switch" title="Super-admin access" size="sm">
         <form wire:submit="elevate" class="space-y-4">
             <div>
                 <p class="text-sm text-slate-700">Enter the protected switch password to unlock super-admin access for this session.</p>
-                <p class="mt-1 text-xs text-slate-500">Elevated access remains active until you log out.</p>
+                <p class="mt-1 text-xs text-slate-500">Press Ctrl+Alt+S to open this dialog. Elevated access remains active until you log out.</p>
             </div>
 
             <label class="block">
