@@ -106,7 +106,7 @@ class ErpNavigation
                             ($user?->can('self-service.dtr') || $user?->can('self-service.access'))
                                 ? ['label' => 'My DTR', 'route' => 'self-service.dtr', 'icon' => 'file-clock', 'active' => request()->routeIs('self-service.dtr*')]
                                 : ['label' => 'My DTR', 'href' => $soon('self-service', 'my-dtr'), 'icon' => 'file-clock', 'coming_soon' => true, 'active' => self::isSoon('self-service', 'my-dtr')],
-                            $user?->hasRole('super-admin')
+                            ($user?->can('self-service.dtr') || $user?->can('self-service.access'))
                                 ? ['label' => 'Time Punch', 'route' => 'time-punch.index', 'icon' => 'clock-3', 'active' => request()->routeIs('time-punch.*')]
                                 : null,
                             ($user?->can('self-service.schedule') || $user?->can('self-service.access'))
@@ -638,7 +638,7 @@ class ErpNavigation
         return array_values(array_filter(
             self::apps(),
             fn (array $app) => ($app['visible'] ?? true)
-                && (! $standalonePayrollOnly || in_array($app['key'] ?? null, ['payroll', 'timekeeping'], true))
+                && (! $standalonePayrollOnly || in_array($app['key'] ?? null, ['self-service', 'payroll', 'timekeeping'], true))
         ));
     }
 
