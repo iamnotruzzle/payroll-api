@@ -4024,12 +4024,56 @@ html[data-theme="dark"] .erp-shell-notice {
 
 @media (max-width: 1023px) {
     .erp-sidebar {
-        max-height: min(46dvh, 28rem);
-        box-shadow: 0 16px 30px -28px var(--erp-shadow) !important;
+        height: 100dvh;
+        max-height: none;
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+        box-shadow: 1.25rem 0 3rem -1.5rem rgba(9, 18, 28, .55) !important;
     }
 
     .erp-sidebar-scroll {
         scrollbar-gutter: stable;
+    }
+
+    .erp-topbar {
+        padding-top: max(.5rem, env(safe-area-inset-top));
+        padding-right: max(1rem, env(safe-area-inset-right));
+        padding-left: max(1rem, env(safe-area-inset-left));
+    }
+
+    .erp-theme-toggle,
+    .erp-user-trigger {
+        min-height: 2.75rem !important;
+    }
+
+    .erp-theme-toggle {
+        width: 2.75rem;
+    }
+
+    .erp-system-status {
+        max-width: min(34vw, 9rem);
+    }
+
+    .erp-nav-link {
+        min-height: 2.75rem;
+    }
+}
+
+.erp-mobile-nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    border: 0;
+    background: rgba(9, 18, 28, .58);
+}
+
+html.erp-mobile-nav-open {
+    overflow: hidden;
+}
+
+@media (min-width: 1024px) {
+    html.erp-mobile-nav-open {
+        overflow: auto;
     }
 }
 

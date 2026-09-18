@@ -6,7 +6,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title }}</title>
     <link rel="icon" type="image/png" href="{{ asset('assets/brand/mmmhmc-hris-icon-transparent.png') }}">
@@ -36,12 +36,19 @@
     <div
         @unless($isLauncher)
             x-data="{
-                sidebarOpen: localStorage.getItem('erp-sidebar-open') !== 'false',
+                sidebarOpen: window.matchMedia('(min-width: 1024px)').matches
+                    ? localStorage.getItem('erp-sidebar-open') !== 'false'
+                    : false,
                 appGridOpen: false,
                 appGridReturnFocus: null,
                 toggleSidebar() {
                     this.sidebarOpen = ! this.sidebarOpen;
-                    localStorage.setItem('erp-sidebar-open', this.sidebarOpen ? 'true' : 'false');
+                    if (window.matchMedia('(min-width: 1024px)').matches) {
+                        localStorage.setItem('erp-sidebar-open', this.sidebarOpen ? 'true' : 'false');
+                    }
+                },
+                closeMobileSidebar() {
+                    if (! window.matchMedia('(min-width: 1024px)').matches) this.sidebarOpen = false;
                 },
                 openAppGrid() {
                     this.appGridReturnFocus = document.activeElement;
@@ -67,13 +74,35 @@
                     }
                 }
             }"
+            x-effect="document.documentElement.classList.toggle('erp-mobile-nav-open', sidebarOpen && ! window.matchMedia('(min-width: 1024px)').matches)"
             x-on:keydown.alt.a.window.prevent="if (! appGridOpen) openAppGrid()"
+            x-on:keydown.escape.window="if (sidebarOpen && ! window.matchMedia('(min-width: 1024px)').matches) sidebarOpen = false"
             :class="sidebarOpen ? 'lg:grid-cols-[248px_minmax(0,1fr)]' : 'lg:grid-cols-[minmax(0,1fr)]'"
         @endunless
         class="{{ $isLauncher ? 'erp-launcher-scene min-h-screen' : 'erp-app-shell min-h-screen lg:grid' }}"
     >
         @unless ($isLauncher)
-            <aside x-cloak x-show="sidebarOpen" x-transition.opacity.duration.150ms class="erp-sidebar border-b lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden lg:border-b-0 lg:border-r">
+            <button
+                x-cloak
+                x-show="sidebarOpen"
+                x-transition.opacity.duration.150ms
+                x-on:click="closeMobileSidebar()"
+                type="button"
+                class="erp-mobile-nav-backdrop lg:hidden"
+                aria-label="Close navigation"
+            ></button>
+            <aside
+                x-cloak
+                x-show="sidebarOpen"
+                x-transition:enter="transition duration-200 ease-out"
+                x-transition:enter-start="-translate-x-full lg:translate-x-0"
+                x-transition:enter-end="translate-x-0"
+                x-transition:leave="transition duration-150 ease-in"
+                x-transition:leave-start="translate-x-0"
+                x-transition:leave-end="-translate-x-full lg:translate-x-0"
+                class="erp-sidebar fixed inset-y-0 left-0 z-50 w-[min(86vw,20rem)] border-r lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-auto lg:overflow-hidden"
+                aria-label="Application navigation"
+            >
                 <div class="flex h-full min-h-0 max-h-screen flex-col">
                     <div class="erp-sidebar-pinned sticky top-0 z-20 shrink-0">
                         <div class="erp-sidebar-brand flex items-center gap-2 border-b px-4 py-4">
@@ -84,13 +113,22 @@
                                     <h1 class="erp-brand-title truncate text-base font-bold">HRIS &amp; Payroll</h1>
                                 </div>
                             </a>
+                            <button
+                                type="button"
+                                class="erp-theme-toggle grid shrink-0 lg:hidden"
+                                x-on:click="closeMobileSidebar()"
+                                aria-label="Close navigation"
+                                title="Close navigation"
+                            >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+                            </button>
                         </div>
 
                         <div class="erp-sidebar-home border-b px-3 py-3">
                             <button
                                 type="button"
                                 class="erp-nav-link erp-nav-link-depth-1 w-full"
-                                x-on:click="openAppGrid()"
+                                x-on:click="closeMobileSidebar(); openAppGrid()"
                                 :aria-expanded="appGridOpen.toString()"
                                 aria-haspopup="dialog"
                                 title="Open app grid (Alt+A)"
@@ -136,6 +174,7 @@
                                                 <a
                                                     class="erp-nav-link erp-nav-link-depth-1 {{ ($item['active'] ?? false) ? 'erp-nav-link-active' : '' }}"
                                                     href="{{ $navHref($item) }}"
+                                                    x-on:click="closeMobileSidebar()"
                                                 >
                                                     <span class="erp-nav-item-icon" aria-hidden="true">
                                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -156,7 +195,7 @@
                             <div class="erp-nav-group space-y-0.5">
                                 <p class="erp-nav-group-label px-2.5 pb-2 text-[11px] font-semibold uppercase tracking-wide">Apps</p>
                                 @foreach ($apps as $app)
-                                    <a class="erp-nav-link erp-nav-link-depth-1" href="{{ $app['href'] }}">
+                                    <a class="erp-nav-link erp-nav-link-depth-1" href="{{ $app['href'] }}" x-on:click="closeMobileSidebar()">
                                         <span class="erp-nav-item-icon" aria-hidden="true">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                                 <path d="{{ $icons[$app['icon']] ?? $icons['grid'] }}"></path>
@@ -188,14 +227,14 @@
                                 </div>
                             </a>
                         @else
-                            <button type="button" x-on:click="toggleSidebar()" class="erp-theme-toggle grid" :title="sidebarOpen ? 'Hide sidebar' : 'Show sidebar'" :aria-label="sidebarOpen ? 'Hide sidebar' : 'Show sidebar'" :aria-expanded="sidebarOpen.toString()">
+                            <button type="button" x-on:click="toggleSidebar()" class="erp-theme-toggle grid" :title="sidebarOpen ? 'Close navigation' : 'Open navigation'" :aria-label="sidebarOpen ? 'Close navigation' : 'Open navigation'" :aria-expanded="sidebarOpen.toString()">
                                 <svg x-show="sidebarOpen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
                                 <svg x-show="! sidebarOpen" x-cloak viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/><path d="M3 5h3v14H3z"/></svg>
                             </button>
-                            <div class="erp-system-status hidden items-center gap-2 text-xs font-semibold sm:flex" aria-label="Current application">
+                            <div class="erp-system-status flex min-w-0 items-center gap-2 text-xs font-semibold" aria-label="Current application">
                                 <span class="erp-status-dot" aria-hidden="true"></span>
-                                <span class="erp-subtle">
-                                    <span class="erp-system-label">{{ $currentApp['label'] ?? 'Workspace' }}</span>
+                                <span class="erp-subtle min-w-0">
+                                    <span class="erp-system-label block truncate">{{ $currentApp['label'] ?? 'Workspace' }}</span>
                                 </span>
                             </div>
                         @endif
@@ -206,7 +245,7 @@
                             <button
                                 x-ref="appGridTrigger"
                                 type="button"
-                                class="erp-theme-toggle grid"
+                                class="erp-theme-toggle hidden sm:grid"
                                 x-on:click="openAppGrid()"
                                 :aria-expanded="appGridOpen.toString()"
                                 aria-haspopup="dialog"
