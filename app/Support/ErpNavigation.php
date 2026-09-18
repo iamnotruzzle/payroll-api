@@ -67,6 +67,30 @@ class ErpNavigation
         $scheduleProfile = $scheduleScope->profileForDepartment($userDepartmentId);
         $isCnoSchedule = $scheduleScope->isCnoDepartment($userDepartmentId);
         $unitsNavLabel = $scheduleScope->unitNoun($userDepartmentId, true);
+        $canSelfServiceProfile = (bool) ($user?->can('self-service.profile') || $user?->can('self-service.access'));
+        $canSelfServiceLeave = (bool) ($user?->can('self-service.leave') || $user?->can('leave.request') || $user?->can('leave.view'));
+        $canSelfServiceDtr = (bool) ($user?->can('self-service.dtr') || $user?->can('self-service.access'));
+        $canSelfServiceSchedule = (bool) ($user?->can('self-service.schedule') || $user?->can('self-service.access'));
+        $canSelfServicePayslip = (bool) ($user?->can('self-service.payslip') || $user?->can('self-service.access'));
+        $canSelfServiceTraining = (bool) ($user?->can('self-service.training') || $user?->can('training.manage') || $user?->can('training.view'));
+        $canSelfServiceIpcr = (bool) ($user?->can('self-service.ipcr') || $user?->can('performance.view') || $user?->can('performance.manage'));
+        $canAnySelfService = $canSelfServiceProfile
+            || $canSelfServiceLeave
+            || $canSelfServiceDtr
+            || $canSelfServiceSchedule
+            || $canSelfServicePayslip
+            || $canSelfServiceTraining
+            || $canSelfServiceIpcr;
+        $selfServiceHref = match (true) {
+            $canSelfServiceProfile => route('self-service.profile'),
+            $canSelfServiceDtr => route('self-service.dtr'),
+            $canSelfServiceLeave => route('self-service.leave'),
+            $canSelfServiceSchedule => route('self-service.schedule'),
+            $canSelfServicePayslip => route('self-service.payslip'),
+            $canSelfServiceTraining => route('self-service.training'),
+            $canSelfServiceIpcr => route('self-service.ipcr'),
+            default => route('home'),
+        };
 
         // App order: employee hub → people ops → attendance/pay → learning → admin
         return [
@@ -77,14 +101,9 @@ class ErpNavigation
                 'launcher_group' => 'workspace',
                 'accent' => 'sky',
                 'icon' => 'user',
-                'href' => ($user?->can('self-service.profile') || $user?->can('self-service.access'))
-                    ? route('self-service.profile')
-                    : (($user?->can('self-service.dtr') || $user?->can('self-service.payslip'))
-                        ? route($user?->can('self-service.dtr') ? 'self-service.dtr' : 'self-service.payslip')
-                        : (($user?->can('self-service.leave') || $user?->can('leave.request') || $user?->can('leave.view'))
-                            ? route('self-service.leave')
-                            : $soon('self-service', 'my-profile'))),
+                'href' => $selfServiceHref,
                 'available' => true,
+                'visible' => $canAnySelfService,
                 'active' => request()->routeIs('time-punch.*')
                     || request()->routeIs('self-service.*')
                     || (request()->routeIs('coming-soon') && request()->route('module') === 'self-service'),
@@ -92,7 +111,7 @@ class ErpNavigation
                     [
                         'label' => 'Profile',
                         'items' => [
-                            ($user?->can('self-service.profile') || $user?->can('self-service.access'))
+                            $canSelfServiceProfile
                                 ? ['label' => 'My Profile', 'route' => 'self-service.profile', 'icon' => 'id-card', 'active' => request()->routeIs('self-service.profile*')]
                                 : null,
                         ],
@@ -100,19 +119,19 @@ class ErpNavigation
                     [
                         'label' => 'Time & leave',
                         'items' => [
-                            ($user?->can('self-service.leave') || $user?->can('leave.request') || $user?->can('leave.view'))
+                            $canSelfServiceLeave
                                 ? ['label' => 'My Leave', 'route' => 'self-service.leave', 'icon' => 'calendar-off', 'active' => request()->routeIs('self-service.leave')]
-                                : ['label' => 'My Leave', 'href' => $soon('self-service', 'my-leave'), 'icon' => 'calendar-off', 'coming_soon' => true, 'active' => self::isSoon('self-service', 'my-leave')],
-                            ($user?->can('self-service.dtr') || $user?->can('self-service.access'))
+                                : null,
+                            $canSelfServiceDtr
                                 ? ['label' => 'My DTR', 'route' => 'self-service.dtr', 'icon' => 'file-clock', 'active' => request()->routeIs('self-service.dtr*')]
-                                : ['label' => 'My DTR', 'href' => $soon('self-service', 'my-dtr'), 'icon' => 'file-clock', 'coming_soon' => true, 'active' => self::isSoon('self-service', 'my-dtr')],
-                            ($user?->can('self-service.dtr') || $user?->can('self-service.access'))
+                                : null,
+                            $canSelfServiceDtr
                                 ? ['label' => 'Time Punch', 'route' => 'time-punch.index', 'icon' => 'clock-3', 'active' => request()->routeIs('time-punch.*')]
                                 : null,
-                            ($user?->can('self-service.schedule') || $user?->can('self-service.access'))
+                            $canSelfServiceSchedule
                                 ? ['label' => 'My Schedule', 'route' => 'self-service.schedule', 'icon' => 'calendar-range', 'active' => request()->routeIs('self-service.schedule')]
-                                : ['label' => 'My Schedule', 'href' => $soon('self-service', 'my-schedule'), 'icon' => 'calendar-range', 'coming_soon' => true, 'active' => self::isSoon('self-service', 'my-schedule')],
-                            (($user?->can('self-service.schedule') || $user?->can('self-service.access')) && $scheduleProfile->uses_swaps)
+                                : null,
+                            ($canSelfServiceSchedule && $scheduleProfile->uses_swaps)
                                 ? ['label' => 'My Shift Swaps', 'route' => 'self-service.swaps', 'icon' => 'arrow-left-right', 'active' => request()->routeIs('self-service.swaps')]
                                 : null,
                         ],
@@ -120,18 +139,18 @@ class ErpNavigation
                     [
                         'label' => 'Pay',
                         'items' => [
-                            ($user?->can('self-service.payslip') || $user?->can('self-service.access'))
+                            $canSelfServicePayslip
                                 ? ['label' => 'My Payslip', 'route' => 'self-service.payslip', 'icon' => 'banknote', 'active' => request()->routeIs('self-service.payslip*')]
-                                : ['label' => 'My Payslip', 'href' => $soon('self-service', 'my-payslip'), 'icon' => 'banknote', 'coming_soon' => true, 'active' => self::isSoon('self-service', 'my-payslip')],
+                                : null,
                         ],
                     ],
                     [
                         'label' => 'Development',
                         'items' => [
-                            ($user?->can('self-service.training') || $user?->can('training.manage') || $user?->can('training.view'))
+                            $canSelfServiceTraining
                                 ? ['label' => 'My Training', 'route' => 'self-service.training', 'icon' => 'graduation-cap', 'active' => request()->routeIs('self-service.training')]
                                 : null,
-                            ($user?->can('self-service.ipcr') || $user?->can('performance.view') || $user?->can('performance.manage'))
+                            $canSelfServiceIpcr
                                 ? ['label' => 'My IPCR', 'route' => 'self-service.ipcr', 'icon' => 'award', 'active' => request()->routeIs('self-service.ipcr')]
                                 : null,
                         ],

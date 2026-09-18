@@ -100,10 +100,10 @@
                 x-transition:leave="transition duration-150 ease-in"
                 x-transition:leave-start="translate-x-0"
                 x-transition:leave-end="-translate-x-full lg:translate-x-0"
-                class="erp-sidebar fixed inset-y-0 left-0 z-50 w-[min(86vw,20rem)] border-r lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-auto lg:overflow-hidden"
+                class="erp-sidebar erp-mobile-drawer fixed inset-y-0 left-0 z-50 w-[min(86vw,20rem)] border-r lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-auto lg:overflow-hidden"
                 aria-label="Application navigation"
             >
-                <div class="flex h-full min-h-0 max-h-screen flex-col">
+                <div class="erp-sidebar-frame flex h-full min-h-0 max-h-screen flex-col">
                     <div class="erp-sidebar-pinned sticky top-0 z-20 shrink-0">
                         <div class="erp-sidebar-brand flex items-center gap-2 border-b px-4 py-4">
                             <a href="{{ route('home') }}" class="erp-brand flex min-w-0 flex-1 items-center gap-3">
@@ -144,7 +144,7 @@
                         </div>
                     </div>
 
-                    <nav class="erp-sidebar-scroll min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3 text-sm">
+                    <nav class="erp-sidebar-scroll min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3 text-sm" aria-label="{{ $currentApp['label'] ?? 'Applications' }} menu">
                         @if ($currentApp)
                             <div class="erp-nav-group">
                                 <p class="erp-nav-group-label px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide">
