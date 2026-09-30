@@ -3,6 +3,7 @@
 namespace App\Support\Hris;
 
 use App\Models\Hris\EmployeeLeave;
+use App\Models\Payroll\Canonical\EmployeeLeave as PayrollEmployeeLeave;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
@@ -21,7 +22,7 @@ final class LeaveDates
     /**
      * @return list<string> Y-m-d strings, sorted unique
      */
-    public static function for(EmployeeLeave $leave): array
+    public static function for(EmployeeLeave|PayrollEmployeeLeave $leave): array
     {
         $fromRemarks = self::parseCsv((string) ($leave->remarks ?? ''));
         if ($fromRemarks !== []) {
@@ -45,7 +46,7 @@ final class LeaveDates
     /**
      * @return Collection<int, CarbonImmutable>
      */
-    public static function carbonsFor(EmployeeLeave $leave): Collection
+    public static function carbonsFor(EmployeeLeave|PayrollEmployeeLeave $leave): Collection
     {
         return collect(self::for($leave))
             ->map(fn (string $date) => CarbonImmutable::parse($date)->startOfDay())
