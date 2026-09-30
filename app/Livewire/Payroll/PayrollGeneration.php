@@ -2812,7 +2812,7 @@ class PayrollGeneration extends Component
 
         return [
             'id' => $leave->leave_id,
-            'leave_type' => $leave->leave_type_name ?: $leave->leaveType?->leave_name ?: 'Leave',
+            'leave_type' => $leave->leave_type_name ?: $leave->getRelationValue('leaveType')?->leave_name ?: 'Leave',
             'original_period' => $this->formatLeavePeriod($originalStart, $originalEnd),
             'start_date' => $start->toDateString(),
             'end_date' => $end->toDateString(),

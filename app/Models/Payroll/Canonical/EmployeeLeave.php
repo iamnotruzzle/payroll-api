@@ -32,6 +32,7 @@ class EmployeeLeave extends Model
 
     public function getLeaveTypeNameAttribute()
     {
-        return $this->leaveType?->name;
+        // The leave_type ID accessor also matches camel-case leaveType access.
+        return $this->getRelationValue('leaveType')?->name;
     }
 }
