@@ -12,6 +12,7 @@
                 {{ $scopeLabel }} &middot; {{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $period)->format('F Y') }} &middot; {{ $employeeTypeLabel }}
             </p>
         </div>
+        <x-payroll-generation-guide :section="'hazard-'.$currentStep" />
         <a href="{{ route('payroll.generation.configuration', ['division_id' => $divisionId, 'department_id' => $departmentId, 'payroll_type' => \App\Models\Payroll\PayrollType::CODE_HAZARD, 'period' => $period, 'working_days' => $workingDays, 'employee_type' => $employeeTypeQueryValue]) }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
             Change Configuration
         </a>

@@ -1647,6 +1647,11 @@ class PayrollGeneration extends Component
 
     private function payrollRows(Collection $compensations, Collection $deductionPrograms): Collection
     {
+        if ($error = app(PayrollReadinessService::class)->apiGenerationError()) {
+            $this->addError('finalize', $error);
+
+            return collect();
+        }
         if ($this->selectedDivisionIds === [] && $this->selectedDepartmentIds === []) {
             return collect();
         }
@@ -1792,7 +1797,7 @@ class PayrollGeneration extends Component
                 ->get()
                 ->keyBy('emp_id')
             : collect();
-        $canonicalTimekeeping = Schema::connection('payroll')->hasTable('payroll_canonical_timekeeping')
+        $canonicalTimekeeping = ! app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->usesHrisDatabase() && Schema::connection('payroll')->hasTable('payroll_canonical_timekeeping')
             ? DB::connection('payroll')->table('payroll_canonical_timekeeping')->where('period', $this->period)->whereIn('emp_id', $empIds)->get()->keyBy('emp_id')
             : collect();
         $labelOptions = PayrollDtrLabelOption::query()->get()->keyBy('code');
@@ -2630,6 +2635,11 @@ class PayrollGeneration extends Component
         }
         if ($this->previousMraReport($this->previousMraPeriod())) {
             return true;
+        }
+        if (app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->usesHrisDatabase()) {
+            $this->addError($errorKey, 'Finalize the previous month DTR/MRA for the selected department before finalizing payroll with HRIS database timekeeping.');
+
+            return false;
         }
 
         $employeeIds = $this->employeeFilterOptions()->pluck('emp_id')->map('strval');

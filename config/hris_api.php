@@ -1,15 +1,16 @@
 <?php
 
 // Mapping direction: payroll field => HRIS JSON field (dot notation supported).
-// The proposed endpoints are disabled until their contracts are confirmed.
+// Payroll resources follow the HRIS Payroll API Endpoints document.
 $resource = static fn (string $path, array $fields, array $required, array $sourceFields = []): array => [
-    'enabled' => false,
-    'path' => $path,
+    'enabled' => true,
+    'path' => '/api/external/payroll'.$path,
     'method' => 'GET',
     'data_path' => 'data',
     'parameters' => [],
     'fields' => array_replace(array_combine($fields, $fields), $sourceFields),
     'required' => $required,
+    'required_keys' => $fields,
     // Set pagination to ['page_parameter' => 'page', 'last_page_path' => 'meta.last_page'] when supported.
     'pagination' => null,
 ];
@@ -46,40 +47,24 @@ return [
             ],
             'required' => ['employee_id', 'first_name', 'last_name', 'monthly_salary'],
         ],
-        // Source fields below follow the existing tbl_* HRIS models and database sync.
-        'divisions' => $resource('/divisions', ['division_id', 'name'], ['division_id', 'name'], ['name' => 'division']),
-        'departments' => $resource('/departments', ['department_id', 'division_id', 'name'], ['department_id', 'division_id', 'name'], ['name' => 'department']),
-        'positions' => $resource('/positions', ['position_id', 'title', 'salary_grade', 'remarks'], ['position_id', 'title'], ['title' => 'position_title']),
+        'divisions' => $resource('/divisions', ['division_id', 'name', 'is_active'], ['division_id', 'name', 'is_active']),
+        'departments' => $resource('/departments', ['department_id', 'division_id', 'name', 'is_active'], ['department_id', 'name', 'is_active']),
+        'positions' => $resource('/positions', ['position_id', 'title', 'salary_grade'], ['position_id', 'title']),
         'employees' => $resource('/employees', [
             'employee_id', 'first_name', 'middle_name', 'last_name', 'extension', 'suffix',
             'department_id', 'position_id', 'step', 'employment_status_id', 'date_hired',
-            'is_active', 'is_external', 'tin', 'gsis', 'philhealth', 'pagibig',
-            'vl_balance', 'sl_balance',
-        ], ['employee_id', 'first_name', 'last_name'], [
-            'employee_id' => 'emp_id', 'first_name' => 'firstname',
-            'middle_name' => 'middlename', 'last_name' => 'lastname',
-            'employment_status_id' => 'empstat_id', 'tin' => 'tin_no',
-            'gsis' => 'gsis_no', 'philhealth' => 'phic_no', 'pagibig' => 'pagibig_no',
-            'vl_balance' => 'vacation_leave_credits', 'sl_balance' => 'sick_leave_credits',
-        ]),
-        'employment-statuses' => $resource('/employment_status', ['employment_status_id', 'status'], ['employment_status_id', 'status'], ['employment_status_id' => 'empstat_id']),
-        'salary-rates' => $resource('/salary-rates', ['salary_grade', 'step', 'monthly_salary', 'effective_from'], ['salary_grade', 'step', 'monthly_salary', 'effective_from'], [
-            'step' => 'step_increment', 'monthly_salary' => 'salary', 'effective_from' => 'effectivity_date',
-        ]),
-        'leave-types' => $resource('/leave-types', ['leave_type_id', 'name', 'is_active'], ['leave_type_id', 'name'], ['name' => 'leave_name', 'is_active' => 'to_display']),
+            'is_active', 'is_external', 'tin', 'gsis', 'philhealth', 'pagibig', 'vl_balance', 'sl_balance',
+        ], ['employee_id', 'first_name', 'last_name', 'employment_status_id', 'is_active', 'is_external']),
+        'employment-statuses' => $resource('/employment_status', ['employment_status_id', 'status', 'code'], ['employment_status_id', 'status']),
+        'salary-rates' => array_replace($resource('/salary-rates', ['salary_grade', 'step', 'monthly_salary', 'effective_from', 'effective_to'], ['salary_grade', 'step', 'monthly_salary', 'effective_from']), ['parameters' => ['year' => 'all']]),
+        'leave-types' => $resource('/leave-types', ['leave_type_id', 'name'], ['leave_type_id', 'name']),
         'leaves' => array_replace($resource('/leaves', [
             'leave_id', 'employee_id', 'leave_type_id', 'start_date', 'end_date',
-            'days_with_pay', 'days_without_pay', 'status', 'remarks',
-        ], ['leave_id', 'employee_id', 'leave_type_id', 'start_date', 'end_date', 'status'], [
-            'employee_id' => 'emp_id', 'leave_type_id' => 'leave_type',
-            'days_with_pay' => 'days_wpay', 'days_without_pay' => 'days_wopay',
-        ]), [
+            'days_with_pay', 'days_without_pay', 'status_id', 'status', 'cancelled', 'leave_dates',
+        ], ['leave_id', 'employee_id', 'leave_type_id', 'start_date', 'end_date', 'days_with_pay', 'days_without_pay', 'status', 'cancelled']), [
             'parameters' => ['from' => '{from}', 'to' => '{to}'],
         ]),
-        'timekeeping' => array_replace($resource('/timekeeping', [
-            'period', 'employee_id', 'work_days', 'days_with_dtr', 'regular_hours',
-            'undertime_hours', 'tardy_hours', 'mra_hours', 'leave_days_with_pay',
-            'leave_days_without_pay', 'absent_days',
-        ], ['period', 'employee_id'], ['employee_id' => 'emp_id']), ['parameters' => ['period' => '{period}']]),
+        // Not present in the supplied HRIS contract. Do not call an invented endpoint.
+        'timekeeping' => ['enabled' => false],
     ],
 ];

@@ -4,6 +4,7 @@
         <h2 class="text-xl font-semibold">Payroll Configuration</h2>
             <p class="text-sm text-slate-600">Set the payroll scope before opening the generation workflow.</p>
         </div>
+        <x-payroll-generation-guide section="configuration" />
     </div>
 
     <form wire:submit="proceed" class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">

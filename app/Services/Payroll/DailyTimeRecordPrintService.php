@@ -22,7 +22,10 @@ class DailyTimeRecordPrintService
      */
     public function buildPrintPayload(string $empId, int $month, int $year): array
     {
-        $employee = Employee::with(['department', 'position'])
+        $source = app(PayrollTimekeepingSourceService::class);
+        $source->assertAvailable();
+        $employeeClass = $source->standalone() ? \App\Models\Payroll\Canonical\Employee::class : Employee::class;
+        $employee = $employeeClass::with(['department', 'position'])
             ->where('emp_id', $empId)
             ->firstOrFail();
 
@@ -115,7 +118,7 @@ class DailyTimeRecordPrintService
 
     public function pdfResponse(array $payload): Response
     {
-        $pdf = new FPDF();
+        $pdf = new FPDF;
         $pdf->SetTitle('Daily Time Record', true);
         $this->appendEmployeePage($pdf, $payload);
 
@@ -128,7 +131,7 @@ class DailyTimeRecordPrintService
      */
     public function pdfBulkResponse(array $payloads): Response
     {
-        $pdf = new FPDF();
+        $pdf = new FPDF;
         $pdf->SetTitle('Daily Time Records', true);
 
         foreach ($payloads as $payload) {
@@ -187,15 +190,17 @@ class DailyTimeRecordPrintService
     private function leaveDates(string $employeeId, CarbonImmutable $from, CarbonImmutable $to): array
     {
         $dates = [];
-        $leaves = EmployeeLeave::query()
+        $standalone = app(PayrollTimekeepingSourceService::class)->standalone();
+        $leaveClass = $standalone ? \App\Models\Payroll\Canonical\EmployeeLeave::class : EmployeeLeave::class;
+        $leaves = $leaveClass::query()
             ->with('leaveType')
             ->where('emp_id', $employeeId)
-            ->where('status', 0)
+            ->when(! $standalone, fn ($query) => $query->where('status', 0))
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
             ->whereDate('start_date', '<=', $to->toDateString())
             ->whereDate('end_date', '>=', $from->toDateString())
-            ->whereDoesntHave('logs', fn ($query) => $query->whereIn('action', [2, 3]))
+            ->when($standalone, fn ($query) => $query->where('is_cancelled', false), fn ($query) => $query->whereDoesntHave('logs', fn ($logs) => $logs->whereIn('action', [2, 3])))
             ->get();
 
         foreach ($leaves as $leave) {

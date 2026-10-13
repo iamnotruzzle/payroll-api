@@ -26,3 +26,9 @@ Employee deactivation requires `Confirm Deactivation = Yes`. Passwords imported 
 - Active import batches can be rolled back; when a superseded batch exists it is reactivated.
 - Returning to connected mode requires a reconciliation preview and the phrase `SWITCH TO CONNECTED`.
 - Every finalized payroll stores its operating mode and active source batch IDs.
+
+## API-only HRIS source
+
+Standalone mode can also refresh canonical data from the eight documented HRIS payroll API endpoints, without an HRIS database connection. Set the HRIS origin and token, run the additive API inputs migration, and use `payroll:api-sync --period=YYYY-MM` or **Synchronize HRIS API** in Payroll System Management. Custom leave cutoff dates are supported. See [HRIS payroll API synchronization](hris-api-connectivity.md) for setup and validation rules.
+
+The API does not supply timekeeping or accounts. Existing local accounts remain unchanged. After API activation, the default manual setting blocks payroll generation until a timekeeping API is implemented. A Super Admin can instead select HRIS database timekeeping only and complete the existing local DTR/MRA workflow. Master data remains API-backed. See the API synchronization guide for configuration.

@@ -5,6 +5,8 @@ namespace App\Livewire\Payroll;
 use App\Models\Hris\Employee;
 use App\Models\Hris\EmployeeDtr;
 use App\Models\Hris\EmployeeLeave;
+use App\Models\Payroll\Canonical\Employee as CanonicalEmployee;
+use App\Models\Payroll\Canonical\EmployeeLeave as CanonicalLeave;
 use App\Models\Payroll\PayrollDtrAdjustment;
 use App\Models\Payroll\PayrollDtrLabel;
 use App\Models\Payroll\PayrollDtrLabelOption;
@@ -15,6 +17,7 @@ use App\Models\Payroll\PayrollMraReport;
 use App\Models\Payroll\PayrollTimeTemplate;
 use App\Models\Schedule\MonthlySchedule;
 use App\Models\Schedule\ScheduleAssignment;
+use App\Services\Payroll\PayrollTimekeepingSourceService;
 use App\Services\Payroll\SchedulerDtrSyncService;
 use App\Support\Hris\LeaveDates;
 use Carbon\CarbonImmutable;
@@ -67,6 +70,7 @@ class Mra extends Component
 
     public function finalize(): void
     {
+        app(PayrollTimekeepingSourceService::class)->assertAvailable();
         $this->validatePeriod();
 
         $departmentId = $this->departmentId();
@@ -80,7 +84,7 @@ class Mra extends Component
 
             $previous = PayrollLeaveCreditAdjustment::query()->where('mra_report_id', $report->id)->get();
             if ($previous->isNotEmpty()) {
-                $employees = Employee::query()->whereIn('emp_id', $previous->pluck('emp_id'))->get()->keyBy('emp_id');
+                $employees = $this->employeeClass()::query()->whereIn('emp_id', $previous->pluck('emp_id'))->get()->keyBy('emp_id');
                 foreach ($previous as $adjustment) {
                     $employee = $employees->get($adjustment->emp_id);
                     if ($employee && strcasecmp((string) $adjustment->leave_type, 'VL') === 0) {
@@ -97,7 +101,7 @@ class Mra extends Component
                     continue;
                 }
 
-                $employee = Employee::query()->find($row['emp_id']);
+                $employee = $this->employeeClass()::query()->find($row['emp_id']);
                 if (! $employee) {
                     continue;
                 }
@@ -137,44 +141,47 @@ class Mra extends Component
 
     private function previewRows()
     {
+        app(PayrollTimekeepingSourceService::class)->assertAvailable();
         $this->validatePeriod();
 
         if (! $this->departmentId()) {
             return collect();
         }
 
-        $employees = Employee::query()
+        $employees = $this->employeeClass()::query()
             ->with('position')
-            ->where('department_id', $this->departmentId())
-            ->where('is_active', 'Y')
+            ->where($this->standalone() ? 'department_external_id' : 'department_id', $this->departmentId())
+            ->where('is_active', $this->standalone() ? true : 'Y')
             ->employeeType($this->employeeTypeFilter)
             ->orderBy('lastname')
             ->orderBy('firstname')
             ->get();
 
-        app(SchedulerDtrSyncService::class)->syncDepartmentPeriod(
-            $this->departmentId(),
-            $this->from,
-            $this->to,
-        );
+        if (! $this->standalone()) {
+            app(SchedulerDtrSyncService::class)->syncDepartmentPeriod(
+                $this->departmentId(),
+                $this->from,
+                $this->to,
+            );
+        }
 
         $empIds = $employees->pluck('emp_id')->all();
         $dtrs = EmployeeDtr::query()->whereIn('emp_id', $empIds)->whereBetween('dtr_date', [$this->from, $this->to])->get()->groupBy('emp_id');
-        $leaves = EmployeeLeave::query()
+        $leaves = $this->leaveClass()::query()
             ->whereIn('emp_id', $empIds)
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
             ->whereDate('start_date', '<=', $this->to)
             ->whereDate('end_date', '>=', $this->from)
-            ->whereDoesntHave('logs', fn ($query) => $query->whereIn('action', [2, 3]))
+            ->when($this->standalone(), fn ($query) => $query->where('is_cancelled', false), fn ($query) => $query->whereDoesntHave('logs', fn ($logs) => $logs->whereIn('action', [2, 3])))
             ->get()
             ->groupBy('emp_id');
-        $cancelledLeaves = EmployeeLeave::query()
+        $cancelledLeaves = $this->leaveClass()::query()
             ->with('leaveType')
             ->whereIn('emp_id', $empIds)
             ->whereDate('start_date', '<=', $this->to)
             ->whereDate('end_date', '>=', $this->from)
-            ->whereHas('logs', fn ($query) => $query->whereIn('action', [2, 3]))
+            ->when($this->standalone(), fn ($query) => $query->where('is_cancelled', true), fn ($query) => $query->whereHas('logs', fn ($logs) => $logs->whereIn('action', [2, 3])))
             ->get()
             ->groupBy('emp_id');
         $labels = PayrollDtrLabel::query()->whereIn('emp_id', $empIds)->whereBetween('dtr_date', [$this->from, $this->to])->get()->groupBy('emp_id');
@@ -184,7 +191,7 @@ class Mra extends Component
         $labelOptions = PayrollDtrLabelOption::query()->get()->keyBy('code');
         $holidays = PayrollHoliday::query()->where('is_active', true)->whereBetween('holiday_date', [$this->from, $this->to])->get();
         $holidaysByDate = $holidays->keyBy(fn ($holiday) => $holiday->holiday_date->toDateString());
-        $assignments = ScheduleAssignment::query()
+        $assignments = $this->standalone() ? collect() : ScheduleAssignment::query()
             ->with('shiftCode')
             ->whereIn('employee_id', $empIds)
             ->whereBetween('schedule_date', [$this->from, $this->to])
@@ -319,7 +326,7 @@ class Mra extends Component
         return $output;
     }
 
-    private function leaveDatesFor(EmployeeLeave $leave): array
+    private function leaveDatesFor(EmployeeLeave|CanonicalLeave $leave): array
     {
         $from = CarbonImmutable::parse($this->from);
         $to = CarbonImmutable::parse($this->to);
@@ -466,6 +473,21 @@ class Mra extends Component
             'from' => ['required', 'date'],
             'to' => ['required', 'date', 'after_or_equal:from'],
         ]);
+    }
+
+    private function standalone(): bool
+    {
+        return app(PayrollTimekeepingSourceService::class)->standalone();
+    }
+
+    private function employeeClass(): string
+    {
+        return $this->standalone() ? CanonicalEmployee::class : Employee::class;
+    }
+
+    private function leaveClass(): string
+    {
+        return $this->standalone() ? CanonicalLeave::class : EmployeeLeave::class;
     }
 
     private function departmentId(): ?int

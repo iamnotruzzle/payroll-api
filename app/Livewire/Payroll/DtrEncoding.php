@@ -5,6 +5,8 @@ namespace App\Livewire\Payroll;
 use App\Models\Hris\Employee;
 use App\Models\Hris\EmployeeDtr;
 use App\Models\Hris\EmployeeLeave;
+use App\Models\Payroll\Canonical\Employee as CanonicalEmployee;
+use App\Models\Payroll\Canonical\EmployeeLeave as CanonicalLeave;
 use App\Models\Payroll\PayrollDtrAdjustment;
 use App\Models\Payroll\PayrollDtrLabel;
 use App\Models\Payroll\PayrollDtrLabelOption;
@@ -14,6 +16,7 @@ use App\Models\Payroll\PayrollMraReport;
 use App\Models\Payroll\PayrollTimeTemplate;
 use App\Models\Schedule\MonthlySchedule;
 use App\Models\Schedule\ScheduleAssignment;
+use App\Services\Payroll\PayrollTimekeepingSourceService;
 use App\Services\Payroll\SchedulerDtrSyncService;
 use App\Support\Hris\LeaveDates;
 use Carbon\CarbonImmutable;
@@ -97,6 +100,7 @@ class DtrEncoding extends Component
 
     public function loadState(): void
     {
+        app(PayrollTimekeepingSourceService::class)->assertAvailable();
         $this->validatePeriod();
         $this->isLocked = PayrollMraReport::query()
             ->where('department_id', $this->departmentId())
@@ -118,11 +122,13 @@ class DtrEncoding extends Component
             return;
         }
 
-        app(SchedulerDtrSyncService::class)->syncEmployeesPeriod(
-            [$this->selectedEmpId],
-            $this->from,
-            $this->to,
-        );
+        if (! $this->standalone()) {
+            app(SchedulerDtrSyncService::class)->syncEmployeesPeriod(
+                [$this->selectedEmpId],
+                $this->from,
+                $this->to,
+            );
+        }
 
         $dtrs = EmployeeDtr::query()
             ->where('emp_id', $this->selectedEmpId)
@@ -149,7 +155,7 @@ class DtrEncoding extends Component
             ->whereBetween('holiday_date', [$this->from, $this->to])
             ->get()
             ->keyBy(fn ($holiday) => $holiday->holiday_date->toDateString());
-        $assignments = ScheduleAssignment::query()
+        $assignments = $this->standalone() ? collect() : ScheduleAssignment::query()
             ->with(['monthlySchedule', 'shiftCode'])
             ->where('employee_id', $this->selectedEmpId)
             ->whereBetween('schedule_date', [$this->from, $this->to])
@@ -195,6 +201,7 @@ class DtrEncoding extends Component
 
     public function save(): void
     {
+        app(PayrollTimekeepingSourceService::class)->assertAvailable();
         $this->validatePeriod();
 
         if ($this->isLocked) {
@@ -484,14 +491,14 @@ class DtrEncoding extends Component
 
     private function employees()
     {
-        return Employee::query()
+        return $this->employeeClass()::query()
             ->with('position')
-            ->where('department_id', $this->departmentId())
-            ->where('is_active', 'Y')
+            ->where($this->standalone() ? 'department_external_id' : 'department_id', $this->departmentId())
+            ->where('is_active', $this->standalone() ? true : 'Y')
             ->employeeType($this->employeeTypeFilter)
             ->orderBy('lastname')
             ->orderBy('firstname')
-            ->get(['emp_id', 'firstname', 'middlename', 'lastname', 'position_id', 'department_id']);
+            ->get($this->standalone() ? ['emp_id', 'firstname', 'middlename', 'lastname', 'position_external_id', 'department_external_id'] : ['emp_id', 'firstname', 'middlename', 'lastname', 'position_id', 'department_id']);
     }
 
     private function employeeNavigation($employees): array
@@ -534,15 +541,15 @@ class DtrEncoding extends Component
     private function leaveDates(string $employeeId): array
     {
         $dates = [];
-        $query = EmployeeLeave::query()
+        $query = $this->leaveClass()::query()
             ->with('leaveType')
             ->where('emp_id', $employeeId)
-            ->where('status', 0)
+            ->when(! $this->standalone(), fn ($query) => $query->where('status', 0))
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
             ->whereDate('start_date', '<=', $this->to)
             ->whereDate('end_date', '>=', $this->from)
-            ->whereDoesntHave('logs', fn ($query) => $query->whereIn('action', [2, 3]));
+            ->when($this->standalone(), fn ($query) => $query->where('is_cancelled', false), fn ($query) => $query->whereDoesntHave('logs', fn ($logs) => $logs->whereIn('action', [2, 3])));
 
         $from = CarbonImmutable::parse($this->from);
         $to = CarbonImmutable::parse($this->to);
@@ -560,7 +567,7 @@ class DtrEncoding extends Component
         return $dates;
     }
 
-    private function leaveLabelFor(EmployeeLeave $leave): array
+    private function leaveLabelFor(EmployeeLeave|CanonicalLeave $leave): array
     {
         $leaveName = $leave->leave_type_name
             ?: $leave->leaveType?->leave_name
@@ -663,6 +670,21 @@ class DtrEncoding extends Component
         if (CarbonImmutable::parse($this->from)->diffInDays(CarbonImmutable::parse($this->to)) > 31) {
             throw ValidationException::withMessages(['to' => 'Use a date range of 32 days or less.']);
         }
+    }
+
+    private function standalone(): bool
+    {
+        return app(PayrollTimekeepingSourceService::class)->standalone();
+    }
+
+    private function employeeClass(): string
+    {
+        return $this->standalone() ? CanonicalEmployee::class : Employee::class;
+    }
+
+    private function leaveClass(): string
+    {
+        return $this->standalone() ? CanonicalLeave::class : EmployeeLeave::class;
     }
 
     private function departmentId(): ?int

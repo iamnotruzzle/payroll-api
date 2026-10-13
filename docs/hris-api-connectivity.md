@@ -1,41 +1,72 @@
-# HRIS API connectivity
+# HRIS payroll API synchronization
 
-The HTTP client and mapping check work in connected or standalone mode without accessing HRIS or payroll databases. They do not activate imports, change salaries, or modify payroll records. Existing database sync is unchanged.
+The documented eight GET resources under `/api/external/payroll` now synchronize payroll-owned canonical data in **standalone** mode. Connected mode retains direct HRIS database synchronization. API synchronization never opens the HRIS or scheduler database connection, and does not switch modes automatically.
 
-Set `HRIS_API_BASE_URL`, `HRIS_API_TOKEN`, and optionally `HRIS_API_TIMEOUT` in the deployment environment. Keep the token out of version control. Run `php artisan config:clear` after changing configuration (or rebuild the deployment configuration cache).
+## Configure API-only operation
+
+Set the HRIS origin (without the endpoint path) and bearer token in the deployment environment:
+
+```dotenv
+PAYROLL_OPERATION_MODES=connected,standalone
+PAYROLL_DEFAULT_MODE=standalone
+PAYROLL_FORCE_MODE=standalone
+HRIS_API_BASE_URL=https://hris.example.org
+HRIS_API_TOKEN=your-deployment-token
+HRIS_API_TIMEOUT=30
+```
+
+`PAYROLL_FORCE_MODE=standalone` locks the Super Admin selector. Leave it blank to permit the existing selector; `PAYROLL_DEFAULT_MODE` is only the default when no saved mode exists. Existing local payroll accounts are required. This integration does not import accounts, passwords or roles, because the supplied API has no account endpoints.
+
+Run the additive migration and refresh configuration:
 
 ```powershell
-php artisan payroll:api-check basic-pay --employee=000001
-php artisan payroll:api-check basic-pay
+php artisan migrate --database=payroll --path=database/migrations/2026_10_13_000001_support_hris_api_canonical_inputs.php
+php artisan config:clear
+php artisan payroll:api-sync --period=2026-09
 ```
 
-The command prints counts and missing optional field names, never employee values or credentials. Source warnings cause a nonzero exit code. An empty response verifies connectivity only, not mappings.
+The base canonical migration must already be installed. The new migration allows unassigned department divisions and stores leave approval status and exact dates.
 
-## Changing the contract
+Alternatively, select the period in **Settings > Payroll System**, then choose **Synchronize HRIS API**. The action uses the existing `payroll.system.sync` permission. The default leave range is the selected calendar month. For a different payroll cutoff, enter From and To dates or use:
 
-Edit `config/hris_api.php`. Each resource specifies `enabled`, `path`, `method` (GET or POST), `parameters`, `data_path`, `fields`, `required`, and `pagination`.
-
-Mappings are **payroll field => source JSON path**. For example:
-
-```php
-'employee_id' => 'employee.number',
-'monthly_salary' => 'compensation.basic_pay',
+```powershell
+php artisan payroll:api-sync --period=2026-10 --from=2026-09-01 --to=2026-09-30
 ```
 
-`data_path` selects the list in the response (for example `data` or `result.employees`); an empty string selects a root JSON list. Only mapped fields are returned. `basic_pay` maps to `monthly_salary`; `payroll_lagged` and `account_status` are intentionally absent. Employee IDs must be strings; the client does not guess missing leading zeros.
+## Data handling
 
-Only basic-pay is enabled initially. Other paths are proposed defaults from the API document; source mappings use the existing HRIS database column names. For example, employee names use `firstname`/`middlename`/`lastname`, status IDs use `empstat_id`, salary rates use `salary`/`step_increment`/`effectivity_date`, and leave quantities use `days_wpay`/`days_wopay`. Confirm paths, methods, mappings and required fields, then enable resources individually. Parameters support `{period}`, `{from}`, and `{to}` placeholders. Basic-pay keeps its verified response names and supports the employee filter shown above.
+All eight exports must succeed before validation and atomic activation. Employees are fetched without `active_only` so explicit deactivations are synchronized; salary rates use `year=all` so effective dates remain available. Employee IDs remain strings, preserving leading zeros. Remote employment-status IDs are mapped by status name to the existing payroll categories; unknown categories fail rather than being assigned a guessed category.
 
-Previews preserve source values: legacy `is_active` can be Y/N, leave status is a legacy code, and `remarks` can contain date CSV or free text. These need explicit semantic normalization before activation. Cancellation currently depends on HRIS leave logs, so no invented cancellation column is mapped. Reference tables do not all have active flags; salary rows do not have a confirmed end date. Timekeeping totals are an API summary contract, not claimed raw HRIS columns; only `emp_id` is mapped to the existing employee identifier. Balance timestamps and synchronization metadata must still be agreed with HRIS.
+Each successful export records a source batch, checksum, operator, counts and leave range. Repeating an unchanged export is idempotent. Failed HTTP requests, warnings, missing documented keys, invalid dates or invalid references do not replace active data. The client rejects mismatched response counts and unexpected pagination and does not follow redirects or print tokens or response bodies.
+
+Bank accounts, responsibility centers, fund types, local accounts and permissions are preserved. Position remarks and position/leave-type active flags are preserved locally because the API does not supply them. Masked statutory identifiers containing `*` preserve the existing local value; for a new employee they remain null. An explicit API employee active flag is authoritative. Records omitted from an export are retained; no deletion contract is assumed.
+
+Leave status and cancellation are stored. Pending and rejected leave is excluded from payroll; cancelled leave remains available to cancellation checks. A non-null `leave_dates` must be a list of valid YYYY-MM-DD dates within the leave range and is used by the leave date helper. Null remains null; the existing date-range expansion remains the fallback. Exact date behavior still needs confirmation with HRIS before live payroll use.
+
+## Timekeeping limitation
+
+The supplied PDF does not define a timekeeping endpoint. The default manual setting keeps generation blocked after API activation, including when workbook attendance exists.
+
+To use direct HRIS database access for **timekeeping only**, select **HRIS database for timekeeping only** under **Settings > Payroll System > Standalone timekeeping source** and save. Only a Super Admin can change this setting. Alternatively, set the deployment default:
+
+```dotenv
+PAYROLL_STANDALONE_TIMEKEEPING_SOURCE=hris_db
+```
+
+A saved selection takes precedence over this default. Keep `PAYROLL_FORCE_MODE=standalone` if desired and configure the existing `DB_*_HRIS` connection. Master data synchronization still uses the API. DTR encoding, MRA and DTR printing read only `hris.tbl_employee_dtr`; employee, position and leave reads use canonical payroll records, and standalone timekeeping does not access scheduler tables. Assign time templates through the local DTR encoding workflow. MRA finalization updates local leave balances, not HRIS balances.
+
+The database and punch table must be available. Complete DTR encoding and finalize the previous month MRA for the selected department before finalizing payroll. Missing or unreachable HRIS timekeeping blocks generation; the selection does not fabricate attendance or bypass MRA readiness. Existing canonical workbook timekeeping summaries are ignored with this selection so two attendance sources do not override one another.
+
+Choose **Manual inputs** to restore the original restriction for API-synchronized payroll until a confirmed timekeeping endpoint is implemented. A connected database sync supersedes the API batch and restores the existing connected workflow.
+
+## Read-only connectivity checks
+
+`payroll:api-check` remains available without changing data:
 
 ```powershell
 php artisan payroll:api-check employees
 php artisan payroll:api-check leaves --from=2026-09-01 --to=2026-09-30
-php artisan payroll:api-check timekeeping --period=2026-09
+php artisan payroll:api-check salary-rates
 ```
 
-For numbered pagination, configure `pagination` as `['page_parameter' => 'page', 'last_page_path' => 'meta.last_page']`. The client requests all pages up to `max_pages`; invalid, changing or excessive page metadata aborts the check. Known pagination indicators with pagination disabled are rejected rather than returning a knowingly partial export. Cursor pagination, snapshot validation and incremental synchronization require the final HRIS contract. Redirects are disabled so authentication is not forwarded to another destination.
-
-## Before activating API imports
-
-This is the connectivity foundation, not automatic payroll synchronization. Confirm salary authority/effective dates, employment-status mapping, approval and cancellation meanings, exact leave dates, timekeeping units and overlap rules, nullability, and deletion handling. Then wire validated exports into staging and activation while preserving payroll-owned fields and accounts. Compare against an existing payroll period before live activation. Missing optional fields currently remain null in previews; they must not be treated as instructions to clear payroll data.
+The existing `basic-pay` POST resource remains available for compatibility; it is not used by the new documented payroll sync. Mapping configuration lives in `config/hris_api.php` and uses payroll field to source JSON field direction.

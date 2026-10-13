@@ -94,13 +94,14 @@ class CanonicalWorkbookService
         }
         DB::connection('payroll')->transaction(function () use ($batch, $by) {
             $p = $batch->payload ?? [];
+            $apiLeaveColumns = DB::connection('payroll')->getSchemaBuilder()->hasColumn('payroll_canonical_leaves', 'leave_dates');
             $this->upsert($p['Divisions'] ?? [], 'payroll_canonical_divisions', ['external_id'], fn ($r) => ['external_id' => $r['division_id'], 'name' => $r['name'], 'is_active' => $this->bool($r['is_active'] ?? true)] + $this->meta($batch));
             $this->upsert($p['Departments'] ?? [], 'payroll_canonical_departments', ['external_id'], fn ($r) => ['external_id' => $r['department_id'], 'division_external_id' => $r['division_id'], 'name' => $r['name'], 'is_active' => $this->bool($r['is_active'] ?? true)] + $this->meta($batch));
             $this->upsert($p['Positions'] ?? [], 'payroll_canonical_positions', ['external_id'], fn ($r) => ['external_id' => $r['position_id'], 'title' => $r['title'], 'salary_grade' => $r['salary_grade'] ?: null, 'remarks' => $r['remarks'] ?: null, 'is_active' => $this->bool($r['is_active'] ?? true)] + $this->meta($batch));
             $this->upsert($p['Employees'] ?? [], 'payroll_canonical_employees', ['emp_id'], fn ($r) => collect(['emp_id' => $r['employee_id'], 'firstname' => $r['first_name'], 'middlename' => $r['middle_name'] ?: null, 'lastname' => $r['last_name'], 'extension' => $r['extension'] ?: null, 'suffix' => $r['suffix'] ?: null, 'position_external_id' => $r['position_id'] ?: null, 'department_external_id' => $r['department_id'] ?: null, 'step' => $r['step'] ?: null, 'empstat_id' => $r['employment_status_id'] ?: 1, 'date_hired' => $this->date($r['date_hired'] ?? null), 'tin_no' => $r['tin'] ?: null, 'gsis_no' => $r['gsis'] ?: null, 'phic_no' => $r['philhealth'] ?: null, 'pagibig_no' => $r['pagibig'] ?: null, 'vacation_leave_credits' => $r['vl_balance'] ?: 0, 'sick_leave_credits' => $r['sl_balance'] ?: 0, 'is_external' => $this->bool($r['is_external'] ?? false), 'is_active' => $this->bool($r['is_active'] ?? true), 'responsibility_center' => $r['responsibility_center'] ?: null, 'lbp_account_no' => $r['bank_account'] ?: null, 'fund_type' => $r['fund_type'] ?: null] + $this->meta($batch))->all());
             $this->upsert($p['Salary Rates'] ?? [], 'payroll_canonical_salary_rates', ['salary_grade', 'step', 'effective_from'], fn ($r) => ['salary_grade' => $r['salary_grade'], 'step' => $r['step'], 'salary' => $r['monthly_salary'], 'effective_from' => $this->date($r['effective_from']), 'effective_to' => $this->date($r['effective_to'] ?? null)] + $this->meta($batch));
             $this->upsert($p['Leave Types'] ?? [], 'payroll_canonical_leave_types', ['external_id'], fn ($r) => ['external_id' => $r['leave_type_id'], 'name' => $r['name'], 'is_active' => $this->bool($r['is_active'] ?? true)] + $this->meta($batch));
-            $this->upsert($p['Leaves'] ?? [], 'payroll_canonical_leaves', ['external_id'], fn ($r) => ['external_id' => $r['leave_id'], 'emp_id' => $r['employee_id'], 'leave_type_external_id' => $r['leave_type_id'], 'start_date' => $this->date($r['start_date']), 'end_date' => $this->date($r['end_date']), 'days_wpay' => $r['days_with_pay'] ?: 0, 'days_wopay' => $r['days_without_pay'] ?: 0, 'is_cancelled' => $this->bool($r['cancelled'] ?? false)] + $this->meta($batch));
+            $this->upsert($p['Leaves'] ?? [], 'payroll_canonical_leaves', ['external_id'], fn ($r) => ['external_id' => $r['leave_id'], 'emp_id' => $r['employee_id'], 'leave_type_external_id' => $r['leave_type_id'], 'start_date' => $this->date($r['start_date']), 'end_date' => $this->date($r['end_date']), 'days_wpay' => $r['days_with_pay'] ?: 0, 'days_wopay' => $r['days_without_pay'] ?: 0, 'is_cancelled' => $this->bool($r['cancelled'] ?? false)] + ($apiLeaveColumns ? ['status' => $batch->source === 'hris_api' ? strtolower(trim($r['status'])) : null, 'leave_dates' => $batch->source === 'hris_api' && $r['leave_dates'] !== null ? json_encode($r['leave_dates']) : null] : []) + $this->meta($batch));
             $this->upsert($p['Timekeeping'] ?? [], 'payroll_canonical_timekeeping', ['period', 'emp_id'], fn ($r) => ['period' => $r['period'], 'emp_id' => $r['employee_id'], 'total_work_days' => $r['work_days'] ?: 0, 'days_with_dtr' => $r['days_with_dtr'] ?: 0, 'regular_hours' => $r['regular_hours'] ?: 0, 'undertime_hours' => $r['undertime_hours'] ?: 0, 'tardy_hours' => $r['tardy_hours'] ?: 0, 'mra_hours' => $r['mra_hours'] ?: 0, 'leave_days_with_pay' => $r['leave_days_with_pay'] ?: 0, 'leave_days_without_pay' => $r['leave_days_without_pay'] ?: 0, 'absent_days' => $r['absent_days'] ?: 0] + $this->meta($batch));
             $this->upsert($p['Accounts'] ?? [], 'payroll_user_accounts', ['emp_id'], fn ($r) => ['source_batch_id' => $batch->id, 'emp_id' => $r['employee_id'], 'username' => $r['username'] ?: null, 'password' => $r['password_hash'], 'login_attempt' => 1, 'is_active' => $this->bool($r['is_active'] ?? true), 'created_at' => now(), 'updated_at' => now()]);
             foreach ($p['Accounts'] ?? [] as $account) {
@@ -110,6 +111,9 @@ class CanonicalWorkbookService
                 }
             }
             PayrollSourceBatch::query()->where('kind', $batch->kind)->where('status', 'active')->update(['status' => 'superseded']);
+            if ($batch->kind === 'connected_full') {
+                PayrollSourceBatch::query()->where('kind', 'api_full')->where('status', 'active')->update(['status' => 'superseded']);
+            }
             $batch->update(['status' => 'active', 'activated_by' => $by, 'activated_at' => now()]);
         });
     }
@@ -139,7 +143,7 @@ class CanonicalWorkbookService
         }
     }
 
-    private function validatePayload(array $payload, ?string $period): array
+    public function validatePayload(array $payload, ?string $period): array
     {
         $errors = [];
         foreach ($payload as $sheet => $rows) {
@@ -174,7 +178,7 @@ class CanonicalWorkbookService
         $leaveTypeIds = $ids('Leave Types', 'leave_type_id', 'payroll_canonical_leave_types', 'external_id');
 
         foreach ($payload['Departments'] ?? [] as $row) {
-            if (! $divisionIds->has((string) ($row['division_id'] ?? ''))) {
+            if (isset($row['division_id']) && ! $divisionIds->has((string) $row['division_id'])) {
                 $errors[] = "Departments row {$row['_row']}: unknown division_id.";
             }
         }
@@ -309,6 +313,6 @@ class CanonicalWorkbookService
 
     private function required(): array
     {
-        return ['Divisions' => ['division_id', 'name'], 'Departments' => ['department_id', 'division_id', 'name'], 'Positions' => ['position_id', 'title'], 'Employees' => ['employee_id', 'first_name', 'last_name'], 'Salary Rates' => ['salary_grade', 'step', 'monthly_salary', 'effective_from'], 'Leave Types' => ['leave_type_id', 'name'], 'Leaves' => ['leave_id', 'employee_id', 'leave_type_id', 'start_date', 'end_date'], 'Timekeeping' => ['period', 'employee_id'], 'Accounts' => ['employee_id', 'password_hash']];
+        return ['Divisions' => ['division_id', 'name'], 'Departments' => ['department_id', 'name'], 'Positions' => ['position_id', 'title'], 'Employees' => ['employee_id', 'first_name', 'last_name'], 'Salary Rates' => ['salary_grade', 'step', 'monthly_salary', 'effective_from'], 'Leave Types' => ['leave_type_id', 'name'], 'Leaves' => ['leave_id', 'employee_id', 'leave_type_id', 'start_date', 'end_date'], 'Timekeeping' => ['period', 'employee_id'], 'Accounts' => ['employee_id', 'password_hash']];
     }
 }

@@ -11,9 +11,18 @@ class EmployeeLeave extends Model
 
     protected $table = 'payroll_canonical_leaves';
 
-    protected $fillable = ['source_batch_id', 'external_id', 'emp_id', 'leave_type_external_id', 'start_date', 'end_date', 'days_wpay', 'days_wopay', 'is_cancelled'];
+    protected $fillable = ['source_batch_id', 'external_id', 'emp_id', 'leave_type_external_id', 'start_date', 'end_date', 'days_wpay', 'days_wopay', 'is_cancelled', 'status', 'leave_dates'];
 
-    protected $casts = ['start_date' => 'datetime', 'end_date' => 'datetime', 'days_wpay' => 'float', 'days_wopay' => 'float', 'is_cancelled' => 'boolean'];
+    protected $casts = ['start_date' => 'datetime', 'end_date' => 'datetime', 'days_wpay' => 'float', 'days_wopay' => 'float', 'is_cancelled' => 'boolean', 'leave_dates' => 'array'];
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope('approved', function ($query) {
+            if (\Illuminate\Support\Facades\Schema::connection('payroll')->hasColumn('payroll_canonical_leaves', 'status')) {
+                $query->where(fn ($q) => $q->whereNull('status')->orWhere('status', 'approved')->orWhere('is_cancelled', true));
+            }
+        });
+    }
 
     public function leaveType(): BelongsTo
     {

@@ -34,8 +34,9 @@ class PayrollPageController extends Controller
 
     public function dtrPrintable(Request $request, DailyTimeRecordPrintService $dtrPrintService)
     {
+        $standalone = app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->standalone();
         $data = $request->validate([
-            'emp_id' => ['required', 'string', 'exists:hris.tbl_employee,emp_id'],
+            'emp_id' => ['required', 'string', $standalone ? 'exists:payroll.payroll_canonical_employees,emp_id' : 'exists:hris.tbl_employee,emp_id'],
             'month' => ['required', 'integer', 'between:1,12'],
             'year' => ['required', 'integer', 'between:1900,2100'],
         ]);
@@ -69,9 +70,11 @@ class PayrollPageController extends Controller
             $data['employee_type'] ?? Employee::EMPLOYEE_TYPE_PLANTILLA
         );
 
-        $employees = Employee::query()
-            ->where('department_id', $departmentId)
-            ->where('is_active', 'Y')
+        $standalone = app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->standalone();
+        $employeeClass = $standalone ? \App\Models\Payroll\Canonical\Employee::class : Employee::class;
+        $employees = $employeeClass::query()
+            ->where($standalone ? 'department_external_id' : 'department_id', $departmentId)
+            ->where('is_active', $standalone ? true : 'Y')
             ->employeeType($employeeType)
             ->orderBy('lastname')
             ->orderBy('firstname')

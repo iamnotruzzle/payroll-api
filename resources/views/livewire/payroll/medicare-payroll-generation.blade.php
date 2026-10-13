@@ -11,6 +11,7 @@
             </p>
         </div>
 
+        <x-payroll-generation-guide :section="'medicare-'.$currentStep" />
         <a href="{{ $this->configurationRoute() }}" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
             Change Configuration
         </a>

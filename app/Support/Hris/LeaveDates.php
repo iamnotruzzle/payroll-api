@@ -24,6 +24,9 @@ final class LeaveDates
      */
     public static function for(EmployeeLeave|PayrollEmployeeLeave $leave): array
     {
+        if ($leave instanceof PayrollEmployeeLeave && is_array($leave->leave_dates)) {
+            return self::normalize($leave->leave_dates);
+        }
         $fromRemarks = self::parseCsv((string) ($leave->remarks ?? ''));
         if ($fromRemarks !== []) {
             return $fromRemarks;

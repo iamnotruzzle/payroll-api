@@ -65,6 +65,9 @@ class HrisApiClient
             if (! is_array($data) || ! array_is_list($data)) {
                 throw new RuntimeException('HRIS API data path must resolve to a JSON list. Check the response mapping.');
             }
+            if (isset($body['count']) && (! is_int($body['count']) || $body['count'] !== count($data))) {
+                throw new RuntimeException('HRIS response count does not match its data list.');
+            }
             $remoteWarnings = data_get($body, 'warnings', []);
             $warnings += is_array($remoteWarnings) ? count($remoteWarnings) : (int) filled($remoteWarnings);
             foreach ($data as $index => $record) {
@@ -72,6 +75,11 @@ class HrisApiClient
                     throw new RuntimeException('HRIS API records must be JSON objects.');
                 }
                 $mapped = [];
+                foreach ($resource['required_keys'] ?? [] as $target) {
+                    if (! \Illuminate\Support\Arr::has($record, $resource['fields'][$target])) {
+                        throw new RuntimeException("Missing HRIS response field {$target}.");
+                    }
+                }
                 foreach ($resource['fields'] as $target => $source) {
                     $mapped[$target] = data_get($record, $source);
                     if ($mapped[$target] === null) {

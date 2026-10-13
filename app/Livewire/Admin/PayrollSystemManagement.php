@@ -4,6 +4,7 @@ namespace App\Livewire\Admin;
 
 use App\Enums\PayrollOperatingMode;
 use App\Models\Payroll\PayrollSourceBatch;
+use App\Services\Payroll\ApiCanonicalSyncService;
 use App\Services\Payroll\CanonicalWorkbookService;
 use App\Services\Payroll\ConnectedCanonicalSyncService;
 use App\Services\Payroll\PayrollOperatingModeService;
@@ -21,6 +22,12 @@ class PayrollSystemManagement extends Component
     public $file;
 
     public string $period = '';
+
+    public string $apiLeaveFrom = '';
+
+    public string $apiLeaveTo = '';
+
+    public string $timekeepingSource = 'manual';
 
     public string $adminPassword = '';
 
@@ -40,6 +47,7 @@ class PayrollSystemManagement extends Component
     {
         abort_unless(auth()->user()?->hasRole('super-admin') || auth()->user()?->can('payroll.system.import'), 403);
         $this->selectedMode = $modes->current()->value;
+        $this->timekeepingSource = app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->source();
     }
 
     public function switchMode(PayrollOperatingModeService $modes): void
@@ -93,6 +101,32 @@ class PayrollSystemManagement extends Component
         abort_if(app(PayrollOperatingModeService::class)->current() !== PayrollOperatingMode::Connected, 422, 'Connected synchronization is disabled in stand-alone mode.');
         $batch = $service->sync(auth()->user()?->emp_id);
         session()->flash('status', "Connected data synchronized in batch #{$batch->id}.");
+    }
+
+    public function syncApi(ApiCanonicalSyncService $service): void
+    {
+        abort_unless(auth()->user()?->can('payroll.system.sync'), 403);
+        $this->validate(['period' => ['required', 'date_format:Y-m'], 'apiLeaveFrom' => ['nullable', 'date_format:Y-m-d'], 'apiLeaveTo' => ['nullable', 'date_format:Y-m-d']]);
+        try {
+            $batch = $service->sync($this->period, auth()->user()?->emp_id, $this->apiLeaveFrom ?: null, $this->apiLeaveTo ?: null);
+        } catch (\Illuminate\Database\QueryException $e) {
+            $this->addError('sync', 'Payroll database synchronization failed. Active data was not replaced.');
+
+            return;
+        } catch (\RuntimeException $e) {
+            $this->addError('sync', $e->getMessage());
+
+            return;
+        }
+        session()->flash('status', "HRIS API data synchronized in batch #{$batch->id}. Check timekeeping readiness before generating payroll.");
+    }
+
+    public function saveTimekeepingSource(\App\Services\Payroll\PayrollTimekeepingSourceService $service): void
+    {
+        abort_unless(auth()->user()?->hasRole('super-admin'), 403);
+        $this->validate(['timekeepingSource' => ['required', 'in:manual,hris_db']]);
+        $service->save($this->timekeepingSource, auth()->user()?->emp_id);
+        session()->flash('status', 'Standalone timekeeping source saved.');
     }
 
     public function previewReconciliation(PayrollReconciliationService $service): void
