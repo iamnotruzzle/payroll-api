@@ -51,7 +51,8 @@ class EnsureProfileUpdated
         }
 
         // Livewire update endpoint must remain reachable while editing profile.
-        if ($request->is('livewire/*')) {
+        if ($request->is('livewire/*')
+            || $request->routeIs('*livewire.update', 'livewire.upload-file', 'livewire.preview-file')) {
             return true;
         }
 
