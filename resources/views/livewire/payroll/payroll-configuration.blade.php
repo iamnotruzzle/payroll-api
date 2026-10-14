@@ -202,6 +202,30 @@
             </div>
         </div>
 
+        @if ($isStandalone)
+            <section class="border-t border-slate-200 px-4 py-4" aria-labelledby="api-preparation-title">
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div class="max-w-2xl">
+                        <h3 id="api-preparation-title" class="text-sm font-semibold text-slate-900">Preparatory step — HRIS API synchronization</h3>
+                        <p class="mt-1 text-sm text-slate-600">Set the payroll month and leave cutoff above, then synchronize employee, salary, and leave data before opening the generation steps. This refreshes shared payroll data for all employees.</p>
+                        <p class="mt-2 text-xs text-slate-500">Already prepared through an API sync or workbook import? You can proceed using the current local data. DTR punches are not included in the API; complete timekeeping separately.</p>
+                    </div>
+                    @can('payroll.system.sync')
+                        <button type="button" wire:click="syncApi" wire:loading.attr="disabled" class="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-wait disabled:opacity-60">
+                            <span wire:loading.remove wire:target="syncApi">Synchronize HRIS API</span>
+                            <span wire:loading wire:target="syncApi" role="status">Synchronizing HRIS data...</span>
+                        </button>
+                    @else
+                        <p class="text-sm text-slate-600">Ask an authorized payroll administrator to synchronize HRIS data.</p>
+                    @endcan
+                </div>
+                @if (session('api_sync_status'))
+                    <p role="status" class="mt-3 text-sm text-emerald-700">{{ session('api_sync_status') }}</p>
+                @endif
+                @error('sync') <p role="alert" class="mt-3 text-sm text-red-600">{{ $message }}</p> @enderror
+            </section>
+        @endif
+
         @if ($showExistingGenerationNotice)
             <div class="border-t border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950">
                 <div class="font-semibold">Existing payroll generation found</div>
@@ -232,12 +256,12 @@
                 <button type="button" wire:click="dismissExistingGenerationNotice" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
                     Review Configuration
                 </button>
-                <button type="button" wire:click="continueToPayrollGeneration" wire:loading.attr="disabled" wire:target="continueToPayrollGeneration" class="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-wait disabled:opacity-60">
+                <button type="button" wire:click="continueToPayrollGeneration" wire:loading.attr="disabled" wire:target="continueToPayrollGeneration,syncApi" class="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-wait disabled:opacity-60">
                     <span wire:loading.remove wire:target="continueToPayrollGeneration">Proceed Anyway</span>
                     <span wire:loading wire:target="continueToPayrollGeneration">Opening...</span>
                 </button>
             @else
-            <button type="submit" wire:loading.attr="disabled" wire:target="proceed" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
+            <button type="submit" wire:loading.attr="disabled" wire:target="proceed,syncApi" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
                 <span wire:loading.remove wire:target="proceed">Proceed to Payroll Generation</span>
                 <span wire:loading wire:target="proceed">Preparing...</span>
             </button>

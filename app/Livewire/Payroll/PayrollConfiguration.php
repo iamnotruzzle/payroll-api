@@ -2,6 +2,9 @@
 
 namespace App\Livewire\Payroll;
 
+use App\Enums\PayrollOperatingMode;
+use App\Services\Payroll\ApiCanonicalSyncService;
+use App\Services\Payroll\PayrollOperatingModeService;
 use App\Models\Payroll\Canonical\Department;
 use App\Models\Payroll\Canonical\Division;
 use App\Models\Payroll\Canonical\Employee;
@@ -109,6 +112,31 @@ class PayrollConfiguration extends Component
         $this->employeeTypeFilter = Employee::normalizeEmployeeTypes(
             request()->query('employee_type', Employee::EMPLOYEE_TYPE_PLANTILLA)
         );
+    }
+
+    public function syncApi(ApiCanonicalSyncService $service): void
+    {
+        abort_unless(auth()->user()?->can('payroll.system.sync'), 403);
+        abort_unless(app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone, 422);
+        $this->resetValidation('sync');
+        $this->validate([
+            'period' => ['required', 'date_format:Y-m'],
+            'leavePeriodStart' => ['required', 'date_format:Y-m-d'],
+            'leavePeriodEnd' => ['required', 'date_format:Y-m-d', 'after_or_equal:leavePeriodStart'],
+        ]);
+        try {
+            $batch = $service->sync($this->period, auth()->user()?->emp_id, $this->leavePeriodStart, $this->leavePeriodEnd);
+        } catch (\Illuminate\Database\QueryException $e) {
+            $this->addError('sync', 'Payroll database synchronization failed. Active data was not replaced.');
+
+            return;
+        } catch (\RuntimeException $e) {
+            $this->addError('sync', $e->getMessage());
+
+            return;
+        }
+        $this->dismissExistingGenerationNotice();
+        session()->flash('api_sync_status', "HRIS API data synchronized in batch #{$batch->id}. Review payroll scope and timekeeping before proceeding.");
     }
 
     public function proceed()
@@ -587,6 +615,7 @@ class PayrollConfiguration extends Component
             'holidays' => $holidays,
             'periodLabel' => $periodLabel,
             'canManageHolidays' => $this->canManageHolidayCalendar(),
+            'isStandalone' => app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone,
         ]);
     }
 }

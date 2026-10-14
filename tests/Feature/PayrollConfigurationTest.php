@@ -187,6 +187,36 @@ class PayrollConfigurationTest extends TestCase
         $this->assertStringContainsString('overlapping department/office or division', $component->existingGenerations[0]['description']);
     }
 
+    public function test_api_preparation_uses_configuration_month_and_leave_cutoff(): void
+    {
+        Config::set('payroll_standalone.forced_mode', 'standalone');
+        $user = \Mockery::mock();
+        $user->emp_id = '001783';
+        $user->shouldReceive('can')->with('payroll.system.sync')->andReturn(true);
+        \Illuminate\Support\Facades\Auth::shouldReceive('user')->andReturn($user);
+        $batch = new \App\Models\Payroll\PayrollSourceBatch;
+        $batch->id = 123;
+        $service = \Mockery::mock(\App\Services\Payroll\ApiCanonicalSyncService::class);
+        $service->shouldReceive('sync')->once()->with('2026-06', '001783', '2026-05-01', '2026-05-31')->andReturn($batch);
+        $component = $this->configuredComponent([], []);
+        $component->showExistingGenerationNotice = true;
+        $component->syncApi($service);
+        $this->assertFalse($component->showExistingGenerationNotice);
+        $this->assertStringContainsString('batch #123', session('api_sync_status'));
+    }
+
+    public function test_api_preparation_rejects_connected_mode(): void
+    {
+        Config::set('payroll_standalone.forced_mode', 'connected');
+        $user = \Mockery::mock();
+        $user->shouldReceive('can')->with('payroll.system.sync')->andReturn(true);
+        \Illuminate\Support\Facades\Auth::shouldReceive('user')->andReturn($user);
+        $service = \Mockery::mock(\App\Services\Payroll\ApiCanonicalSyncService::class);
+        $service->shouldNotReceive('sync');
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        $this->configuredComponent([], [])->syncApi($service);
+    }
+
     private function configuredComponent(array $divisionIds, array $departmentIds): PayrollConfiguration
     {
         $component = app(PayrollConfiguration::class);
