@@ -18,7 +18,7 @@
     @endif
 
     <section class="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <label class="min-w-0 flex-1">
                 <span class="sr-only">Search accounts</span>
                 <input wire:model.lazy="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employee, ID, or username">
