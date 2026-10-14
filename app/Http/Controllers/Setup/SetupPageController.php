@@ -21,11 +21,7 @@ class SetupPageController extends Controller
             || $user?->can('payroll.configure')
             || $user?->can('training.manage')
             || $user?->can('performance.manage')
-            || $user?->can('performance.view')
-            || $user?->can('admin.users.view')
-            || $user?->can('admin.users.manage')
-            || $user?->can('admin.roles.view')
-            || $user?->can('admin.roles.manage'),
+            || $user?->can('performance.view'),
             403
         );
 

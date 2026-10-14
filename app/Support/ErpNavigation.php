@@ -499,7 +499,7 @@ class ErpNavigation
             [
                 'key' => 'setup',
                 'label' => 'Setup',
-                'description' => 'Organization, scheduling, timekeeping, payroll, and access configuration.',
+                'description' => 'Organization, scheduling, timekeeping, payroll, and performance configuration.',
                 'launcher_group' => 'administration',
                 'accent' => 'cyan',
                 'icon' => 'settings',
@@ -510,8 +510,7 @@ class ErpNavigation
                     || $user?->can('timekeeping.view')
                     || $user?->can('payroll.view')
                     || $user?->can('performance.view')
-                    || $user?->can('admin.users.view')
-                    || $user?->can('admin.roles.view')
+                    || $user?->can('payroll.configure')
                 ),
                 'visible' => (bool) (
                     $user?->can('employees.manage')
@@ -519,8 +518,7 @@ class ErpNavigation
                     || $user?->can('timekeeping.view')
                     || $user?->can('payroll.view')
                     || $user?->can('performance.view')
-                    || $user?->can('admin.users.view')
-                    || $user?->can('admin.roles.view')
+                    || $user?->can('payroll.configure')
                 ),
                 'active' => request()->routeIs(
                     'setup.*',
@@ -541,9 +539,7 @@ class ErpNavigation
                     'payroll.statutory-contributions',
                     'payroll.compensations',
                     'payroll.adjustment-types',
-                    'performance.periods',
-                    'admin.user-accounts',
-                    'admin.roles-permissions'
+                    'performance.periods'
                 ),
                 'menu_sections' => self::menuSections([
                     [
@@ -594,19 +590,12 @@ class ErpNavigation
                             $user?->can('performance.view') ? ['label' => 'IPCR Periods', 'route' => 'performance.periods', 'icon' => 'award', 'active' => request()->routeIs('performance.periods')] : null,
                         ],
                     ],
-                    [
-                        'label' => 'Access & Security',
-                        'items' => [
-                            $user?->can('admin.users.view') ? ['label' => 'User Accounts', 'route' => 'admin.user-accounts', 'icon' => 'users', 'active' => request()->routeIs('admin.user-accounts')] : null,
-                            $user?->can('admin.roles.view') ? ['label' => 'Roles & Permissions', 'route' => 'admin.roles-permissions', 'icon' => 'shield-check', 'active' => request()->routeIs('admin.roles-permissions')] : null,
-                        ],
-                    ],
                 ]),
             ],
             [
                 'key' => 'administration',
                 'label' => 'Settings',
-                'description' => 'User access, permissions, references, and system manuals.',
+                'description' => 'User access, permissions, payroll system administration, references, and manuals.',
                 'launcher_group' => 'administration',
                 'accent' => 'slate',
                 'icon' => 'gears',
@@ -616,14 +605,16 @@ class ErpNavigation
                         ? route('admin.roles-permissions')
                         : ($user?->can('references.view')
                             ? route('schedule.user-manual')
-                            : $soon('administration', 'access'))),
-                'available' => (bool) ($user?->can('admin.users.view') || $user?->can('admin.roles.view') || $user?->can('references.view')),
-                'visible' => (bool) ($user?->can('admin.users.view') || $user?->can('admin.roles.view') || $user?->can('references.view')),
+                            : (($user?->hasRole('super-admin') || $user?->can('payroll.system.import'))
+                                ? route('admin.payroll-system')
+                                : $soon('administration', 'access')))),
+                'available' => (bool) ($user?->can('admin.users.view') || $user?->can('admin.roles.view') || $user?->can('references.view') || $user?->hasRole('super-admin') || $user?->can('payroll.system.import')),
+                'visible' => (bool) ($user?->can('admin.users.view') || $user?->can('admin.roles.view') || $user?->can('references.view') || $user?->hasRole('super-admin') || $user?->can('payroll.system.import')),
                 'active' => request()->routeIs('admin.*', 'schedule.employee-references', 'schedule.user-manual', 'payroll.user-manual', 'references.*')
                     || (request()->routeIs('coming-soon') && request()->route('module') === 'administration'),
                 'menu_sections' => self::menuSections([
                     [
-                        'label' => 'Access',
+                        'label' => 'Access & Security',
                         'items' => [
                             $user?->can('admin.users.view') ? ['label' => 'User Accounts', 'route' => 'admin.user-accounts', 'icon' => 'users', 'active' => request()->routeIs('admin.user-accounts')] : null,
                             $user?->can('admin.roles.view') ? ['label' => 'Roles and Permissions', 'route' => 'admin.roles-permissions', 'icon' => 'shield-check', 'active' => request()->routeIs('admin.roles-permissions')] : null,
