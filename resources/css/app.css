@@ -102,6 +102,7 @@ input[type="number"] {
 }
 
 html {
+    color-scheme: light;
     --erp-text: #172433;
     --erp-muted: #52677b;
     --erp-faint: #6f8293;
@@ -3228,6 +3229,69 @@ html[data-theme="dark"] .select2-container--default .select2-selection--multiple
 }
 html[data-theme="dark"] .select2-results__option,
 html[data-theme="dark"] .select2-selection__rendered { color: var(--erp-text) !important; }
+
+/* Native popup menus need their own opaque surface; they do not paint
+   the select field's background consistently across browsers. */
+html[data-theme="dark"] select {
+    color-scheme: dark;
+    background-color: var(--erp-surface) !important;
+    color: var(--erp-text) !important;
+}
+
+html[data-theme="dark"] select option,
+html[data-theme="dark"] select optgroup {
+    background-color: var(--erp-surface) !important;
+    color: var(--erp-text) !important;
+}
+
+html[data-theme="dark"] select option:disabled,
+html[data-theme="dark"] select optgroup:disabled {
+    color: var(--erp-faint) !important;
+}
+
+/* Select2 menus are appended to body, outside the page's content styles. */
+html[data-theme="dark"] .select2-container--default .select2-search__field {
+    color-scheme: dark;
+    background-color: var(--erp-surface) !important;
+    border-color: var(--erp-line-strong) !important;
+    color: var(--erp-text) !important;
+}
+
+html[data-theme="dark"] .select2-container--default .select2-search__field::placeholder,
+html[data-theme="dark"] .select2-container--default .select2-selection__placeholder {
+    color: var(--erp-muted) !important;
+    opacity: 1;
+}
+
+html[data-theme="dark"] .select2-container--default .select2-results__option--selected,
+html[data-theme="dark"] .select2-container--default .select2-results__option[aria-selected="true"],
+html[data-theme="dark"] .select2-container--default .select2-selection__choice {
+    background-color: var(--erp-surface) !important;
+    border-color: var(--erp-line-strong) !important;
+    color: var(--erp-text) !important;
+}
+
+html[data-theme="dark"] .select2-container--default .select2-results__option--highlighted[aria-selected] {
+    background-color: #235d90 !important;
+    color: #ffffff !important;
+}
+
+html[data-theme="dark"] .select2-container--default .select2-results__option--disabled {
+    color: var(--erp-faint) !important;
+}
+
+html[data-theme="dark"] .select2-container--default .select2-selection__choice__remove,
+html[data-theme="dark"] .select2-container--default .select2-selection__clear {
+    color: var(--erp-muted) !important;
+    border-color: var(--erp-line-strong) !important;
+    background-color: transparent;
+}
+
+html[data-theme="dark"] .select2-container--default .select2-selection__choice__remove:hover,
+html[data-theme="dark"] .select2-container--default .select2-selection__choice__remove:focus {
+    color: var(--erp-text) !important;
+    background-color: var(--erp-surface) !important;
+}
 
 .historical-import-progress-text {
     color: #172554 !important;
