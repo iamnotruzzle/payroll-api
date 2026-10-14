@@ -1,148 +1,26 @@
-<section class="payroll-configuration max-w-6xl space-y-4">
+<section class="payroll-configuration max-w-6xl space-y-4" x-data="{ configurationStep: @entangle('configurationStep') }">
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-xl font-semibold">Payroll Configuration</h2>
-            <p class="text-sm text-slate-600">Set the payroll scope before opening the generation workflow.</p>
+            <p class="text-sm text-slate-600">Complete the configuration steps before opening payroll generation.</p>
         </div>
         <x-payroll-generation-guide section="configuration" />
     </div>
 
-    <form wire:submit="proceed" class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div
-            class="grid divide-y divide-slate-100 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)] lg:divide-x lg:divide-y-0">
-            <div class="space-y-4 p-4">
-                <div>
-                    <h3 class="text-sm font-semibold uppercase text-slate-500">Payroll Scope</h3>
-                </div>
+    <form novalidate wire:submit="submitConfiguration" class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <nav class="configuration-progress border-b border-slate-200 p-4" aria-label="Payroll configuration progress">
+            <ol class="grid gap-3 sm:grid-cols-2 {{ $isStandalone ? 'lg:grid-cols-4' : 'lg:grid-cols-3' }}">
+                @foreach ($configurationSteps as $key => $label)
+                    <li class="configuration-progress-item" :class="{ 'is-current': configurationStep === @js($key) }" :aria-current="configurationStep === @js($key) ? 'step' : null">
+                        <span class="configuration-progress-number">{{ $loop->iteration }}</span>
+                        <span class="text-sm font-semibold">{{ $label }}</span>
+                    </li>
+                @endforeach
+            </ol>
+        </nav>
+        <div class="p-4 sm:p-6">
+            <div x-show="configurationStep === 'details'" class="space-y-4" role="region" aria-label="Run details">
 
-                <div class="grid gap-3 md:grid-cols-2">
-                    <div>
-                        <label class="text-sm font-medium">Payroll Type</label>
-                        <select wire:model="payrollType"
-                            class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
-                            @foreach ($payrollTypes as $type)
-                                <option value="{{ $type->code }}">{{ $type->name }}</option>
-                            @endforeach
-                        </select>
-                        @error('payrollType')
-                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label class="text-sm font-medium">Employee Type</label>
-                        <select data-select2-searchable data-model="employeeTypeFilter" data-defer-request="true"
-                            data-placeholder="Select employee types" multiple
-                            class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
-                            @foreach ($employeeTypeOptions as $value => $label)
-                                <option value="{{ $value }}" @selected(in_array($value, $employeeTypeFilter, true))>{{ $label }}
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('employeeTypeFilter')
-                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                        @enderror
-                        @error('employeeTypeFilter.*')
-                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-                </div>
-
-                <div class="grid gap-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                    <div>
-                        <label class="text-sm font-medium">Division</label>
-                        <select data-select2-searchable data-model="selectedDivisionIds" data-defer-request="true"
-                            data-placeholder="Search and select divisions" multiple
-                            class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
-                            @foreach ($divisions as $division)
-                                <option value="{{ $division->division_id }}" @selected(in_array((int) $division->division_id, $selectedDivisionIds, true))>
-                                    {{ $division->division }}</option>
-                            @endforeach
-                        </select>
-                        @error('selectedDivisionIds')
-                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                        @enderror
-                        @error('selectedDivisionIds.*')
-                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label class="text-sm font-medium">Department <span
-                                class="font-normal text-slate-500">(Optional)</span></label>
-                        <select data-select2-searchable data-model="selectedDepartmentIds" data-defer-request="true"
-                            data-placeholder="Search and select departments" multiple
-                            class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
-                            @foreach ($departments as $department)
-                                <option value="{{ $department->department_id }}" @selected(in_array((int) $department->department_id, $selectedDepartmentIds, true))>
-                                    {{ $department->department }}</option>
-                            @endforeach
-                        </select>
-                        <p class="mt-1 text-xs text-slate-500">Leave empty to include all departments in the selected
-                            division(s).</p>
-                        @error('selectedDepartmentIds')
-                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                        @enderror
-                        @error('selectedDepartmentIds.*')
-                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-                </div>
-
-
-                @if ($isStandalone)
-                    <section class="border-t border-slate-200 py-4" aria-labelledby="api-preparation-title">
-                        <h3 id="api-preparation-title" class="text-sm font-semibold text-slate-900">Prepare payroll data from HRIS</h3>
-                        <p class="mt-1 text-sm text-slate-600">Set the payroll month and leave cutoff in Run Details, then complete these steps in order. Each sync updates shared payroll data for all employees.</p>
-                        <ol class="mt-4 divide-y divide-slate-200">
-                            @foreach ($apiPreparationSteps as $key => $step)
-                                @php
-                                    $result = $apiPreparationResults[$key] ?? null;
-                                    $previousKey = array_keys($apiPreparationSteps)[$loop->index - 1] ?? null;
-                                    $available = $loop->first || isset($apiPreparationResults[$previousKey]);
-                                @endphp
-                                <li class="py-4">
-                                    <div class="flex flex-wrap items-start justify-between gap-3">
-                                        <div class="min-w-0 flex-1">
-                                            <h4 class="text-sm font-semibold text-slate-900">Step {{ $loop->iteration }} — {{ $step['title'] }}</h4>
-                                            <p class="mt-1 text-xs text-slate-600">{{ $step['description'] }}</p>
-                                            @if ($result)
-                                                <p class="mt-2 text-xs font-medium text-emerald-700" role="status">Complete · Batch #{{ $result['batch'] }}</p>
-                                                <p class="mt-1 text-xs text-slate-500">
-                                                    @foreach ($result['counts'] as $table => $count)
-                                                        @if (is_numeric($count)) {{ $table }}: {{ $count }}{{ !$loop->last ? ' · ' : '' }} @endif
-                                                    @endforeach
-                                                </p>
-                                            @elseif (!$available)
-                                                <p class="mt-2 text-xs text-slate-500">Complete the previous step to unlock.</p>
-                                            @else
-                                                <p class="mt-2 text-xs text-slate-500">Ready to synchronize</p>
-                                            @endif
-                                        </div>
-                                        @if ($canSyncPayrollInputs)
-                                            <button type="button" wire:click="syncApi('{{ $key }}')" wire:loading.attr="disabled" @disabled(!$available)
-                                                class="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50">
-                                                {{ $result ? 'Sync again' : 'Sync '.$step['title'] }}
-                                            </button>
-                                        @endif
-                                    </div>
-                                </li>
-                            @endforeach
-                        </ol>
-                        <p wire:loading wire:target="syncApi" class="mt-2 text-sm text-blue-700" role="status">Synchronizing HRIS data. Please wait...</p>
-                        @if (!$canSyncPayrollInputs)
-                            <p class="mt-2 text-sm text-slate-600">Your account needs payroll generation access to run these steps.</p>
-                        @endif
-                        @if (count($apiPreparationResults) === count($apiPreparationSteps))
-                            <p class="mt-3 text-sm font-medium text-emerald-700">HRIS preparation complete. Review the scope and timekeeping, then proceed to generation.</p>
-                        @endif
-                        <p class="mt-3 text-xs text-slate-500">Step 4 uses the HRIS database connection and copies DTR punches for the month before payroll, regardless of the leave cutoff. Complete DTR encoding and finalize that month’s MRA before payroll finalization. If current data was already prepared, you may proceed without starting a new sync.</p>
-                        @error('sync') <p role="alert" class="mt-3 text-sm text-red-600">{{ $message }}</p> @enderror
-                    </section>
-                @endif
-            </div>
-
-            <div class="space-y-4 p-4">
                 <div>
                     <h3 class="text-sm font-semibold uppercase text-slate-500">Run Details</h3>
                 </div>
@@ -260,6 +138,90 @@
                     </div>
                 </div>
 
+
+            </div>
+            <div x-show="configurationStep === 'scope'" x-cloak class="space-y-4" role="region" aria-label="Payroll scope">
+
+                <div>
+                    <h3 class="text-sm font-semibold uppercase text-slate-500">Payroll Scope</h3>
+                </div>
+
+                <div class="grid gap-3 md:grid-cols-2">
+                    <div>
+                        <label class="text-sm font-medium">Payroll Type</label>
+                        <select wire:model="payrollType"
+                            class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
+                            @foreach ($payrollTypes as $type)
+                                <option value="{{ $type->code }}">{{ $type->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('payrollType')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <label class="text-sm font-medium">Employee Type</label>
+                        <select data-select2-searchable data-model="employeeTypeFilter" data-defer-request="true"
+                            data-placeholder="Select employee types" multiple
+                            class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
+                            @foreach ($employeeTypeOptions as $value => $label)
+                                <option value="{{ $value }}" @selected(in_array($value, $employeeTypeFilter, true))>{{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('employeeTypeFilter')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                        @error('employeeTypeFilter.*')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+                </div>
+
+                <div class="grid gap-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                    <div>
+                        <label class="text-sm font-medium">Division</label>
+                        <select data-select2-searchable data-model="selectedDivisionIds" data-defer-request="true"
+                            data-placeholder="Search and select divisions" multiple
+                            class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
+                            @foreach ($divisions as $division)
+                                <option value="{{ $division->division_id }}" @selected(in_array((int) $division->division_id, $selectedDivisionIds, true))>
+                                    {{ $division->division }}</option>
+                            @endforeach
+                        </select>
+                        @error('selectedDivisionIds')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                        @error('selectedDivisionIds.*')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <label class="text-sm font-medium">Department <span
+                                class="font-normal text-slate-500">(Optional)</span></label>
+                        <select data-select2-searchable data-model="selectedDepartmentIds" data-defer-request="true"
+                            data-placeholder="Search and select departments" multiple
+                            class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
+                            @foreach ($departments as $department)
+                                <option value="{{ $department->department_id }}" @selected(in_array((int) $department->department_id, $selectedDepartmentIds, true))>
+                                    {{ $department->department }}</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-slate-500">Leave empty to include all departments in the selected
+                            division(s).</p>
+                        @error('selectedDepartmentIds')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                        @error('selectedDepartmentIds.*')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+                </div>
+
+
+
                 <div class="rounded-md border border-slate-200 p-3">
                     <div class="text-sm font-medium">Inclusive Leave Types</div>
                     <p class="mt-1 text-xs text-slate-500">Checked leave types are included in this payroll run.</p>
@@ -281,8 +243,78 @@
                     @enderror
                 </div>
             </div>
+            <div x-show="configurationStep === 'preparation'" x-cloak role="region" aria-label="Prepare payroll data">
+                @if ($isStandalone)
+                    <section class="border-t border-slate-200 py-4" aria-labelledby="api-preparation-title">
+                        <h3 id="api-preparation-title" class="text-sm font-semibold text-slate-900">Prepare payroll data from HRIS</h3>
+                        <p class="mt-1 text-sm text-slate-600">Complete these steps for the payroll scope and run details selected earlier. Employee requests use scoped IDs, salary requests use the payroll year, and leave requests use the cutoff dates.</p>
+                        <ol class="mt-4 divide-y divide-slate-200">
+                            @foreach ($apiPreparationSteps as $key => $step)
+                                @php
+                                    $result = $apiPreparationResults[$key] ?? null;
+                                    $previousKey = array_keys($apiPreparationSteps)[$loop->index - 1] ?? null;
+                                    $available = $loop->first || isset($apiPreparationResults[$previousKey]);
+                                @endphp
+                                <li class="py-4">
+                                    <div class="flex flex-wrap items-start justify-between gap-3">
+                                        <div class="min-w-0 flex-1">
+                                            <h4 class="text-sm font-semibold text-slate-900">Step {{ $loop->iteration }} — {{ $step['title'] }}</h4>
+                                            <p class="mt-1 text-xs text-slate-600">{{ $step['description'] }}</p>
+                                            @if ($result)
+                                                <p class="mt-2 text-xs font-medium text-emerald-700" role="status">Complete · Batch #{{ $result['batch'] }}</p>
+                                                <p class="mt-1 text-xs text-slate-500">
+                                                    @foreach ($result['counts'] as $table => $count)
+                                                        @if (is_numeric($count)) {{ $table }}: {{ $count }}{{ !$loop->last ? ' · ' : '' }} @endif
+                                                    @endforeach
+                                                </p>
+                                            @elseif (!$available)
+                                                <p class="mt-2 text-xs text-slate-500">Complete the previous step to unlock.</p>
+                                            @else
+                                                <p class="mt-2 text-xs text-slate-500">Ready to synchronize</p>
+                                            @endif
+                                        </div>
+                                        @if ($canSyncPayrollInputs)
+                                            <button type="button" wire:click="syncApi('{{ $key }}')" wire:loading.attr="disabled" @disabled(!$available)
+                                                class="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50">
+                                                {{ $result ? 'Sync again' : 'Sync '.$step['title'] }}
+                                            </button>
+                                        @endif
+                                    </div>
+                                </li>
+                            @endforeach
+                        </ol>
+                        <p wire:loading wire:target="syncApi" class="mt-2 text-sm text-blue-700" role="status">Synchronizing HRIS data. Please wait...</p>
+                        @if (!$canSyncPayrollInputs)
+                            <p class="mt-2 text-sm text-slate-600">Your account needs payroll generation access to run these steps.</p>
+                        @endif
+                        @if (count($apiPreparationResults) === count($apiPreparationSteps))
+                            <p class="mt-3 text-sm font-medium text-emerald-700">HRIS preparation complete. Review the scope and timekeeping, then proceed to generation.</p>
+                        @endif
+                        <p class="mt-3 text-xs text-slate-500">The leave endpoint supports dates only; downloaded leaves are restricted locally to scoped employees. Step 4 copies their DTR punches for the month before payroll. Complete DTR encoding and finalize MRA before payroll finalization. If data was already prepared, you may continue without starting a new sync.</p>
+                        @error('sync') <p role="alert" class="mt-3 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </section>
+                @endif
+            </div>
+            <div x-show="configurationStep === 'review'" x-cloak class="space-y-5" role="region" aria-label="Review payroll configuration">
+                <h3 class="text-base font-semibold">Review before opening payroll generation</h3>
+                <dl class="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <div><dt class="text-xs text-slate-500">Payroll month</dt><dd class="mt-1 text-sm font-semibold">{{ $periodLabel }}</dd></div>
+                    <div><dt class="text-xs text-slate-500">Payroll type</dt><dd class="mt-1 text-sm font-semibold">{{ $payrollTypes->firstWhere('code', $payrollType)?->name }}</dd></div>
+                    <div><dt class="text-xs text-slate-500">Employee types</dt><dd class="mt-1 text-sm font-semibold">{{ collect($employeeTypeFilter)->map(fn ($type) => $employeeTypeOptions[$type] ?? $type)->implode(', ') }}</dd></div>
+                    <div><dt class="text-xs text-slate-500">Divisions</dt><dd class="mt-1 text-sm font-semibold">{{ $divisions->whereIn('division_id', $selectedDivisionIds)->pluck('division')->implode(', ') ?: 'None selected' }}</dd></div>
+                    <div><dt class="text-xs text-slate-500">Departments</dt><dd class="mt-1 text-sm font-semibold">{{ $departments->whereIn('department_id', $selectedDepartmentIds)->pluck('department')->implode(', ') ?: 'All departments in selected divisions' }}</dd></div>
+                    <div><dt class="text-xs text-slate-500">Days paid / GSIS days</dt><dd class="mt-1 text-sm font-semibold">{{ $workingDays }} / {{ $gsisDays }}</dd></div>
+                    <div><dt class="text-xs text-slate-500">Leave cutoff</dt><dd class="mt-1 text-sm font-semibold">{{ $leavePeriodStart }} through {{ $leavePeriodEnd }}</dd></div>
+                    <div><dt class="text-xs text-slate-500">Included leave types</dt><dd class="mt-1 text-sm font-semibold">{{ $leaveTypes->whereIn('leave_type_id', $selectedLeaveTypeIds)->pluck('leave_name')->implode(', ') ?: 'None' }}</dd></div>
+                    @if ($isStandalone)
+                        <div><dt class="text-xs text-slate-500">Data preparation</dt><dd class="mt-1 text-sm font-semibold">{{ count($apiPreparationResults) === count($apiPreparationSteps) ? 'All four sync steps complete' : 'Using previously prepared local data' }}</dd></div>
+                    @endif
+                </dl>
+                <p class="text-sm text-slate-600">The next screen opens the main generation steps. Attendance and MRA checks still apply.</p>
+            </div>
         </div>
 
+        <div x-show="configurationStep === 'review'" x-cloak>
         @if ($showExistingGenerationNotice)
             <div class="border-t border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950">
                 <div class="font-semibold">Existing payroll generation found</div>
@@ -308,7 +340,14 @@
             </div>
         @endif
 
-        <div class="flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-slate-50 px-4 py-3">
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50 px-4 py-3">
+            <button type="button" x-show="configurationStep !== 'details'" x-cloak wire:click="previousConfigurationStep" wire:loading.attr="disabled" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700">Back</button>
+            <span x-show="configurationStep === 'details'" class="text-xs text-slate-500">Start with the payroll month and leave cutoff.</span>
+            <button type="button" x-show="configurationStep !== 'review'" wire:click="nextConfigurationStep" wire:loading.attr="disabled" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white">
+                <span wire:loading.remove wire:target="nextConfigurationStep">Continue</span><span wire:loading wire:target="nextConfigurationStep">Checking...</span>
+            </button>
+            <div x-show="configurationStep === 'review'" x-cloak class="flex flex-wrap gap-2">
             @if ($showExistingGenerationNotice)
                 <button type="button" wire:click="dismissExistingGenerationNotice"
                     class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
@@ -321,12 +360,13 @@
                     <span wire:loading wire:target="continueToPayrollGeneration">Opening...</span>
                 </button>
             @else
-                <button type="submit" wire:loading.attr="disabled" wire:target="proceed,syncApi"
+                <button type="submit" wire:loading.attr="disabled" wire:target="submitConfiguration,syncApi"
                     class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
-                    <span wire:loading.remove wire:target="proceed">Proceed to Payroll Generation</span>
-                    <span wire:loading wire:target="proceed">Preparing...</span>
+                    <span wire:loading.remove wire:target="submitConfiguration">Proceed to Payroll Generation</span>
+                    <span wire:loading wire:target="submitConfiguration">Preparing...</span>
                 </button>
             @endif
+            </div>
         </div>
     </form>
 

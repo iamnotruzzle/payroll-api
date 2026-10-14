@@ -17,7 +17,7 @@ class ApiCanonicalSyncService
         'leaves' => ['title' => 'Leaves', 'description' => 'Leave types and leave records for the selected cutoff.', 'resources' => ['leave-types', 'leaves']],
     ];
 
-    public function sync(string $period, ?string $by = null, ?string $from = null, ?string $to = null, ?string $step = null): PayrollSourceBatch
+    public function sync(string $period, ?string $by = null, ?string $from = null, ?string $to = null, ?string $step = null, ?array $scope = null): PayrollSourceBatch
     {
         if ($step !== null && ! isset(self::STEPS[$step])) {
             throw ValidationException::withMessages(['sync' => 'Choose a valid synchronization step.']);
@@ -46,13 +46,47 @@ class ApiCanonicalSyncService
         }
         $payload = [];
         $client = app(HrisApiClient::class);
+        $employeeIds = null;
+        if ($scope !== null) {
+            if (empty($scope['division_ids']) && empty($scope['department_ids'])) {
+                throw ValidationException::withMessages(['sync' => 'Select a payroll scope before synchronizing.']);
+            }
+            if ($step === 'employees' || $step === null) {
+                $discovery = $client->fetch('basic-pay', ['scope' => $scope]);
+                if ($discovery['warning_count']) {
+                    throw new RuntimeException('HRIS reported warnings while discovering scoped employees; no data was activated.');
+                }
+                $employeeIds = array_values(array_unique(array_map('strval', array_column($discovery['rows'], 'employee_id'))));
+            } else {
+                $employeeIds = app(PayrollSyncScope::class)->employees($scope)->pluck('emp_id')->map('strval')->all();
+            }
+            if ($employeeIds === []) {
+                throw new RuntimeException('No employees match this payroll scope. Existing data was retained.');
+            }
+        }
         foreach (['divisions' => 'Divisions', 'departments' => 'Departments', 'positions' => 'Positions',
             'employment-statuses' => 'Employment Statuses', 'employees' => 'Employees',
             'salary-rates' => 'Salary Rates', 'leave-types' => 'Leave Types', 'leaves' => 'Leaves'] as $resource => $sheet) {
             if ($step !== null && ! in_array($resource, self::STEPS[$step]['resources'], true)) {
                 continue;
             }
-            $result = $client->fetch($resource, ['from' => $from, 'to' => $to]);
+            $context = ['from' => $from, 'to' => $to];
+            if ($scope !== null && $resource === 'salary-rates') {
+                $context['year'] = substr($period, 0, 4);
+            }
+            if ($resource === 'employees' && $employeeIds !== null) {
+                $result = ['rows' => [], 'warning_count' => 0];
+                foreach (array_chunk($employeeIds, 100) as $chunk) {
+                    $part = $client->fetch($resource, $context + ['employee_ids' => $chunk]);
+                    $result['rows'] = array_merge($result['rows'], $part['rows']);
+                    $result['warning_count'] += $part['warning_count'];
+                }
+                if (array_diff($employeeIds, array_map('strval', array_column($result['rows'], 'employee_id'))) !== []) {
+                    throw new RuntimeException('HRIS did not return all requested employee records; no data was activated.');
+                }
+            } else {
+                $result = $client->fetch($resource, $context);
+            }
             if ($result['warning_count']) {
                 throw new RuntimeException("HRIS reported warnings for {$resource}; no data was activated.");
             }
@@ -80,6 +114,9 @@ class ApiCanonicalSyncService
             $payload['Employees'][$index] = $row;
         }
         unset($row);
+        if ($scope !== null) {
+            $payload = $this->filterScopedPayload($payload, $scope, $employeeIds);
+        }
         foreach ($payload as $rows) {
             foreach ($rows as $row) {
                 foreach (['is_active', 'is_external', 'cancelled'] as $field) {
@@ -129,16 +166,16 @@ class ApiCanonicalSyncService
         }
         $workbooks = app(CanonicalWorkbookService::class);
 
-        return DB::connection('payroll')->transaction(function () use ($payload, $period, $by, $workbooks, $from, $to, $step) {
+        return DB::connection('payroll')->transaction(function () use ($payload, $period, $by, $workbooks, $from, $to, $step, $scope) {
             $payload = $this->preserveLocalFields($payload);
             $errors = $workbooks->validatePayload($payload, $period);
             if ($errors !== []) {
                 throw ValidationException::withMessages(['sync' => $errors]);
             }
             $batch = PayrollSourceBatch::query()->firstOrCreate([
-                'kind' => $step === null ? 'api_full' : 'api_'.$step, 'checksum' => hash('sha256', json_encode([$payload, $from, $to])), 'effective_period' => $period,
+                'kind' => ($step === null ? 'api_full' : 'api_'.$step).($scope !== null ? '_'.substr(hash('sha256', json_encode($scope)), 0, 16) : ''), 'checksum' => hash('sha256', json_encode([$payload, $from, $to, $scope])), 'effective_period' => $period,
             ], ['source' => 'hris_api', 'status' => 'validated', 'schema_version' => '1.0',
-                'statistics' => array_map('count', $payload) + ['leave_range' => ['from' => $from, 'to' => $to]], 'errors' => [], 'payload' => $payload, 'created_by' => $by]);
+                'statistics' => array_map('count', $payload) + ['leave_range' => ['from' => $from, 'to' => $to], 'scope' => $scope], 'errors' => [], 'payload' => $payload, 'created_by' => $by]);
             if ($batch->status !== 'active') {
                 $batch->update(['status' => 'validated']);
                 $workbooks->activate($batch, $by);
@@ -146,6 +183,43 @@ class ApiCanonicalSyncService
 
             return $batch->fresh();
         });
+    }
+
+    private function filterScopedPayload(array $payload, array $scope, array $employeeIds): array
+    {
+        $scopeService = app(PayrollSyncScope::class);
+        if (isset($payload['Employees'])) {
+            $departments = $payload['Departments'] ?? [];
+            $departmentIds = ! empty($scope['department_ids']) ? $scope['department_ids']
+                : array_column(array_filter($departments, fn ($row) => in_array($row['division_id'], $scope['division_ids'])), 'department_id');
+            $payload['Employees'] = array_values(array_filter($payload['Employees'], fn ($row) =>
+                in_array((string) $row['employee_id'], $employeeIds, true)
+                && in_array($row['department_id'], $departmentIds)
+                && $scopeService->matchesType($row, $scope)));
+            if ($payload['Employees'] === []) {
+                throw new RuntimeException('No HRIS employees match the selected organization and employee types. Existing data was retained.');
+            }
+            $employeeIds = array_map('strval', array_column($payload['Employees'], 'employee_id'));
+            $positionIds = array_column($payload['Employees'], 'position_id');
+            $payload['Positions'] = array_values(array_filter($payload['Positions'], fn ($row) => in_array($row['position_id'], $positionIds)));
+            $payload['Departments'] = array_values(array_filter($departments, fn ($row) => in_array($row['department_id'], $departmentIds)));
+            $divisionIds = array_column($payload['Departments'], 'division_id');
+            $payload['Divisions'] = array_values(array_filter($payload['Divisions'], fn ($row) => in_array($row['division_id'], $divisionIds)));
+        }
+        if (isset($payload['Salary Rates'])) {
+            $grades = isset($payload['Positions']) ? array_column($payload['Positions'], 'salary_grade')
+                : DB::connection('payroll')->table('payroll_canonical_positions')->whereIn('external_id',
+                    $scopeService->employees($scope)->pluck('position_external_id'))->pluck('salary_grade')->all();
+            $payload['Salary Rates'] = array_values(array_filter($payload['Salary Rates'], fn ($row) => in_array($row['salary_grade'], $grades)));
+            if ($payload['Salary Rates'] === []) {
+                throw new RuntimeException('No salary rates match the selected employees and payroll year. Existing data was retained.');
+            }
+        }
+        if (isset($payload['Leaves'])) {
+            $payload['Leaves'] = array_values(array_filter($payload['Leaves'], fn ($row) => in_array((string) $row['employee_id'], $employeeIds, true)));
+        }
+
+        return $payload;
     }
 
     private function preserveLocalFields(array $payload): array

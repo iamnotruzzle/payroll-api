@@ -12,7 +12,7 @@ use RuntimeException;
 
 class HrisTimekeepingSyncService
 {
-    public function sync(string $period, ?string $by = null): PayrollSourceBatch
+    public function sync(string $period, ?string $by = null, ?array $scope = null): PayrollSourceBatch
     {
         if (app(PayrollOperatingModeService::class)->current() !== PayrollOperatingMode::Standalone) {
             throw ValidationException::withMessages(['sync' => 'HRIS timekeeping preparation requires standalone mode.']);
@@ -27,7 +27,8 @@ class HrisTimekeepingSyncService
         $start = CarbonImmutable::parse($period.'-01')->subMonthNoOverflow();
         $from = $start->toDateString();
         $to = $start->endOfMonth()->toDateString();
-        $ids = DB::connection('payroll')->table('payroll_canonical_employees')->pluck('emp_id');
+        $ids = $scope === null ? DB::connection('payroll')->table('payroll_canonical_employees')->pluck('emp_id')
+            : app(PayrollSyncScope::class)->employees($scope)->pluck('emp_id');
         if ($ids->isEmpty()) {
             throw new RuntimeException('Synchronize employee master data before timekeeping.');
         }
@@ -51,11 +52,12 @@ class HrisTimekeepingSyncService
             throw new RuntimeException("No HRIS DTR records were found for {$from} through {$to}. Existing timekeeping was retained.");
         }
 
-        return DB::connection('payroll')->transaction(function () use ($rows, $by, $period, $from, $to) {
+        return DB::connection('payroll')->transaction(function () use ($rows, $by, $period, $from, $to, $scope, $ids) {
+            $scopeKey = hash('sha256', json_encode($scope));
             $batch = PayrollSourceBatch::query()->create([
                 'kind' => 'hris_timekeeping', 'source' => 'hris_db', 'status' => 'active', 'schema_version' => '1.0',
                 'effective_period' => $period, 'checksum' => hash('sha256', json_encode($rows)),
-                'statistics' => ['DTR records' => count($rows), 'Employees' => count(array_unique(array_column($rows, 'emp_id'))), 'from' => $from, 'to' => $to],
+                'statistics' => ['DTR records' => count($rows), 'Employees' => count(array_unique(array_column($rows, 'emp_id'))), 'from' => $from, 'to' => $to, 'scope' => $scope, 'scope_key' => $scopeKey],
                 'payload' => ['DTR' => array_values($rows)], 'errors' => [], 'created_by' => $by, 'activated_by' => $by, 'activated_at' => now(),
             ]);
             foreach (array_chunk(array_values($rows), 500) as $chunk) {
@@ -63,10 +65,12 @@ class HrisTimekeepingSyncService
                 DB::connection('payroll')->table('payroll_hris_dtr_snapshots')->upsert($records, ['emp_id', 'dtr_date'],
                     ['source_dtr_id', 'timein_am', 'timeout_am', 'timein_pm', 'timeout_pm', 'timeout_nextday', 'machine_id', 'source_batch_id', 'updated_at']);
             }
-            DB::connection('payroll')->table('payroll_hris_dtr_snapshots')->whereBetween('dtr_date', [$from, $to])
-                ->whereIn('emp_id', array_keys(collect($rows)->keyBy('emp_id')->all()))
-                ->where('source_batch_id', '!=', $batch->id)->delete();
+            foreach ($ids->chunk(500) as $chunk) {
+                DB::connection('payroll')->table('payroll_hris_dtr_snapshots')->whereBetween('dtr_date', [$from, $to])
+                    ->whereIn('emp_id', $chunk->all())->where('source_batch_id', '!=', $batch->id)->delete();
+            }
             PayrollSourceBatch::query()->where('kind', 'hris_timekeeping')->where('effective_period', $period)
+                ->where('statistics->scope_key', $scopeKey)
                 ->where('id', '!=', $batch->id)->where('status', 'active')->update(['status' => 'superseded']);
             app(PayrollTimekeepingSourceService::class)->save('hris_db', $by, true);
 

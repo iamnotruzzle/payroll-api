@@ -37,6 +37,24 @@ class HrisApiClient
         if ($name === 'basic-pay' && isset($context['employee_id'])) {
             $parameters['emp_ids'] = [$context['employee_id']];
         }
+        if ($name === 'basic-pay' && isset($context['scope'])) {
+            unset($parameters['emp_ids']);
+            $scope = $context['scope'];
+            $parameters['include_inactive'] = true;
+            if (! empty($scope['department_ids'])) {
+                $parameters['department_ids'] = array_values($scope['department_ids']);
+            } elseif (! empty($scope['division_ids'])) {
+                $parameters['division_ids'] = array_values($scope['division_ids']);
+            } else {
+                throw new RuntimeException('Select a division or department before scoped synchronization.');
+            }
+        }
+        if ($name === 'employees' && isset($context['employee_ids'])) {
+            $parameters['emp_ids'] = implode(',', $context['employee_ids']);
+        }
+        if ($name === 'salary-rates' && isset($context['year'])) {
+            $parameters['year'] = $context['year'];
+        }
         $rows = [];
         $warnings = 0;
         $missing = [];

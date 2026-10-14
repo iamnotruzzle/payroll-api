@@ -28,6 +28,59 @@ class PayrollConfiguration extends Component
     #[\Livewire\Attributes\Locked]
     public array $apiPreparation = [];
 
+    #[\Livewire\Attributes\Locked]
+    public string $configurationStep = 'details';
+
+    private function configurationSteps(): array
+    {
+        $steps = ['details' => 'Run details', 'scope' => 'Payroll scope'];
+        if (app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone) {
+            $steps['preparation'] = 'Prepare data';
+        }
+
+        return $steps + ['review' => 'Review'];
+    }
+
+    public function nextConfigurationStep(): void
+    {
+        $this->dismissExistingGenerationNotice();
+        if ($this->configurationStep === 'details') {
+            $this->gsisDays = $this->daysInPayrollMonth($this->period);
+            $fields = ['period', 'workingDays', 'gsisDays', 'leavePeriodStart', 'leavePeriodEnd'];
+            $this->validate(array_intersect_key($this->configurationRules(), array_flip($fields)));
+        } elseif ($this->configurationStep === 'preparation') {
+            if ($this->apiPreparation !== [] && count($this->preparationResults()) < count($this->preparationSteps())) {
+                $this->addError('sync', 'Complete all four preparation steps before continuing.');
+
+                return;
+            }
+        } elseif ($this->configurationStep === 'scope') {
+            $this->validatedConfiguration();
+        }
+        $steps = array_keys($this->configurationSteps());
+        $index = array_search($this->configurationStep, $steps, true);
+        $this->configurationStep = $steps[min((int) $index + 1, count($steps) - 1)];
+    }
+
+    public function previousConfigurationStep(): void
+    {
+        $this->dismissExistingGenerationNotice();
+        $steps = array_keys($this->configurationSteps());
+        $index = array_search($this->configurationStep, $steps, true);
+        $this->configurationStep = $steps[max(0, (int) $index - 1)];
+    }
+
+    public function submitConfiguration()
+    {
+        if ($this->configurationStep !== 'review') {
+            $this->nextConfigurationStep();
+
+            return null;
+        }
+
+        return $this->proceed();
+    }
+
     private function preparationSteps(): array
     {
         return ApiCanonicalSyncService::STEPS + ['timekeeping' => [
@@ -38,7 +91,16 @@ class PayrollConfiguration extends Component
 
     private function preparationContext(): string
     {
-        return $this->period.'|'.$this->leavePeriodStart.'|'.$this->leavePeriodEnd;
+        return $this->period.'|'.$this->leavePeriodStart.'|'.$this->leavePeriodEnd.'|'.hash('sha256', json_encode($this->syncScope()));
+    }
+
+    private function syncScope(): array
+    {
+        return [
+            'division_ids' => $this->normalizedIds($this->selectedDivisionIds),
+            'department_ids' => $this->normalizedIds($this->selectedDepartmentIds),
+            'employee_types' => Employee::normalizeEmployeeTypes($this->employeeTypeFilter),
+        ];
     }
 
     private function preparationResults(): array
@@ -164,10 +226,12 @@ class PayrollConfiguration extends Component
             'leavePeriodStart' => ['required', 'date_format:Y-m-d'],
             'leavePeriodEnd' => ['required', 'date_format:Y-m-d', 'after_or_equal:leavePeriodStart'],
         ]);
+        $scopeFields = ['selectedDivisionIds', 'selectedDivisionIds.*', 'selectedDepartmentIds', 'selectedDepartmentIds.*', 'employeeTypeFilter', 'employeeTypeFilter.*'];
+        $this->validate(array_intersect_key($this->configurationRules(), array_flip($scopeFields)));
         try {
             $batch = $step === 'timekeeping'
-                ? app(HrisTimekeepingSyncService::class)->sync($this->period, auth()->user()?->emp_id)
-                : $service->sync($this->period, auth()->user()?->emp_id, $this->leavePeriodStart, $this->leavePeriodEnd, $step);
+                ? app(HrisTimekeepingSyncService::class)->sync($this->period, auth()->user()?->emp_id, $this->syncScope())
+                : $service->sync($this->period, auth()->user()?->emp_id, $this->leavePeriodStart, $this->leavePeriodEnd, $step, $this->syncScope());
         } catch (\Illuminate\Database\QueryException $e) {
             $this->addError('sync', $step === 'timekeeping'
                 ? 'Timekeeping synchronization failed. Check the HRIS database connection and payroll snapshot migration. Existing punches were retained.'
@@ -191,7 +255,8 @@ class PayrollConfiguration extends Component
     public function proceed()
     {
         if (app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone
-            && $this->preparationResults() !== [] && count($this->preparationResults()) < count($this->preparationSteps())) {
+            && $this->apiPreparation !== [] && count($this->preparationResults()) < count($this->preparationSteps())) {
+            $this->configurationStep = 'preparation';
             $this->addError('sync', 'Complete all four preparation steps before proceeding to payroll generation.');
 
             return null;
@@ -212,7 +277,7 @@ class PayrollConfiguration extends Component
     public function continueToPayrollGeneration()
     {
         if (app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone
-            && $this->preparationResults() !== [] && count($this->preparationResults()) < count($this->preparationSteps())) {
+            && $this->apiPreparation !== [] && count($this->preparationResults()) < count($this->preparationSteps())) {
             return $this->proceed();
         }
         $data = $this->validatedConfiguration();
@@ -297,10 +362,9 @@ class PayrollConfiguration extends Component
         return (bool) ($user?->can('timekeeping.manage') || $user?->can('payroll.generation.hr'));
     }
 
-    private function validatedConfiguration(): array
+    private function configurationRules(): array
     {
-        $this->gsisDays = $this->daysInPayrollMonth($this->period);
-        $data = $this->validate([
+        return [
             'selectedDivisionIds' => ['required', 'array', 'min:1'],
             'selectedDivisionIds.*' => ['integer', 'exists:payroll.payroll_canonical_divisions,external_id'],
             'selectedDepartmentIds' => ['array'],
@@ -315,7 +379,20 @@ class PayrollConfiguration extends Component
             'leavePeriodEnd' => ['required', 'date', 'after_or_equal:leavePeriodStart'],
             'employeeTypeFilter' => ['required', 'array', 'min:1'],
             'employeeTypeFilter.*' => ['required', Rule::in(array_keys(Employee::employeeTypeOptions()))],
-        ]);
+        ];
+    }
+
+    private function validatedConfiguration(): array
+    {
+        $this->gsisDays = $this->daysInPayrollMonth($this->period);
+        try {
+            $data = $this->validate($this->configurationRules());
+        } catch (ValidationException $e) {
+            $detailsFields = ['period', 'workingDays', 'gsisDays', 'leavePeriodStart', 'leavePeriodEnd'];
+            $this->configurationStep = array_intersect(array_keys($e->errors()), $detailsFields) ? 'details' : 'scope';
+
+            throw $e;
+        }
 
         $data['selectedDivisionIds'] = $this->normalizedIds($data['selectedDivisionIds'] ?? []);
         $data['selectedDepartmentIds'] = $this->normalizedIds($data['selectedDepartmentIds'] ?? []);
@@ -675,6 +752,7 @@ class PayrollConfiguration extends Component
             'periodLabel' => $periodLabel,
             'canManageHolidays' => $this->canManageHolidayCalendar(),
             'isStandalone' => app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone,
+            'configurationSteps' => $this->configurationSteps(),
             'apiPreparationSteps' => $this->preparationSteps(),
             'apiPreparationResults' => $this->preparationResults(),
             'canSyncPayrollInputs' => $this->canSyncPayrollInputs(),

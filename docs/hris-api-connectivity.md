@@ -27,7 +27,13 @@ php artisan payroll:api-sync --period=2026-09
 
 The base canonical migration must already be installed. The new migration allows unassigned department divisions and stores leave approval status and exact dates.
 
-Alternatively, select the period in **Settings > Payroll System**, then choose **Synchronize HRIS API**. The action uses the existing `payroll.system.sync` permission. The default leave range is the selected calendar month. For a different payroll cutoff, enter From and To dates or use:
+In **Payroll Configuration**, complete **Run details**, then **Payroll scope**. Standalone mode adds **Prepare data**, followed by **Review**. Payroll generation users can run the four preparation actions themselves. Each action records its counts and batch, and later actions unlock in order. Starting preparation requires completing all four actions before continuing; changing the scope, employee types, month, or cutoff invalidates those completion results.
+
+Scoped master-data synchronization first calls `POST /api/external/basic-pay` with selected `department_ids` (when present), otherwise `division_ids`, and `include_inactive=true`. Its employee IDs are then sent to `GET /api/external/payroll/employees` as comma-separated `emp_ids` in batches of 100. Organization and employee-type checks also run locally before activation. Inactive employee records remain eligible for synchronization so deactivations can be captured.
+
+Salary requests use the payroll month’s `year` and activate only salary grades belonging to the scoped employees. Leaves use the configured `from` and `to` cutoff and are restricted locally to scoped employee IDs. The documented leave endpoint has no employee or department filter; the reference endpoints have no scope filters, so their downloaded records are narrowed locally. Other employees’ canonical records are retained. Basic Pay’s named `type` values are not assumed to equal local payroll-type codes.
+
+The fourth action reads only scoped employees’ previous-month DTR punches from the HRIS database into payroll-owned snapshots. DTR/MRA screens use that local snapshot in standalone mode after successful synchronization. Complete DTR encoding and finalize MRA afterward. The snapshot migration must be installed. CLI full synchronization remains available; for a different payroll cutoff use:
 
 ```powershell
 php artisan payroll:api-sync --period=2026-10 --from=2026-09-01 --to=2026-09-30
@@ -35,7 +41,7 @@ php artisan payroll:api-sync --period=2026-10 --from=2026-09-01 --to=2026-09-30
 
 ## Data handling
 
-All eight exports must succeed before validation and atomic activation. Employees are fetched without `active_only` so explicit deactivations are synchronized; salary rates use `year=all` so effective dates remain available. Employee IDs remain strings, preserving leading zeros. Remote employment-status IDs are mapped by status name to the existing payroll categories; unknown categories fail rather than being assigned a guessed category.
+For full CLI synchronization, all eight exports must succeed before validation and atomic activation. Wizard steps validate and activate their own scoped exports atomically. Employees are fetched without `active_only` so explicit deactivations are synchronized; salary rates use `year=all` so effective dates remain available. Employee IDs remain strings, preserving leading zeros. Remote employment-status IDs are mapped by status name to the existing payroll categories; unknown categories fail rather than being assigned a guessed category.
 
 Each successful export records a source batch, checksum, operator, counts and leave range. Repeating an unchanged export is idempotent. Failed HTTP requests, warnings, missing documented keys, invalid dates or invalid references do not replace active data. The client rejects mismatched response counts and unexpected pagination and does not follow redirects or print tokens or response bodies.
 
@@ -43,22 +49,15 @@ Bank accounts, responsibility centers, fund types, local accounts and permission
 
 Leave status and cancellation are stored. Pending and rejected leave is excluded from payroll; cancelled leave remains available to cancellation checks. A non-null `leave_dates` must be a list of valid YYYY-MM-DD dates within the leave range and is used by the leave date helper. Null remains null; the existing date-range expansion remains the fallback. Exact date behavior still needs confirmation with HRIS before live payroll use.
 
-## Timekeeping limitation
+## Timekeeping
 
-The supplied PDF does not define a timekeeping endpoint. The default manual setting keeps generation blocked after API activation, including when workbook attendance exists.
+The API contract does not define a timekeeping endpoint. In the standalone configuration wizard, **Step 4 — Timekeeping from HRIS database** reads `hris.tbl_employee_dtr` for scoped employees and the calendar month before payroll. It copies punches into `payroll_hris_dtr_snapshots`, records a source batch, and enables payroll's snapshot timekeeping source. It does not import HRIS accounts, roles, employee master data, or leave records through the database.
 
-To use direct HRIS database access for **timekeeping only**, select **HRIS database for timekeeping only** under **Settings > Payroll System > Standalone timekeeping source** and save. Only a Super Admin can change this setting. Alternatively, set the deployment default:
+Install `2026_10_14_000001_create_payroll_hris_dtr_snapshots.php` on the payroll connection and configure `DB_*_HRIS`. A failed or empty download retains the existing snapshot. Successful scoped refreshes preserve other scopes and periods. Payroll DTR encoding, attendance reports, DTR printing, corrections, and MRA use the local snapshot in standalone mode; attendance self-service continues using its existing HRIS model.
 
-```dotenv
-PAYROLL_STANDALONE_TIMEKEEPING_SOURCE=hris_db
-```
+Complete DTR encoding and finalize the previous month's MRA for the selected department before payroll finalization. Synchronizing punches does not finalize MRA or manufacture missing attendance. Once copied, payroll can read the punches without a live HRIS database connection.
 
-A saved selection takes precedence over this default. Keep `PAYROLL_FORCE_MODE=standalone` if desired and configure the existing `DB_*_HRIS` connection. Master data synchronization still uses the API. DTR encoding, MRA and DTR printing read only `hris.tbl_employee_dtr`; employee, position and leave reads use canonical payroll records, and standalone timekeeping does not access scheduler tables. Assign time templates through the local DTR encoding workflow. MRA finalization updates local leave balances, not HRIS balances.
-
-The database and punch table must be available. Complete DTR encoding and finalize the previous month MRA for the selected department before finalizing payroll. Missing or unreachable HRIS timekeeping blocks generation; the selection does not fabricate attendance or bypass MRA readiness. Existing canonical workbook timekeeping summaries are ignored with this selection so two attendance sources do not override one another.
-
-Choose **Manual inputs** to restore the original restriction for API-synchronized payroll until a confirmed timekeeping endpoint is implemented. A connected database sync supersedes the API batch and restores the existing connected workflow.
-
+The existing Super Admin setting under **Settings > Payroll System > Standalone timekeeping source** remains available for direct HRIS database timekeeping or manual inputs. Selecting that setting explicitly switches away from snapshot mode. Manual inputs retain the existing API-generation restriction because no timekeeping API is available.
 ## Read-only connectivity checks
 
 `payroll:api-check` remains available without changing data:

@@ -198,8 +198,8 @@ class PayrollConfigurationTest extends TestCase
         $batch = new \App\Models\Payroll\PayrollSourceBatch;
         $batch->id = 123;
         $service = \Mockery::mock(\App\Services\Payroll\ApiCanonicalSyncService::class);
-        $service->shouldReceive('sync')->once()->with('2026-06', '001783', '2026-05-01', '2026-05-31', 'employees')->andReturn($batch);
-        $component = $this->configuredComponent([], []);
+        $service->shouldReceive('sync')->once()->with('2026-06', '001783', '2026-05-01', '2026-05-31', 'employees', ['division_ids' => [10], 'department_ids' => [], 'employee_types' => ['plantilla']])->andReturn($batch);
+        $component = $this->configuredComponent([10], []);
         $component->showExistingGenerationNotice = true;
         $component->syncApi($service);
         $this->assertFalse($component->showExistingGenerationNotice);
@@ -228,7 +228,7 @@ class PayrollConfigurationTest extends TestCase
         \Illuminate\Support\Facades\Auth::shouldReceive('user')->andReturn($user);
         $service = \Mockery::mock(\App\Services\Payroll\ApiCanonicalSyncService::class);
         $service->shouldNotReceive('sync');
-        $component = $this->configuredComponent([], []);
+        $component = $this->configuredComponent([10], []);
         $this->assertTrue($component->canSyncPayrollInputs());
         $component->syncApi($service, 'leaves');
         $this->assertTrue($component->getErrorBag()->has('sync'));
@@ -237,8 +237,8 @@ class PayrollConfigurationTest extends TestCase
     public function test_incomplete_preparation_blocks_generation(): void
     {
         Config::set('payroll_standalone.forced_mode', 'standalone');
-        $component = $this->configuredComponent([], []);
-        $component->apiPreparation = ['context' => '2026-06|2026-05-01|2026-05-31', 'steps' => ['employees' => ['batch' => 1]]];
+        $component = $this->configuredComponent([10], []);
+        $component->apiPreparation = ['context' => (new \ReflectionMethod($component, 'preparationContext'))->invoke($component), 'steps' => ['employees' => ['batch' => 1]]];
         $this->assertNull($component->proceed());
         $this->assertTrue($component->getErrorBag()->has('sync'));
     }
@@ -254,16 +254,51 @@ class PayrollConfigurationTest extends TestCase
         $batch = new \App\Models\Payroll\PayrollSourceBatch;
         $batch->id = 124;
         $database = \Mockery::mock(\App\Services\Payroll\HrisTimekeepingSyncService::class);
-        $database->shouldReceive('sync')->once()->with('2026-06', '001783')->andReturn($batch);
+        $database->shouldReceive('sync')->once()->with('2026-06', '001783', ['division_ids' => [10], 'department_ids' => [], 'employee_types' => ['plantilla']])->andReturn($batch);
         $this->app->instance(\App\Services\Payroll\HrisTimekeepingSyncService::class, $database);
         $api = \Mockery::mock(\App\Services\Payroll\ApiCanonicalSyncService::class);
         $api->shouldNotReceive('sync');
-        $component = $this->configuredComponent([], []);
-        $component->apiPreparation = ['context' => '2026-06|2026-05-01|2026-05-31',
+        $component = $this->configuredComponent([10], []);
+        $component->apiPreparation = ['context' => (new \ReflectionMethod($component, 'preparationContext'))->invoke($component),
             'steps' => ['employees' => ['batch' => 1], 'salary' => ['batch' => 2], 'leaves' => ['batch' => 3]]];
         $component->syncApi($api, 'timekeeping');
         $this->assertSame(124, $component->apiPreparation['steps']['timekeeping']['batch']);
         $this->assertCount(4, $component->apiPreparation['steps']);
+    }
+
+    public function test_wizard_validates_run_details_before_advancing(): void
+    {
+        Config::set('payroll_standalone.forced_mode', 'standalone');
+        $component = $this->configuredComponent([10], []);
+        $component->workingDays = 0;
+        try {
+            $component->nextConfigurationStep();
+            $this->fail('Invalid paid days must keep the user on Run details.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertArrayHasKey('workingDays', $e->errors());
+        }
+        $this->assertSame('details', $component->configurationStep);
+        $component->workingDays = 22;
+        $component->nextConfigurationStep();
+        $this->assertSame('scope', $component->configurationStep);
+        $component->nextConfigurationStep();
+        $this->assertSame('preparation', $component->configurationStep);
+        $component->nextConfigurationStep();
+        $this->assertSame('review', $component->configurationStep);
+        $component->previousConfigurationStep();
+        $this->assertSame('preparation', $component->configurationStep);
+    }
+
+    public function test_connected_wizard_skips_preparation_and_renders_review(): void
+    {
+        Config::set('payroll_standalone.forced_mode', 'connected');
+        $component = $this->configuredComponent([10], []);
+        $component->nextConfigurationStep();
+        $component->nextConfigurationStep();
+        $this->assertSame('review', $component->configurationStep);
+        \Livewire\Livewire::test(PayrollConfiguration::class)
+            ->assertSee('Run details')->assertSee('Payroll scope')
+            ->assertSee('Review before opening payroll generation')->assertDontSee('Prepare payroll data from HRIS');
     }
 
     private function configuredComponent(array $divisionIds, array $departmentIds): PayrollConfiguration
