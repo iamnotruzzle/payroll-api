@@ -23,6 +23,15 @@
                 <span class="sr-only">Search accounts</span>
                 <input wire:model.lazy="search" type="search" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employee, ID, or username">
             </label>
+            <label class="flex min-w-0 flex-col gap-1 text-xs font-semibold text-slate-500 sm:max-w-xs">
+                Department
+                <select wire:model.live="department" class="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 text-sm font-normal">
+                    <option value="">All departments</option>
+                    @foreach ($departments as $departmentOption)
+                        <option value="{{ $departmentOption->department_id }}">{{ $departmentOption->department }}</option>
+                    @endforeach
+                </select>
+            </label>
             <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
                 Rows
                 <select wire:model.live="perPage" class="rounded-md border border-slate-300 px-2 py-2 text-sm">
@@ -34,11 +43,12 @@
         </div>
     </section>
 
-    <section class="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+    <section class="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
             <thead class="bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
                     <th class="px-4 py-3 text-left">Employee</th>
+                    <th class="px-4 py-3 text-left">Department</th>
                     <th class="px-4 py-3 text-left">Username</th>
                     <th class="px-4 py-3 text-left">Roles</th>
                     <th class="px-4 py-3 text-left">Account Levels</th>
@@ -50,8 +60,9 @@
                     <tr>
                         <td class="px-4 py-3">
                             <p class="font-semibold text-slate-800">{{ $account->employee?->full_name ?: 'Unlinked employee' }}</p>
-                            <p class="text-xs text-slate-500">{{ $account->emp_id }} @if($account->employee?->department) &middot; {{ $account->employee->department->department_name ?? $account->employee->department->name ?? '' }} @endif</p>
+                            <p class="text-xs text-slate-500">{{ $account->emp_id }}</p>
                         </td>
+                        <td class="px-4 py-3 text-slate-700">{{ $account->employee?->department?->department ?: 'No department' }}</td>
                         <td class="px-4 py-3 font-medium text-slate-700">{{ $account->username }}</td>
                         <td class="px-4 py-3">
                             <div class="flex max-w-md flex-wrap gap-1.5">
@@ -79,7 +90,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="px-4 py-8 text-center text-slate-500">No user accounts found.</td>
+                        <td colspan="6" class="px-4 py-8 text-center text-slate-500">No user accounts match your search and department filter.</td>
                     </tr>
                 @endforelse
             </tbody>

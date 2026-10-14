@@ -4,6 +4,7 @@ namespace App\Livewire\Admin;
 
 use Database\Seeders\RBACSeeder;
 use App\Models\Hris\Employee;
+use App\Models\Hris\Department;
 use App\Models\Hris\UserAccount;
 use App\Models\Payroll\PayrollUserAccount;
 use App\Models\Role;
@@ -18,6 +19,9 @@ class UserAccounts extends Component
 
     #[Url]
     public string $search = '';
+
+    #[Url]
+    public string $department = '';
 
     public int $perPage = 12;
 
@@ -44,10 +48,22 @@ class UserAccounts extends Component
         $this->resetPage();
     }
 
+    public function updatedDepartment(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedPerPage(): void
+    {
+        $this->resetPage();
+    }
+
     public function render()
     {
         $accounts = UserAccount::query()
             ->with(['employee.department', 'roles', 'permissions'])
+            ->when($this->department !== '', fn ($query) => $query
+                ->whereHas('employee', fn ($employeeQuery) => $employeeQuery->where('department_id', $this->department)))
             ->when($this->search !== '', function ($query) {
                 $search = trim($this->search);
                 $tokens = preg_split('/\s+/', $search) ?: [];
@@ -87,6 +103,7 @@ class UserAccounts extends Component
 
         return view('livewire.admin.user-accounts', [
             'accounts' => $accounts,
+            'departments' => Department::query()->orderBy('department')->get(['department_id', 'department']),
             'roles' => Role::query()->where('guard_name', 'web')->orderBy('display_name')->orderBy('name')->get(),
             'permissionGroups' => RBACSeeder::groupedPermissions(),
             'employees' => $employees,
