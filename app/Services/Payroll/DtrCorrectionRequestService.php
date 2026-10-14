@@ -3,7 +3,7 @@
 namespace App\Services\Payroll;
 
 use App\Models\Hris\Employee;
-use App\Models\Hris\EmployeeDtr;
+use App\Models\Payroll\PayrollEmployeeDtr as EmployeeDtr;
 use App\Models\Payroll\PayrollDtrCorrectionApprover;
 use App\Models\Payroll\PayrollDtrCorrectionRequest;
 use App\Models\Payroll\PayrollMraReport;

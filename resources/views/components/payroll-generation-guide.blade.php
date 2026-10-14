@@ -28,7 +28,7 @@
             'Finalize using the action on this page and verify the saved run in Payroll History.',
         ], 'Confirm fee amounts and tax treatment against the approved supporting records.'],
         'configuration' => ['Payroll Configuration', 'Set the scope before opening the payroll wizard.', [
-            'In Standalone mode, use the HRIS API preparatory step after setting the month and leave cutoff. Review the refreshed scope and prepare timekeeping before proceeding; existing API or workbook data can also be used.',
+            'In Standalone mode, set the month and leave cutoff, then sync Employee master data, Salary rates, Leaves, and Timekeeping in order. The fourth step copies the previous MRA month’s DTR punches from the HRIS database. Once started, complete all four before proceeding; existing prepared data can also be used without starting a new sync.',
             'Choose the payroll type, employee types, division or department, and payroll month.',
             'Confirm working days, GSIS days, included leave types, and the inclusive leave cutoff.',
             'For HRIS database timekeeping in standalone mode, select the department whose previous month MRA has been finalized.',
@@ -37,7 +37,7 @@
         'system' => ['Payroll System Management', 'Choose the data source and prepare local payroll inputs.', [
             'Connected: select Connected, enter the Super Admin password, and change mode. Preview reconnect conflicts when returning from standalone.',
             'Click Synchronize connected sources to refresh local master data from HRIS. Check payroll input readiness; import and activate a Timekeeping workbook if the target period is missing.',
-            'Standalone with API: select Standalone, then open Payroll Configuration. Set the payroll period and leave cutoff and click Synchronize HRIS API in the preparatory step.',
+            'Standalone: open Payroll Configuration to synchronize Employee master data, Salary rates, and Leaves through the API, then copy Timekeeping from the HRIS database. Complete local DTR encoding and finalize MRA afterward.',
             'To read attendance from HRIS, select HRIS database for timekeeping only and save. Complete local DTR encoding and finalize the previous month MRA for the selected department.',
             'For workbook imports, download the template, fill it, stage and validate, resolve errors, then activate the batch.',
         ], 'A forced operating mode is locked. API-synchronized payroll with Manual inputs is blocked because the API has no timekeeping endpoint. HRIS database timekeeping requires a reachable database; it does not switch master data away from the API.'],

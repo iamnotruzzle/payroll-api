@@ -192,17 +192,19 @@ class PayrollConfigurationTest extends TestCase
         Config::set('payroll_standalone.forced_mode', 'standalone');
         $user = \Mockery::mock();
         $user->emp_id = '001783';
-        $user->shouldReceive('can')->with('payroll.system.sync')->andReturn(true);
+        $user->shouldReceive('can')->with('payroll.system.sync')->andReturn(false);
+        $user->shouldReceive('can')->with('payroll.generate')->andReturn(true);
         \Illuminate\Support\Facades\Auth::shouldReceive('user')->andReturn($user);
         $batch = new \App\Models\Payroll\PayrollSourceBatch;
         $batch->id = 123;
         $service = \Mockery::mock(\App\Services\Payroll\ApiCanonicalSyncService::class);
-        $service->shouldReceive('sync')->once()->with('2026-06', '001783', '2026-05-01', '2026-05-31')->andReturn($batch);
+        $service->shouldReceive('sync')->once()->with('2026-06', '001783', '2026-05-01', '2026-05-31', 'employees')->andReturn($batch);
         $component = $this->configuredComponent([], []);
         $component->showExistingGenerationNotice = true;
         $component->syncApi($service);
         $this->assertFalse($component->showExistingGenerationNotice);
         $this->assertStringContainsString('batch #123', session('api_sync_status'));
+        $this->assertSame(123, $component->apiPreparation['steps']['employees']['batch']);
     }
 
     public function test_api_preparation_rejects_connected_mode(): void
@@ -215,6 +217,53 @@ class PayrollConfigurationTest extends TestCase
         $service->shouldNotReceive('sync');
         $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
         $this->configuredComponent([], [])->syncApi($service);
+    }
+
+    public function test_payroll_user_can_sync_and_cannot_skip_preparation_steps(): void
+    {
+        Config::set('payroll_standalone.forced_mode', 'standalone');
+        $user = \Mockery::mock();
+        $user->shouldReceive('can')->with('payroll.system.sync')->andReturn(false);
+        $user->shouldReceive('can')->with('payroll.generate')->andReturn(true);
+        \Illuminate\Support\Facades\Auth::shouldReceive('user')->andReturn($user);
+        $service = \Mockery::mock(\App\Services\Payroll\ApiCanonicalSyncService::class);
+        $service->shouldNotReceive('sync');
+        $component = $this->configuredComponent([], []);
+        $this->assertTrue($component->canSyncPayrollInputs());
+        $component->syncApi($service, 'leaves');
+        $this->assertTrue($component->getErrorBag()->has('sync'));
+    }
+
+    public function test_incomplete_preparation_blocks_generation(): void
+    {
+        Config::set('payroll_standalone.forced_mode', 'standalone');
+        $component = $this->configuredComponent([], []);
+        $component->apiPreparation = ['context' => '2026-06|2026-05-01|2026-05-31', 'steps' => ['employees' => ['batch' => 1]]];
+        $this->assertNull($component->proceed());
+        $this->assertTrue($component->getErrorBag()->has('sync'));
+    }
+
+    public function test_fourth_step_uses_database_timekeeping_service_after_api_steps(): void
+    {
+        Config::set('payroll_standalone.forced_mode', 'standalone');
+        $user = \Mockery::mock();
+        $user->emp_id = '001783';
+        $user->shouldReceive('can')->with('payroll.system.sync')->andReturn(false);
+        $user->shouldReceive('can')->with('payroll.generate')->andReturn(true);
+        \Illuminate\Support\Facades\Auth::shouldReceive('user')->andReturn($user);
+        $batch = new \App\Models\Payroll\PayrollSourceBatch;
+        $batch->id = 124;
+        $database = \Mockery::mock(\App\Services\Payroll\HrisTimekeepingSyncService::class);
+        $database->shouldReceive('sync')->once()->with('2026-06', '001783')->andReturn($batch);
+        $this->app->instance(\App\Services\Payroll\HrisTimekeepingSyncService::class, $database);
+        $api = \Mockery::mock(\App\Services\Payroll\ApiCanonicalSyncService::class);
+        $api->shouldNotReceive('sync');
+        $component = $this->configuredComponent([], []);
+        $component->apiPreparation = ['context' => '2026-06|2026-05-01|2026-05-31',
+            'steps' => ['employees' => ['batch' => 1], 'salary' => ['batch' => 2], 'leaves' => ['batch' => 3]]];
+        $component->syncApi($api, 'timekeeping');
+        $this->assertSame(124, $component->apiPreparation['steps']['timekeeping']['batch']);
+        $this->assertCount(4, $component->apiPreparation['steps']);
     }
 
     private function configuredComponent(array $divisionIds, array $departmentIds): PayrollConfiguration

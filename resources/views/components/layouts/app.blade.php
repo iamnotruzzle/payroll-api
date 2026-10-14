@@ -241,6 +241,7 @@
                     </div>
 
                     <div class="flex items-center gap-3 text-right">
+                        <x-role-preview />
                         @unless ($isLauncher)
                             <button
                                 x-ref="appGridTrigger"

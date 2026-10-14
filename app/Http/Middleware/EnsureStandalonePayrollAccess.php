@@ -29,6 +29,7 @@ class EnsureStandalonePayrollAccess
         if ($request->path() === '/'
             || $request->is('livewire/*')
             || $request->routeIs('login', 'login.store', 'logout', 'access.pending', 'home')
+            || $request->routeIs('admin.role-preview.*')
             || $request->routeIs('self-service.profile', 'self-service.profile.print')
             || $request->routeIs('self-service.dtr', 'self-service.dtr.print', 'time-punch.*')
             || $request->routeIs('payroll.*', 'timekeeping.*', 'admin.payroll-system')

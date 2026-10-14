@@ -52,6 +52,8 @@ Route::get('/access-pending', fn () => view('auth.access-pending'))
     ->name('access.pending');
 
 Route::middleware('auth')->group(function () {
+    Route::post('/admin/role-preview', [\App\Http\Controllers\Admin\RolePreviewController::class, 'store'])->name('admin.role-preview.store');
+    Route::delete('/admin/role-preview', [\App\Http\Controllers\Admin\RolePreviewController::class, 'destroy'])->name('admin.role-preview.destroy');
     Route::get('/home', [WorkspaceController::class, 'home'])->name('home');
     Route::get('/coming-soon/{module}/{feature?}', [WorkspaceController::class, 'comingSoon'])
         ->where('module', '[a-z0-9\-]+')

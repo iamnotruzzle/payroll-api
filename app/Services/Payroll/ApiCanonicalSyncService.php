@@ -11,8 +11,17 @@ use RuntimeException;
 
 class ApiCanonicalSyncService
 {
-    public function sync(string $period, ?string $by = null, ?string $from = null, ?string $to = null): PayrollSourceBatch
+    public const STEPS = [
+        'employees' => ['title' => 'Employee master data', 'description' => 'Divisions, departments, positions, employment statuses, and employees.', 'resources' => ['divisions', 'departments', 'positions', 'employment-statuses', 'employees']],
+        'salary' => ['title' => 'Salary rates', 'description' => 'Salary grades, steps, and effective salary rates.', 'resources' => ['salary-rates']],
+        'leaves' => ['title' => 'Leaves', 'description' => 'Leave types and leave records for the selected cutoff.', 'resources' => ['leave-types', 'leaves']],
+    ];
+
+    public function sync(string $period, ?string $by = null, ?string $from = null, ?string $to = null, ?string $step = null): PayrollSourceBatch
     {
+        if ($step !== null && ! isset(self::STEPS[$step])) {
+            throw ValidationException::withMessages(['sync' => 'Choose a valid synchronization step.']);
+        }
         if (app(PayrollOperatingModeService::class)->current() !== PayrollOperatingMode::Standalone) {
             throw ValidationException::withMessages(['mode' => 'HRIS API synchronization requires standalone mode.']);
         }
@@ -40,13 +49,16 @@ class ApiCanonicalSyncService
         foreach (['divisions' => 'Divisions', 'departments' => 'Departments', 'positions' => 'Positions',
             'employment-statuses' => 'Employment Statuses', 'employees' => 'Employees',
             'salary-rates' => 'Salary Rates', 'leave-types' => 'Leave Types', 'leaves' => 'Leaves'] as $resource => $sheet) {
+            if ($step !== null && ! in_array($resource, self::STEPS[$step]['resources'], true)) {
+                continue;
+            }
             $result = $client->fetch($resource, ['from' => $from, 'to' => $to]);
             if ($result['warning_count']) {
                 throw new RuntimeException("HRIS reported warnings for {$resource}; no data was activated.");
             }
             $payload[$sheet] = array_map(fn ($row, $index) => $row + ['_row' => $index + 1], $result['rows'], array_keys($result['rows']));
         }
-        if ($payload['Employees'] === [] || $payload['Salary Rates'] === []) {
+        if ((isset($payload['Employees']) && $payload['Employees'] === []) || (isset($payload['Salary Rates']) && $payload['Salary Rates'] === [])) {
             throw new RuntimeException('HRIS returned no employees or salary rates; no data was activated.');
         }
         // Payroll employee categories have fixed IDs. Resolve remote IDs by their documented names.
@@ -54,17 +66,18 @@ class ApiCanonicalSyncService
             'temporary' => 5, 'visiting consultant' => 6, 'contract of service' => 7,
             'probationary' => 8, 'intern' => 9, 'external' => 10];
         $statuses = [];
-        foreach ($payload['Employment Statuses'] as $row) {
+        foreach ($payload['Employment Statuses'] ?? [] as $row) {
             $name = strtolower(trim(str_replace('-', ' ', $row['status'])));
             $statuses[$row['employment_status_id']] = $categories[$name] ?? null;
         }
-        foreach ($payload['Employees'] as &$row) {
+        foreach ($payload['Employees'] ?? [] as $index => $row) {
             $status = $statuses[$row['employment_status_id']] ?? null;
             if (! $status) {
                 throw new RuntimeException('An HRIS employment status has no supported payroll category.');
             }
             $row['employment_status_id'] = $status;
             $row['confirm_deactivation'] = true; // Explicit HRIS boolean is authoritative.
+            $payload['Employees'][$index] = $row;
         }
         unset($row);
         foreach ($payload as $rows) {
@@ -93,7 +106,7 @@ class ApiCanonicalSyncService
                 }
             }
         }
-        foreach ($payload['Leaves'] as $row) {
+        foreach ($payload['Leaves'] ?? [] as $row) {
             if (! in_array(strtolower(trim($row['status'])), ['approved', 'pending', 'disapproved', 'rejected', 'cancelled', 'canceled'], true)) {
                 throw new RuntimeException('Unknown HRIS leave status; no data was activated.');
             }
@@ -116,14 +129,14 @@ class ApiCanonicalSyncService
         }
         $workbooks = app(CanonicalWorkbookService::class);
 
-        return DB::connection('payroll')->transaction(function () use ($payload, $period, $by, $workbooks, $from, $to) {
+        return DB::connection('payroll')->transaction(function () use ($payload, $period, $by, $workbooks, $from, $to, $step) {
             $payload = $this->preserveLocalFields($payload);
             $errors = $workbooks->validatePayload($payload, $period);
             if ($errors !== []) {
                 throw ValidationException::withMessages(['sync' => $errors]);
             }
             $batch = PayrollSourceBatch::query()->firstOrCreate([
-                'kind' => 'api_full', 'checksum' => hash('sha256', json_encode([$payload, $from, $to])), 'effective_period' => $period,
+                'kind' => $step === null ? 'api_full' : 'api_'.$step, 'checksum' => hash('sha256', json_encode([$payload, $from, $to])), 'effective_period' => $period,
             ], ['source' => 'hris_api', 'status' => 'validated', 'schema_version' => '1.0',
                 'statistics' => array_map('count', $payload) + ['leave_range' => ['from' => $from, 'to' => $to]], 'errors' => [], 'payload' => $payload, 'created_by' => $by]);
             if ($batch->status !== 'active') {
@@ -137,14 +150,18 @@ class ApiCanonicalSyncService
 
     private function preserveLocalFields(array $payload): array
     {
-        foreach ($payload['Leaves'] as &$row) {
+        foreach ($payload['Leaves'] ?? [] as $index => $row) {
             $row['cancelled'] = $row['cancelled'] || in_array(strtolower(trim($row['status'])), ['cancelled', 'canceled'], true);
+            $payload['Leaves'][$index] = $row;
         }
         unset($row);
         foreach (['Employees' => ['payroll_canonical_employees', 'emp_id', 'employee_id', [
             'responsibility_center' => 'responsibility_center', 'bank_account' => 'lbp_account_no', 'fund_type' => 'fund_type',
         ]], 'Positions' => ['payroll_canonical_positions', 'external_id', 'position_id', ['remarks' => 'remarks', 'is_active' => 'is_active']],
             'Leave Types' => ['payroll_canonical_leave_types', 'external_id', 'leave_type_id', ['is_active' => 'is_active']]] as $sheet => [$table, $key, $remoteKey, $fields]) {
+            if (! isset($payload[$sheet])) {
+                continue;
+            }
             $existing = DB::connection('payroll')->table($table)->get()->keyBy($key);
             foreach ($payload[$sheet] as &$row) {
                 $local = $existing->get($row[$remoteKey]);

@@ -3595,6 +3595,28 @@ html[data-theme="dark"] .erp-content textarea:disabled {
     color: #91a4bd !important;
     opacity: 1;
 }
+html[data-theme="dark"] .erp-content .payroll-configuration button[class*="bg-blue"] {
+    color: #10283c !important;
+}
+
+html[data-theme="dark"] .erp-content .payroll-configuration button[class*="bg-blue"]:disabled {
+    background: #23394b !important;
+    border-color: #425e74 !important;
+    color: #b8cad9 !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
+    filter: none;
+    transform: none;
+}
+
+html[data-theme="dark"] .erp-content .payroll-configuration input[readonly] {
+    background-color: #192c3e !important;
+    border-color: var(--erp-line) !important;
+    color: #c4d4e2 !important;
+    opacity: 1;
+    -webkit-text-fill-color: #c4d4e2;
+}
+
 html[data-theme="dark"] .erp-content button:disabled,
 html[data-theme="dark"] .erp-content a[aria-disabled="true"] {
     filter: saturate(.72);

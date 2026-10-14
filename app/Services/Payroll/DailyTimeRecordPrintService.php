@@ -3,7 +3,7 @@
 namespace App\Services\Payroll;
 
 use App\Models\Hris\Employee;
-use App\Models\Hris\EmployeeDtr;
+use App\Models\Payroll\PayrollEmployeeDtr as EmployeeDtr;
 use App\Models\Hris\EmployeeLeave;
 use App\Models\Payroll\PayrollDtrAdjustment;
 use App\Models\Payroll\PayrollDtrLabel;

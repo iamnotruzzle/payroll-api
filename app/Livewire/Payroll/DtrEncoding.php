@@ -3,7 +3,7 @@
 namespace App\Livewire\Payroll;
 
 use App\Models\Hris\Employee;
-use App\Models\Hris\EmployeeDtr;
+use App\Models\Payroll\PayrollEmployeeDtr as EmployeeDtr;
 use App\Models\Hris\EmployeeLeave;
 use App\Models\Payroll\Canonical\Employee as CanonicalEmployee;
 use App\Models\Payroll\Canonical\EmployeeLeave as CanonicalLeave;

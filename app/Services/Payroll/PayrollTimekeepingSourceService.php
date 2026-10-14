@@ -27,17 +27,31 @@ class PayrollTimekeepingSourceService
         return $this->standalone() && $this->source() === 'hris_db';
     }
 
-    public function save(string $source, ?string $by): void
+    public function usesLocalSnapshot(): bool
+    {
+        if (! $this->usesHrisDatabase()) {
+            return false;
+        }
+        $value = PayrollSystemSetting::query()->where('key', 'standalone_timekeeping_source')->value('value');
+
+        return (bool) ($value['snapshot'] ?? false);
+    }
+
+    public function save(string $source, ?string $by, bool $snapshot = false): void
     {
         if (! in_array($source, ['manual', 'hris_db'], true)) {
             throw ValidationException::withMessages(['timekeepingSource' => 'Choose manual inputs or HRIS database timekeeping.']);
         }
         PayrollSystemSetting::query()->updateOrCreate(['key' => 'standalone_timekeeping_source'],
-            ['value' => ['source' => $source], 'updated_by' => $by]);
+            ['value' => ['source' => $source, 'snapshot' => $snapshot], 'updated_by' => $by]);
     }
 
     public function databaseError(): ?string
     {
+        if ($this->usesLocalSnapshot()) {
+            return Schema::connection('payroll')->hasTable('payroll_hris_dtr_snapshots')
+                ? null : 'Run the HRIS timekeeping snapshot migration on the payroll database.';
+        }
         try {
             if (! Schema::connection('hris')->hasTable('tbl_employee_dtr')) {
                 return 'HRIS timekeeping is unavailable: tbl_employee_dtr was not found.';

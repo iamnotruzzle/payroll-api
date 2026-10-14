@@ -4,6 +4,7 @@ namespace App\Livewire\Payroll;
 
 use App\Enums\PayrollOperatingMode;
 use App\Services\Payroll\ApiCanonicalSyncService;
+use App\Services\Payroll\HrisTimekeepingSyncService;
 use App\Services\Payroll\PayrollOperatingModeService;
 use App\Models\Payroll\Canonical\Department;
 use App\Models\Payroll\Canonical\Division;
@@ -23,6 +24,36 @@ use Livewire\Component;
 class PayrollConfiguration extends Component
 {
     private const DEFAULT_UNCHECKED_LEAVE_TYPE_IDS = [4, 14, 15, 16, 20, 22];
+
+    #[\Livewire\Attributes\Locked]
+    public array $apiPreparation = [];
+
+    private function preparationSteps(): array
+    {
+        return ApiCanonicalSyncService::STEPS + ['timekeeping' => [
+            'title' => 'Timekeeping from HRIS database',
+            'description' => 'Copy the previous MRA month’s DTR punches into payroll. Existing punches for that month are refreshed; complete DTR encoding and finalize MRA afterward.',
+        ]];
+    }
+
+    private function preparationContext(): string
+    {
+        return $this->period.'|'.$this->leavePeriodStart.'|'.$this->leavePeriodEnd;
+    }
+
+    private function preparationResults(): array
+    {
+        return ($this->apiPreparation['context'] ?? null) === $this->preparationContext()
+            ? ($this->apiPreparation['steps'] ?? []) : [];
+    }
+
+    public function canSyncPayrollInputs(): bool
+    {
+        $user = auth()->user();
+
+        return (bool) ($user?->can('payroll.system.sync') || $user?->can('payroll.generate')
+            || $user?->can('payroll.generation.hr') || $user?->can('payroll.generation.accounting'));
+    }
 
     public ?int $divisionId = null;
 
@@ -114,20 +145,33 @@ class PayrollConfiguration extends Component
         );
     }
 
-    public function syncApi(ApiCanonicalSyncService $service): void
+    public function syncApi(ApiCanonicalSyncService $service, string $step = 'employees'): void
     {
-        abort_unless(auth()->user()?->can('payroll.system.sync'), 403);
+        abort_unless($this->canSyncPayrollInputs(), 403);
         abort_unless(app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone, 422);
         $this->resetValidation('sync');
+        $steps = array_keys($this->preparationSteps());
+        $index = array_search($step, $steps, true);
+        abort_if($index === false, 422);
+        $results = $this->preparationResults();
+        if ($index > 0 && ! isset($results[$steps[$index - 1]])) {
+            $this->addError('sync', 'Complete the preceding synchronization step first.');
+
+            return;
+        }
         $this->validate([
             'period' => ['required', 'date_format:Y-m'],
             'leavePeriodStart' => ['required', 'date_format:Y-m-d'],
             'leavePeriodEnd' => ['required', 'date_format:Y-m-d', 'after_or_equal:leavePeriodStart'],
         ]);
         try {
-            $batch = $service->sync($this->period, auth()->user()?->emp_id, $this->leavePeriodStart, $this->leavePeriodEnd);
+            $batch = $step === 'timekeeping'
+                ? app(HrisTimekeepingSyncService::class)->sync($this->period, auth()->user()?->emp_id)
+                : $service->sync($this->period, auth()->user()?->emp_id, $this->leavePeriodStart, $this->leavePeriodEnd, $step);
         } catch (\Illuminate\Database\QueryException $e) {
-            $this->addError('sync', 'Payroll database synchronization failed. Active data was not replaced.');
+            $this->addError('sync', $step === 'timekeeping'
+                ? 'Timekeeping synchronization failed. Check the HRIS database connection and payroll snapshot migration. Existing punches were retained.'
+                : 'Payroll database synchronization failed. Active data was not replaced.');
 
             return;
         } catch (\RuntimeException $e) {
@@ -135,12 +179,23 @@ class PayrollConfiguration extends Component
 
             return;
         }
+        foreach (array_slice($steps, $index) as $laterStep) {
+            unset($results[$laterStep]);
+        }
+        $results[$step] = ['batch' => $batch->id, 'counts' => $batch->statistics ?? []];
+        $this->apiPreparation = ['context' => $this->preparationContext(), 'steps' => $results];
         $this->dismissExistingGenerationNotice();
-        session()->flash('api_sync_status', "HRIS API data synchronized in batch #{$batch->id}. Review payroll scope and timekeeping before proceeding.");
+        session()->flash('api_sync_status', $this->preparationSteps()[$step]['title']." synchronized in batch #{$batch->id}.");
     }
 
     public function proceed()
     {
+        if (app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone
+            && $this->preparationResults() !== [] && count($this->preparationResults()) < count($this->preparationSteps())) {
+            $this->addError('sync', 'Complete all four preparation steps before proceeding to payroll generation.');
+
+            return null;
+        }
         $data = $this->validatedConfiguration();
         $this->existingGenerations = $this->existingGenerationsFor($data);
 
@@ -156,6 +211,10 @@ class PayrollConfiguration extends Component
 
     public function continueToPayrollGeneration()
     {
+        if (app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone
+            && $this->preparationResults() !== [] && count($this->preparationResults()) < count($this->preparationSteps())) {
+            return $this->proceed();
+        }
         $data = $this->validatedConfiguration();
         if ($this->noticedConfigurationKey !== $this->configurationKeyFor($data)) {
             return $this->proceed();
@@ -616,6 +675,9 @@ class PayrollConfiguration extends Component
             'periodLabel' => $periodLabel,
             'canManageHolidays' => $this->canManageHolidayCalendar(),
             'isStandalone' => app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone,
+            'apiPreparationSteps' => $this->preparationSteps(),
+            'apiPreparationResults' => $this->preparationResults(),
+            'canSyncPayrollInputs' => $this->canSyncPayrollInputs(),
         ]);
     }
 }

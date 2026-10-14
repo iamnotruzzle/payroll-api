@@ -45,6 +45,7 @@ class EnsureProfileUpdated
             || $request->routeIs('self-service.profile.print')
             || $request->routeIs('logout')
             || $request->routeIs('login')
+            || $request->routeIs('admin.role-preview.*')
         ) {
             return true;
         }

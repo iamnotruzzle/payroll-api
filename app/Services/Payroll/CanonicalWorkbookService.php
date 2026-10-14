@@ -112,7 +112,7 @@ class CanonicalWorkbookService
             }
             PayrollSourceBatch::query()->where('kind', $batch->kind)->where('status', 'active')->update(['status' => 'superseded']);
             if ($batch->kind === 'connected_full') {
-                PayrollSourceBatch::query()->where('kind', 'api_full')->where('status', 'active')->update(['status' => 'superseded']);
+                PayrollSourceBatch::query()->whereIn('kind', ['api_full', 'api_employees', 'api_salary', 'api_leaves'])->where('status', 'active')->update(['status' => 'superseded']);
             }
             $batch->update(['status' => 'active', 'activated_by' => $by, 'activated_at' => now()]);
         });
@@ -120,6 +120,9 @@ class CanonicalWorkbookService
 
     public function rollback(PayrollSourceBatch $batch): void
     {
+        if ($batch->kind === 'hris_timekeeping') {
+            throw ValidationException::withMessages(['batch' => 'Refresh timekeeping through Payroll Configuration; workbook rollback does not apply to DTR snapshots.']);
+        }
         if ($batch->status !== 'active') {
             throw ValidationException::withMessages(['batch' => 'Only an active batch can be rolled back.']);
         }

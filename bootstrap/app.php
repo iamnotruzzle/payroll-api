@@ -36,8 +36,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->appendToGroup('web', [
-            'profile.updated',
             'super-admin.elevation',
+            \App\Http\Middleware\ApplyRolePreview::class,
+            'profile.updated',
             'standalone.payroll',
         ]);
 
