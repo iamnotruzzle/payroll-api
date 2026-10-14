@@ -50,7 +50,7 @@
                     <h3 class="text-sm font-semibold uppercase text-slate-500">Run Details</h3>
                 </div>
 
-                <div class="grid gap-3 md:grid-cols-3" x-data="{ payrollMonth: @entangle('period'), gsisDays: @entangle('gsisDays') }"
+                <div class="grid gap-3 md:grid-cols-3" x-data="{ payrollMonth: @entangle('period').live, gsisDays: @entangle('gsisDays') }"
                     x-effect="if (payrollMonth) { const [year, month] = payrollMonth.split('-').map(Number); gsisDays = new Date(year, month, 0).getDate(); }">
                     <div>
                         <label class="text-sm font-medium">Payroll Month</label>
@@ -402,20 +402,40 @@
             <section x-show="reviewStep === 'details' || reviewStep === 'review'" class="space-y-3">
                 <h3 class="text-sm font-semibold">Run details</h3>
                 <dl class="grid gap-3 sm:grid-cols-2">
-                    <div><dt class="text-xs text-slate-500">Payroll month</dt><dd class="mt-1 text-sm font-medium" x-text="$wire.period || 'Not selected'"></dd></div>
-                    <div><dt class="text-xs text-slate-500">Days paid / GSIS days</dt><dd class="mt-1 text-sm font-medium" x-text="$wire.workingDays + ' / ' + $wire.gsisDays"></dd></div>
-                    <div class="sm:col-span-2"><dt class="text-xs text-slate-500">Leave cutoff</dt><dd class="mt-1 text-sm font-medium" x-text="($wire.leavePeriodStart || 'Not selected') + ' through ' + ($wire.leavePeriodEnd || 'Not selected')"></dd></div>
+                    <div><dt class="text-xs text-slate-500">Payroll month</dt><dd class="mt-1 text-sm font-medium" x-text="$wire.period || 'No entry'"></dd></div>
+                    <div><dt class="text-xs text-slate-500">Days paid / GSIS days</dt><dd class="mt-1 text-sm font-medium" x-text="(($wire.workingDays ?? '') === '' ? 'No entry' : $wire.workingDays) + ' / ' + (($wire.gsisDays ?? '') === '' ? 'No entry' : $wire.gsisDays)"></dd></div>
+                    <div class="sm:col-span-2"><dt class="text-xs text-slate-500">Leave cutoff</dt><dd class="mt-1 text-sm font-medium" x-text="($wire.leavePeriodStart || 'No entry') + ' through ' + ($wire.leavePeriodEnd || 'No entry')"></dd></div>
+                    <div class="sm:col-span-2">
+                        <dt class="text-xs text-slate-500">Holidays &amp; Work Suspensions</dt>
+                        <dd class="mt-2">
+                            <ul class="space-y-2 text-sm">
+                                @forelse ($holidays as $holiday)
+                                    <li>
+                                        <div class="font-medium">{{ $holiday->holiday_date->format('M d, Y') }} — {{ $holiday->name }}</div>
+                                        <div class="mt-0.5 text-xs text-slate-500">
+                                            {{ $holiday->holiday_type === 'WORK_SUSPENSION' ? 'Work suspension' : ucfirst(strtolower($holiday->holiday_type)).' holiday' }}
+                                            · {{ str($holiday->holiday_scope)->replace('_', ' ')->lower()->title() }}
+                                            · {{ $holiday->is_paid ? 'Paid' : 'Unpaid' }}
+                                            · {{ $holiday->is_active ? 'Active' : 'Inactive' }}
+                                        </div>
+                                    </li>
+                                @empty
+                                    <li class="text-slate-500">No entries for the selected payroll month.</li>
+                                @endforelse
+                            </ul>
+                        </dd>
+                    </div>
                 </dl>
             </section>
 
             <section x-show="reviewStep === 'scope' || reviewStep === 'review'" class="space-y-3">
                 <h3 class="text-sm font-semibold">Payroll scope</h3>
                 <dl class="grid gap-3 sm:grid-cols-2">
-                    <div><dt class="text-xs text-slate-500">Payroll type</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('payrollType') || 'Not selected'"></dd></div>
-                    <div><dt class="text-xs text-slate-500">Employee types</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('employeeTypeFilter') || 'None selected'"></dd></div>
-                    <div><dt class="text-xs text-slate-500">Divisions</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('selectedDivisionIds') || 'None selected'"></dd></div>
-                    <div><dt class="text-xs text-slate-500">Departments</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('selectedDepartmentIds') || 'All departments in selected divisions'"></dd></div>
-                    <div class="sm:col-span-2"><dt class="text-xs text-slate-500">Included leave types</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLeaveLabels() || 'None selected'"></dd></div>
+                    <div><dt class="text-xs text-slate-500">Payroll type</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('payrollType') || 'No entry'"></dd></div>
+                    <div><dt class="text-xs text-slate-500">Employee types</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('employeeTypeFilter') || 'No entry'"></dd></div>
+                    <div><dt class="text-xs text-slate-500">Divisions</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('selectedDivisionIds') || 'No entry'"></dd></div>
+                    <div><dt class="text-xs text-slate-500">Departments</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('selectedDepartmentIds') || 'No entry — includes all departments in selected divisions'"></dd></div>
+                    <div class="sm:col-span-2"><dt class="text-xs text-slate-500">Included leave types</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLeaveLabels() || 'No entry'"></dd></div>
                 </dl>
             </section>
 
