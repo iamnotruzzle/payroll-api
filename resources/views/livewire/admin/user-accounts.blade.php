@@ -91,7 +91,7 @@
     </div>
 
     <x-setup-form-drawer name="user-account" title="Add Account" edit-title="Edit Account" size="wide">
-        <form wire:submit="save" class="space-y-4">
+        <form id="user-account-form" wire:submit="save" class="space-y-4">
             <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(460px,0.9fr)]">
                 <section class="rounded-md border border-slate-200 bg-white shadow-sm">
                     <div class="border-b border-slate-200 px-4 py-3">
@@ -191,10 +191,12 @@
                 </div>
             </div>
 
-            <div class="flex items-center justify-end gap-2">
-                <button x-on:click="erpOverlay.close('user-account')" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
-                <button type="submit" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6]">Save Account</button>
-            </div>
         </form>
+        <x-slot:footer>
+            <div class="flex flex-wrap items-center justify-end gap-2">
+                <button x-on:click="erpOverlay.close('user-account')" type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
+                <button type="submit" form="user-account-form" wire:loading.attr="disabled" wire:target="save" class="rounded-md bg-[#696cff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5f61e6] disabled:cursor-wait disabled:opacity-60">Save Account</button>
+            </div>
+        </x-slot:footer>
     </x-setup-form-drawer>
 </div>

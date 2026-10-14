@@ -74,6 +74,11 @@
             <div class="erp-overlay-body erp-content">
                 {{ $slot }}
             </div>
+            @isset($footer)
+                <footer class="erp-content shrink-0 border-t px-4 py-3 sm:px-5" style="background: var(--erp-surface); border-color: var(--erp-line); padding-bottom: max(0.75rem, env(safe-area-inset-bottom));">
+                    {{ $footer }}
+                </footer>
+            @endisset
         </div>
     </div>
 </template>
