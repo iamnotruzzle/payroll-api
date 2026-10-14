@@ -334,6 +334,21 @@ class PayrollConfigurationTest extends TestCase
         $this->assertSame([10], $component->selectedDivisionIds);
     }
 
+    public function test_guides_only_render_instructions_for_the_active_mode(): void
+    {
+        Config::set('payroll_standalone.forced_mode', 'standalone');
+        \Livewire\Livewire::test(PayrollConfiguration::class)
+            ->assertSee('Standalone mode')
+            ->assertSee('Basic Pay discovers scoped IDs')
+            ->assertDontSee('Click Synchronize connected sources');
+        Config::set('payroll_standalone.forced_mode', 'connected');
+        \Livewire\Livewire::test(PayrollConfiguration::class)
+            ->assertSee('Connected mode')
+            ->assertSee('Click Synchronize connected sources')
+            ->assertDontSee('Basic Pay discovers scoped IDs')
+            ->assertDontSee('Standalone mode');
+    }
+
     private function configuredComponent(array $divisionIds, array $departmentIds): PayrollConfiguration
     {
         $component = app(PayrollConfiguration::class);

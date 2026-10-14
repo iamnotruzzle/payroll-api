@@ -29,7 +29,7 @@
             <h2 class="text-xl font-semibold">Payroll Configuration</h2>
             <p class="text-sm text-slate-600">Complete the configuration steps before opening payroll generation.</p>
         </div>
-        <x-payroll-generation-guide section="configuration" />
+        <x-payroll-generation-guide :section="'configuration-'.$configurationStep" />
     </div>
 
     <form novalidate x-on:submit.prevent="openStepReview()" class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">

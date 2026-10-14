@@ -85,6 +85,72 @@
             'After checking the results, click Finalize Payroll Run and verify the saved run in Payroll History.',
         ], 'Exporting is separate from finalization. Do not finalize until payroll inputs and totals have been reviewed.'],
     ];
+
+    $standalone = app(\App\Services\Payroll\PayrollOperatingModeService::class)->current() === \App\Enums\PayrollOperatingMode::Standalone;
+    $modeLabel = $standalone ? 'Standalone' : 'Connected';
+    $guides['configuration'] = ['Payroll Configuration', 'Complete the configuration steps in order.', [
+        'Set the payroll month, days paid, holidays or work suspensions, and leave cutoff in Run details.',
+        'Select the payroll type, employee types, divisions, departments, and included leave types in Payroll scope. Departments are filtered by the selected divisions.',
+        ...($standalone ? ['Prepare scoped employee master data, salary rates, leaves, and database timekeeping in order. If you start syncing, finish all four actions.'] : []),
+        'Use Review & Continue at each step. Check the modal, including fields marked No entry, before confirming.',
+        'Review the full configuration and confirm before opening payroll generation.',
+    ], 'The leave cutoff can differ from the payroll month. The previous MRA normally covers the calendar month before payroll.'];
+    $guides['configuration-details'] = ['Run details', 'Set the dates and calendar for this payroll.', [
+        'Choose the payroll month and days paid. GSIS days are calculated from the month.',
+        'Review holidays and work suspensions. Add or edit shared calendar entries if your role permits it.',
+        'Set the inclusive leave cutoff. It can cover a different month from payroll.',
+        'Click Review & Continue. Check the dates, day counts, and calendar entries in the modal; No entries means no calendar entries are recorded.',
+    ], 'Confirm & Continue validates these fields before opening Payroll scope. Back to edit closes the modal without advancing.'];
+    $guides['configuration-scope'] = ['Payroll scope', 'Select who and what this payroll includes.', [
+        'Choose the payroll type and employee types.',
+        'Choose one or more divisions, then select departments if needed. Removing a division clears its selected departments.',
+        'Leave departments empty to include all departments in the selected divisions. Review the checked leave types.',
+        'Click Review & Continue and confirm the scope in the modal.',
+    ], $standalone ? 'The selected organization, employee types, month, and cutoff control the preparation syncs.' : 'After confirming the scope, continue to the full configuration review.'];
+    if ($standalone) {
+        $guides['configuration-preparation'] = ['Prepare data', 'Refresh the selected payroll scope before generation.', [
+            'Sync Employee master data. Basic Pay discovers scoped IDs; employee records are fetched by those IDs and filtered by employee type.',
+            'Sync Salary rates for the payroll year. Only grades used by scoped employees are activated.',
+            'Sync Leaves for the cutoff. The endpoint filters by dates; payroll filters the downloaded records to scoped employees.',
+            'Sync Timekeeping from the HRIS database. This copies scoped DTR punches for the previous MRA month into payroll locally.',
+            'Check each batch and record count, then Review & Continue. Finish all four actions once started; changing the scope or dates requires preparation again.',
+        ], 'Previously prepared local data can be used without starting a new sync. Complete DTR encoding and finalize the previous month MRA before payroll finalization.'];
+        $guides['system'] = ['Payroll System Management', 'Manage local payroll inputs and source history.', [
+            'Open Payroll Configuration to run the four scoped preparation actions.',
+            'Review source history and payroll input readiness. A successful timekeeping sync enables local DTR snapshots.',
+            'For workbook inputs, download a template, stage and validate the workbook, resolve errors, and activate it.',
+            'Complete local DTR encoding and finalize the previous month MRA for the selected department.',
+        ], 'An operating mode forced by the environment cannot be changed here. Changing the timekeeping source explicitly can switch away from snapshot reads.'];
+        $guides['step-1'][2] = [
+            'Confirm the scope, payroll month, and previous month MRA.',
+            'Review the cutoff, paid leave, leave without pay, and previously processed dates using local canonical records.',
+            'For synchronized HRIS punches, complete local DTR encoding and finalize the previous month MRA for the selected department.',
+            'For manual workbook attendance, review or import DTR/MRA deduction days and logbook leave without pay. Enter zero when no deduction applies.',
+            'Save Step 1 before continuing to Gross Compensation.',
+        ];
+        $guides['step-1'][3] = 'Copying DTR punches does not finalize MRA. Manual attendance does not bypass the timekeeping restriction on an active API batch.';
+    } else {
+        $guides['system'] = ['Payroll System Management', 'Refresh payroll data from the configured databases.', [
+            'Click Synchronize connected sources to refresh canonical master data and accounts from HRIS.',
+            'Check HRIS and scheduler connectivity and payroll input readiness.',
+            'Prepare DTR encoding and finalize the previous month MRA before payroll finalization.',
+            'Review source history and resolve missing source records before generation.',
+        ], 'An operating mode forced by the environment cannot be changed here.'];
+        $guides['step-1'][2] = [
+            'Confirm the employee scope, payroll month, days paid, and previous month MRA.',
+            'Review the inclusive cutoff, paid leave, leave without pay, and previously processed dates from the configured sources.',
+            'Review DTR/MRA deduction days and logbook leave without pay. Resolve incorrect attendance before continuing.',
+            'Save Step 1 before continuing to Gross Compensation.',
+        ];
+        $guides['step-1'][3] = 'Verify attendance and the previous month MRA against the configured HRIS and payroll records.';
+        $guides['step-3'][3] = 'Use approved deduction configuration and verify employee identifiers against the configured source records.';
+    }
+    $guides['configuration-review'] = ['Review configuration', 'Confirm the complete setup before opening generation.', [
+        'Check payroll month, type, employee types, divisions, departments, days paid, and GSIS days.',
+        'Review the cutoff and included leave types. Empty departments include all departments in the selected divisions.',
+        ...($standalone ? ['Check all preparation results, or verify that the existing local data is ready.'] : []),
+        'Open the final review modal and confirm. If an existing payroll is found, review the overlap notice before choosing Proceed Anyway.',
+    ], 'Opening generation does not finalize payroll. Attendance, MRA, and finalization validations still apply.'];
 @endphp
 
 <div x-data class="inline-flex">
@@ -127,8 +193,8 @@
                 </section>
             @endforeach
             <section class="border-t border-slate-200 pt-5 dark:border-slate-700">
-                <h3 class="font-semibold">Data source reminder</h3>
-                <p class="mt-2">Connected mode refreshes local master data from the HRIS database. Standalone mode uses local records refreshed through the API or workbook imports. The optional HRIS database timekeeping source reads punches only.</p>
+                <h3 class="font-semibold">{{ $modeLabel }} mode · Data source reminder</h3>
+                <p class="mt-2">{{ $standalone ? 'Payroll uses local records refreshed through scoped API syncs or workbook imports. The timekeeping preparation action copies HRIS database punches into local snapshots; DTR encoding and MRA finalization are separate.' : 'Payroll uses the configured HRIS and payroll database sources. Refresh master data through Payroll System Management and verify attendance and MRA before finalization.' }}</p>
                 <p class="mt-3 text-slate-600 dark:text-slate-300">Some steps are read-only for your role. Ask the authorized HR or Accounting user to correct those inputs. Save changes before moving between editable steps.</p>
             </section>
         </div>
