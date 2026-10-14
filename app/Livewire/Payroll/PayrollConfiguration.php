@@ -23,7 +23,7 @@ use Livewire\Component;
 
 class PayrollConfiguration extends Component
 {
-    private const DEFAULT_UNCHECKED_LEAVE_TYPE_IDS = [4, 14, 15, 16, 20, 22];
+    private const DEFAULT_UNCHECKED_LEAVE_TYPE_IDS = [14, 15, 16, 20];
 
     #[\Livewire\Attributes\Locked]
     public array $apiPreparation = [];
@@ -368,7 +368,7 @@ class PayrollConfiguration extends Component
             'selectedDivisionIds' => ['required', 'array', 'min:1'],
             'selectedDivisionIds.*' => ['integer', 'exists:payroll.payroll_canonical_divisions,external_id'],
             'selectedDepartmentIds' => ['array'],
-            'selectedDepartmentIds.*' => ['integer', 'exists:payroll.payroll_canonical_departments,external_id'],
+            'selectedDepartmentIds.*' => ['integer', Rule::exists('payroll.payroll_canonical_departments', 'external_id')->whereIn('division_external_id', $this->selectedDivisionIds)],
             'payrollType' => ['required', Rule::exists('payroll.payroll_types', 'code')->where('is_active', true)],
             'period' => ['required', 'date_format:Y-m'],
             'workingDays' => ['required', 'integer', 'min:1', 'max:31'],
@@ -417,6 +417,17 @@ class PayrollConfiguration extends Component
         $this->syncLegacyScopeIds();
 
         return $data;
+    }
+
+    public function updatedSelectedDivisionIds(): void
+    {
+        $this->selectedDivisionIds = $this->normalizedIds($this->selectedDivisionIds);
+        $this->selectedDepartmentIds = Department::query()
+            ->whereIn('division_external_id', $this->selectedDivisionIds)
+            ->whereIn('external_id', $this->selectedDepartmentIds)
+            ->pluck('external_id')->map(fn ($id) => (int) $id)->all();
+        $this->syncLegacyScopeIds();
+        $this->dismissExistingGenerationNotice();
     }
 
     public function updatedPeriod(): void
@@ -741,6 +752,7 @@ class PayrollConfiguration extends Component
                 ->orderBy('name')
                 ->get(),
             'departments' => Department::query()
+                ->whereIn('division_external_id', $this->selectedDivisionIds)
                 ->orderBy('name')
                 ->get(),
             'employeeTypeOptions' => Employee::employeeTypeOptions(),

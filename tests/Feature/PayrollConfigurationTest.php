@@ -298,7 +298,40 @@ class PayrollConfigurationTest extends TestCase
         $this->assertSame('review', $component->configurationStep);
         \Livewire\Livewire::test(PayrollConfiguration::class)
             ->assertSee('Run details')->assertSee('Payroll scope')
-            ->assertSee('Review before opening payroll generation')->assertDontSee('Prepare payroll data from HRIS');
+            ->assertSee('Review before opening payroll generation')->assertDontSee('Prepare payroll data from HRIS')
+            ->assertSee('Review and continue')->assertSee('Back to edit')
+            ->assertSee('configuration-step-review', false)
+            ->assertSee('x-on:submit.prevent="openStepReview()"', false);
+    }
+
+    public function test_departments_follow_selected_divisions_and_clear_invalid_selections(): void
+    {
+        DB::connection('payroll')->table('payroll_canonical_divisions')->insert(['external_id' => 11, 'name' => 'Other Division']);
+        DB::connection('payroll')->table('payroll_canonical_departments')->insert(['external_id' => 21, 'division_external_id' => 11, 'name' => 'Other Department']);
+        $component = $this->configuredComponent([10, 11], [20, 21]);
+        $this->assertSame([20, 21], $component->render()->getData()['departments']->pluck('external_id')->sort()->values()->all());
+        $component->selectedDivisionIds = [10];
+        $component->updatedSelectedDivisionIds();
+        $this->assertSame([20], $component->selectedDepartmentIds);
+        $this->assertSame([20], $component->render()->getData()['departments']->pluck('external_id')->all());
+        $component->selectedDivisionIds = [];
+        $component->updatedSelectedDivisionIds();
+        $this->assertSame([], $component->selectedDepartmentIds);
+        $this->assertTrue($component->render()->getData()['departments']->isEmpty());
+    }
+
+    public function test_scope_rejects_department_outside_selected_divisions(): void
+    {
+        DB::connection('payroll')->table('payroll_canonical_departments')->insert(['external_id' => 21, 'division_external_id' => 11, 'name' => 'Other Department']);
+        $component = $this->configuredComponent([10], [21]);
+        $component->configurationStep = 'scope';
+        try {
+            $component->nextConfigurationStep();
+            $this->fail('A department outside the selected divisions must be rejected.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertArrayHasKey('selectedDepartmentIds.0', $e->errors());
+        }
+        $this->assertSame([10], $component->selectedDivisionIds);
     }
 
     private function configuredComponent(array $divisionIds, array $departmentIds): PayrollConfiguration

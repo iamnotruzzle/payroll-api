@@ -1,4 +1,29 @@
-<section class="payroll-configuration max-w-6xl space-y-4" x-data="{ configurationStep: @entangle('configurationStep') }">
+<section class="payroll-configuration max-w-6xl space-y-4" x-data="{
+    configurationStep: @entangle('configurationStep'),
+    reviewStep: 'details',
+    reviewProceedAnyway: false,
+    reviewRevision: 0,
+    openStepReview(proceedAnyway = false) {
+        this.reviewStep = this.configurationStep;
+        this.reviewProceedAnyway = proceedAnyway;
+        this.reviewRevision++;
+        erpOverlay.open($wire, 'configuration-step-review', {}, false);
+    },
+    selectedLabels(field) {
+        void this.reviewRevision;
+        const select = document.querySelector('.payroll-configuration select[data-review-field=' + field + '], .payroll-configuration select[data-model=' + field + ']');
+        return select ? Array.from(select.selectedOptions).map(option => option.textContent.trim()).join(', ') : '';
+    },
+    selectedLeaveLabels() {
+        void this.reviewRevision;
+        return Array.from(document.querySelectorAll('.payroll-configuration input[data-review-leave]:checked')).map(input => input.closest('label').textContent.trim()).join(', ');
+    },
+    confirmStepReview() {
+        erpOverlay.close('configuration-step-review');
+        if (this.reviewProceedAnyway) return $wire.continueToPayrollGeneration();
+        return this.reviewStep === 'review' ? $wire.submitConfiguration() : $wire.nextConfigurationStep();
+    }
+}">
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-xl font-semibold">Payroll Configuration</h2>
@@ -7,7 +32,7 @@
         <x-payroll-generation-guide section="configuration" />
     </div>
 
-    <form novalidate wire:submit="submitConfiguration" class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <form novalidate x-on:submit.prevent="openStepReview()" class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <nav class="configuration-progress border-b border-slate-200 p-4" aria-label="Payroll configuration progress">
             <ol class="grid gap-3 sm:grid-cols-2 {{ $isStandalone ? 'lg:grid-cols-4' : 'lg:grid-cols-3' }}">
                 @foreach ($configurationSteps as $key => $label)
@@ -149,7 +174,7 @@
                 <div class="grid gap-3 md:grid-cols-2">
                     <div>
                         <label class="text-sm font-medium">Payroll Type</label>
-                        <select wire:model="payrollType"
+                        <select wire:model="payrollType" data-review-field="payrollType"
                             class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
                             @foreach ($payrollTypes as $type)
                                 <option value="{{ $type->code }}">{{ $type->name }}</option>
@@ -182,7 +207,7 @@
                 <div class="grid gap-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                     <div>
                         <label class="text-sm font-medium">Division</label>
-                        <select data-select2-searchable data-model="selectedDivisionIds" data-defer-request="true"
+                        <select data-select2-searchable data-model="selectedDivisionIds" data-defer-request="false"
                             data-placeholder="Search and select divisions" multiple
                             class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
                             @foreach ($divisions as $division)
@@ -202,6 +227,7 @@
                         <label class="text-sm font-medium">Department <span
                                 class="font-normal text-slate-500">(Optional)</span></label>
                         <select data-select2-searchable data-model="selectedDepartmentIds" data-defer-request="true"
+                            @disabled($selectedDivisionIds === [])
                             data-placeholder="Search and select departments" multiple
                             class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
                             @foreach ($departments as $department)
@@ -209,8 +235,7 @@
                                     {{ $department->department }}</option>
                             @endforeach
                         </select>
-                        <p class="mt-1 text-xs text-slate-500">Leave empty to include all departments in the selected
-                            division(s).</p>
+                        <p class="mt-1 text-xs text-slate-500">Choose divisions first. Only their departments are shown; leave empty to include all of them.</p>
                         @error('selectedDepartmentIds')
                             <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                         @enderror
@@ -228,7 +253,7 @@
                     <div class="mt-2 grid gap-x-3 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
                         @foreach ($leaveTypes as $leaveType)
                             <label class="flex min-h-7 items-center gap-2 text-xs text-slate-700">
-                                <input wire:model="selectedLeaveTypeIds" type="checkbox"
+                                <input wire:model="selectedLeaveTypeIds" type="checkbox" data-review-leave
                                     value="{{ $leaveType->leave_type_id }}"
                                     class="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
                                 <span class="leading-tight">{{ $leaveType->leave_name }}</span>
@@ -344,8 +369,8 @@
         <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50 px-4 py-3">
             <button type="button" x-show="configurationStep !== 'details'" x-cloak wire:click="previousConfigurationStep" wire:loading.attr="disabled" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700">Back</button>
             <span x-show="configurationStep === 'details'" class="text-xs text-slate-500">Start with the payroll month and leave cutoff.</span>
-            <button type="button" x-show="configurationStep !== 'review'" wire:click="nextConfigurationStep" wire:loading.attr="disabled" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white">
-                <span wire:loading.remove wire:target="nextConfigurationStep">Continue</span><span wire:loading wire:target="nextConfigurationStep">Checking...</span>
+            <button type="button" x-show="configurationStep !== 'review'" x-on:click="openStepReview()" wire:loading.attr="disabled" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white">
+                <span wire:loading.remove wire:target="nextConfigurationStep">Review &amp; Continue</span><span wire:loading wire:target="nextConfigurationStep">Checking...</span>
             </button>
             <div x-show="configurationStep === 'review'" x-cloak class="flex flex-wrap gap-2">
             @if ($showExistingGenerationNotice)
@@ -353,7 +378,7 @@
                     class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
                     Review Configuration
                 </button>
-                <button type="button" wire:click="continueToPayrollGeneration" wire:loading.attr="disabled"
+                <button type="button" x-on:click="openStepReview(true)" wire:loading.attr="disabled"
                     wire:target="continueToPayrollGeneration,syncApi"
                     class="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-wait disabled:opacity-60">
                     <span wire:loading.remove wire:target="continueToPayrollGeneration">Proceed Anyway</span>
@@ -369,6 +394,56 @@
             </div>
         </div>
     </form>
+
+    <x-setup-form-modal name="configuration-step-review" title="Review and continue" size="lg">
+        <form x-on:submit.prevent="confirmStepReview()" class="payroll-configuration space-y-5">
+            <p class="text-sm text-slate-600" x-text="reviewStep === 'review' ? 'Confirm the configuration before opening payroll generation.' : 'Review this step before continuing. Choose Back to edit to change any selections.'"></p>
+
+            <section x-show="reviewStep === 'details' || reviewStep === 'review'" class="space-y-3">
+                <h3 class="text-sm font-semibold">Run details</h3>
+                <dl class="grid gap-3 sm:grid-cols-2">
+                    <div><dt class="text-xs text-slate-500">Payroll month</dt><dd class="mt-1 text-sm font-medium" x-text="$wire.period || 'Not selected'"></dd></div>
+                    <div><dt class="text-xs text-slate-500">Days paid / GSIS days</dt><dd class="mt-1 text-sm font-medium" x-text="$wire.workingDays + ' / ' + $wire.gsisDays"></dd></div>
+                    <div class="sm:col-span-2"><dt class="text-xs text-slate-500">Leave cutoff</dt><dd class="mt-1 text-sm font-medium" x-text="($wire.leavePeriodStart || 'Not selected') + ' through ' + ($wire.leavePeriodEnd || 'Not selected')"></dd></div>
+                </dl>
+            </section>
+
+            <section x-show="reviewStep === 'scope' || reviewStep === 'review'" class="space-y-3">
+                <h3 class="text-sm font-semibold">Payroll scope</h3>
+                <dl class="grid gap-3 sm:grid-cols-2">
+                    <div><dt class="text-xs text-slate-500">Payroll type</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('payrollType') || 'Not selected'"></dd></div>
+                    <div><dt class="text-xs text-slate-500">Employee types</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('employeeTypeFilter') || 'None selected'"></dd></div>
+                    <div><dt class="text-xs text-slate-500">Divisions</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('selectedDivisionIds') || 'None selected'"></dd></div>
+                    <div><dt class="text-xs text-slate-500">Departments</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('selectedDepartmentIds') || 'All departments in selected divisions'"></dd></div>
+                    <div class="sm:col-span-2"><dt class="text-xs text-slate-500">Included leave types</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLeaveLabels() || 'None selected'"></dd></div>
+                </dl>
+            </section>
+
+            @if ($isStandalone)
+                <section x-show="reviewStep === 'preparation' || reviewStep === 'review'" class="space-y-3">
+                    <h3 class="text-sm font-semibold">Data preparation</h3>
+                    <ul class="divide-y divide-slate-200">
+                        @foreach ($apiPreparationSteps as $key => $step)
+                            <li class="flex flex-wrap justify-between gap-2 py-2 text-sm">
+                                <span>{{ $step['title'] }}</span>
+                                @if (isset($apiPreparationResults[$key]))
+                                    <span class="font-medium text-emerald-700">Complete · Batch #{{ $apiPreparationResults[$key]['batch'] }}</span>
+                                @else
+                                    <span class="text-slate-500">Not synchronized in this configuration</span>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                    <p class="text-xs text-slate-500">If you started syncing, all four steps must be complete. Otherwise, continuing uses existing local data. DTR and MRA checks still apply.</p>
+                </section>
+            @endif
+
+            <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
+                <button type="button" x-on:click="erpOverlay.close('configuration-step-review')" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700">Back to edit</button>
+                <button type="submit" wire:loading.attr="disabled" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white" x-text="reviewStep === 'review' ? 'Confirm & Open Generation' : 'Confirm & Continue'"></button>
+            </div>
+        </form>
+    </x-setup-form-modal>
 
     @if ($canManageHolidays)
         <x-setup-form-modal name="payroll-holiday" title="New Calendar Entry" edit-title="Edit Calendar Entry"
