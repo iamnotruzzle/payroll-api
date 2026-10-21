@@ -27,6 +27,18 @@ class PayrollTimekeepingSourceService
         return $this->standalone() && $this->source() === 'hris_db';
     }
 
+    public function usesHrisApi(): bool
+    {
+        return $this->standalone() && $this->source() === 'hris_api';
+    }
+
+    public function attendancePeriod(string $payrollPeriod): string
+    {
+        return $this->usesHrisApi()
+            ? \Carbon\CarbonImmutable::createFromFormat('!Y-m', $payrollPeriod)->subMonthNoOverflow()->format('Y-m')
+            : $payrollPeriod;
+    }
+
     public function usesLocalSnapshot(): bool
     {
         if (! $this->usesHrisDatabase()) {
@@ -39,8 +51,8 @@ class PayrollTimekeepingSourceService
 
     public function save(string $source, ?string $by, bool $snapshot = false): void
     {
-        if (! in_array($source, ['manual', 'hris_db'], true)) {
-            throw ValidationException::withMessages(['timekeepingSource' => 'Choose manual inputs or HRIS database timekeeping.']);
+        if (! in_array($source, ['manual', 'hris_db', 'hris_api'], true)) {
+            throw ValidationException::withMessages(['timekeepingSource' => 'Choose manual inputs, HRIS API summaries, or HRIS database timekeeping.']);
         }
         PayrollSystemSetting::query()->updateOrCreate(['key' => 'standalone_timekeeping_source'],
             ['value' => ['source' => $source, 'snapshot' => $snapshot], 'updated_by' => $by]);

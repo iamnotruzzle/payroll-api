@@ -285,6 +285,15 @@
                                         <div class="min-w-0 flex-1">
                                             <h4 class="text-sm font-semibold text-slate-900">Step {{ $loop->iteration }} — {{ $step['title'] }}</h4>
                                             <p class="mt-1 text-xs text-slate-600">{{ $step['description'] }}</p>
+                                            @if ($key === 'timekeeping')
+                                                <label class="mt-3 block text-xs font-medium">Timekeeping source
+                                                    <select wire:model="timekeepingSyncSource" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                                        <option value="api">HRIS API attendance summaries</option>
+                                                        <option value="hris_db">HRIS database DTR punches</option>
+                                                    </select>
+                                                </label>
+                                                @error('timekeepingSyncSource') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                                            @endif
                                             @if ($result)
                                                 <p class="mt-2 text-xs font-medium text-emerald-700" role="status">Complete · Batch #{{ $result['batch'] }}</p>
                                                 <p class="mt-1 text-xs text-slate-500">
@@ -315,7 +324,7 @@
                         @if (count($apiPreparationResults) === count($apiPreparationSteps))
                             <p class="mt-3 text-sm font-medium text-emerald-700">HRIS preparation complete. Review the scope and timekeeping, then proceed to generation.</p>
                         @endif
-                        <p class="mt-3 text-xs text-slate-500">The leave endpoint supports dates only; downloaded leaves are restricted locally to scoped employees. Step 4 copies their DTR punches for the month before payroll. Complete DTR encoding and finalize MRA before payroll finalization. If data was already prepared, you may continue without starting a new sync.</p>
+                        <p class="mt-3 text-xs text-slate-500">Leaves are filtered by cutoff and departments, then restricted locally to scoped employees. Step 4 loads the month before payroll: API summaries need no HRIS database access; database punches require DTR encoding and MRA finalization. Previously prepared data can be used without starting a new sync.</p>
                         @error('sync') <p role="alert" class="mt-3 text-sm text-red-600">{{ $message }}</p> @enderror
                     </section>
                 @endif
@@ -442,6 +451,7 @@
             @if ($isStandalone)
                 <section x-show="reviewStep === 'preparation' || reviewStep === 'review'" class="space-y-3">
                     <h3 class="text-sm font-semibold">Data preparation</h3>
+                    <p class="text-sm"><span class="text-slate-500">Selected timekeeping sync source:</span> <span x-text="$wire.timekeepingSyncSource === 'api' ? 'HRIS API attendance summaries' : 'HRIS database DTR punches'"></span></p>
                     <ul class="divide-y divide-slate-200">
                         @foreach ($apiPreparationSteps as $key => $step)
                             <li class="flex flex-wrap justify-between gap-2 py-2 text-sm">
@@ -454,7 +464,7 @@
                             </li>
                         @endforeach
                     </ul>
-                    <p class="text-xs text-slate-500">If you started syncing, all four steps must be complete. Otherwise, continuing uses existing local data. DTR and MRA checks still apply.</p>
+                    <p class="text-xs text-slate-500">If you started syncing, complete all four steps. API summaries require attendance for every scoped employee in the previous month. Database punches require DTR encoding and MRA finalization.</p>
                 </section>
             @endif
 

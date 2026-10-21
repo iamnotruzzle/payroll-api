@@ -71,6 +71,10 @@ class ApiCanonicalSyncService
                 continue;
             }
             $context = ['from' => $from, 'to' => $to];
+            if ($scope !== null && $resource === 'leaves') {
+                $context['department_ids'] = ! empty($scope['department_ids']) ? $scope['department_ids']
+                    : \App\Models\Payroll\Canonical\Department::query()->whereIn('division_external_id', $scope['division_ids'])->pluck('external_id')->all();
+            }
             if ($scope !== null && $resource === 'salary-rates') {
                 $context['year'] = substr($period, 0, 4);
             }

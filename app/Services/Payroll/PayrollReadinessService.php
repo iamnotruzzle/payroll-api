@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Schema;
 
 class PayrollReadinessService
 {
-    public function apiGenerationError(): ?string
+    public function apiGenerationError(?string $payrollPeriod = null): ?string
     {
         if (Schema::connection('payroll')->hasTable('payroll_source_batches')
             && PayrollSourceBatch::query()->where('source', 'hris_api')->where('status', 'active')->exists()) {
@@ -19,8 +19,18 @@ class PayrollReadinessService
             if ($timekeeping->usesHrisDatabase()) {
                 return $timekeeping->databaseError();
             }
+            if ($timekeeping->usesHrisApi()) {
+                $summaries = DB::connection('payroll')->table('payroll_canonical_timekeeping as t')
+                    ->join('payroll_source_batches as b', 'b.id', '=', 't.source_batch_id')
+                    ->where('b.source', 'hris_api')->where('b.kind', 'like', 'api_timekeeping_%');
+                if ($payrollPeriod) {
+                    $summaries->where('t.period', $timekeeping->attendancePeriod($payrollPeriod));
+                }
 
-            return 'Payroll generation is blocked: the HRIS API contract has no timekeeping endpoint.';
+                return $summaries->exists() ? null : 'Synchronize HRIS API timekeeping for the previous attendance month before generating payroll.';
+            }
+
+            return 'Payroll generation is blocked: synchronize HRIS API timekeeping or select HRIS database timekeeping.';
         }
 
         return null;
@@ -29,7 +39,7 @@ class PayrollReadinessService
     public function check(?string $period = null, bool $requireTimekeeping = true): array
     {
         $errors = [];
-        if ($error = $this->apiGenerationError()) {
+        if ($error = $this->apiGenerationError($period)) {
             $errors[] = $error;
         }
         if (! Schema::connection('payroll')->hasTable('payroll_canonical_employees')) {
@@ -39,6 +49,9 @@ class PayrollReadinessService
         $counts['leave_types'] = DB::connection('payroll')->table('payroll_canonical_leave_types')->where('is_active', true)->count();
         $counts['timekeeping_periods'] = DB::connection('payroll')->table('payroll_canonical_timekeeping')->distinct()->count('period');
         $hrisTimekeeping = app(PayrollTimekeepingSourceService::class)->usesHrisDatabase();
+        if (app(PayrollTimekeepingSourceService::class)->usesHrisApi()) {
+            $requireTimekeeping = false; // API summaries use the previous attendance month; coverage is checked per employee.
+        }
         if ($hrisTimekeeping) {
             if ($error = app(PayrollTimekeepingSourceService::class)->databaseError()) {
                 $errors[] = $error;

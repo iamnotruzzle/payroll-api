@@ -259,6 +259,7 @@ class PayrollConfigurationTest extends TestCase
         $api = \Mockery::mock(\App\Services\Payroll\ApiCanonicalSyncService::class);
         $api->shouldNotReceive('sync');
         $component = $this->configuredComponent([10], []);
+        $component->timekeepingSyncSource = 'hris_db';
         $component->apiPreparation = ['context' => (new \ReflectionMethod($component, 'preparationContext'))->invoke($component),
             'steps' => ['employees' => ['batch' => 1], 'salary' => ['batch' => 2], 'leaves' => ['batch' => 3]]];
         $component->syncApi($api, 'timekeeping');

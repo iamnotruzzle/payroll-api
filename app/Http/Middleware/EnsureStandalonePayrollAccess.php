@@ -33,7 +33,7 @@ class EnsureStandalonePayrollAccess
             || $request->routeIs('admin.role-preview.*')
             || $request->routeIs('self-service.profile', 'self-service.profile.print')
             || $request->routeIs('self-service.dtr', 'self-service.dtr.print', 'time-punch.*')
-            || $request->routeIs('payroll.*', 'timekeeping.*', 'admin.payroll-system')
+            || $request->routeIs('payroll.*', 'timekeeping.*', 'admin.payroll-system', 'admin.hris-api-diagnostics')
             || $request->routeIs('setup.index', 'setup.hris', 'setup.organization', 'setup.positions', 'setup.salary-schedules', 'setup.plantilla')
         ) {
             return true;

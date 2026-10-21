@@ -35,6 +35,8 @@ class SyncPayrollApiData extends Command
         $this->info("Activated HRIS API source batch #{$batch->id}.");
         if ($error = app(\App\Services\Payroll\PayrollReadinessService::class)->apiGenerationError()) {
             $this->warn($error);
+        } elseif (app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->usesHrisApi()) {
+            $this->info('HRIS API attendance summaries selected. Review scoped previous-month attendance before finalizing payroll.');
         } else {
             $this->info('HRIS database timekeeping selected. Complete the DTR/MRA workflow before finalizing payroll.');
         }

@@ -3659,6 +3659,17 @@ html[data-theme="dark"] .erp-content textarea:disabled {
     color: #91a4bd !important;
     opacity: 1;
 }
+.hris-api-test-action {
+    background: var(--erp-primary);
+    color: #ffffff;
+    transition: background-color 150ms ease;
+}
+
+.hris-api-test-action:hover { background: var(--erp-primary-hover); }
+.hris-api-test-action:disabled { opacity: .65; cursor: wait; }
+.hris-api-test-action:focus-visible { outline: 2px solid var(--erp-primary); outline-offset: 3px; }
+html[data-theme="dark"] .hris-api-test-action { color: #10283c; }
+
 .configuration-progress-item {
     display: flex;
     align-items: center;

@@ -101,7 +101,7 @@ class PayrollSystemManagement extends Component
     public function saveTimekeepingSource(\App\Services\Payroll\PayrollTimekeepingSourceService $service): void
     {
         abort_unless(auth()->user()?->hasRole('super-admin'), 403);
-        $this->validate(['timekeepingSource' => ['required', 'in:manual,hris_db']]);
+        $this->validate(['timekeepingSource' => ['required', 'in:manual,hris_db,hris_api']]);
         $service->save($this->timekeepingSource, auth()->user()?->emp_id);
         session()->flash('status', 'Standalone timekeeping source saved.');
     }

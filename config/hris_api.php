@@ -50,6 +50,7 @@ return [
         'divisions' => $resource('/divisions', ['division_id', 'name', 'is_active'], ['division_id', 'name', 'is_active']),
         'departments' => $resource('/departments', ['department_id', 'division_id', 'name', 'is_active'], ['department_id', 'name', 'is_active']),
         'positions' => $resource('/positions', ['position_id', 'title', 'salary_grade'], ['position_id', 'title']),
+        'cos-positions' => $resource('/cos-positions', ['cos_position_id', 'title', 'salary_grade'], ['cos_position_id', 'title']),
         'employees' => $resource('/employees', [
             'employee_id', 'first_name', 'middle_name', 'last_name', 'extension', 'suffix',
             'department_id', 'position_id', 'step', 'employment_status_id', 'date_hired',
@@ -64,7 +65,12 @@ return [
         ], ['leave_id', 'employee_id', 'leave_type_id', 'start_date', 'end_date', 'days_with_pay', 'days_without_pay', 'status', 'cancelled']), [
             'parameters' => ['from' => '{from}', 'to' => '{to}'],
         ]),
-        // Not present in the supplied HRIS contract. Do not call an invented endpoint.
-        'timekeeping' => ['enabled' => false],
+        'timekeeping' => array_replace($resource('/timekeeping', [
+            'period', 'employee_id', 'work_days', 'holidays', 'days_with_dtr', 'regular_hours',
+            'tardy_hours', 'undertime_hours', 'leave_days_with_pay', 'leave_days_without_pay', 'absent_days',
+        ], ['period', 'employee_id', 'work_days', 'holidays', 'days_with_dtr', 'regular_hours',
+            'tardy_hours', 'undertime_hours', 'leave_days_with_pay', 'leave_days_without_pay', 'absent_days']), [
+            'parameters' => ['period' => '{period}'],
+        ]),
     ],
 ];

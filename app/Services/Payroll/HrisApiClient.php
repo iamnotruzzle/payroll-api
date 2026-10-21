@@ -26,6 +26,9 @@ class HrisApiClient
             throw new RuntimeException('Configure a valid HRIS API base URL, token, relative path, and GET/POST method.');
         }
         $parameters = $resource['parameters'] ?? [];
+        if ($name === 'timekeeping' && empty($context['period']) && ! empty($context['from']) && ! empty($context['to'])) {
+            $parameters = ['from' => '{from}', 'to' => '{to}'];
+        }
         array_walk_recursive($parameters, function (&$value) use ($context): void {
             if (is_string($value) && preg_match('/^\{(\w+)\}$/', $value, $match)) {
                 if (! isset($context[$match[1]]) || $context[$match[1]] === '') {
@@ -54,6 +57,12 @@ class HrisApiClient
         }
         if ($name === 'salary-rates' && isset($context['year'])) {
             $parameters['year'] = $context['year'];
+        }
+        if (in_array($name, ['leaves', 'timekeeping'], true) && ! empty($context['department_ids'])) {
+            $parameters['department_ids'] = implode(',', $context['department_ids']);
+        }
+        if ($name === 'timekeeping' && ! empty($context['employee_ids'])) {
+            $parameters['emp_ids'] = implode(',', $context['employee_ids']);
         }
         $rows = [];
         $warnings = 0;

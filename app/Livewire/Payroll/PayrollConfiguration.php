@@ -5,6 +5,7 @@ namespace App\Livewire\Payroll;
 use App\Enums\PayrollOperatingMode;
 use App\Services\Payroll\ApiCanonicalSyncService;
 use App\Services\Payroll\HrisTimekeepingSyncService;
+use App\Services\Payroll\HrisApiTimekeepingSyncService;
 use App\Services\Payroll\PayrollOperatingModeService;
 use App\Models\Payroll\Canonical\Department;
 use App\Models\Payroll\Canonical\Division;
@@ -30,6 +31,8 @@ class PayrollConfiguration extends Component
 
     #[\Livewire\Attributes\Locked]
     public string $configurationStep = 'details';
+
+    public string $timekeepingSyncSource = 'api';
 
     private function configurationSteps(): array
     {
@@ -84,14 +87,14 @@ class PayrollConfiguration extends Component
     private function preparationSteps(): array
     {
         return ApiCanonicalSyncService::STEPS + ['timekeeping' => [
-            'title' => 'Timekeeping from HRIS database',
-            'description' => 'Copy the previous MRA month’s DTR punches into payroll. Existing punches for that month are refreshed; complete DTR encoding and finalize MRA afterward.',
+            'title' => 'Timekeeping',
+            'description' => 'Sync the previous attendance month through the HRIS API, or choose the HRIS database to copy raw DTR punches.',
         ]];
     }
 
     private function preparationContext(): string
     {
-        return $this->period.'|'.$this->leavePeriodStart.'|'.$this->leavePeriodEnd.'|'.hash('sha256', json_encode($this->syncScope()));
+        return $this->period.'|'.$this->leavePeriodStart.'|'.$this->leavePeriodEnd.'|'.$this->timekeepingSyncSource.'|'.hash('sha256', json_encode($this->syncScope()));
     }
 
     private function syncScope(): array
@@ -228,13 +231,16 @@ class PayrollConfiguration extends Component
         ]);
         $scopeFields = ['selectedDivisionIds', 'selectedDivisionIds.*', 'selectedDepartmentIds', 'selectedDepartmentIds.*', 'employeeTypeFilter', 'employeeTypeFilter.*'];
         $this->validate(array_intersect_key($this->configurationRules(), array_flip($scopeFields)));
+        $this->validate(['timekeepingSyncSource' => ['required', Rule::in(['api', 'hris_db'])]]);
         try {
             $batch = $step === 'timekeeping'
-                ? app(HrisTimekeepingSyncService::class)->sync($this->period, auth()->user()?->emp_id, $this->syncScope())
+                ? ($this->timekeepingSyncSource === 'api'
+                    ? app(HrisApiTimekeepingSyncService::class)->sync($this->period, auth()->user()?->emp_id, $this->syncScope())
+                    : app(HrisTimekeepingSyncService::class)->sync($this->period, auth()->user()?->emp_id, $this->syncScope()))
                 : $service->sync($this->period, auth()->user()?->emp_id, $this->leavePeriodStart, $this->leavePeriodEnd, $step, $this->syncScope());
         } catch (\Illuminate\Database\QueryException $e) {
             $this->addError('sync', $step === 'timekeeping'
-                ? 'Timekeeping synchronization failed. Check the HRIS database connection and payroll snapshot migration. Existing punches were retained.'
+                ? 'Timekeeping synchronization failed. Check the selected attendance source and payroll database schema. Existing attendance was retained.'
                 : 'Payroll database synchronization failed. Active data was not replaced.');
 
             return;

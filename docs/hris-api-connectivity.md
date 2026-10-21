@@ -1,5 +1,9 @@
 # HRIS payroll API synchronization
 
+## Admin endpoint diagnostics
+
+Admins and super-admins can open **Settings > Access & Security > HRIS API Tests** (`/admin/hris-api-diagnostics`). Choose one documented endpoint, supply supported filters, and run a read-only test. Results show HTTP status, elapsed time, record count, preview contract issues, and bounded JSON. CoS Positions and Basic Pay are included. The page uses configured credentials server-side, redacts credential fields, sends no redirects, and performs no canonical-data import. Access is checked again on every test action; it is available in both operating modes.
+
 The documented eight GET resources under `/api/external/payroll` now synchronize payroll-owned canonical data in **standalone** mode. Connected mode retains direct HRIS database synchronization. API synchronization never opens the HRIS or scheduler database connection, and does not switch modes automatically.
 
 ## Configure API-only operation
@@ -31,9 +35,9 @@ In **Payroll Configuration**, complete **Run details**, then **Payroll scope**. 
 
 Scoped master-data synchronization first calls `POST /api/external/basic-pay` with selected `department_ids` (when present), otherwise `division_ids`, and `include_inactive=true`. Its employee IDs are then sent to `GET /api/external/payroll/employees` as comma-separated `emp_ids` in batches of 100. Organization and employee-type checks also run locally before activation. Inactive employee records remain eligible for synchronization so deactivations can be captured.
 
-Salary requests use the payroll month’s `year` and activate only salary grades belonging to the scoped employees. Leaves use the configured `from` and `to` cutoff and are restricted locally to scoped employee IDs. The documented leave endpoint has no employee or department filter; the reference endpoints have no scope filters, so their downloaded records are narrowed locally. Other employees’ canonical records are retained. Basic Pay’s named `type` values are not assumed to equal local payroll-type codes.
+Salary requests use the payroll month’s `year` and activate only salary grades belonging to the scoped employees. Leaves use the configured `from` and `to` cutoff and are restricted locally to scoped employee IDs. The leave endpoint has no employee-ID filter and is requested with department IDs; the reference endpoints have no scope filters, so their downloaded records are narrowed locally. Other employees’ canonical records are retained. Basic Pay’s named `type` values are not assumed to equal local payroll-type codes.
 
-The fourth action reads only scoped employees’ previous-month DTR punches from the HRIS database into payroll-owned snapshots. DTR/MRA screens use that local snapshot in standalone mode after successful synchronization. Complete DTR encoding and finalize MRA afterward. The snapshot migration must be installed. CLI full synchronization remains available; for a different payroll cutoff use:
+The fourth action defaults to scoped HRIS API summaries for the previous attendance month. The database-punch alternative still requires the snapshot migration, DTR encoding, and MRA finalization. CLI full synchronization remains available; for a different payroll cutoff use:
 
 ```powershell
 php artisan payroll:api-sync --period=2026-10 --from=2026-09-01 --to=2026-09-30
@@ -51,13 +55,19 @@ Leave status and cancellation are stored. Pending and rejected leave is excluded
 
 ## Timekeeping
 
-The API contract does not define a timekeeping endpoint. In the standalone configuration wizard, **Step 4 — Timekeeping from HRIS database** reads `hris.tbl_employee_dtr` for scoped employees and the calendar month before payroll. It copies punches into `payroll_hris_dtr_snapshots`, records a source batch, and enables payroll's snapshot timekeeping source. It does not import HRIS accounts, roles, employee master data, or leave records through the database.
+The updated contract provides `GET /api/external/payroll/timekeeping`. In Standalone Payroll Configuration, the fourth preparation action defaults to **HRIS API attendance summaries**. It requests the calendar month before payroll using `period=YYYY-MM` and scoped comma-separated `emp_ids` in batches of 100. October payroll therefore imports September attendance; the leave cutoff is independent.
 
-Install `2026_10_14_000001_create_payroll_hris_dtr_snapshots.php` on the payroll connection and configure `DB_*_HRIS`. A failed or empty download retains the existing snapshot. Successful scoped refreshes preserve other scopes and periods. Payroll DTR encoding, attendance reports, DTR printing, corrections, and MRA use the local snapshot in standalone mode; attendance self-service continues using its existing HRIS model.
+The fields are `period`, `employee_id`, `work_days`, `holidays`, `days_with_dtr`, `regular_hours`, `tardy_hours`, `undertime_hours`, `leave_days_with_pay`, `leave_days_without_pay`, and `absent_days`. `mra_hours` is not requested or required. The legacy storage column remains zero for API imports. Holidays are retained in the source batch payload.
 
-Complete DTR encoding and finalize the previous month's MRA for the selected department before payroll finalization. Synchronizing punches does not finalize MRA or manufacture missing attendance. Once copied, payroll can read the punches without a live HRIS database connection.
+Every scoped employee must have exactly one row for the requested month. Missing employees, duplicate or unexpected rows, incorrect periods, warnings, malformed responses, and negative or non-finite metrics prevent activation and preserve existing attendance. Activation and the switch to API timekeeping happen in one payroll transaction. Repeating identical data reuses the batch.
 
-The existing Super Admin setting under **Settings > Payroll System > Standalone timekeeping source** remains available for direct HRIS database timekeeping or manual inputs. Selecting that setting explicitly switches away from snapshot mode. Manual inputs retain the existing API-generation restriction because no timekeeping API is available.
+Payroll reads API attendance from the previous month and validates coverage for all scoped employees. Unauthorized absence days default from `absent_days` unless explicitly overridden. Leave processing remains separate to avoid adding leave deductions twice. Tardiness and undertime remain separate in finalized summaries; `mra_hours` is not an additional deduction. Review Step 1 before finalization. API summaries do not require HRIS database access or a local MRA report generated from raw punches.
+
+The API client also supports documented `from` + `to` ranges for connectivity checks. The wizard intentionally uses calendar months because canonical periods are stored as `YYYY-MM`.
+
+The alternate **HRIS database DTR punches** source remains available. It copies scoped previous-month punches into local snapshots and still requires local DTR encoding and MRA finalization. That option requires `DB_*_HRIS` and the snapshot migration. Switching sources invalidates preparation results.
+
+The updated employee endpoint rejects `active_only`. Scoped requests use `emp_ids`, which includes named inactive employees. Group codes are not assumed to equal local employment-category codes. Leaves now receive documented comma-separated `department_ids` plus cutoff dates and are then filtered locally to scoped employees.
 ## Read-only connectivity checks
 
 `payroll:api-check` remains available without changing data:
@@ -66,6 +76,7 @@ The existing Super Admin setting under **Settings > Payroll System > Standalone 
 php artisan payroll:api-check employees
 php artisan payroll:api-check leaves --from=2026-09-01 --to=2026-09-30
 php artisan payroll:api-check salary-rates
+php artisan payroll:api-check timekeeping --period=2026-09
 ```
 
 The existing `basic-pay` POST resource remains available for compatibility; it is not used by the new documented payroll sync. Mapping configuration lives in `config/hris_api.php` and uses payroll field to source JSON field direction.

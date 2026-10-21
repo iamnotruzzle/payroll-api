@@ -91,7 +91,7 @@
     $guides['configuration'] = ['Payroll Configuration', 'Complete the configuration steps in order.', [
         'Set the payroll month, days paid, holidays or work suspensions, and leave cutoff in Run details.',
         'Select the payroll type, employee types, divisions, departments, and included leave types in Payroll scope. Departments are filtered by the selected divisions.',
-        ...($standalone ? ['Prepare scoped employee master data, salary rates, leaves, and database timekeeping in order. If you start syncing, finish all four actions.'] : []),
+        ...($standalone ? ['Prepare scoped employee master data, salary rates, leaves, and timekeeping in order. Choose API summaries or database punches for timekeeping. If you start syncing, finish all four actions.'] : []),
         'Use Review & Continue at each step. Check the modal, including fields marked No entry, before confirming.',
         'Review the full configuration and confirm before opening payroll generation.',
     ], 'The leave cutoff can differ from the payroll month. The previous MRA normally covers the calendar month before payroll.'];
@@ -111,24 +111,25 @@
         $guides['configuration-preparation'] = ['Prepare data', 'Refresh the selected payroll scope before generation.', [
             'Sync Employee master data. Basic Pay discovers scoped IDs; employee records are fetched by those IDs and filtered by employee type.',
             'Sync Salary rates for the payroll year. Only grades used by scoped employees are activated.',
-            'Sync Leaves for the cutoff. The endpoint filters by dates; payroll filters the downloaded records to scoped employees.',
-            'Sync Timekeeping from the HRIS database. This copies scoped DTR punches for the previous MRA month into payroll locally.',
+            'Sync Leaves for the cutoff. The endpoint filters by dates and departments; payroll also restricts records to scoped employees.',
+            'For Timekeeping, choose HRIS API attendance summaries or HRIS database DTR punches. Both use scoped employees and the calendar month before payroll.',
             'Check each batch and record count, then Review & Continue. Finish all four actions once started; changing the scope or dates requires preparation again.',
-        ], 'Previously prepared local data can be used without starting a new sync. Complete DTR encoding and finalize the previous month MRA before payroll finalization.'];
+        ], 'API summaries do not require HRIS database access or raw DTR encoding. Database punches still require local DTR encoding and MRA finalization. Previously prepared data can be used without starting a new sync.'];
         $guides['system'] = ['Payroll System Management', 'Manage local payroll inputs and source history.', [
             'Open Payroll Configuration to run the four scoped preparation actions.',
-            'Review source history and payroll input readiness. A successful timekeeping sync enables local DTR snapshots.',
+            'Review source history and payroll input readiness. A successful API timekeeping sync stores local attendance summaries; database sync stores DTR snapshots.',
             'For workbook inputs, download a template, stage and validate the workbook, resolve errors, and activate it.',
-            'Complete local DTR encoding and finalize the previous month MRA for the selected department.',
+            'With database punches, complete local DTR encoding and finalize the previous month MRA. With API summaries, verify every scoped employee has attendance for the previous month.',
         ], 'An operating mode forced by the environment cannot be changed here. Changing the timekeeping source explicitly can switch away from snapshot reads.'];
         $guides['step-1'][2] = [
             'Confirm the scope, payroll month, and previous month MRA.',
             'Review the cutoff, paid leave, leave without pay, and previously processed dates using local canonical records.',
+            'With HRIS API summaries, review the imported absence, tardiness, and undertime values. Every scoped employee must have attendance for the previous month; mra_hours is not required.',
             'For synchronized HRIS punches, complete local DTR encoding and finalize the previous month MRA for the selected department.',
             'For manual workbook attendance, review or import DTR/MRA deduction days and logbook leave without pay. Enter zero when no deduction applies.',
             'Save Step 1 before continuing to Gross Compensation.',
         ];
-        $guides['step-1'][3] = 'Copying DTR punches does not finalize MRA. Manual attendance does not bypass the timekeeping restriction on an active API batch.';
+        $guides['step-1'][3] = 'API summaries and database punches are separate attendance sources. Tardiness and undertime remain separate hours; mra_hours is not an extra deduction. Database punches still require MRA finalization.';
     } else {
         $guides['system'] = ['Payroll System Management', 'Refresh payroll data from the configured databases.', [
             'Click Synchronize connected sources to refresh canonical master data and accounts from HRIS.',
@@ -194,7 +195,7 @@
             @endforeach
             <section class="border-t border-slate-200 pt-5 dark:border-slate-700">
                 <h3 class="font-semibold">{{ $modeLabel }} mode · Data source reminder</h3>
-                <p class="mt-2">{{ $standalone ? 'Payroll uses local records refreshed through scoped API syncs or workbook imports. The timekeeping preparation action copies HRIS database punches into local snapshots; DTR encoding and MRA finalization are separate.' : 'Payroll uses the configured HRIS and payroll database sources. Refresh master data through Payroll System Management and verify attendance and MRA before finalization.' }}</p>
+                <p class="mt-2">{{ $standalone ? 'Payroll uses local records refreshed through scoped API syncs or workbook imports. Timekeeping can use API attendance summaries or database DTR snapshots. Only the database-punch workflow requires local DTR encoding and MRA finalization.' : 'Payroll uses the configured HRIS and payroll database sources. Refresh master data through Payroll System Management and verify attendance and MRA before finalization.' }}</p>
                 <p class="mt-3 text-slate-600 dark:text-slate-300">Some steps are read-only for your role. Ask the authorized HR or Accounting user to correct those inputs. Save changes before moving between editable steps.</p>
             </section>
         </div>

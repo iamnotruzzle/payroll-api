@@ -607,9 +607,9 @@ class ErpNavigation
                             ? route('schedule.user-manual')
                             : (($user?->hasRole('super-admin') || $user?->can('payroll.system.import'))
                                 ? route('admin.payroll-system')
-                                : $soon('administration', 'access')))),
-                'available' => (bool) ($user?->can('admin.users.view') || $user?->can('admin.roles.view') || $user?->can('references.view') || $user?->hasRole('super-admin') || $user?->can('payroll.system.import')),
-                'visible' => (bool) ($user?->can('admin.users.view') || $user?->can('admin.roles.view') || $user?->can('references.view') || $user?->hasRole('super-admin') || $user?->can('payroll.system.import')),
+                                : ($user?->hasRole('admin') ? route('admin.hris-api-diagnostics') : $soon('administration', 'access'))))),
+                'available' => (bool) ($user?->can('admin.users.view') || $user?->can('admin.roles.view') || $user?->can('references.view') || $user?->hasRole('super-admin') || $user?->hasRole('admin') || $user?->can('payroll.system.import')),
+                'visible' => (bool) ($user?->can('admin.users.view') || $user?->can('admin.roles.view') || $user?->can('references.view') || $user?->hasRole('super-admin') || $user?->hasRole('admin') || $user?->can('payroll.system.import')),
                 'active' => request()->routeIs('admin.*', 'schedule.employee-references', 'schedule.user-manual', 'payroll.user-manual', 'references.*')
                     || (request()->routeIs('coming-soon') && request()->route('module') === 'administration'),
                 'menu_sections' => self::menuSections([
@@ -619,6 +619,7 @@ class ErpNavigation
                             $user?->can('admin.users.view') ? ['label' => 'User Accounts', 'route' => 'admin.user-accounts', 'icon' => 'users', 'active' => request()->routeIs('admin.user-accounts')] : null,
                             $user?->can('admin.roles.view') ? ['label' => 'Roles and Permissions', 'route' => 'admin.roles-permissions', 'icon' => 'shield-check', 'active' => request()->routeIs('admin.roles-permissions')] : null,
                             ($user?->hasRole('super-admin') || $user?->can('payroll.system.import')) ? ['label' => 'Payroll System', 'route' => 'admin.payroll-system', 'icon' => 'settings', 'active' => request()->routeIs('admin.payroll-system')] : null,
+                            ($user?->hasRole('super-admin') || $user?->hasRole('admin')) ? ['label' => 'HRIS API Tests', 'route' => 'admin.hris-api-diagnostics', 'icon' => 'sliders', 'active' => request()->routeIs('admin.hris-api-diagnostics')] : null,
                         ],
                     ],
                     [

@@ -202,6 +202,7 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::get('/admin/payroll-system', [AdminPageController::class, 'payrollSystem'])->name('admin.payroll-system');
+    Route::get('/admin/hris-api-diagnostics', [AdminPageController::class, 'hrisApiDiagnostics'])->name('admin.hris-api-diagnostics');
 
     Route::middleware('permission:schedule.view')->group(function () {
         Route::get('/schedule', [SchedulePageController::class, 'dashboard'])->name('schedule.dashboard');

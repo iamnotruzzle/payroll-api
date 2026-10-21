@@ -1647,7 +1647,7 @@ class PayrollGeneration extends Component
 
     private function payrollRows(Collection $compensations, Collection $deductionPrograms): Collection
     {
-        if ($error = app(PayrollReadinessService::class)->apiGenerationError()) {
+        if ($error = app(PayrollReadinessService::class)->apiGenerationError($this->period ?? null)) {
             $this->addError('finalize', $error);
 
             return collect();
@@ -1798,7 +1798,7 @@ class PayrollGeneration extends Component
                 ->keyBy('emp_id')
             : collect();
         $canonicalTimekeeping = ! app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->usesHrisDatabase() && Schema::connection('payroll')->hasTable('payroll_canonical_timekeeping')
-            ? DB::connection('payroll')->table('payroll_canonical_timekeeping')->where('period', $this->period)->whereIn('emp_id', $empIds)->get()->keyBy('emp_id')
+            ? DB::connection('payroll')->table('payroll_canonical_timekeeping')->where('period', app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->attendancePeriod($this->period))->whereIn('emp_id', $empIds)->get()->keyBy('emp_id')
             : collect();
         $labelOptions = PayrollDtrLabelOption::query()->get()->keyBy('code');
 
@@ -1835,7 +1835,8 @@ class PayrollGeneration extends Component
             $mraAdjustment = $mraAdjustments->get($employee->emp_id);
             $mraDeductionDays = (float) ($mraAdjustment?->adjustment_days ?? $fallbackDeductionDays);
             $payrollLeaveDays = $leaveDeduction['laundry_days'];
-            $unauthorizedDays = $this->deductionDaysFor($employee->emp_id, 0);
+            $unauthorizedDays = $this->deductionDaysFor($employee->emp_id,
+                app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->usesHrisApi() ? (float) ($timekeeping->absent_days ?? 0) : 0);
             $hrisLwopDays = (float) ($leaveDeduction['without_pay_days'] ?? 0);
             $logbookLwopDays = $this->logbookLwopDaysFor($employee->emp_id);
             $lwopDays = round($hrisLwopDays + $logbookLwopDays, 3);
@@ -2103,6 +2104,7 @@ class PayrollGeneration extends Component
                 'mra_deduction_days' => $unauthorizedDays,
                 'mra_adjustment_days' => $mraDeductionDays,
                 'mra_minutes' => (int) ($mraAdjustment?->undertime_tardy_minutes ?? 0),
+                'api_timekeeping' => app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->usesHrisApi() && $timekeeping ? (array) $timekeeping : null,
                 'has_mra_adjustment' => $mraAdjustment !== null,
                 'leave_deduction' => $leaveDeduction,
                 'leave_review_items' => $this->leaveReviewItems($leaveDeduction),
@@ -2632,6 +2634,21 @@ class PayrollGeneration extends Component
     {
         if (app(PayrollOperatingModeService::class)->current()->value !== 'standalone') {
             return true;
+        }
+        if (app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->usesHrisApi()) {
+            $ids = $this->employeeFilterOptions()->pluck('emp_id')->map('strval');
+            $period = app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->attendancePeriod($this->period);
+            $loaded = DB::connection('payroll')->table('payroll_canonical_timekeeping as t')
+                ->join('payroll_source_batches as b', 'b.id', '=', 't.source_batch_id')
+                ->where('b.source', 'hris_api')->where('b.kind', 'like', 'api_timekeeping_%')
+                ->where('t.period', $period)->whereIn('t.emp_id', $ids)->pluck('t.emp_id')->map('strval');
+            $missing = $ids->diff($loaded);
+            if ($ids->isNotEmpty() && $missing->isEmpty()) {
+                return true;
+            }
+            $this->addError($errorKey, "HRIS API timekeeping is missing for {$missing->count()} scoped employee(s) in {$period}. Synchronize attendance before continuing.");
+
+            return false;
         }
         if ($this->previousMraReport($this->previousMraPeriod())) {
             return true;
@@ -4299,15 +4316,15 @@ class PayrollGeneration extends Component
                 PayrollTimekeepingSummary::create([
                     'payroll_generate_id' => $run->id,
                     'emp_id' => $row['emp_id'],
-                    'total_work_days' => $this->workingDays,
-                    'days_with_dtr' => $row['paid_days'] ?? max(0, $this->workingDays - $row['deduction_days']),
-                    'regular_hours' => ($row['paid_days'] ?? max(0, $this->workingDays - $row['deduction_days'])) * 8,
-                    'undertime_hours' => round(($row['mra_minutes'] ?? 0) / 60, 4),
-                    'tardy_hours' => 0,
+                    'total_work_days' => $row['api_timekeeping']['total_work_days'] ?? $this->workingDays,
+                    'days_with_dtr' => $row['api_timekeeping']['days_with_dtr'] ?? $row['paid_days'] ?? max(0, $this->workingDays - $row['deduction_days']),
+                    'regular_hours' => $row['api_timekeeping']['regular_hours'] ?? ($row['paid_days'] ?? max(0, $this->workingDays - $row['deduction_days'])) * 8,
+                    'undertime_hours' => $row['api_timekeeping']['undertime_hours'] ?? round(($row['mra_minutes'] ?? 0) / 60, 4),
+                    'tardy_hours' => $row['api_timekeeping']['tardy_hours'] ?? 0,
                     'mra_hours' => round(($row['mra_minutes'] ?? 0) / 60, 4),
-                    'leave_days_with_pay' => 0,
-                    'leave_days_without_pay' => $row['deduction_days'],
-                    'absent_days' => 0,
+                    'leave_days_with_pay' => $row['api_timekeeping']['leave_days_with_pay'] ?? 0,
+                    'leave_days_without_pay' => $row['api_timekeeping']['leave_days_without_pay'] ?? $row['deduction_days'],
+                    'absent_days' => $row['api_timekeeping']['absent_days'] ?? 0,
                     'created_at' => now(),
                 ]);
 
