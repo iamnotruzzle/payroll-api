@@ -32,13 +32,22 @@
 
             <div x-show="['basic-pay','employees','timekeeping'].includes(resource)" x-cloak>
                 <label for="hris-test-employees" class="text-xs font-medium">Employee IDs <span class="font-normal text-slate-500">(optional)</span></label>
-                <input id="hris-test-employees" type="text" wire:model="employeeIds" placeholder="000001,000002" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                <p class="mt-1 text-xs text-slate-500">Separate IDs with commas. Leading zeros are preserved.</p>
+                <select id="hris-test-employees" data-select2-searchable data-model="employeeIds" data-defer-request="true" data-placeholder="Search employees by name or ID" multiple class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    @foreach ($employees as $employee)
+                        <option value="{{ $employee->emp_id }}" @selected(in_array((string) $employee->emp_id, $employeeIds, true))>{{ $employee->emp_id }} — {{ $employee->lastname }}, {{ $employee->firstname }}</option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-xs text-slate-500">Select one or more local employees. Leading zeros are preserved.{{ $employees->isEmpty() ? ' Sync employee master data to populate this list.' : '' }}</p>
                 @error('employeeIds') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
             <div x-show="['basic-pay','leaves','timekeeping'].includes(resource)" x-cloak>
                 <label for="hris-test-departments" class="text-xs font-medium">Department IDs <span class="font-normal text-slate-500">(optional)</span></label>
-                <input id="hris-test-departments" type="text" wire:model="departmentIds" placeholder="1,2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <select id="hris-test-departments" data-select2-searchable data-model="departmentIds" data-defer-request="true" data-placeholder="Search departments by name or ID" multiple class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    @foreach ($departments as $department)
+                        <option value="{{ $department->external_id }}" @selected(in_array((string) $department->external_id, array_map('strval', $departmentIds), true))>{{ $department->external_id }} — {{ $department->name }}</option>
+                    @endforeach
+                </select>
+                @if ($departments->isEmpty()) <p class="mt-1 text-xs text-slate-500">Sync department master data to populate this list.</p> @endif
                 @error('departmentIds') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
             <div x-show="resource === 'basic-pay'" x-cloak class="grid gap-3 sm:grid-cols-2">
@@ -47,7 +56,11 @@
             </div>
             <div x-show="['employees','timekeeping'].includes(resource)" x-cloak>
                 <label for="hris-test-groups" class="text-xs font-medium">Plantilla groups (optional)</label>
-                <input id="hris-test-groups" type="text" wire:model="groups" placeholder="OSEC,COS,COSSG" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <select id="hris-test-groups" data-select2-searchable data-model="groups" data-defer-request="true" data-placeholder="Search plantilla groups" multiple class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    @foreach ($groupOptions as $code => $label)
+                        <option value="{{ $code }}" @selected(in_array($code, $groups, true))>{{ $label }}</option>
+                    @endforeach
+                </select>
                 <p class="mt-1 text-xs text-slate-500">Groups and named IDs are additive on Employees. Timekeeping combines department and group filters.</p>
                 @error('groups') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>

@@ -3,7 +3,10 @@
 namespace App\Livewire\Admin;
 
 use App\Services\Payroll\HrisApiDiagnosticsService;
+use App\Models\Payroll\Canonical\Employee;
+use App\Models\Payroll\Canonical\Department;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -19,13 +22,13 @@ class HrisApiDiagnostics extends Component
 
     public string $to = '';
 
-    public string $employeeIds = '';
+    public array $employeeIds = [];
 
-    public string $departmentIds = '';
+    public array $departmentIds = [];
 
     public string $divisionIds = '';
 
-    public string $groups = '';
+    public array $groups = [];
 
     public string $payrollType = '';
 
@@ -65,10 +68,15 @@ class HrisApiDiagnostics extends Component
         $this->validate(['endpoint' => ['required', Rule::in(array_keys(HrisApiDiagnosticsService::FILTERS))]]);
         $filters = HrisApiDiagnosticsService::FILTERS[$this->endpoint];
         $rules = [];
-        foreach (['employeeIds', 'departmentIds', 'divisionIds', 'groups', 'payrollType'] as $field) {
+        foreach (['divisionIds', 'payrollType'] as $field) {
             $rules[$field] = ['string', 'max:2000'];
         }
-        foreach (['departmentIds', 'divisionIds'] as $field) {
+        $rules += [
+            'employeeIds' => ['array', 'max:500'], 'employeeIds.*' => ['string', 'max:80'],
+            'departmentIds' => ['array', 'max:500'], 'departmentIds.*' => ['integer', 'min:1'],
+            'groups' => ['array', 'max:3'], 'groups.*' => [Rule::in(['OSEC', 'COS', 'COSSG'])],
+        ];
+        foreach (['divisionIds'] as $field) {
             $rules[$field][] = 'regex:/^\s*(?:[1-9]\d*\s*(?:,\s*[1-9]\d*\s*)*)?$/';
         }
         if ($this->endpoint === 'leaves' || ($this->endpoint === 'timekeeping' && $this->dateRange)) {
@@ -82,10 +90,11 @@ class HrisApiDiagnostics extends Component
         $this->validate($rules);
         $parameters = [];
         foreach (['employeeIds' => 'emp_ids', 'departmentIds' => 'department_ids', 'divisionIds' => 'division_ids', 'groups' => 'groups', 'payrollType' => 'type'] as $property => $parameter) {
-            if (! in_array($parameter, $filters, true) || trim($this->{$property}) === '') {
+            $value = $this->{$property};
+            if (! in_array($parameter, $filters, true) || (is_array($value) ? $value === [] : trim($value) === '')) {
                 continue;
             }
-            $values = array_values(array_unique(array_filter(array_map('trim', explode(',', $this->{$property})), fn ($value) => $value !== '')));
+            $values = array_values(array_unique(array_filter(array_map(fn ($item) => trim((string) $item), is_array($value) ? $value : explode(',', $value)), fn ($item) => $item !== '')));
             if ($parameter === 'type') {
                 $parameters[$parameter] = trim($this->{$property});
             } elseif ($this->endpoint === 'basic-pay') {
@@ -131,6 +140,12 @@ class HrisApiDiagnostics extends Component
         $this->authorizeAdmin();
 
         return view('livewire.admin.hris-api-diagnostics', ['resources' => collect(config('hris_api.resources'))
-            ->only(array_keys(HrisApiDiagnosticsService::FILTERS))->filter(fn ($resource) => $resource['enabled'] ?? false)]);
+            ->only(array_keys(HrisApiDiagnosticsService::FILTERS))->filter(fn ($resource) => $resource['enabled'] ?? false),
+            'employees' => Schema::connection('payroll')->hasTable('payroll_canonical_employees')
+                ? Employee::query()->orderBy('lastname')->orderBy('firstname')->get(['emp_id', 'firstname', 'lastname']) : collect(),
+            'departments' => Schema::connection('payroll')->hasTable('payroll_canonical_departments')
+                ? Department::query()->orderBy('name')->get(['external_id', 'name']) : collect(),
+            'groupOptions' => ['OSEC' => 'OSEC — Regular', 'COS' => 'COS — Contract of Service', 'COSSG' => 'COSSG'],
+        ]);
     }
 }
