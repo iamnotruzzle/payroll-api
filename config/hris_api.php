@@ -68,7 +68,7 @@ return [
         'timekeeping' => array_replace($resource('/timekeeping', [
             'period', 'employee_id', 'work_days', 'holidays', 'days_with_dtr', 'regular_hours',
             'tardy_hours', 'undertime_hours', 'leave_days_with_pay', 'leave_days_without_pay', 'absent_days',
-        ], ['period', 'employee_id', 'work_days', 'holidays', 'days_with_dtr', 'regular_hours',
+        ], ['period', 'employee_id', 'work_days', 'holidays', 'regular_hours',
             'tardy_hours', 'undertime_hours', 'leave_days_with_pay', 'leave_days_without_pay', 'absent_days']), [
             'parameters' => ['period' => '{period}'],
         ]),

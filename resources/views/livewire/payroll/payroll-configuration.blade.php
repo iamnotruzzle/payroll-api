@@ -324,7 +324,7 @@
                         @if (count($apiPreparationResults) === count($apiPreparationSteps))
                             <p class="mt-3 text-sm font-medium text-emerald-700">HRIS preparation complete. Review the scope and timekeeping, then proceed to generation.</p>
                         @endif
-                        <p class="mt-3 text-xs text-slate-500">Leaves are filtered by cutoff and departments, then restricted locally to scoped employees. Step 4 loads the month before payroll: API summaries need no HRIS database access; database punches require DTR encoding and MRA finalization. Previously prepared data can be used without starting a new sync.</p>
+                        <p class="mt-3 text-xs text-slate-500">Leaves are filtered by cutoff and departments, then restricted locally to scoped employees. Step 4 loads the month before payroll: API summaries use the HRIS database only to fill a null DTR-day count; database punches require DTR encoding and MRA finalization. Previously prepared data can be used without starting a new sync.</p>
                         @error('sync') <p role="alert" class="mt-3 text-sm text-red-600">{{ $message }}</p> @enderror
                     </section>
                 @endif

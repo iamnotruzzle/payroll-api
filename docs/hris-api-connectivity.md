@@ -59,9 +59,11 @@ The updated contract provides `GET /api/external/payroll/timekeeping`. In Standa
 
 The fields are `period`, `employee_id`, `work_days`, `holidays`, `days_with_dtr`, `regular_hours`, `tardy_hours`, `undertime_hours`, `leave_days_with_pay`, `leave_days_without_pay`, and `absent_days`. `mra_hours` is not requested or required. The legacy storage column remains zero for API imports. Holidays are retained in the source batch payload.
 
+If `days_with_dtr` is explicitly null, payroll counts distinct DTR dates in `hris.tbl_employee_dtr` for that employee and attendance month. Duplicate rows on the same date count once. Explicit zero is preserved; a missing field remains a contract error. Only null counts trigger HRIS database reads. A failed fallback leaves existing attendance intact. Source batches record which counts came from the database.
+
 Every scoped employee must have exactly one row for the requested month. Missing employees, duplicate or unexpected rows, incorrect periods, warnings, malformed responses, and negative or non-finite metrics prevent activation and preserve existing attendance. Activation and the switch to API timekeeping happen in one payroll transaction. Repeating identical data reuses the batch.
 
-Payroll reads API attendance from the previous month and validates coverage for all scoped employees. Unauthorized absence days default from `absent_days` unless explicitly overridden. Leave processing remains separate to avoid adding leave deductions twice. Tardiness and undertime remain separate in finalized summaries; `mra_hours` is not an additional deduction. Review Step 1 before finalization. API summaries do not require HRIS database access or a local MRA report generated from raw punches.
+Payroll reads API attendance from the previous month and validates coverage for all scoped employees. Unauthorized absence days default from `absent_days` unless explicitly overridden. Leave processing remains separate to avoid adding leave deductions twice. Tardiness and undertime remain separate in finalized summaries; `mra_hours` is not an additional deduction. Review Step 1 before finalization. API summaries require HRIS database access only for null DTR-day counts, and do not require a local MRA report generated from raw punches.
 
 The API client also supports documented `from` + `to` ranges for connectivity checks. The wizard intentionally uses calendar months because canonical periods are stored as `YYYY-MM`.
 

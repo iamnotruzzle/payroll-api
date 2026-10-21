@@ -1790,7 +1790,7 @@ class PayrollGeneration extends Component
             ->whereIn('adjustment_type', ['TARDINESS', 'UNDERTIME'])
             ->get()
             ->groupBy('emp_id');
-        $mraAdjustments = $previousMraReport
+        $mraAdjustments = $previousMraReport && app(PayrollOperatingModeService::class)->current() !== \App\Enums\PayrollOperatingMode::Standalone
             ? PayrollLeaveCreditAdjustment::query()
                 ->where('mra_report_id', $previousMraReport->id)
                 ->whereIn('emp_id', $empIds)

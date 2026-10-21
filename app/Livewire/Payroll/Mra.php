@@ -49,6 +49,7 @@ class Mra extends Component
     public function render()
     {
         $report = $this->report();
+        $standalone = app(PayrollTimekeepingSourceService::class)->standalone();
 
         return view('livewire.payroll.mra', [
             'department' => auth()->user()?->employee?->department,
@@ -62,7 +63,8 @@ class Mra extends Component
                 ->orderByDesc('generated_at')
                 ->limit(10)
                 ->get(),
-            'adjustments' => $report
+            'standalone' => $standalone,
+            'adjustments' => $report && ! $standalone
                 ? PayrollLeaveCreditAdjustment::query()->where('mra_report_id', $report->id)->orderBy('employee_name')->get()
                 : collect(),
         ]);
@@ -81,6 +83,10 @@ class Mra extends Component
                 ['department_id' => $departmentId, 'period_start' => $this->from, 'period_end' => $this->to],
                 ['status' => 'Finalized', 'generated_by' => $generatedBy, 'generated_at' => now(), 'remarks' => $this->remarks],
             );
+
+            if (app(PayrollTimekeepingSourceService::class)->standalone()) {
+                return;
+            }
 
             $previous = PayrollLeaveCreditAdjustment::query()->where('mra_report_id', $report->id)->get();
             if ($previous->isNotEmpty()) {
@@ -126,7 +132,9 @@ class Mra extends Component
             }
         });
 
-        session()->flash('status', 'MRA generated. DTR labels are locked and tardiness/undertime was deducted from VL credits.');
+        session()->flash('status', app(PayrollTimekeepingSourceService::class)->standalone()
+            ? 'MRA generated. DTR labels are locked. Leave-credit balances were not adjusted.'
+            : 'MRA generated. DTR labels are locked and tardiness/undertime was deducted from VL credits.');
     }
 
     public function updatedMonthFilter(): void
@@ -297,11 +305,13 @@ class Mra extends Component
             'cto_days' => round($ctoDays, 2),
             'cancelled_leave_count' => $cancelledLeaves->count(),
             'undertime_minutes' => $undertimeMinutes,
-            'day_equivalent' => round($undertimeMinutes / 480, 3),
+            'day_equivalent' => app(PayrollTimekeepingSourceService::class)->standalone() ? 0 : round($undertimeMinutes / 480, 3),
             'physically_reported_hours' => round($physicallyReportedHours, 2),
             'vl_balance' => (float) $employee->vacation_leave_credits,
             'sl_balance' => (float) $employee->sick_leave_credits,
-            'ending_balance' => max(0, (float) $employee->vacation_leave_credits - round($undertimeMinutes / 480, 3)),
+            'ending_balance' => app(PayrollTimekeepingSourceService::class)->standalone()
+                ? (float) $employee->vacation_leave_credits
+                : max(0, (float) $employee->vacation_leave_credits - round($undertimeMinutes / 480, 3)),
             'details' => collect($details)->sortBy('date')->values()->all(),
         ];
     }

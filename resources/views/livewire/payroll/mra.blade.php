@@ -3,7 +3,7 @@
         <div>
             <h2 class="text-xl font-semibold">Monthly Report of Attendance</h2>
             <p class="text-sm text-slate-600">
-                Preview undertime and tardiness deductions, then finalize MRA for {{ $department?->department ?? 'your department' }}.
+                {{ $standalone ? 'Review attendance without adjusting leave credits, then finalize MRA for' : 'Preview undertime and tardiness deductions, then finalize MRA for' }} {{ $department?->department ?? 'your department' }}.
             </p>
         </div>
         <button wire:click="finalize" wire:loading.attr="disabled"
@@ -74,7 +74,7 @@
                             <th class="px-4 py-3 text-right">Leave Credits</th>
                             <th class="px-4 py-3 text-right">Cancelled Leaves</th>
                             <th class="px-4 py-3 text-right">Undertime/Tardy</th>
-                            <th class="px-4 py-3 text-right">Day Equiv</th>
+                            @unless ($standalone)<th class="px-4 py-3 text-right">Day Equiv</th>@endunless
                             <th class="px-4 py-3 text-right">Physically Reported</th>
                         </tr>
                     </thead>
@@ -107,12 +107,12 @@
                                 </td>
                                 <td class="px-4 py-3 text-right">{{ $row['cancelled_leave_count'] }}</td>
                                 <td class="px-4 py-3 text-right">{{ $this->formatMinutes($row['undertime_minutes']) }}</td>
-                                <td class="px-4 py-3 text-right">{{ number_format($row['day_equivalent'], 3) }}</td>
+                                @unless ($standalone)<td class="px-4 py-3 text-right">{{ number_format($row['day_equivalent'], 3) }}</td>@endunless
                                 <td class="px-4 py-3 text-right">{{ number_format($row['physically_reported_hours'], 2) }} hours</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="px-4 py-8 text-center text-slate-500">No active employees found for this department.</td>
+                                <td colspan="{{ $standalone ? 9 : 10 }}" class="px-4 py-8 text-center text-slate-500">No active employees found for this department.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -125,7 +125,7 @@
                             <td class="px-4 py-3"></td>
                             <td class="px-4 py-3"></td>
                             <td class="px-4 py-3 text-right">{{ $this->formatMinutes($previewRows->sum('undertime_minutes')) }}</td>
-                            <td class="px-4 py-3 text-right">{{ number_format($previewRows->sum('day_equivalent'), 3) }}</td>
+                            @unless ($standalone)<td class="px-4 py-3 text-right">{{ number_format($previewRows->sum('day_equivalent'), 3) }}</td>@endunless
                             <td class="px-4 py-3 text-right">{{ number_format($previewRows->sum('physically_reported_hours'), 2) }} hours</td>
                         </tr>
                     </tfoot>

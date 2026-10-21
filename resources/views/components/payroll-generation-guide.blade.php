@@ -114,7 +114,7 @@
             'Sync Leaves for the cutoff. The endpoint filters by dates and departments; payroll also restricts records to scoped employees.',
             'For Timekeeping, choose HRIS API attendance summaries or HRIS database DTR punches. Both use scoped employees and the calendar month before payroll.',
             'Check each batch and record count, then Review & Continue. Finish all four actions once started; changing the scope or dates requires preparation again.',
-        ], 'API summaries do not require HRIS database access or raw DTR encoding. Database punches still require local DTR encoding and MRA finalization. Previously prepared data can be used without starting a new sync.'];
+        ], 'API summaries read the HRIS database only when days_with_dtr is null; raw DTR encoding is not required. Database punches still require local DTR encoding and MRA finalization. Previously prepared data can be used without starting a new sync.'];
         $guides['system'] = ['Payroll System Management', 'Manage local payroll inputs and source history.', [
             'Open Payroll Configuration to run the four scoped preparation actions.',
             'Review source history and payroll input readiness. A successful API timekeeping sync stores local attendance summaries; database sync stores DTR snapshots.',
@@ -122,6 +122,7 @@
             'With database punches, complete local DTR encoding and finalize the previous month MRA. With API summaries, verify every scoped employee has attendance for the previous month.',
         ], 'An operating mode forced by the environment cannot be changed here. Changing the timekeeping source explicitly can switch away from snapshot reads.'];
         $guides['step-1'][2] = [
+            'Standalone mode does not calculate or apply vacation-leave credit adjustments. Imported leave balances remain unchanged.',
             'Confirm the scope, payroll month, and previous month MRA.',
             'Review the cutoff, paid leave, leave without pay, and previously processed dates using local canonical records.',
             'With HRIS API summaries, review the imported absence, tardiness, and undertime values. Every scoped employee must have attendance for the previous month; mra_hours is not required.',

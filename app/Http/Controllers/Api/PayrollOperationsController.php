@@ -241,6 +241,10 @@ class PayrollOperationsController extends Controller
                 ]
             );
 
+            if (app(\App\Services\Payroll\PayrollOperatingModeService::class)->current() === \App\Enums\PayrollOperatingMode::Standalone) {
+                return $report->fresh();
+            }
+
             $previous = PayrollLeaveCreditAdjustment::query()
                 ->where('mra_report_id', $report->id)
                 ->get();
@@ -477,6 +481,8 @@ class PayrollOperationsController extends Controller
 
     public function replaceLeaveCreditAdjustments(Request $request): JsonResponse
     {
+        abort_if(app(\App\Services\Payroll\PayrollOperatingModeService::class)->current() === \App\Enums\PayrollOperatingMode::Standalone,
+            403, 'Vacation-leave credit adjustments are disabled in Standalone mode.');
         $data = $request->validate([
             'mra_report_id' => ['required', 'integer'],
             'adjustments' => ['required', 'array'],
