@@ -303,6 +303,24 @@ class PayrollConfiguration extends Component
         $this->noticedConfigurationKey = null;
     }
 
+    public function syncHolidays(\App\Services\Payroll\HrisApiHolidaySyncService $service): void
+    {
+        abort_unless($this->canManageHolidayCalendar(), 403);
+        abort_unless(app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone, 403);
+        $this->resetValidation('holiday_sync');
+        $this->validate(['period' => ['required', 'date_format:Y-m']]);
+        try {
+            $result = $service->sync($this->period);
+            session()->flash('holiday_status', "Synced {$result['synced']} calendar entries; skipped {$result['skipped']} non-closure or conflicting entries. Imported closures are marked paid; review before continuing. Existing entries absent from HRIS are retained.");
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->addError('holiday_sync', 'HRIS returned invalid calendar data. Existing entries were retained.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            $this->addError('holiday_sync', 'Calendar synchronization failed. Check payroll database migrations.');
+        } catch (\RuntimeException $e) {
+            $this->addError('holiday_sync', $e->getMessage());
+        }
+    }
+
     public function saveHoliday(HolidayService $service): void
     {
         abort_unless($this->canManageHolidayCalendar(), 403);

@@ -36,6 +36,8 @@ class HrisApiTimekeepingSyncService
             }
             $dtrCounts = null;
             foreach ($result['rows'] as $row) {
+                // The latest contract moves holiday details to their own endpoint.
+                $row['holidays'] ??= 0;
                 $id = $row['employee_id'];
                 if (! in_array($id, $chunk, true) || $row['period'] !== $period || isset($rows[$id])) {
                     throw new RuntimeException('HRIS timekeeping returned an unexpected employee, period, or duplicate record. Existing attendance was retained.');

@@ -79,9 +79,9 @@ class HrisApiDiagnostics extends Component
         foreach (['divisionIds'] as $field) {
             $rules[$field][] = 'regex:/^\s*(?:[1-9]\d*\s*(?:,\s*[1-9]\d*\s*)*)?$/';
         }
-        if ($this->endpoint === 'leaves' || ($this->endpoint === 'timekeeping' && $this->dateRange)) {
+        if ($this->endpoint === 'leaves' || (in_array($this->endpoint, ['timekeeping', 'holidays'], true) && $this->dateRange)) {
             $rules += ['from' => ['required', 'date_format:Y-m-d'], 'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from']];
-        } elseif ($this->endpoint === 'timekeeping') {
+        } elseif (in_array($this->endpoint, ['timekeeping', 'holidays'], true)) {
             $rules['period'] = ['required', 'date_format:Y-m'];
         }
         if ($this->endpoint === 'salary-rates') {
@@ -113,9 +113,9 @@ class HrisApiDiagnostics extends Component
         if ($this->endpoint === 'salary-rates') {
             $parameters['year'] = $this->year;
         }
-        if ($this->endpoint === 'leaves' || ($this->endpoint === 'timekeeping' && $this->dateRange)) {
+        if ($this->endpoint === 'leaves' || (in_array($this->endpoint, ['timekeeping', 'holidays'], true) && $this->dateRange)) {
             $parameters += ['from' => $this->from, 'to' => $this->to];
-        } elseif ($this->endpoint === 'timekeeping') {
+        } elseif (in_array($this->endpoint, ['timekeeping', 'holidays'], true)) {
             $parameters['period'] = $this->period;
         }
         if ($this->endpoint === 'basic-pay' && ! isset($parameters['emp_ids']) && empty($parameters['department_ids']) && empty($parameters['division_ids']) && empty($parameters['type'])) {

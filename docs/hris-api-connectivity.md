@@ -57,7 +57,7 @@ Leave status and cancellation are stored. Pending and rejected leave is excluded
 
 The updated contract provides `GET /api/external/payroll/timekeeping`. In Standalone Payroll Configuration, the fourth preparation action defaults to **HRIS API attendance summaries**. It requests the calendar month before payroll using `period=YYYY-MM` and scoped comma-separated `emp_ids` in batches of 100. October payroll therefore imports September attendance; the leave cutoff is independent.
 
-The fields are `period`, `employee_id`, `work_days`, `holidays`, `days_with_dtr`, `regular_hours`, `tardy_hours`, `undertime_hours`, `leave_days_with_pay`, `leave_days_without_pay`, and `absent_days`. `mra_hours` is not requested or required. The legacy storage column remains zero for API imports. Holidays are retained in the source batch payload.
+The fields are `period`, `employee_id`, `work_days`, `days_with_dtr`, `regular_hours`, `tardy_hours`, `undertime_hours`, `leave_days_with_pay`, `leave_days_without_pay`, and `absent_days`. `mra_hours` is not requested or required. The legacy storage column remains zero for API imports. The latest contract supplies calendar holidays separately; a legacy `holidays` count is optional and defaults to zero.
 
 If `days_with_dtr` is explicitly null, payroll counts distinct DTR dates in `hris.tbl_employee_dtr` for that employee and attendance month. Duplicate rows on the same date count once. Explicit zero is preserved; a missing field remains a contract error. Only null counts trigger HRIS database reads. A failed fallback leaves existing attendance intact. Source batches record which counts came from the database.
 
@@ -82,3 +82,10 @@ php artisan payroll:api-check timekeeping --period=2026-09
 ```
 
 The existing `basic-pay` POST resource remains available for compatibility; it is not used by the new documented payroll sync. Mapping configuration lives in `config/hris_api.php` and uses payroll field to source JSON field direction.
+
+
+## Standalone holiday calendar
+
+Run `php artisan migrate --force` on deployment to add the HRIS calendar ID. In Payroll Configuration > Run details, authorized payroll HR/calendar users can select **Sync holidays from HRIS**. This calls `GET /api/external/payroll/holidays?period=YYYY-MM&kinds=holiday,suspension` for the selected payroll month. Calendar closures are shared and have no division/department filter in the documented API.
+
+Full-day and standard half-day closures are mapped to the local calendar; OD-only/non-closing records are skipped. Unsupported partial hours and duplicate-date closures reject the import before any writes. Manual date conflicts are skipped. Imports are repeatable by HRIS holiday ID, preserve locally edited paid status, and retain existing entries absent from subsequent responses. New entries default to paid because the endpoint has no paid flag; review them before continuing. Holidays are also available in admin HRIS API Tests with month or date-range filtering.

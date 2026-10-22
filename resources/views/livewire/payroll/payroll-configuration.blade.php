@@ -89,13 +89,25 @@
                                 and MRA processing.</p>
                         </div>
                         @if ($canManageHolidays)
+                            <div class="flex flex-wrap gap-2">
+                            @if ($isStandalone)
+                                <button type="button" wire:click="syncHolidays" wire:loading.attr="disabled" wire:target="syncHolidays"
+                                    class="rounded-md border border-blue-300 bg-white px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-60">
+                                    <span wire:loading.remove wire:target="syncHolidays">Sync holidays from HRIS</span>
+                                    <span wire:loading wire:target="syncHolidays" role="status">Syncing holidays…</span>
+                                </button>
+                            @endif
                             <button type="button"
                                 x-on:click="erpOverlay.open($wire, 'payroll-holiday', { holidayEditingId: null, holidayDate: @js($period . '-01'), holidayName: '', holidayType: 'REGULAR', holidayScope: 'FULL_DAY', holidayIsPaid: true, holidayIsActive: true })"
                                 class="rounded-md border border-blue-300 bg-white px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50">
                                 Add calendar entry
                             </button>
+                            </div>
                         @endif
                     </div>
+                    @error('holiday_sync')
+                        <p class="px-3 py-2 text-sm text-red-600" role="alert">{{ $message }}</p>
+                    @enderror
                     @if (session('holiday_status'))
                         <div
                             class="border-b border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">

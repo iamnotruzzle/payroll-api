@@ -15,6 +15,7 @@ class HrisApiDiagnosticsService
         'employees' => ['emp_ids', 'groups'], 'salary-rates' => ['year'],
         'leaves' => ['from', 'to', 'department_ids'],
         'timekeeping' => ['period', 'from', 'to', 'department_ids', 'groups', 'emp_ids'],
+        'holidays' => ['period', 'from', 'to', 'kinds'],
     ];
 
     public function inspect(string $endpoint, array $parameters): array

@@ -16,16 +16,16 @@
                 @error('endpoint') <p role="alert" class="mt-2 text-sm text-red-600">{{ $message }}</p> @enderror
             </div>
 
-            <div x-show="resource === 'timekeeping'" x-cloak class="space-y-3">
+            <div x-show="['timekeeping','holidays'].includes(resource)" x-cloak class="space-y-3">
                 <label class="inline-flex items-center gap-2 text-sm"><input type="checkbox" x-model="range" class="rounded border-slate-300">Use an inclusive date range</label>
                 <div x-show="!range">
-                    <label for="hris-test-period" class="text-xs font-medium">Attendance month</label>
+                    <label for="hris-test-period" class="text-xs font-medium">Calendar month</label>
                     <input id="hris-test-period" type="month" wire:model="period" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     @error('period') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
             </div>
 
-            <div x-show="resource === 'leaves' || (resource === 'timekeeping' && range)" x-cloak class="grid gap-3 sm:grid-cols-2">
+            <div x-show="resource === 'leaves' || (['timekeeping','holidays'].includes(resource) && range)" x-cloak class="grid gap-3 sm:grid-cols-2">
                 <div><label for="hris-test-from" class="text-xs font-medium">From</label><input id="hris-test-from" type="date" wire:model="from" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">@error('from') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror</div>
                 <div><label for="hris-test-to" class="text-xs font-medium">To</label><input id="hris-test-to" type="date" wire:model="to" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">@error('to') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror</div>
             </div>

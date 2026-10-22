@@ -17,6 +17,7 @@ class PayrollHoliday extends Model
         'label_code',
         'is_paid',
         'is_active',
+        'hris_holiday_id',
     ];
 
     protected $casts = [

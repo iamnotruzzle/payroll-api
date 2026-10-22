@@ -65,12 +65,19 @@ return [
         ], ['leave_id', 'employee_id', 'leave_type_id', 'start_date', 'end_date', 'days_with_pay', 'days_without_pay', 'status', 'cancelled']), [
             'parameters' => ['from' => '{from}', 'to' => '{to}'],
         ]),
+        'holidays' => array_replace($resource('/holidays', [
+            'holiday_id', 'date', 'kind', 'holiday_type', 'name', 'whole_day', 'time_from', 'time_to', 'closes_work',
+        ], ['holiday_id', 'date', 'kind', 'whole_day', 'closes_work']), [
+            'parameters' => ['period' => '{period}', 'kinds' => 'holiday,suspension'],
+        ]),
         'timekeeping' => array_replace($resource('/timekeeping', [
             'period', 'employee_id', 'work_days', 'holidays', 'days_with_dtr', 'regular_hours',
             'tardy_hours', 'undertime_hours', 'leave_days_with_pay', 'leave_days_without_pay', 'absent_days',
         ], ['period', 'employee_id', 'work_days', 'holidays', 'regular_hours',
             'tardy_hours', 'undertime_hours', 'leave_days_with_pay', 'leave_days_without_pay', 'absent_days']), [
             'parameters' => ['period' => '{period}'],
+            'required_keys' => ['period', 'employee_id', 'work_days', 'days_with_dtr', 'regular_hours', 'tardy_hours', 'undertime_hours', 'leave_days_with_pay', 'leave_days_without_pay', 'absent_days'],
+            'required' => ['period', 'employee_id', 'work_days', 'regular_hours', 'tardy_hours', 'undertime_hours', 'leave_days_with_pay', 'leave_days_without_pay', 'absent_days'],
         ]),
     ],
 ];
