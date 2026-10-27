@@ -334,9 +334,9 @@
                         </select>
                     </div>
 
-                    <div x-show="selectedRecentLoanSuggestion" class="md:col-span-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                    <div x-transition.opacity.duration.180ms x-show="selectedRecentLoanSuggestion" class="md:col-span-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
                         <span>Auto-filled from </span><span x-text="selectedRecentLoanSuggestion?.due_month"></span><span> for the same employee and {{ $labels['type_name_lc'] }}.</span>
-                        <div x-show="amountChangedFromRecent()" class="mt-1 font-semibold text-amber-800">
+                        <div x-transition.opacity.duration.180ms x-show="amountChangedFromRecent()" class="mt-1 font-semibold text-amber-800">
                             Same reference, but the amount differs from the previous <span x-text="Number(selectedRecentLoanSuggestion?.amount_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></span>.
                         </div>
                     </div>
@@ -394,7 +394,7 @@
                             Add to Batch
                         </button>
                     </div>
-                    <div x-show="batchError" class="md:col-span-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" x-text="batchError"></div>
+                    <div x-transition.opacity.duration.180ms x-show="batchError" class="md:col-span-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" x-text="batchError"></div>
                 </div>
 
                 <div class="min-h-[360px] overflow-hidden rounded-lg border border-slate-200">
@@ -429,7 +429,7 @@
                                         </td>
                                     </tr>
                                 </template>
-                                <tr x-show="loanBatch.length === 0">
+                                <tr x-transition.opacity.duration.180ms x-show="loanBatch.length === 0">
                                     <td colspan="5" class="px-3 py-10 text-center text-slate-500">{{ $labels['empty_batch'] }}</td>
                                 </tr>
                             </tbody>
@@ -443,8 +443,8 @@
                     Cancel
                 </button>
                 <button type="button" x-on:click="saveLoanBatch()" x-bind:disabled="savingLoan || loanBatch.length === 0" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
-                    <span x-show="!savingLoan">Save Batch</span>
-                    <span x-show="savingLoan">Saving...</span>
+                    <span x-transition.opacity.duration.180ms x-show="!savingLoan">Save Batch</span>
+                    <span x-transition.opacity.duration.180ms x-show="savingLoan">Saving...</span>
                 </button>
             </div>
         </div>
@@ -565,7 +565,7 @@
             </div>
 
             @if ($selected)
-                <div class="grid gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 md:grid-cols-[minmax(220px,1fr)_180px_180px_auto]">
+                <div class="grid gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:grid-cols-2 2xl:grid-cols-[minmax(220px,1fr)_180px_180px_auto]">
                     <label class="block">
                         <span class="text-xs font-semibold uppercase text-slate-500">Search Rows</span>
                         <input wire:model.lazy="itemSearch" type="search" placeholder="Employee, reference, type, remarks" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">

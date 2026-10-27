@@ -24,6 +24,7 @@ use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
+use Livewire\Attributes\Url;
 
 class DtrEncoding extends Component
 {
@@ -31,10 +32,13 @@ class DtrEncoding extends Component
 
     public string $to;
 
-    public string $monthFilter;
+    #[Url(as: 'month', keep: true)]
+    public string $monthFilter = '';
 
-    public string $yearFilter;
+    #[Url(as: 'year', keep: true)]
+    public string $yearFilter = '';
 
+    #[Url(as: 'employee', except: null)]
     public ?string $selectedEmpId = null;
 
     public ?string $selectedBatchLabel = null;
@@ -49,13 +53,22 @@ class DtrEncoding extends Component
 
     public bool $isLabelComplete = true;
 
+    #[Url(as: 'type', except: Employee::EMPLOYEE_TYPE_PLANTILLA)]
     public string $employeeTypeFilter = Employee::EMPLOYEE_TYPE_PLANTILLA;
 
     public function mount(): void
     {
         $today = CarbonImmutable::today()->subMonth();
-        $this->monthFilter = (string) $today->month;
-        $this->yearFilter = (string) $today->year;
+        if ($this->monthFilter === '') {
+            $this->monthFilter = (string) $today->month;
+        }
+        if ($this->yearFilter === '') {
+            $this->yearFilter = (string) $today->year;
+        }
+        $this->validate([
+            'monthFilter' => ['required', 'integer', 'between:1,12'],
+            'yearFilter' => ['required', 'integer', 'between:1900,2100'],
+        ]);
         $this->syncPeriodFromSelection();
         $this->loadState();
     }

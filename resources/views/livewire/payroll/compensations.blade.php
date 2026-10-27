@@ -102,7 +102,7 @@
                     @error('value') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
-                <div x-show="$wire.computationType === 'formula'" x-cloak
+                <div x-transition.opacity.duration.180ms x-show="$wire.computationType === 'formula'" x-cloak
                         class="erp-formula-editor overflow-hidden rounded-md border border-slate-300 bg-white"
                         x-data="{
                             insert(text) {
@@ -235,13 +235,13 @@
                         @error('taxTreatment') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
 
-                    <div class="mt-3" x-show="$wire.taxTreatment === 'de_minimis_annual_limit'" x-cloak>
+                    <div class="mt-3" x-transition.opacity.duration.180ms x-show="$wire.taxTreatment === 'de_minimis_annual_limit'" x-cloak>
                             <label class="text-sm font-medium">Annual Exempt Limit</label>
                             <input wire:model="annualExemptLimit" type="number" step="0.01" min="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             @error('annualExemptLimit') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
 
-                    <div class="mt-3" x-show="$wire.taxTreatment === 'supplemental_flat_rate'" x-cloak>
+                    <div class="mt-3" x-transition.opacity.duration.180ms x-show="$wire.taxTreatment === 'supplemental_flat_rate'" x-cloak>
                             <label class="text-sm font-medium">Supplemental Tax Rate</label>
                             <input wire:model="supplementalTaxRate" type="number" step="0.0001" min="0" max="1" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             <p class="mt-1 text-xs text-slate-500">Use 0.15 for 15%.</p>

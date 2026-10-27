@@ -16,21 +16,21 @@
                 @error('endpoint') <p role="alert" class="mt-2 text-sm text-red-600">{{ $message }}</p> @enderror
             </div>
 
-            <div x-show="['timekeeping','holidays'].includes(resource)" x-cloak class="space-y-3">
+            <div x-transition.opacity.duration.180ms x-show="['timekeeping','holidays'].includes(resource)" x-cloak class="space-y-3">
                 <label class="inline-flex items-center gap-2 text-sm"><input type="checkbox" x-model="range" class="rounded border-slate-300">Use an inclusive date range</label>
-                <div x-show="!range">
+                <div x-transition.opacity.duration.180ms x-show="!range">
                     <label for="hris-test-period" class="text-xs font-medium">Calendar month</label>
                     <input id="hris-test-period" type="month" wire:model="period" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     @error('period') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
             </div>
 
-            <div x-show="resource === 'leaves' || (['timekeeping','holidays'].includes(resource) && range)" x-cloak class="grid gap-3 sm:grid-cols-2">
+            <div x-transition.opacity.duration.180ms x-show="resource === 'leaves' || (['timekeeping','holidays'].includes(resource) && range)" x-cloak class="grid gap-3 sm:grid-cols-2">
                 <div><label for="hris-test-from" class="text-xs font-medium">From</label><input id="hris-test-from" type="date" wire:model="from" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">@error('from') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror</div>
                 <div><label for="hris-test-to" class="text-xs font-medium">To</label><input id="hris-test-to" type="date" wire:model="to" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">@error('to') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror</div>
             </div>
 
-            <div x-show="['basic-pay','employees','timekeeping'].includes(resource)" x-cloak>
+            <div x-transition.opacity.duration.180ms x-show="['basic-pay','employees','timekeeping'].includes(resource)" x-cloak>
                 <label for="hris-test-employees" class="text-xs font-medium">Employee IDs <span class="font-normal text-slate-500">(optional)</span></label>
                 <select id="hris-test-employees" data-select2-searchable data-model="employeeIds" data-defer-request="true" data-placeholder="Search employees by name or ID" multiple class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     @foreach ($employees as $employee)
@@ -40,7 +40,7 @@
                 <p class="mt-1 text-xs text-slate-500">Select one or more local employees. Leading zeros are preserved.{{ $employees->isEmpty() ? ' Sync employee master data to populate this list.' : '' }}</p>
                 @error('employeeIds') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
-            <div x-show="['basic-pay','leaves','timekeeping'].includes(resource)" x-cloak>
+            <div x-transition.opacity.duration.180ms x-show="['basic-pay','leaves','timekeeping'].includes(resource)" x-cloak>
                 <label for="hris-test-departments" class="text-xs font-medium">Department IDs <span class="font-normal text-slate-500">(optional)</span></label>
                 <select id="hris-test-departments" data-select2-searchable data-model="departmentIds" data-defer-request="true" data-placeholder="Search departments by name or ID" multiple class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     @foreach ($departments as $department)
@@ -50,11 +50,11 @@
                 @if ($departments->isEmpty()) <p class="mt-1 text-xs text-slate-500">Sync department master data to populate this list.</p> @endif
                 @error('departmentIds') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
-            <div x-show="resource === 'basic-pay'" x-cloak class="grid gap-3 sm:grid-cols-2">
+            <div x-transition.opacity.duration.180ms x-show="resource === 'basic-pay'" x-cloak class="grid gap-3 sm:grid-cols-2">
                 <div><label for="hris-test-divisions" class="text-xs font-medium">Division IDs (optional)</label><input id="hris-test-divisions" type="text" wire:model="divisionIds" placeholder="1,3" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">@error('divisionIds') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror</div>
                 <div><label for="hris-test-type" class="text-xs font-medium">Named payroll type (optional)</label><input id="hris-test-type" type="text" wire:model="payrollType" placeholder="regular" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">@error('payrollType') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror</div>
             </div>
-            <div x-show="['employees','timekeeping'].includes(resource)" x-cloak>
+            <div x-transition.opacity.duration.180ms x-show="['employees','timekeeping'].includes(resource)" x-cloak>
                 <label for="hris-test-groups" class="text-xs font-medium">Plantilla groups (optional)</label>
                 <select id="hris-test-groups" data-select2-searchable data-model="groups" data-defer-request="true" data-placeholder="Search plantilla groups" multiple class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     @foreach ($groupOptions as $code => $label)
@@ -64,9 +64,9 @@
                 <p class="mt-1 text-xs text-slate-500">Groups and named IDs are additive on Employees. Timekeeping combines department and group filters.</p>
                 @error('groups') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
-            <div x-show="resource === 'salary-rates'" x-cloak><label for="hris-test-year" class="text-xs font-medium">Schedule year</label><input id="hris-test-year" type="text" wire:model="year" placeholder="2026 or all" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">@error('year') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror</div>
-            <label x-show="['divisions','departments'].includes(resource)" x-cloak class="flex items-center gap-2 text-sm"><input type="checkbox" wire:model="activeOnly" class="rounded border-slate-300">Active records only</label>
-            <label x-show="resource === 'basic-pay'" x-cloak class="flex items-center gap-2 text-sm"><input type="checkbox" wire:model="includeInactive" class="rounded border-slate-300">Include inactive employees</label>
+            <div x-transition.opacity.duration.180ms x-show="resource === 'salary-rates'" x-cloak><label for="hris-test-year" class="text-xs font-medium">Schedule year</label><input id="hris-test-year" type="text" wire:model="year" placeholder="2026 or all" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">@error('year') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror</div>
+            <label x-transition.opacity.duration.180ms x-show="['divisions','departments'].includes(resource)" x-cloak class="flex items-center gap-2 text-sm"><input type="checkbox" wire:model="activeOnly" class="rounded border-slate-300">Active records only</label>
+            <label x-transition.opacity.duration.180ms x-show="resource === 'basic-pay'" x-cloak class="flex items-center gap-2 text-sm"><input type="checkbox" wire:model="includeInactive" class="rounded border-slate-300">Include inactive employees</label>
             <div class="border-t border-slate-200 pt-4">
                 <button type="submit" wire:loading.attr="disabled" class="hris-api-test-action rounded-md px-4 py-2 text-sm font-semibold">
                     <span wire:loading.remove wire:target="runTest">Test endpoint</span><span wire:loading wire:target="runTest">Testing endpoint...</span>

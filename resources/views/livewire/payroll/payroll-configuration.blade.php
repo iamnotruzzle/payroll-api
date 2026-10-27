@@ -44,7 +44,7 @@
             </ol>
         </nav>
         <div class="p-4 sm:p-6">
-            <div x-show="configurationStep === 'details'" class="space-y-4" role="region" aria-label="Run details">
+            <div x-transition.opacity.duration.180ms x-show="configurationStep === 'details'" class="space-y-4" role="region" aria-label="Run details">
 
                 <div>
                     <h3 class="text-sm font-semibold uppercase text-slate-500">Run Details</h3>
@@ -177,7 +177,7 @@
 
 
             </div>
-            <div x-show="configurationStep === 'scope'" x-cloak class="space-y-4" role="region" aria-label="Payroll scope">
+            <div x-transition.opacity.duration.180ms x-show="configurationStep === 'scope'" x-cloak class="space-y-4" role="region" aria-label="Payroll scope">
 
                 <div>
                     <h3 class="text-sm font-semibold uppercase text-slate-500">Payroll Scope</h3>
@@ -280,7 +280,7 @@
                     @enderror
                 </div>
             </div>
-            <div x-show="configurationStep === 'preparation'" x-cloak role="region" aria-label="Prepare payroll data">
+            <div x-transition.opacity.duration.180ms x-show="configurationStep === 'preparation'" x-cloak role="region" aria-label="Prepare payroll data">
                 @if ($isStandalone)
                     <section class="border-t border-slate-200 py-4" aria-labelledby="api-preparation-title">
                         <h3 id="api-preparation-title" class="text-sm font-semibold text-slate-900">Prepare payroll data from HRIS</h3>
@@ -341,7 +341,7 @@
                     </section>
                 @endif
             </div>
-            <div x-show="configurationStep === 'review'" x-cloak class="space-y-5" role="region" aria-label="Review payroll configuration">
+            <div x-transition.opacity.duration.180ms x-show="configurationStep === 'review'" x-cloak class="space-y-5" role="region" aria-label="Review payroll configuration">
                 <h3 class="text-base font-semibold">Review before opening payroll generation</h3>
                 <dl class="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div><dt class="text-xs text-slate-500">Payroll month</dt><dd class="mt-1 text-sm font-semibold">{{ $periodLabel }}</dd></div>
@@ -360,7 +360,7 @@
             </div>
         </div>
 
-        <div x-show="configurationStep === 'review'" x-cloak>
+        <div x-transition.opacity.duration.180ms x-show="configurationStep === 'review'" x-cloak>
         @if ($showExistingGenerationNotice)
             <div class="border-t border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950">
                 <div class="font-semibold">Existing payroll generation found</div>
@@ -388,12 +388,12 @@
 
         </div>
         <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50 px-4 py-3">
-            <button type="button" x-show="configurationStep !== 'details'" x-cloak wire:click="previousConfigurationStep" wire:loading.attr="disabled" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700">Back</button>
-            <span x-show="configurationStep === 'details'" class="text-xs text-slate-500">Start with the payroll month and leave cutoff.</span>
-            <button type="button" x-show="configurationStep !== 'review'" x-on:click="openStepReview()" wire:loading.attr="disabled" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white">
+            <button type="button" x-transition.opacity.duration.180ms x-show="configurationStep !== 'details'" x-cloak wire:click="previousConfigurationStep" wire:loading.attr="disabled" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700">Back</button>
+            <span x-transition.opacity.duration.180ms x-show="configurationStep === 'details'" class="text-xs text-slate-500">Start with the payroll month and leave cutoff.</span>
+            <button type="button" x-transition.opacity.duration.180ms x-show="configurationStep !== 'review'" x-on:click="openStepReview()" wire:loading.attr="disabled" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white">
                 <span wire:loading.remove wire:target="nextConfigurationStep">Review &amp; Continue</span><span wire:loading wire:target="nextConfigurationStep">Checking...</span>
             </button>
-            <div x-show="configurationStep === 'review'" x-cloak class="flex flex-wrap gap-2">
+            <div x-transition.opacity.duration.180ms x-show="configurationStep === 'review'" x-cloak class="flex flex-wrap gap-2">
             @if ($showExistingGenerationNotice)
                 <button type="button" wire:click="dismissExistingGenerationNotice"
                     class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
@@ -420,7 +420,7 @@
         <form x-on:submit.prevent="confirmStepReview()" class="payroll-configuration space-y-5">
             <p class="text-sm text-slate-600" x-text="reviewStep === 'review' ? 'Confirm the configuration before opening payroll generation.' : 'Review this step before continuing. Choose Back to edit to change any selections.'"></p>
 
-            <section x-show="reviewStep === 'details' || reviewStep === 'review'" class="space-y-3">
+            <section x-transition.opacity.duration.180ms x-show="reviewStep === 'details' || reviewStep === 'review'" class="space-y-3">
                 <h3 class="text-sm font-semibold">Run details</h3>
                 <dl class="grid gap-3 sm:grid-cols-2">
                     <div><dt class="text-xs text-slate-500">Payroll month</dt><dd class="mt-1 text-sm font-medium" x-text="$wire.period || 'No entry'"></dd></div>
@@ -449,7 +449,7 @@
                 </dl>
             </section>
 
-            <section x-show="reviewStep === 'scope' || reviewStep === 'review'" class="space-y-3">
+            <section x-transition.opacity.duration.180ms x-show="reviewStep === 'scope' || reviewStep === 'review'" class="space-y-3">
                 <h3 class="text-sm font-semibold">Payroll scope</h3>
                 <dl class="grid gap-3 sm:grid-cols-2">
                     <div><dt class="text-xs text-slate-500">Payroll type</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('payrollType') || 'No entry'"></dd></div>
@@ -461,7 +461,7 @@
             </section>
 
             @if ($isStandalone)
-                <section x-show="reviewStep === 'preparation' || reviewStep === 'review'" class="space-y-3">
+                <section x-transition.opacity.duration.180ms x-show="reviewStep === 'preparation' || reviewStep === 'review'" class="space-y-3">
                     <h3 class="text-sm font-semibold">Data preparation</h3>
                     <p class="text-sm"><span class="text-slate-500">Selected timekeeping sync source:</span> <span x-text="$wire.timekeepingSyncSource === 'api' ? 'HRIS API attendance summaries' : 'HRIS database DTR punches'"></span></p>
                     <ul class="divide-y divide-slate-200">

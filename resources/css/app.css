@@ -14,6 +14,31 @@
         "Noto Color Emoji";
 }
 
+/* Shared disclosure motion, including native details used by setup forms. */
+@supports (interpolate-size: allow-keywords) {
+    .erp-body details {
+        interpolate-size: allow-keywords;
+    }
+
+    .erp-body details::details-content {
+        height: 0;
+        overflow: clip;
+        transition: height 220ms ease, content-visibility 220ms allow-discrete;
+    }
+
+    .erp-body details[open]::details-content {
+        height: auto;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .erp-body [x-show],
+    .erp-body details::details-content {
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+    }
+}
+
 /* Chrome, Edge, Safari */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
@@ -3594,7 +3619,9 @@ html[data-theme="dark"] .historical-import-primary-action:disabled {
 .erp-body .border-emerald-200 { border-color: #6ee7b7 !important; }
 
 html[data-theme="dark"] .erp-body .bg-red-50,
-html[data-theme="dark"] .erp-body .bg-rose-50 {
+html[data-theme="dark"] .erp-body .bg-red-100,
+html[data-theme="dark"] .erp-body .bg-rose-50,
+html[data-theme="dark"] .erp-body .bg-rose-100 {
     background-color: #3a151d !important;
 }
 html[data-theme="dark"] .erp-body .text-red-600,
@@ -3625,13 +3652,48 @@ html[data-theme="dark"] .erp-body .border-emerald-200 { border-color: #237a61 !i
 
 html[data-theme="dark"] .erp-body .bg-blue-50,
 html[data-theme="dark"] .erp-body .bg-blue-100,
-html[data-theme="dark"] .erp-body .bg-indigo-50 {
+html[data-theme="dark"] .erp-body .bg-indigo-50,
+html[data-theme="dark"] .erp-body .bg-indigo-100 {
     background-color: var(--erp-primary-soft) !important;
 }
 html[data-theme="dark"] .erp-body .bg-blue-50\/50,
 html[data-theme="dark"] .erp-body .bg-blue-50\/70 {
     background-color: color-mix(in srgb, var(--erp-primary) 8%, var(--erp-surface)) !important;
 }
+/* Neutral badges inherit light text in dark mode; their fills must follow
+   the theme too (weekend labels, role chips, missing/inactive statuses). */
+html[data-theme="dark"] .erp-body .bg-slate-100,
+html[data-theme="dark"] .erp-body .bg-gray-100,
+html[data-theme="dark"] .erp-body .bg-slate-200,
+html[data-theme="dark"] .erp-body .bg-gray-200 {
+    background-color: #20364a !important;
+}
+html[data-theme="dark"] .erp-body .bg-slate-300,
+html[data-theme="dark"] .erp-body .bg-gray-300 {
+    background-color: #30485d !important;
+}
+
+html[data-theme="dark"] .erp-body .bg-cyan-50,
+html[data-theme="dark"] .erp-body .bg-cyan-100,
+html[data-theme="dark"] .erp-body .bg-sky-50,
+html[data-theme="dark"] .erp-body .bg-sky-100 {
+    background-color: #123640 !important;
+}
+html[data-theme="dark"] .erp-body .text-cyan-700,
+html[data-theme="dark"] .erp-body .text-cyan-800,
+html[data-theme="dark"] .erp-body .text-sky-700,
+html[data-theme="dark"] .erp-body .text-sky-800 {
+    color: #a5e9f3 !important;
+}
+html[data-theme="dark"] .erp-body .bg-violet-50,
+html[data-theme="dark"] .erp-body .bg-violet-100 {
+    background-color: #302345 !important;
+}
+html[data-theme="dark"] .erp-body .text-violet-700,
+html[data-theme="dark"] .erp-body .text-violet-800 {
+    color: #d8b4fe !important;
+}
+
 html[data-theme="dark"] .erp-body .bg-slate-50\/60,
 html[data-theme="dark"] .erp-body .bg-slate-50\/70,
 html[data-theme="dark"] .erp-body .bg-slate-100\/70 {
@@ -4846,5 +4908,601 @@ html[data-theme="dark"] .erp-app-grid-icon {
     .erp-app-grid-icon,
     .erp-app-grid-close {
         transition-duration: .01ms !important;
+    }
+}
+
+/* Shared screen adaptations. Keep wide operational data in its own scroll area,
+   and leave printed reports and the desktop workspace sizing intact. */
+@media screen {
+    .erp-app-shell,
+    .erp-app-main,
+    .erp-content,
+    .erp-content :where(.grid, .flex) > *,
+    .erp-overlay-panel {
+        min-width: 0;
+    }
+
+    .erp-content :where(input, select, textarea),
+    .erp-content .select2-container {
+        max-width: 100%;
+    }
+
+    /* Some lists render the table directly inside an overflow-hidden card. */
+    .erp-content :where(section, div):has(> table) {
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+    }
+
+    .erp-content :where(.overflow-x-auto, .overflow-auto, .payroll-table-scroll) {
+        min-width: 0;
+        max-width: 100%;
+        overscroll-behavior-x: contain;
+    }
+
+    .erp-overlay-header {
+        flex-shrink: 0;
+    }
+
+    .erp-overlay-header > div {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .erp-overlay-close {
+        flex-shrink: 0;
+    }
+
+    .erp-overlay-body {
+        overscroll-behavior-y: contain;
+        padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+    }
+}
+
+@media screen and (max-width: 767px) {
+    /* Wrap page headings, filters and action groups without changing table rows. */
+    .erp-content :where(div, header, section, form).flex.justify-between:not(.flex-col),
+    .erp-content :where(div, form).flex:has(> button):not(.flex-col):not(td *) {
+        flex-wrap: wrap;
+        row-gap: .75rem;
+    }
+
+    .erp-content :where(h1, h2, h3, p, label, dd) {
+        overflow-wrap: anywhere;
+    }
+
+    .erp-content :where(input, select, textarea):not([type="checkbox"]):not([type="radio"]) {
+        min-width: 0;
+        /* Prevent iOS focus zoom while preserving the page's readable scale. */
+        font-size: 1rem !important;
+    }
+
+    .erp-content :where(button, a).whitespace-nowrap:not(td *) {
+        white-space: normal;
+    }
+
+    .erp-content :where(pre) {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+}
+
+@media screen and (max-width: 1023px) {
+    .erp-content .payroll-generation-main .payroll-step-body > .overflow-hidden {
+        height: auto;
+    }
+
+    .erp-content .payroll-generation-main .payroll-step-body > .overflow-hidden
+    .payroll-table-scroll:not([class*="max-h-"]) {
+        max-height: 65dvh;
+        flex: none;
+    }
+
+    /* Sticky employee columns must leave room to inspect the remaining data. */
+    .erp-content .payroll-table-scroll :where(th, td)[class*="payroll-sticky-employee"] {
+        position: static !important;
+    }
+}
+
+@media screen and (max-width: 479px) {
+    .erp-topbar > .flex,
+    .erp-topbar > .flex > .flex {
+        gap: .5rem;
+    }
+
+    .erp-user-menu {
+        max-width: calc(100vw - 1.5rem);
+    }
+
+    /* Explicit multi-column forms need the same reflow as breakpoint grids. */
+    .erp-content form .grid[class~="grid-cols-2"],
+    .erp-content form .grid[class~="grid-cols-3"],
+    .erp-content form .grid[class~="grid-cols-4"] {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .erp-content form .grid > [class*="col-span-"] {
+        grid-column: auto;
+    }
+}
+
+@media screen and (pointer: coarse) {
+    .erp-content :where(button, select, input:not([type="checkbox"]):not([type="radio"])),
+    .erp-content a[class*="rounded"],
+    .erp-overlay-close {
+        min-height: 2.75rem !important;
+    }
+}
+
+/* The reel's middle navigation: a floating rail and a sliding raised active
+   circle, using the same theme tokens as the rest of the workspace. */
+.erp-mobile-navigation {
+    display: none;
+}
+
+@media screen and (max-width: 899px) {
+    .erp-content-launcher {
+        padding-inline: 1rem;
+        padding-top: 1.25rem;
+    }
+
+    .erp-launcher {
+        width: 100%;
+        padding: 0;
+    }
+
+    .erp-launcher-intro {
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        gap: 1rem;
+    }
+
+    .erp-launcher-intro h1 {
+        font-size: clamp(2.25rem, 8vw, 3.25rem);
+        line-height: 1.05;
+    }
+
+    .erp-launcher-intro p {
+        margin-top: .85rem;
+        line-height: 1.6;
+    }
+
+    .erp-launcher-access-note {
+        grid-template-columns: auto 1fr;
+        justify-content: start;
+    }
+
+    .erp-launcher-groups {
+        gap: 2rem;
+    }
+
+    .erp-launcher-group-heading {
+        padding: .85rem 1rem;
+        margin-bottom: .85rem;
+        gap: .35rem;
+    }
+
+    .erp-launcher-grid {
+        justify-items: stretch;
+        margin-top: 0;
+        gap: .85rem;
+    }
+
+    .erp-launcher-card,
+    .erp-launcher-card--wide,
+    .erp-launcher-card--featured {
+        width: 100%;
+        min-height: 0;
+        padding: 1.1rem;
+        gap: 1rem;
+    }
+
+    .erp-launcher-card-copy {
+        padding-top: 0;
+    }
+
+    .erp-launcher-card-description {
+        min-height: 0;
+        opacity: 1;
+        transform: none;
+    }
+
+    .erp-launcher-card-action {
+        margin-top: 0;
+        padding: .5rem .65rem;
+    }
+}
+
+@media screen and (max-width: 1023px) {
+    .erp-mobile-navigation {
+        --mobile-nav-bubble-size: 2.75rem;
+        --mobile-nav-bubble-top: -.35rem;
+        position: fixed;
+        z-index: 35;
+        right: max(1rem, env(safe-area-inset-right));
+        bottom: max(1rem, env(safe-area-inset-bottom));
+        left: max(1rem, env(safe-area-inset-left));
+        display: grid;
+        grid-template-columns: repeat(var(--mobile-nav-count), minmax(0, 1fr));
+        width: auto;
+        max-width: 26rem;
+        height: 4rem;
+        margin-inline: auto;
+        padding: 0 .5rem;
+        border: 1px solid var(--erp-line-strong);
+        border-radius: 2rem;
+        background: var(--erp-surface);
+        box-shadow: 0 .75rem 2rem -.8rem var(--erp-shadow);
+    }
+
+    .erp-mobile-navigation-item {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        min-width: 0;
+        min-height: 2.75rem;
+        align-items: center;
+        justify-content: flex-end;
+        flex-direction: column;
+        gap: 0;
+        padding: 0 .2rem .5rem;
+        border: 0;
+        border-radius: 1.5rem;
+        background: transparent;
+        color: var(--erp-muted);
+        font-size: .68rem;
+        font-weight: 650;
+        line-height: 1rem;
+        text-decoration: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .erp-mobile-navigation-icon {
+        position: absolute;
+        top: .5rem;
+        left: 50%;
+        display: grid;
+        width: 2.75rem;
+        height: 2rem;
+        flex-shrink: 0;
+        place-items: center;
+        transform: translateX(-50%);
+        transition: top 260ms cubic-bezier(.22, 1, .36, 1), color 180ms ease;
+    }
+
+    .erp-mobile-navigation-icon svg {
+        width: 1.3rem;
+        height: 1.3rem;
+    }
+
+    .erp-mobile-navigation-item.is-active {
+        color: var(--erp-primary);
+    }
+
+    .erp-mobile-navigation-item.is-active .erp-mobile-navigation-icon {
+        top: calc(var(--mobile-nav-bubble-top) + (var(--mobile-nav-bubble-size) - 2rem) / 2);
+        color: var(--erp-surface);
+    }
+
+    .erp-mobile-navigation-indicator {
+        position: absolute;
+        top: var(--mobile-nav-bubble-top);
+        left: .5rem;
+        display: grid;
+        width: calc((100% - 1rem) / var(--mobile-nav-count));
+        height: var(--mobile-nav-bubble-size);
+        place-items: center;
+        transform: translateX(calc(var(--mobile-nav-index) * 100%));
+        transition: transform 260ms cubic-bezier(.22, 1, .36, 1);
+        pointer-events: none;
+    }
+
+    .erp-mobile-navigation-indicator > span {
+        width: var(--mobile-nav-bubble-size);
+        height: var(--mobile-nav-bubble-size);
+        border: .3rem solid var(--erp-bg);
+        border-radius: 50%;
+        background: var(--erp-primary);
+        box-shadow: 0 .35rem .7rem -.4rem var(--erp-shadow);
+    }
+
+    .erp-mobile-navigation-item:focus-visible {
+        outline: 2px solid var(--erp-primary);
+        outline-offset: 3px;
+    }
+
+    .erp-content-app,
+    .erp-content-launcher {
+        padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+    }
+
+    html {
+        scroll-padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .erp-mobile-navigation-indicator,
+    .erp-mobile-navigation-icon {
+        transition: none;
+    }
+}
+
+/* Record tables become labeled cards; the original controls and table semantics
+   remain in the document. Print and desktop retain the tabular comparison. */
+.erp-dtr-batch-fab,
+.erp-dtr-batch-bubble-title {
+    display: none;
+}
+
+@media screen and (max-width: 1023px) {
+    .erp-dtr-batch-controls {
+        position: fixed;
+        top: auto;
+        bottom: calc(5.75rem + env(safe-area-inset-bottom));
+        left: auto;
+        right: max(1rem, env(safe-area-inset-right));
+        width: 3.25rem;
+        height: 3.25rem;
+        z-index: 25;
+        border: 0 !important;
+        background: transparent !important;
+    }
+
+    .erp-dtr-batch-controls-heading {
+        display: none;
+    }
+
+    .erp-dtr-batch-fab {
+        position: relative;
+        display: grid;
+        width: 3.25rem;
+        height: 3.25rem;
+        place-items: center;
+        border: 1px solid var(--erp-line-strong);
+        border-radius: 50%;
+        background: var(--erp-primary);
+        color: var(--erp-surface);
+        box-shadow: 0 .4rem 1.2rem -.4rem var(--erp-shadow);
+    }
+
+    .erp-dtr-batch-fab svg {
+        grid-area: 1 / 1;
+        width: 1.4rem;
+        height: 1.4rem;
+    }
+
+    .erp-dtr-batch-fab:focus-visible {
+        outline: 2px solid var(--erp-primary);
+        outline-offset: 3px;
+    }
+
+    .erp-dtr-batch-count {
+        position: absolute;
+        top: -.25rem;
+        right: -.25rem;
+        min-width: 1.3rem;
+        padding: .1rem .25rem;
+        border: 1px solid var(--erp-line-strong);
+        border-radius: 1rem;
+        background: var(--erp-surface);
+        color: var(--erp-text);
+        font-size: .65rem;
+        font-weight: 700;
+    }
+
+    .erp-dtr-batch-bubble {
+        position: absolute;
+        right: 0;
+        bottom: calc(100% + .85rem);
+        width: min(26rem, calc(100vw - 2rem));
+        border: 1px solid var(--erp-line-strong);
+        border-radius: 1rem;
+        background: var(--erp-surface);
+        box-shadow: 0 .8rem 2rem -.8rem var(--erp-shadow);
+    }
+
+    .erp-dtr-batch-bubble::after {
+        position: absolute;
+        right: 1.15rem;
+        bottom: -.4rem;
+        width: .75rem;
+        height: .75rem;
+        border-right: 1px solid var(--erp-line-strong);
+        border-bottom: 1px solid var(--erp-line-strong);
+        background: var(--erp-surface);
+        transform: rotate(45deg);
+        content: '';
+    }
+
+    .erp-dtr-batch-bubble-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        padding: .85rem 1rem;
+        color: var(--erp-text);
+        font-weight: 700;
+    }
+
+    /* Keep the final record scrollable above the collapsed thumb controls. */
+    .erp-content-app:has(.erp-dtr-batch-controls) {
+        padding-bottom: calc(12rem + env(safe-area-inset-bottom));
+    }
+
+    .erp-content-app:has(.erp-dtr-batch-controls [aria-expanded="true"]) {
+        padding-bottom: calc(12rem + 45dvh + env(safe-area-inset-bottom));
+    }
+
+    /* The page entrance transform must not contain the fixed bottom toolbar. */
+    .erp-content > section:has(.erp-dtr-batch-controls) {
+        animation: none;
+    }
+
+    .erp-dtr-batch-controls-body {
+        max-height: 45dvh;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    .erp-dtr-batch-controls-body select {
+        flex: 1 1 100%;
+        width: 100%;
+    }
+
+    .erp-body table.erp-card-table {
+        display: block;
+        width: 100% !important;
+        min-width: 0 !important;
+        border: 0;
+        border-spacing: 0;
+    }
+
+    .erp-card-table > thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .erp-body .erp-card-table > :is(tbody, tfoot) {
+        display: grid;
+        gap: .85rem;
+        padding: .85rem;
+        border: 0;
+        background: var(--erp-bg) !important;
+    }
+
+    .erp-body .erp-card-table > :is(tbody, tfoot) > tr {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0 1rem;
+        padding: .25rem 1rem;
+        border: 1px solid var(--erp-line-strong) !important;
+        border-radius: .85rem;
+        background: var(--erp-surface) !important;
+        color: var(--erp-text);
+    }
+
+    .erp-card-table > :is(tbody, tfoot) > tr[data-card-context]::before {
+        content: attr(data-card-context);
+        grid-column: 1 / -1;
+        order: -2;
+        padding-block: .75rem;
+        border-bottom: 1px solid var(--erp-line);
+        color: var(--erp-text);
+        font-weight: 700;
+        overflow-wrap: anywhere;
+    }
+
+    .erp-body .erp-card-table > :is(tbody, tfoot) > tr > :is(td, th) {
+        position: static !important;
+        display: flex;
+        min-width: 0 !important;
+        width: auto !important;
+        max-width: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .35rem;
+        padding: .75rem 0 !important;
+        border: 0 !important;
+        border-bottom: 1px solid var(--erp-line) !important;
+        background: transparent !important;
+        text-align: left;
+        white-space: normal !important;
+        overflow-wrap: anywhere;
+        font-variant-numeric: tabular-nums;
+        text-transform: none;
+        letter-spacing: normal;
+    }
+
+    .erp-card-table > :is(tbody, tfoot) > tr > [data-card-label]::before {
+        content: attr(data-card-label);
+        color: var(--erp-muted);
+        font-size: .7rem;
+        font-weight: 650;
+        line-height: 1.4;
+    }
+
+    .erp-body .erp-card-table > tbody > tr > [data-card-heading] {
+        grid-column: 1 / -1;
+        order: -1;
+        font-weight: 700;
+        font-size: .95rem;
+    }
+
+    .erp-body .erp-card-table > tbody > tr:has([data-card-selection]) > [data-card-heading] {
+        padding-right: 3rem !important;
+        min-height: 3.5rem;
+    }
+
+    .erp-body .erp-card-table > tbody > tr > [data-card-selection] {
+        position: absolute !important;
+        top: .35rem;
+        right: .5rem;
+        padding: 0 !important;
+        border: 0 !important;
+        width: 2.75rem !important;
+        min-height: 2.75rem;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .erp-card-table > tbody > tr > [data-card-selection]::before {
+        content: none;
+    }
+
+    .erp-card-table [data-card-selection] input[type="checkbox"] {
+        width: 1.15rem;
+        height: 1.15rem;
+        accent-color: var(--erp-primary);
+    }
+
+    .erp-card-table tr[data-card-selectable]:has([data-card-selection] input:not(:disabled)),
+    .erp-card-table [data-card-editor]:has(select:not(:disabled)) {
+        cursor: pointer;
+    }
+
+    .erp-card-table > tbody > tr > [data-card-heading]::before,
+    .erp-card-table > :is(tbody, tfoot) > tr > [colspan]::before {
+        content: none;
+    }
+
+    .erp-card-table > :is(tbody, tfoot) > tr > [data-card-wide] {
+        grid-column: 1 / -1;
+    }
+
+    .erp-body .erp-card-table [data-card-empty] {
+        display: none !important;
+    }
+
+    /* Livewire loading placeholders often hide the entire tbody. Card display
+       rules must never resurrect hidden row groups after a request completes. */
+    .erp-body .erp-card-table > [data-card-loading] {
+        display: none;
+    }
+
+    .erp-body .erp-card-table :is(thead, tbody, tfoot, tr, td, th):is(.hidden, [hidden]) {
+        display: none !important;
+    }
+
+    .erp-card-table :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .erp-card-table > :is(tbody, tfoot) > tr > :is(td, th) > * {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .erp-body :is(div, section):has(> table.erp-card-table) {
+        overflow-x: clip;
+        max-height: none !important;
     }
 }

@@ -34,13 +34,17 @@
     @endphp
 
     <div
-        @unless($isLauncher)
             x-data="{
                 sidebarOpen: window.matchMedia('(min-width: 1024px)').matches
                     ? localStorage.getItem('erp-sidebar-open') !== 'false'
                     : false,
                 appGridOpen: false,
                 appGridReturnFocus: null,
+                syncSidebar() {
+                    this.sidebarOpen = window.matchMedia('(min-width: 1024px)').matches
+                        ? localStorage.getItem('erp-sidebar-open') !== 'false'
+                        : false;
+                },
                 toggleSidebar() {
                     this.sidebarOpen = ! this.sidebarOpen;
                     if (window.matchMedia('(min-width: 1024px)').matches) {
@@ -48,7 +52,9 @@
                     }
                 },
                 closeMobileSidebar() {
-                    if (! window.matchMedia('(min-width: 1024px)').matches) this.sidebarOpen = false;
+                    if (! window.matchMedia('(min-width: 1024px)').matches) {
+                        this.sidebarOpen = false;
+                    }
                 },
                 openAppGrid() {
                     this.appGridReturnFocus = document.activeElement;
@@ -75,10 +81,10 @@
                 }
             }"
             x-effect="document.documentElement.classList.toggle('erp-mobile-nav-open', sidebarOpen && ! window.matchMedia('(min-width: 1024px)').matches)"
+            x-init="window.matchMedia('(min-width: 1024px)').addEventListener('change', () => syncSidebar())"
             x-on:keydown.alt.a.window.prevent="if (! appGridOpen) openAppGrid()"
             x-on:keydown.escape.window="if (sidebarOpen && ! window.matchMedia('(min-width: 1024px)').matches) sidebarOpen = false"
-            :class="sidebarOpen ? 'lg:grid-cols-[248px_minmax(0,1fr)]' : 'lg:grid-cols-[minmax(0,1fr)]'"
-        @endunless
+            :class="@js($isLauncher) ? '' : (sidebarOpen ? 'lg:grid-cols-[248px_minmax(0,1fr)]' : 'lg:grid-cols-[minmax(0,1fr)]')"
         class="{{ $isLauncher ? 'erp-launcher-scene min-h-screen' : 'erp-app-shell min-h-screen lg:grid' }}"
     >
         @unless ($isLauncher)
@@ -102,6 +108,7 @@
                 x-transition:leave-end="-translate-x-full lg:translate-x-0"
                 class="erp-sidebar erp-mobile-drawer fixed inset-y-0 left-0 z-50 w-[min(86vw,20rem)] border-r lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-auto lg:overflow-hidden"
                 aria-label="Application navigation"
+                id="erp-application-navigation"
             >
                 <div class="erp-sidebar-frame flex h-full min-h-0 max-h-screen flex-col">
                     <div class="erp-sidebar-pinned sticky top-0 z-20 shrink-0">
@@ -169,7 +176,7 @@
                                                 <svg class="h-3.5 w-3.5 transition-transform" :class="expanded ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
                                             </button>
                                         @endif
-                                        <div x-cloak x-show="expanded" x-transition.opacity.duration.100ms class="space-y-0.5">
+                                        <div x-cloak x-collapse.duration.220ms x-show="expanded" class="space-y-0.5">
                                             @foreach ($section['items'] ?? [] as $item)
                                                 <a
                                                     class="erp-nav-link erp-nav-link-depth-1 {{ ($item['active'] ?? false) ? 'erp-nav-link-active' : '' }}"
@@ -228,8 +235,8 @@
                             </a>
                         @else
                             <button type="button" x-on:click="toggleSidebar()" class="erp-theme-toggle grid" :title="sidebarOpen ? 'Close navigation' : 'Open navigation'" :aria-label="sidebarOpen ? 'Close navigation' : 'Open navigation'" :aria-expanded="sidebarOpen.toString()">
-                                <svg x-show="sidebarOpen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
-                                <svg x-show="! sidebarOpen" x-cloak viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/><path d="M3 5h3v14H3z"/></svg>
+                                <svg x-show="sidebarOpen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                                <svg x-show="! sidebarOpen" x-cloak viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
                             </button>
                             <div class="erp-system-status flex min-w-0 items-center gap-2 text-xs font-semibold" aria-label="Current application">
                                 <span class="erp-status-dot" aria-hidden="true"></span>
@@ -326,9 +333,8 @@
             </main>
         </section>
 
-        @unless ($isLauncher)
-            <x-app-grid-modal />
-        @endunless
+        <x-mobile-navigation :launcher="$isLauncher" />
+        <x-app-grid-modal />
     </div>
 
     <livewire:super-admin-quick-switch />

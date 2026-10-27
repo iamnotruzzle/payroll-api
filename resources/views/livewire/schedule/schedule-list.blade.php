@@ -160,7 +160,7 @@
                     @endif
                 </div>
             </div>
-            <div class="sm:col-span-2" x-show="$wire.generationMode === 'automated'" x-cloak>
+            <div class="sm:col-span-2" x-transition.opacity.duration.180ms x-show="$wire.generationMode === 'automated'" x-cloak>
                 <label class="text-sm font-medium">Template</label>
                 <select wire:model="schedule_template_id" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     <option value="">Auto/default</option>

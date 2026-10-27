@@ -187,7 +187,7 @@
                 </select>
                 @error('requestorEmpId') <span class="text-xs text-rose-600">{{ $message }}</span> @enderror
             </label>
-            <div class="rounded-md border border-slate-200 p-3" x-show="!editing" x-cloak>
+            <div class="rounded-md border border-slate-200 p-3" x-transition.opacity.duration.180ms x-show="!editing" x-cloak>
                 <p class="mb-2 text-sm font-medium text-slate-700">Additional participants</p>
                 <input wire:model.lazy="employeeSearch" type="search" class="mb-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Search employees">
                 <div class="max-h-40 space-y-1 overflow-y-auto text-sm">
@@ -199,7 +199,7 @@
                     @endforeach
                 </div>
             </div>
-            <label class="block text-sm" x-show="!editing" x-cloak>
+            <label class="block text-sm" x-transition.opacity.duration.180ms x-show="!editing" x-cloak>
                 <span class="font-medium text-slate-700">Supporting documents</span>
                 <input wire:model="supportingFiles" type="file" multiple class="mt-1 block w-full text-sm">
                 <div wire:loading wire:target="supportingFiles" class="text-xs text-slate-500">Uploading…</div>

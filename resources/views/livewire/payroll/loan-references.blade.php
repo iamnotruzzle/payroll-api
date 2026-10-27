@@ -153,7 +153,7 @@
                     </label>
                 </div>
                 <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
-                    <button type="button" x-show="editing" x-cloak x-on:click="confirm('Delete this entity and its types?') && $wire.deleteEntity($wire.editingEntityId)" class="mr-auto rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Delete</button>
+                    <button type="button" x-transition.opacity.duration.180ms x-show="editing" x-cloak x-on:click="confirm('Delete this entity and its types?') && $wire.deleteEntity($wire.editingEntityId)" class="mr-auto rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Delete</button>
                     <button type="button" x-on:click="erpOverlay.close('loan-entity')" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
                     <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save Entity</button>
                 </div>
@@ -224,7 +224,7 @@
                     Active
                 </label>
                 <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
-                    <button type="button" x-show="editing" x-cloak x-on:click="confirm('Delete this type?') && $wire.deleteType($wire.editingTypeId)" class="mr-auto rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Delete</button>
+                    <button type="button" x-transition.opacity.duration.180ms x-show="editing" x-cloak x-on:click="confirm('Delete this type?') && $wire.deleteType($wire.editingTypeId)" class="mr-auto rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Delete</button>
                     <button type="button" x-on:click="erpOverlay.close('loan-type')" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50">Cancel</button>
                     <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save Type</button>
                 </div>

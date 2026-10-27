@@ -174,13 +174,13 @@
                 </label>
             </div>
 
-            <label class="block" x-show="$wire.dateMode === 'pick'" x-cloak>
+            <label class="block" x-transition.opacity.duration.180ms x-show="$wire.dateMode === 'pick'" x-cloak>
                 <span class="text-xs font-semibold uppercase text-slate-500">Selected dates (CSV)</span>
                 <textarea wire:model.lazy="selectedDatesCsv" rows="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm" placeholder="2026-08-03,2026-08-05,2026-08-07"></textarea>
                 <span class="mt-1 block text-xs text-slate-500">Comma-separated YYYY-MM-DD. Start/end fill can seed the list; edit to drop weekends or gaps.</span>
                 @error('selectedDatesCsv') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
             </label>
-            <p class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600" x-show="$wire.dateMode !== 'pick'" x-cloak>
+            <p class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600" x-transition.opacity.duration.180ms x-show="$wire.dateMode !== 'pick'" x-cloak>
                 Selected days: <span class="font-semibold text-slate-800">{{ $previewDayCount }}</span>
                 @if ($selectedDatesCsv)
                     <span class="mt-1 block font-mono text-[11px] text-slate-500">{{ $selectedDatesCsv }}</span>

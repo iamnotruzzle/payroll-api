@@ -84,7 +84,7 @@
                     <div class="historical-import-details-note mt-5 rounded-lg border p-3 text-xs leading-5">Nothing is added to Payroll History until you review the mappings and confirm the final step.</div>
                 </div>
             </div>
-            <div x-cloak x-show="uploading" class="mx-5 mt-4 rounded-lg border border-indigo-100 bg-indigo-50 p-3 dark:border-indigo-900 dark:bg-indigo-950/40">
+            <div x-cloak x-transition.opacity.duration.180ms x-show="uploading" class="mx-5 mt-4 rounded-lg border border-indigo-100 bg-indigo-50 p-3 dark:border-indigo-900 dark:bg-indigo-950/40">
                 <div class="historical-import-progress-text flex items-center justify-between text-xs font-bold"><span>Uploading workbook</span><span x-text="`${Math.round(uploadProgress)}%`">0%</span></div>
                 <div class="mt-2 h-2 overflow-hidden rounded-full bg-indigo-100 dark:bg-indigo-900"><span class="block h-full rounded-full bg-indigo-600 transition-all" x-bind:style="`width: ${uploadProgress}%`"></span></div>
             </div>

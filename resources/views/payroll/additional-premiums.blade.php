@@ -28,11 +28,11 @@
             </div>
         </div>
 
-        <div x-show="tab === 'imports'">
+        <div x-transition.opacity.duration.180ms x-show="tab === 'imports'">
             <livewire:payroll.loan-imports mode="additional_premiums" />
         </div>
 
-        <div x-cloak x-show="tab === 'setup'">
+        <div x-cloak x-transition.opacity.duration.180ms x-show="tab === 'setup'">
             <livewire:payroll.loan-references mode="additional_premiums" />
         </div>
     </div>

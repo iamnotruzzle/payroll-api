@@ -25,7 +25,7 @@
 @endphp
 
 <section
-    class="flex h-screen min-h-0 flex-col"
+    class="payroll-generation-workspace flex min-h-dvh flex-col lg:h-dvh lg:min-h-0"
     x-init="applyRowVisibility(); sortPayrollRows(); $nextTick(() => { syncSelectedProgramEmployees(); recalculateGrossCompensationTotals(); })"
     x-data="{
         stepDirty: false,
@@ -471,7 +471,7 @@
                         </tbody>
                     </table>
                 </div>
-                <p x-show="Object.values(unsavedChanges).length > 10" class="mt-2 text-xs text-slate-500">
+                <p x-transition.opacity.duration.180ms x-show="Object.values(unsavedChanges).length > 10" class="mt-2 text-xs text-slate-500">
                     Showing the first 10 changed fields.
                 </p>
             </div>
@@ -523,12 +523,12 @@
                 x-bind:aria-expanded="filtersOpen.toString()"
             >
                 <span>Filters</span>
-                <span x-show="employeeFilterIds.length > 0" x-text="employeeFilterIds.length" class="rounded-full bg-[#5f61e6] px-2 py-0.5 text-xs font-semibold text-white"></span>
+                <span x-transition.opacity.duration.180ms x-show="employeeFilterIds.length > 0" x-text="employeeFilterIds.length" class="rounded-full bg-[#5f61e6] px-2 py-0.5 text-xs font-semibold text-white"></span>
                 <span class="text-xs text-slate-500" x-text="filtersOpen ? 'Hide' : 'Show'"></span>
             </button>
         </div>
 
-        <div x-cloak x-show="filtersOpen" x-transition class="border-b border-slate-200 bg-slate-50 px-3 py-3">
+        <div x-cloak x-collapse.duration.220ms x-show="filtersOpen" class="border-b border-slate-200 bg-slate-50 px-3 py-3">
             <div class="grid min-w-0 gap-2">
                 <div class="w-full min-w-0" wire:ignore>
                     <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="payroll-employee-filter">
@@ -680,7 +680,7 @@
         </div>
     </aside>
 
-    <main class="payroll-generation-main h-full min-h-0 min-w-0 overflow-hidden px-3 py-4 sm:px-5 lg:col-start-2">
+    <main class="payroll-generation-main min-w-0 px-3 py-4 sm:px-5 lg:col-start-2 lg:h-full lg:min-h-0 lg:overflow-hidden">
     <div
         wire:loading.class.remove="hidden"
         wire:target="{{ $payrollLoadingTargets }}"
@@ -724,7 +724,7 @@
         wire:target="{{ $payrollLoadingTargets }}"
         x-on:input="markStepDirty({{ $currentStep }}, $event)"
         x-on:change="markStepDirty({{ $currentStep }}, $event)"
-        class="payroll-step-body h-full min-h-0"
+        class="payroll-step-body lg:h-full lg:min-h-0"
     >
     @if ($currentStep === 1)
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -802,7 +802,7 @@
                     @endif
                 </div>
             @endif
-            <div class="grid gap-3 border-b border-slate-200 bg-blue-50/50 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_180px_180px_auto] sm:items-end">
+            <div class="grid gap-3 border-b border-slate-200 bg-blue-50/50 px-4 py-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_180px_180px_auto] sm:items-end">
                 <div>
                     <div class="text-sm font-medium text-slate-800">Inclusive Dates for Leaves</div>
                     <p class="text-xs text-slate-600">Overrides the MRA leave coverage. Previously finalized leave dates are automatically blocked.</p>
@@ -1319,7 +1319,7 @@
                 @if ($mandatoryPrograms->isNotEmpty())
                     <div class="mt-2 flex flex-wrap gap-1.5">
                         @foreach ($mandatoryPrograms as $program)
-                            <span x-show="programEnabled['{{ $program->id }}']" x-cloak class="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">{{ $program->name }}</span>
+                            <span x-transition.opacity.duration.180ms x-show="programEnabled['{{ $program->id }}']" x-cloak class="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">{{ $program->name }}</span>
                         @endforeach
                     </div>
                 @else
@@ -1327,7 +1327,7 @@
                 @endif
             </div>
                 <template x-teleport="body">
-                    <div x-show="programSelectorDrawerOpen" x-cloak x-on:keydown.escape.window="programSelectorDrawerOpen = false" class="fixed inset-0 z-[1000]" role="dialog" aria-modal="true" aria-label="Select mandatory deduction programs">
+                    <div x-transition.opacity.duration.180ms x-show="programSelectorDrawerOpen" x-cloak x-on:keydown.escape.window="programSelectorDrawerOpen = false" class="fixed inset-0 z-[1000]" role="dialog" aria-modal="true" aria-label="Select mandatory deduction programs">
                         <button x-on:click="programSelectorDrawerOpen = false" type="button" class="absolute inset-0 bg-slate-950/45" aria-label="Close program selector"></button>
                         <aside class="absolute inset-y-0 right-0 flex w-full max-w-xl flex-col bg-white shadow-2xl">
                             <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
@@ -1367,7 +1367,7 @@
                                                     </select>
                                                 </label>
                                             </div>
-                                            <div x-show="programConfigurations[selectedProgramId].mode !== 'all' || programConfigurations[selectedProgramId].amount_mode === 'employee'" x-cloak>
+                                            <div x-transition.opacity.duration.180ms x-show="programConfigurations[selectedProgramId].mode !== 'all' || programConfigurations[selectedProgramId].amount_mode === 'employee'" x-cloak>
                                                 <label class="text-xs font-semibold uppercase text-slate-500">Employees</label>
                                                 <select id="deduction-program-employee-picker" data-select2-searchable data-placeholder="Search employees" x-on:change="updateSelectedProgramEmployees()" multiple class="mt-1 w-full">
                                                     @foreach ($rows as $row)
@@ -1376,9 +1376,9 @@
                                                 </select>
                                             </div>
                                             <div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
-                                                <button x-show="programEnabled[selectedProgramId]" x-cloak x-on:click="setProgramEnabled(selectedProgramId, false); resetProgramSelection()" type="button" class="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Remove</button>
-                                                <button x-show="!programEnabled[selectedProgramId]" x-cloak x-on:click="updateSelectedProgramEmployees(); setProgramEnabled(selectedProgramId, true)" type="button" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Apply Program</button>
-                                                <button x-show="programEnabled[selectedProgramId]" x-cloak x-on:click="updateSelectedProgramEmployees(); programRevision++; stepDirty = true" type="button" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Update Program</button>
+                                                <button x-transition.opacity.duration.180ms x-show="programEnabled[selectedProgramId]" x-cloak x-on:click="setProgramEnabled(selectedProgramId, false); resetProgramSelection()" type="button" class="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Remove</button>
+                                                <button x-transition.opacity.duration.180ms x-show="!programEnabled[selectedProgramId]" x-cloak x-on:click="updateSelectedProgramEmployees(); setProgramEnabled(selectedProgramId, true)" type="button" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Apply Program</button>
+                                                <button x-transition.opacity.duration.180ms x-show="programEnabled[selectedProgramId]" x-cloak x-on:click="updateSelectedProgramEmployees(); programRevision++; stepDirty = true" type="button" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Update Program</button>
                                             </div>
                                         </div>
                                     </template>
@@ -1496,8 +1496,8 @@
                                     @endphp
                                     <td class="px-4 py-3 text-right {{ $loop->first ? 'border-l-2 border-slate-400' : '' }}">
                                       @if ($program)
-                                        <input x-show="programEnabled[@js((string) $program->id)] && programApplies(@js((string) $program->id), employeeId)" x-cloak x-model.number="programOverrides[@js((string) $program->id)]" wire:model.defer="deductionProgramSelections.{{ $program->id }}.employee_overrides.{{ $row['emp_id'] }}" data-model="deductionProgramSelections.{{ $program->id }}.employee_overrides.{{ $row['emp_id'] }}" type="number" min="0" step="0.01" placeholder="0.00" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-xs">
-                                        <span x-show="!programEnabled[@js((string) $program->id)] || !programApplies(@js((string) $program->id), employeeId)" x-cloak class="text-xs text-slate-400">—</span>
+                                        <input x-transition.opacity.duration.180ms x-show="programEnabled[@js((string) $program->id)] && programApplies(@js((string) $program->id), employeeId)" x-cloak x-model.number="programOverrides[@js((string) $program->id)]" wire:model.defer="deductionProgramSelections.{{ $program->id }}.employee_overrides.{{ $row['emp_id'] }}" data-model="deductionProgramSelections.{{ $program->id }}.employee_overrides.{{ $row['emp_id'] }}" type="number" min="0" step="0.01" placeholder="0.00" class="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-right text-xs">
+                                        <span x-transition.opacity.duration.180ms x-show="!programEnabled[@js((string) $program->id)] || !programApplies(@js((string) $program->id), employeeId)" x-cloak class="text-xs text-slate-400">—</span>
                                       @else
                                         <input
                                             x-model.number="mandatoryDeductionAdjustments[employeeId][@js($deductionKey)]"
@@ -1525,7 +1525,7 @@
         </div>
     @elseif ($currentStep === 5)
         @php $deductionPrograms = $deductionPrograms->where('section', 'other')->values(); @endphp
-        <div class="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(420px,0.8fr)_minmax(560px,1.2fr)] xl:grid-rows-[auto_minmax(420px,1fr)]">
+        <div class="grid min-h-0 gap-3 lg:h-full 2xl:grid-cols-[minmax(420px,0.8fr)_minmax(560px,1.2fr)] 2xl:grid-rows-[auto_minmax(420px,1fr)]">
             @if (false)
             <div class="hidden">
                 <h3 class="font-semibold">Import Other Deduction Membership</h3>
@@ -1589,7 +1589,7 @@
                 </div>
                 <div class="flex w-full flex-wrap gap-1.5">
                     @foreach ($deductionPrograms as $program)
-                        <span x-show="programEnabled['{{ $program->id }}']" x-cloak class="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">{{ $program->name }}</span>
+                        <span x-transition.opacity.duration.180ms x-show="programEnabled['{{ $program->id }}']" x-cloak class="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">{{ $program->name }}</span>
                     @endforeach
                 </div>
             </div>
@@ -1601,7 +1601,7 @@
                         <h3 class="font-semibold">Other Deductions Setup</h3>
                         <div class="flex flex-wrap gap-1.5">
                             @foreach ($deductionPrograms as $program)
-                                <span x-show="programEnabled['{{ $program->id }}']" x-cloak class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                                <span x-transition.opacity.duration.180ms x-show="programEnabled['{{ $program->id }}']" x-cloak class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
                                     {{ $program->name }}
                                     <button type="button" x-on:click="setProgramEnabled('{{ $program->id }}', false); resetProgramSelection()" class="rounded-full px-1 text-blue-500 hover:bg-blue-100 hover:text-red-600" aria-label="Remove {{ $program->name }}">&times;</button>
                                 </span>
@@ -1633,7 +1633,7 @@
                             </label>
                         </div>
                     </template>
-                    <div x-show="selectedProgramId && (programConfigurations[selectedProgramId].mode !== 'all' || programConfigurations[selectedProgramId].amount_mode === 'employee')" x-cloak>
+                    <div x-transition.opacity.duration.180ms x-show="selectedProgramId && (programConfigurations[selectedProgramId].mode !== 'all' || programConfigurations[selectedProgramId].amount_mode === 'employee')" x-cloak>
                         <label class="text-xs font-semibold uppercase text-slate-500">Employees</label>
                         <select id="deduction-program-employee-picker-hidden" data-placeholder="Search employees" x-on:change="updateSelectedProgramEmployees()" multiple class="mt-1 w-full">
                             @foreach ($rows as $row)
@@ -1641,10 +1641,10 @@
                             @endforeach
                         </select>
                     </div>
-                    <div x-show="selectedProgramId" x-cloak class="flex justify-end gap-2 border-t border-slate-200 pt-2">
-                        <button x-show="programEnabled[selectedProgramId]" x-on:click="setProgramEnabled(selectedProgramId, false); resetProgramSelection()" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700">Remove</button>
-                        <button x-show="!programEnabled[selectedProgramId]" x-on:click="updateSelectedProgramEmployees(); setProgramEnabled(selectedProgramId, true); resetProgramSelection()" type="button" class="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white">Apply Program</button>
-                        <button x-show="programEnabled[selectedProgramId]" x-on:click="updateSelectedProgramEmployees(); programRevision++; stepDirty = true; resetProgramSelection()" type="button" class="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white">Update Applied Program</button>
+                    <div x-transition.opacity.duration.180ms x-show="selectedProgramId" x-cloak class="flex justify-end gap-2 border-t border-slate-200 pt-2">
+                        <button x-transition.opacity.duration.180ms x-show="programEnabled[selectedProgramId]" x-on:click="setProgramEnabled(selectedProgramId, false); resetProgramSelection()" type="button" class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700">Remove</button>
+                        <button x-transition.opacity.duration.180ms x-show="!programEnabled[selectedProgramId]" x-on:click="updateSelectedProgramEmployees(); setProgramEnabled(selectedProgramId, true); resetProgramSelection()" type="button" class="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white">Apply Program</button>
+                        <button x-transition.opacity.duration.180ms x-show="programEnabled[selectedProgramId]" x-on:click="updateSelectedProgramEmployees(); programRevision++; stepDirty = true; resetProgramSelection()" type="button" class="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white">Update Applied Program</button>
                     </div>
 
                     <div class="hidden">
@@ -1656,7 +1656,7 @@
                                 @endphp
                                 <article
                                     x-data="{ setupMode: @js($selection['mode'] ?? 'all'), amountMode: @js($selection['amount_mode'] ?? 'program') }"
-                                    x-show="programSearch.trim() === '' || @js(strtolower($program->name)).includes(programSearch.trim().toLowerCase())"
+                                    x-transition.opacity.duration.180ms x-show="programSearch.trim() === '' || @js(strtolower($program->name)).includes(programSearch.trim().toLowerCase())"
                                     wire:key="deduction-program-row-{{ $program->id }}"
                                     class="rounded-lg border border-slate-200 bg-slate-50/70 p-2.5"
                                 >
@@ -1687,7 +1687,7 @@
                                     </label>
                                     </div>
                                     <div class="mt-2">
-                                            <div x-show="setupMode !== 'all' || amountMode === 'employee'" x-cloak wire:ignore wire:key="program-employee-picker-{{ $program->id }}">
+                                            <div x-transition.opacity.duration.180ms x-show="setupMode !== 'all' || amountMode === 'employee'" x-cloak wire:ignore wire:key="program-employee-picker-{{ $program->id }}">
                                                 <select
                                                     id="deduction-program-employees-{{ $program->id }}"
                                                     data-select2-employee-picker
@@ -1707,13 +1707,13 @@
                                             </div>
                                     </div>
                                     <div class="mt-2 flex justify-end gap-2 border-t border-slate-200 pt-2">
-                                                <button x-show="programEnabled['{{ $program->id }}']" x-on:click="setProgramEnabled('{{ $program->id }}', false)" type="button" class="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                                                <button x-transition.opacity.duration.180ms x-show="programEnabled['{{ $program->id }}']" x-on:click="setProgramEnabled('{{ $program->id }}', false)" type="button" class="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
                                                     Remove
                                                 </button>
-                                                <button x-show="programEnabled['{{ $program->id }}']" x-on:click="programRevision++; stepDirty = true" type="button" class="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700">
+                                                <button x-transition.opacity.duration.180ms x-show="programEnabled['{{ $program->id }}']" x-on:click="programRevision++; stepDirty = true" type="button" class="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700">
                                                     Update Table
                                                 </button>
-                                                <button x-show="!programEnabled['{{ $program->id }}']" x-on:click="setProgramEnabled('{{ $program->id }}', true)" type="button" class="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700">
+                                                <button x-transition.opacity.duration.180ms x-show="!programEnabled['{{ $program->id }}']" x-on:click="setProgramEnabled('{{ $program->id }}', true)" type="button" class="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700">
                                                     Apply
                                                 </button>
                                     </div>
@@ -1729,7 +1729,7 @@
             @endif
 
             <template x-teleport="body">
-                <div x-show="programSelectorDrawerOpen" x-cloak x-on:keydown.escape.window="programSelectorDrawerOpen = false" class="fixed inset-0 z-[1000]" role="dialog" aria-modal="true" aria-label="Select other deduction programs">
+                <div x-transition.opacity.duration.180ms x-show="programSelectorDrawerOpen" x-cloak x-on:keydown.escape.window="programSelectorDrawerOpen = false" class="fixed inset-0 z-[1000]" role="dialog" aria-modal="true" aria-label="Select other deduction programs">
                     <button x-on:click="programSelectorDrawerOpen = false" type="button" class="absolute inset-0 bg-slate-950/45" aria-label="Close program selector"></button>
                     <aside class="absolute inset-y-0 right-0 flex w-full max-w-xl flex-col bg-white shadow-2xl">
                         <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
@@ -1754,16 +1754,16 @@
                                                 <select x-model="programConfigurations[selectedProgramId].amount_mode" x-on:change="programRevision++; stepDirty = true; $nextTick(() => { window.initPayrollEmployeePickers?.(); syncSelectedProgramEmployees(); })" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal normal-case"><option value="program">Program default</option><option value="employee">Employee-specific</option></select>
                                             </label>
                                         </div>
-                                        <div x-show="programConfigurations[selectedProgramId].mode !== 'all' || programConfigurations[selectedProgramId].amount_mode === 'employee'" x-cloak>
+                                        <div x-transition.opacity.duration.180ms x-show="programConfigurations[selectedProgramId].mode !== 'all' || programConfigurations[selectedProgramId].amount_mode === 'employee'" x-cloak>
                                             <label class="text-xs font-semibold uppercase text-slate-500">Employees</label>
                                             <select id="deduction-program-employee-picker" data-select2-searchable data-placeholder="Search employees" x-on:change="updateSelectedProgramEmployees()" multiple class="mt-1 w-full">
                                                 @foreach ($rows as $row)<option value="{{ $row['emp_id'] }}">{{ $row['emp_id'] }} - {{ $row['employee_name'] }}</option>@endforeach
                                             </select>
                                         </div>
                                         <div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
-                                            <button x-show="programEnabled[selectedProgramId]" x-cloak x-on:click="setProgramEnabled(selectedProgramId, false); resetProgramSelection()" type="button" class="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Remove</button>
-                                            <button x-show="!programEnabled[selectedProgramId]" x-cloak x-on:click="updateSelectedProgramEmployees(); setProgramEnabled(selectedProgramId, true)" type="button" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Apply Program</button>
-                                            <button x-show="programEnabled[selectedProgramId]" x-cloak x-on:click="updateSelectedProgramEmployees(); programRevision++; stepDirty = true" type="button" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Update Program</button>
+                                            <button x-transition.opacity.duration.180ms x-show="programEnabled[selectedProgramId]" x-cloak x-on:click="setProgramEnabled(selectedProgramId, false); resetProgramSelection()" type="button" class="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Remove</button>
+                                            <button x-transition.opacity.duration.180ms x-show="!programEnabled[selectedProgramId]" x-cloak x-on:click="updateSelectedProgramEmployees(); setProgramEnabled(selectedProgramId, true)" type="button" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Apply Program</button>
+                                            <button x-transition.opacity.duration.180ms x-show="programEnabled[selectedProgramId]" x-cloak x-on:click="updateSelectedProgramEmployees(); programRevision++; stepDirty = true" type="button" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Update Program</button>
                                         </div>
                                     </div>
                                 </template>
@@ -1872,7 +1872,7 @@
                                                         type="hidden"
                                                     >
                                                     <input
-                                                        x-show="programApplies('{{ $program->id }}', @js((string) $row['emp_id']))"
+                                                        x-transition.opacity.duration.180ms x-show="programApplies('{{ $program->id }}', @js((string) $row['emp_id']))"
                                                         x-model.number="programAmounts['{{ $program->id }}']"
                                                         x-on:input="
                                                             setProgramOverride('{{ $program->id }}', @js((string) $row['emp_id']), $event.target.value);
@@ -1891,7 +1891,7 @@
                                                         aria-label="{{ $program->name }} deduction for {{ $row['employee_name'] }}"
                                                         class="w-28 rounded-md border border-slate-300 px-2 py-1 text-right text-xs"
                                                     >
-                                                    <span x-show="!programApplies('{{ $program->id }}', @js((string) $row['emp_id']))" class="text-xs text-slate-400">-</span>
+                                                    <span x-transition.opacity.duration.180ms x-show="!programApplies('{{ $program->id }}', @js((string) $row['emp_id']))" class="text-xs text-slate-400">-</span>
                                             </td>
                                             </template>
                                         @endforeach
@@ -2174,7 +2174,7 @@
 
                         <div class="grid min-h-0 gap-5 overflow-y-auto px-5 py-5 xl:grid-cols-[minmax(420px,0.85fr)_minmax(520px,1.15fr)]">
                             <div class="grid content-start gap-4 md:grid-cols-2">
-                            <div class="md:col-span-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700" x-show="!editingLoanItemId">
+                            <div class="md:col-span-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700" x-transition.opacity.duration.180ms x-show="!editingLoanItemId">
                                 Fill the form, add it to the batch, then save all staged deductions once.
                             </div>
                             <div>
@@ -2203,9 +2203,9 @@
                                 @enderror
                             </div>
 
-                            <div x-show="selectedRecentLoanSuggestion" class="md:col-span-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                            <div x-transition.opacity.duration.180ms x-show="selectedRecentLoanSuggestion" class="md:col-span-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
                                 <span>Auto-filled from </span><span x-text="selectedRecentLoanSuggestion?.due_month"></span><span> for the same employee and {{ $stepTypeLabelLc }}.</span>
-                                <div x-show="amountChangedFromRecent()" class="mt-1 font-semibold text-amber-800">
+                                <div x-transition.opacity.duration.180ms x-show="amountChangedFromRecent()" class="mt-1 font-semibold text-amber-800">
                                     Same reference, but the amount differs from the previous <span x-text="Number(selectedRecentLoanSuggestion?.amount_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></span>.
                                 </div>
                             </div>
@@ -2271,11 +2271,11 @@
                                 <button type="button" x-on:click="resetLoanForm(true)" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                                     Clear Form
                                 </button>
-                                <button type="button" x-show="!editingLoanItemId" x-on:click="addLoanToBatch()" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+                                <button type="button" x-transition.opacity.duration.180ms x-show="!editingLoanItemId" x-on:click="addLoanToBatch()" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
                                     Add to Batch
                                 </button>
                             </div>
-                            <div x-show="batchError" class="md:col-span-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" x-text="batchError"></div>
+                            <div x-transition.opacity.duration.180ms x-show="batchError" class="md:col-span-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" x-text="batchError"></div>
                             </div>
 
                             <div class="min-h-[360px] overflow-hidden rounded-lg border border-slate-200">
@@ -2310,7 +2310,7 @@
                                                     </td>
                                                 </tr>
                                             </template>
-                                            <tr x-show="loanBatch.length === 0">
+                                            <tr x-transition.opacity.duration.180ms x-show="loanBatch.length === 0">
                                                 <td colspan="5" class="px-3 py-10 text-center text-slate-500" x-text="labels.emptyBatch"></td>
                                             </tr>
                                         </tbody>
@@ -2323,13 +2323,13 @@
                             <button type="button" x-on:click="closeLoanModal()" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">
                                 Cancel
                             </button>
-                            <button type="button" x-show="editingLoanItemId" x-on:click="saveLoan()" x-bind:disabled="savingLoan" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
-                                <span x-show="!savingLoan" x-text="labels.save"></span>
-                                <span x-show="savingLoan">Saving...</span>
+                            <button type="button" x-transition.opacity.duration.180ms x-show="editingLoanItemId" x-on:click="saveLoan()" x-bind:disabled="savingLoan" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
+                                <span x-transition.opacity.duration.180ms x-show="!savingLoan" x-text="labels.save"></span>
+                                <span x-transition.opacity.duration.180ms x-show="savingLoan">Saving...</span>
                             </button>
-                            <button type="button" x-show="!editingLoanItemId" x-on:click="saveLoanBatch()" x-bind:disabled="savingLoan || loanBatch.length === 0" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
-                                <span x-show="!savingLoan">Save Batch</span>
-                                <span x-show="savingLoan">Saving...</span>
+                            <button type="button" x-transition.opacity.duration.180ms x-show="!editingLoanItemId" x-on:click="saveLoanBatch()" x-bind:disabled="savingLoan || loanBatch.length === 0" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                                <span x-transition.opacity.duration.180ms x-show="!savingLoan">Save Batch</span>
+                                <span x-transition.opacity.duration.180ms x-show="savingLoan">Saving...</span>
                             </button>
                         </div>
                     </div>
@@ -2564,7 +2564,7 @@
                 <button type="button" x-on:click="taxTab = 'hazard'" x-bind:class="taxTab === 'hazard' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'" class="rounded-md px-4 py-2 text-sm font-semibold">Tax on Hazard</button>
                 <button type="button" x-on:click="taxTab = 'annualization'" x-bind:class="taxTab === 'annualization' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'" class="rounded-md px-4 py-2 text-sm font-semibold">Tax Annualization</button>
             </div>
-            <div x-show="taxTab === 'basic'" class="payroll-table-scroll overflow-x-auto">
+            <div x-transition.opacity.duration.180ms x-show="taxTab === 'basic'" class="payroll-table-scroll overflow-x-auto">
                 <table class="min-w-[1320px] divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
@@ -2615,7 +2615,7 @@
                     </tbody>
                 </table>
             </div>
-            <div x-show="taxTab === 'hazard'" x-cloak class="payroll-table-scroll overflow-x-auto">
+            <div x-transition.opacity.duration.180ms x-show="taxTab === 'hazard'" x-cloak class="payroll-table-scroll overflow-x-auto">
                 <table class="min-w-[1320px] divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
@@ -2762,7 +2762,7 @@
                     @endif
                 </table>
             </div>
-            <div x-show="taxTab === 'annualization'" x-cloak class="payroll-table-scroll overflow-x-auto">
+            <div x-transition.opacity.duration.180ms x-show="taxTab === 'annualization'" x-cloak class="payroll-table-scroll overflow-x-auto">
                 <table class="min-w-[5760px] divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>

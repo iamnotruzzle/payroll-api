@@ -1,4 +1,4 @@
-<section class="space-y-4 pb-24">
+<section class="space-y-4">
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-xl font-semibold">Medicare Payroll</h2>
@@ -209,8 +209,8 @@
         </div>
     @endif
 
-    <div class="pointer-events-none fixed inset-x-0 bottom-5 z-30 flex justify-center px-4">
-        <div class="pointer-events-auto flex items-center gap-3 rounded-lg border border-white/50 bg-white/70 px-3 py-2 shadow-lg shadow-slate-900/10 backdrop-blur-md">
+    <div class="erp-record-actions">
+        <div class="flex w-full flex-wrap items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
             <button type="button" wire:click="previousStep" @disabled($currentStep === 1) class="rounded-md border border-slate-300/70 bg-white/60 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50">
                 Previous
             </button>

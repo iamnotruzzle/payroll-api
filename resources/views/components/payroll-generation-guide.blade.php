@@ -183,7 +183,7 @@
             class="space-y-6 text-sm leading-relaxed"
         >
             @foreach ($guides as $key => [$heading, $intro, $instructions, $note])
-                <section x-show="section === @js($key)" x-cloak>
+                <section x-transition.opacity.duration.180ms x-show="section === @js($key)" x-cloak>
                     <h3 class="text-lg font-semibold">{{ $heading }}</h3>
                     <p class="mt-2 text-slate-600 dark:text-slate-300">{{ $intro }}</p>
                     <ol class="mt-5 list-decimal space-y-3 pl-5">

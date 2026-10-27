@@ -60,13 +60,13 @@
                     @error('requestType') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
                 </label>
 
-                <label x-show="$wire.requestType === 'TIME_IN' || $wire.requestType === 'BOTH'" x-cloak>
+                <label x-transition.opacity.duration.180ms x-show="$wire.requestType === 'TIME_IN' || $wire.requestType === 'BOTH'" x-cloak>
                     <span class="text-xs font-semibold uppercase text-slate-500">Time In</span>
                     <input wire:model="requestedTimeIn" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     @error('requestedTimeIn') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
                 </label>
 
-                <div class="space-y-2" x-show="$wire.requestType === 'TIME_OUT' || $wire.requestType === 'BOTH'" x-cloak>
+                <div class="space-y-2" x-transition.opacity.duration.180ms x-show="$wire.requestType === 'TIME_OUT' || $wire.requestType === 'BOTH'" x-cloak>
                     <label class="block">
                         <span class="text-xs font-semibold uppercase text-slate-500">Time Out</span>
                         <input wire:model="requestedTimeOut" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
@@ -135,13 +135,13 @@
                     @error('editRequestType') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
                 </label>
 
-                <label x-show="$wire.editRequestType === 'TIME_IN' || $wire.editRequestType === 'BOTH'" x-cloak>
+                <label x-transition.opacity.duration.180ms x-show="$wire.editRequestType === 'TIME_IN' || $wire.editRequestType === 'BOTH'" x-cloak>
                     <span class="text-xs font-semibold uppercase text-slate-500">Time In</span>
                     <input wire:model="editRequestedTimeIn" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     @error('editRequestedTimeIn') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
                 </label>
 
-                <div class="space-y-2" x-show="$wire.editRequestType === 'TIME_OUT' || $wire.editRequestType === 'BOTH'" x-cloak>
+                <div class="space-y-2" x-transition.opacity.duration.180ms x-show="$wire.editRequestType === 'TIME_OUT' || $wire.editRequestType === 'BOTH'" x-cloak>
                     <label class="block">
                         <span class="text-xs font-semibold uppercase text-slate-500">Time Out</span>
                         <input wire:model="editRequestedTimeOut" type="time" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">

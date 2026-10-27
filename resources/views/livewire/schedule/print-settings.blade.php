@@ -179,7 +179,7 @@
                 <template x-for="logo in logos" :key="logo.id">
                     <button
                         type="button"
-                        x-show="logo.active"
+                        x-transition.opacity.duration.180ms x-show="logo.active"
                         x-on:mousedown.prevent="startDrag($event, logo.id)"
                         class="absolute border border-blue-300 bg-white/90 shadow-sm ring-2 ring-transparent hover:ring-blue-200"
                         :style="`left: ${logo.x}%; top: ${logo.y}%; width: ${logo.width}px;`"

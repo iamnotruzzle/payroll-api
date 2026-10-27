@@ -1,4 +1,4 @@
-<section class="space-y-4 pb-24">
+<section class="space-y-4">
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-xl font-semibold">DTR Encoding and Review</h2>
@@ -22,8 +22,17 @@
         </div>
     @endif
 
-    <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="grid gap-3 lg:grid-cols-[160px_160px_220px_minmax(260px,1fr)_260px]">
+    <div x-data="{ filtersOpen: localStorage.getItem('erp-dtr-filters-open') !== 'false' }"
+        x-effect="localStorage.setItem('erp-dtr-filters-open', filtersOpen ? 'true' : 'false')"
+        class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="flex items-center justify-between gap-3">
+            <h3 class="font-semibold">Filters &amp; employee</h3>
+            <button type="button" x-on:click="filtersOpen = !filtersOpen"
+                :aria-expanded="filtersOpen.toString()" aria-controls="dtr-encoding-filters"
+                class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium"
+                x-text="filtersOpen ? 'Hide filters' : 'Show filters'">Hide filters</button>
+        </div>
+        <div id="dtr-encoding-filters" x-collapse.duration.220ms x-show="filtersOpen" class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[160px_160px_220px_minmax(260px,1fr)_260px]">
             <div>
                 <label class="text-sm font-medium">Month</label>
                 <select wire:model.live="monthFilter" wire:loading.attr="disabled" wire:target="monthFilter,yearFilter,employeeTypeFilter,selectedEmpId,previousEmployee,nextEmployee,loadState" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
@@ -74,8 +83,32 @@
         </div>
     </div>
 
-    <div class="pointer-events-none fixed inset-x-0 bottom-5 z-30 flex justify-center px-4">
-        <div class="pointer-events-auto flex flex-wrap items-center justify-center gap-2 rounded-lg border border-white/50 bg-white/70 px-3 py-2 shadow-lg shadow-slate-900/10 backdrop-blur-md">
+    <div class="erp-record-actions erp-dtr-batch-controls rounded-lg border border-slate-200 bg-white"
+        x-data="{ batchControlsOpen: window.matchMedia('(min-width: 1024px)').matches }"
+        x-on:keydown.escape.window="batchControlsOpen = false">
+        <div class="erp-dtr-batch-controls-heading flex items-center justify-between gap-3 px-3 py-2">
+            <div>
+                <span class="text-sm font-semibold">Batch controls</span>
+                <span class="ml-2 text-xs text-slate-500" x-text="Object.values($wire.selectedRows || {}).filter(Boolean).length + ' selected'"></span>
+            </div>
+            <button type="button" x-on:click="batchControlsOpen = !batchControlsOpen"
+                :aria-expanded="batchControlsOpen.toString()" aria-controls="dtr-batch-controls"
+                class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium"
+                x-text="batchControlsOpen ? 'Hide controls' : 'Show controls'">Show controls</button>
+        </div>
+        <button type="button" class="erp-dtr-batch-fab" x-on:click="batchControlsOpen = !batchControlsOpen"
+            :aria-expanded="batchControlsOpen.toString()" aria-controls="dtr-batch-controls"
+            :aria-label="batchControlsOpen ? 'Hide batch controls' : 'Show batch controls'"
+            :title="batchControlsOpen ? 'Hide batch controls' : 'Show batch controls'">
+            <svg x-show="!batchControlsOpen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2" fill="currentColor"/><circle cx="16" cy="12" r="2" fill="currentColor"/><circle cx="10" cy="18" r="2" fill="currentColor"/></svg>
+            <svg x-cloak x-show="batchControlsOpen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+            <span class="erp-dtr-batch-count" x-show="Object.values($wire.selectedRows || {}).filter(Boolean).length > 0"
+                x-text="Object.values($wire.selectedRows || {}).filter(Boolean).length" aria-hidden="true"></span>
+        </button>
+        <div id="dtr-batch-controls" class="erp-dtr-batch-bubble" x-cloak x-show="batchControlsOpen" x-transition.origin.bottom.right.duration.180ms
+            x-on:click.outside="if (window.matchMedia('(max-width: 1023px)').matches && !$event.target.closest('.erp-dtr-batch-controls')) batchControlsOpen = false">
+        <div class="erp-dtr-batch-bubble-title">Batch controls <span class="text-xs font-normal" x-text="Object.values($wire.selectedRows || {}).filter(Boolean).length + ' selected'"></span></div>
+        <div class="erp-dtr-batch-controls-body flex w-full flex-wrap items-center justify-center gap-2 border-t border-slate-200 p-3">
             <button
                 type="button"
                 wire:click="previousEmployee"
@@ -111,7 +144,7 @@
                 Clear
             </button>
             @if (filled($selectedEmpId))
-                <div class="mx-1 hidden h-6 w-px bg-slate-300/70 lg:block"></div>
+                <hr class="my-1 w-full basis-full border-0 border-t border-slate-200">
                 @if (! $isLabelComplete)
                     <label class="sr-only" for="floating-batch-label">Batch Label</label>
                     <select
@@ -155,6 +188,7 @@
                         Apply Schedule
                     </button>
                 @endif
+                <hr class="my-1 w-full basis-full border-0 border-t border-slate-200">
             @endif
             <button
                 type="button"
@@ -202,6 +236,7 @@
             >
                 Next Employee
             </button>
+        </div>
         </div>
     </div>
 
@@ -261,10 +296,12 @@
                     class="divide-y divide-slate-100"
                 >
                     @forelse ($rows as $date => $row)
-                        <tr class="{{ $row['needs_label'] ? 'bg-amber-50' : 'hover:bg-slate-50' }}">
-                            <td class="px-4 py-3">
+                        <tr data-card-selectable class="{{ $row['needs_label'] ? 'bg-amber-50' : 'hover:bg-slate-50' }}">
+                            <td data-card-selection class="px-4 py-3">
                                 @if (($isLabelComplete && $row['can_encode_schedule']) || (! $isLabelComplete && $row['can_edit_label']))
-                                    <input wire:model="selectedRows.{{ $date }}" type="checkbox" @disabled($isLocked)>
+                                    <label class="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center">
+                                        <input wire:model="selectedRows.{{ $date }}" type="checkbox" aria-label="Select {{ \Carbon\CarbonImmutable::parse($date)->format('F j, Y') }} for batch editing" @disabled($isLocked)>
+                                    </label>
                                 @endif
                             </td>
                             <td class="whitespace-nowrap px-4 py-3">
@@ -274,7 +311,7 @@
                             <td class="px-4 py-3">{{ $row['time_in_display'] }}</td>
                             <td class="px-4 py-3">{{ $row['time_out_display'] }}</td>
                             <td class="px-4 py-3">{{ number_format($row['worked_hours'], 2) }}</td>
-                            <td class="px-4 py-3">
+                            <td data-card-editor class="px-4 py-3">
                                 @if ($row['is_holiday'])
                                     <div class="font-medium text-blue-800">{{ str_replace('_', ' ', $row['label'] ?? 'HOLIDAY') }}</div>
                                     <div class="text-xs text-slate-500">{{ $row['holiday_name'] }}</div>
@@ -286,7 +323,7 @@
                                 @elseif ($row['has_label_without_dtr'])
                                     <span class="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800">{{ str_replace('_', ' ', $row['label']) }}</span>
                                 @else
-                                    <select wire:model="rows.{{ $date }}.label" @disabled(! $row['can_edit_label'] || $isLocked) class="w-48 rounded-md border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-100">
+                                    <select aria-label="Label for {{ $date }}" wire:model="rows.{{ $date }}.label" @disabled(! $row['can_edit_label'] || $isLocked) class="w-48 rounded-md border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-100">
                                         <option value="">No label</option>
                                         @foreach ($labelOptions as $option)
                                             <option value="{{ $option->code }}">{{ $option->name }}</option>
@@ -295,7 +332,7 @@
                                 @endif
                             </td>
                             @if ($isLabelComplete)
-                                <td class="px-4 py-3">
+                                <td data-card-editor class="px-4 py-3">
                                     <select wire:model.live="rows.{{ $date }}.template_id" @disabled(! $row['can_encode_schedule'] || $isLocked || $row['is_scheduler_synced']) class="w-56 rounded-md border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-100">
                                         <option value="">Schedule</option>
                                         @foreach ($templates as $template)

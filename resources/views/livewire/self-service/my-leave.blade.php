@@ -91,12 +91,12 @@
                 <input wire:model.live="endDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                 @error('endDate') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
             </label>
-            <label class="sm:col-span-2" x-show="$wire.dateMode === 'pick'" x-cloak>
+            <label class="sm:col-span-2" x-transition.opacity.duration.180ms x-show="$wire.dateMode === 'pick'" x-cloak>
                 <span class="text-xs font-semibold uppercase text-slate-500">Selected dates (CSV)</span>
                 <textarea wire:model.lazy="selectedDatesCsv" rows="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm" placeholder="2026-08-03,2026-08-05"></textarea>
                 @error('selectedDatesCsv') <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
             </label>
-            <p class="sm:col-span-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600" x-show="$wire.dateMode !== 'pick'" x-cloak>
+            <p class="sm:col-span-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600" x-transition.opacity.duration.180ms x-show="$wire.dateMode !== 'pick'" x-cloak>
                 Selected days: <span class="font-semibold">{{ $previewDayCount }}</span>
             </p>
             <label class="sm:col-span-2">
