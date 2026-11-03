@@ -122,10 +122,9 @@ class HrisApiClient
                             $mapped['suffix'] ?? null,
                         ], fn ($value) => is_scalar($value) && (string) $value !== '')));
                         $source = $resource['fields'][$field] ?? $field;
-                        $returned = json_encode($record, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
-                        throw new RuntimeException("Missing required mapped field {$field} on page {$page}, row ".($index + 1).'. '
+                        throw new HrisApiRecordException("Missing required mapped field {$field} on page {$page}, row ".($index + 1).'. '
                             .'Employee: '.($employeeName !== '' ? $employeeName : 'Unknown').'; employee ID: '.($mapped['employee_id'] ?? 'Unknown').'. '
-                            ."HRIS source field: {$source}. Returned record: {$returned}");
+                            ."HRIS source field: {$source}.", $record);
                     }
                 }
                 if (isset($mapped['employee_id']) && ! is_string($mapped['employee_id'])) {

@@ -5,6 +5,7 @@ namespace App\Livewire\Payroll;
 use App\Enums\PayrollOperatingMode;
 use App\Services\Payroll\ApiCanonicalSyncService;
 use App\Services\Payroll\HrisApiTimekeepingSyncService;
+use App\Services\Payroll\HrisApiRecordException;
 use App\Services\Payroll\PayrollOperatingModeService;
 use App\Models\Payroll\Canonical\Department;
 use App\Models\Payroll\Canonical\Division;
@@ -27,6 +28,9 @@ class PayrollConfiguration extends Component
 
     #[\Livewire\Attributes\Locked]
     public array $apiPreparation = [];
+
+    #[\Livewire\Attributes\Locked]
+    public ?string $syncReturnedJson = null;
 
     #[\Livewire\Attributes\Locked]
     public string $configurationStep = 'details';
@@ -212,6 +216,7 @@ class PayrollConfiguration extends Component
         abort_unless($this->canSyncPayrollInputs(), 403);
         abort_unless(app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone, 422);
         $this->resetValidation('sync');
+        $this->syncReturnedJson = null;
         $steps = array_keys($this->preparationSteps());
         $index = array_search($step, $steps, true);
         abort_if($index === false, 422);
@@ -239,6 +244,9 @@ class PayrollConfiguration extends Component
 
             return;
         } catch (\RuntimeException $e) {
+            if ($e instanceof HrisApiRecordException) {
+                $this->syncReturnedJson = json_encode($e->record, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+            }
             $this->addError('sync', $e->getMessage());
 
             return;

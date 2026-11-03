@@ -328,7 +328,15 @@
                             <p class="mt-3 text-sm font-medium text-emerald-700">HRIS preparation complete. Review the scope and timekeeping, then proceed to generation.</p>
                         @endif
                         <p class="mt-3 text-xs text-slate-500">Leaves are filtered by cutoff and departments, then restricted locally to scoped employees. Step 4 loads the month before payroll: The API is tried first. Missing employee summaries use database punches for the whole scope; a null DTR-day count is filled from the database. Database punches require DTR encoding and MRA finalization. Complete all four steps before continuing.</p>
-                        @error('sync') <p role="alert" class="mt-3 text-sm text-red-600">{{ $message }}</p> @enderror
+                        @error('sync')
+                            <p role="alert" class="mt-3 text-sm text-red-600">{{ $message }}</p>
+                            @if ($syncReturnedJson !== null)
+                                <button type="button" x-on:click="erpOverlay.open($wire, 'sync-returned-data', {})"
+                                    class="mt-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+                                    View returned data
+                                </button>
+                            @endif
+                        @enderror
                     </section>
                 @endif
             </div>
@@ -476,6 +484,51 @@
                 <button type="submit" wire:loading.attr="disabled" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white" x-text="reviewStep === 'review' ? 'Confirm & Open Generation' : 'Confirm & Continue'"></button>
             </div>
         </form>
+    </x-setup-form-modal>
+
+    <x-setup-form-modal name="sync-returned-data" title="Returned HRIS data" size="lg"
+        description="The employee record returned by HRIS for the failed synchronization.">
+        <div tabindex="0" role="region" aria-label="Returned employee data" class="max-h-[60vh] overflow-auto rounded-md border border-slate-200">
+            <table class="w-full text-left text-sm">
+                <caption class="sr-only">Fields and values returned by HRIS for the affected employee</caption>
+                <thead class="sticky top-0 bg-slate-50 text-slate-700">
+                    <tr>
+                        <th scope="col" class="px-4 py-3 font-semibold">Field</th>
+                        <th scope="col" class="px-4 py-3 font-semibold">Returned value</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                    @forelse (json_decode($syncReturnedJson ?? '{}', true) ?? [] as $field => $value)
+                        <tr>
+                            <th scope="row" class="px-4 py-3 align-top font-medium text-slate-700 [overflow-wrap:anywhere]">{{ $field }}</th>
+                            <td class="px-4 py-3 align-top text-slate-800 [overflow-wrap:anywhere]">
+                                @if ($value === null)
+                                    <span class="font-mono text-slate-500">null</span>
+                                @elseif ($value === '')
+                                    <span class="text-slate-500">Empty string</span>
+                                @elseif (is_bool($value))
+                                    <span class="font-mono">{{ $value ? 'true' : 'false' }}</span>
+                                @elseif (is_array($value))
+                                    <pre class="whitespace-pre-wrap break-words text-xs">{{ json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
+                                @else
+                                    {{ $value }}
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="2" class="px-4 py-3 text-slate-500">No returned data available.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <details class="mt-4">
+            <summary class="cursor-pointer text-sm font-medium text-slate-700">View raw JSON</summary>
+            <pre tabindex="0" aria-label="Returned employee JSON" class="mt-2 max-h-64 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-800">{{ $syncReturnedJson }}</pre>
+        </details>
+        <div class="mt-4 flex justify-end">
+            <button type="button" x-on:click="erpOverlay.close('sync-returned-data')"
+                class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Close</button>
+        </div>
     </x-setup-form-modal>
 
     @if ($canManageHolidays)
