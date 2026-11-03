@@ -69,7 +69,8 @@ class HrisApiTimekeepingSyncService
             }
         }
         if (array_diff($ids, array_map('strval', array_keys($rows))) !== []) {
-            throw new RuntimeException('HRIS did not return timekeeping for every scoped employee. Existing attendance was retained.');
+            // Use one source for the whole scope so raw punches go through DTR/MRA checks.
+            return app(HrisTimekeepingSyncService::class)->sync($payrollPeriod, $by, $scope);
         }
         $payload = ['Timekeeping' => array_values($rows)];
         $workbooks = app(CanonicalWorkbookService::class);

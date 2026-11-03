@@ -234,6 +234,17 @@ class PayrollConfigurationTest extends TestCase
         $this->assertTrue($component->getErrorBag()->has('sync'));
     }
 
+    public function test_unstarted_preparation_blocks_both_generation_entry_points(): void
+    {
+        Config::set('payroll_standalone.forced_mode', 'standalone');
+        $component = $this->configuredComponent([10], []);
+        $this->assertNull($component->proceed());
+        $this->assertSame('preparation', $component->configurationStep);
+        $this->assertTrue($component->getErrorBag()->has('sync'));
+        $this->assertNull($component->continueToPayrollGeneration());
+        $this->assertSame('preparation', $component->configurationStep);
+    }
+
     public function test_incomplete_preparation_blocks_generation(): void
     {
         Config::set('payroll_standalone.forced_mode', 'standalone');
@@ -243,7 +254,7 @@ class PayrollConfigurationTest extends TestCase
         $this->assertTrue($component->getErrorBag()->has('sync'));
     }
 
-    public function test_fourth_step_uses_database_timekeeping_service_after_api_steps(): void
+    public function test_fourth_step_uses_api_first_timekeeping_service_after_api_steps(): void
     {
         Config::set('payroll_standalone.forced_mode', 'standalone');
         $user = \Mockery::mock();
@@ -253,13 +264,12 @@ class PayrollConfigurationTest extends TestCase
         \Illuminate\Support\Facades\Auth::shouldReceive('user')->andReturn($user);
         $batch = new \App\Models\Payroll\PayrollSourceBatch;
         $batch->id = 124;
-        $database = \Mockery::mock(\App\Services\Payroll\HrisTimekeepingSyncService::class);
+        $database = \Mockery::mock(\App\Services\Payroll\HrisApiTimekeepingSyncService::class);
         $database->shouldReceive('sync')->once()->with('2026-06', '001783', ['division_ids' => [10], 'department_ids' => [], 'employee_types' => ['plantilla']])->andReturn($batch);
-        $this->app->instance(\App\Services\Payroll\HrisTimekeepingSyncService::class, $database);
+        $this->app->instance(\App\Services\Payroll\HrisApiTimekeepingSyncService::class, $database);
         $api = \Mockery::mock(\App\Services\Payroll\ApiCanonicalSyncService::class);
         $api->shouldNotReceive('sync');
         $component = $this->configuredComponent([10], []);
-        $component->timekeepingSyncSource = 'hris_db';
         $component->apiPreparation = ['context' => (new \ReflectionMethod($component, 'preparationContext'))->invoke($component),
             'steps' => ['employees' => ['batch' => 1], 'salary' => ['batch' => 2], 'leaves' => ['batch' => 3]]];
         $component->syncApi($api, 'timekeeping');
@@ -284,6 +294,11 @@ class PayrollConfigurationTest extends TestCase
         $this->assertSame('scope', $component->configurationStep);
         $component->nextConfigurationStep();
         $this->assertSame('preparation', $component->configurationStep);
+        $component->nextConfigurationStep();
+        $this->assertSame('preparation', $component->configurationStep);
+        $this->assertTrue($component->getErrorBag()->has('sync'));
+        $component->apiPreparation = ['context' => (new \ReflectionMethod($component, 'preparationContext'))->invoke($component),
+            'steps' => array_fill_keys(['employees', 'salary', 'leaves', 'timekeeping'], ['batch' => 1])];
         $component->nextConfigurationStep();
         $this->assertSame('review', $component->configurationStep);
         $component->previousConfigurationStep();

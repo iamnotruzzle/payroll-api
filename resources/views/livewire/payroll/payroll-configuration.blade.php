@@ -297,15 +297,6 @@
                                         <div class="min-w-0 flex-1">
                                             <h4 class="text-sm font-semibold text-slate-900">Step {{ $loop->iteration }} — {{ $step['title'] }}</h4>
                                             <p class="mt-1 text-xs text-slate-600">{{ $step['description'] }}</p>
-                                            @if ($key === 'timekeeping')
-                                                <label class="mt-3 block text-xs font-medium">Timekeeping source
-                                                    <select wire:model="timekeepingSyncSource" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                                                        <option value="api">HRIS API attendance summaries</option>
-                                                        <option value="hris_db">HRIS database DTR punches</option>
-                                                    </select>
-                                                </label>
-                                                @error('timekeepingSyncSource') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                                            @endif
                                             @if ($result)
                                                 <p class="mt-2 text-xs font-medium text-emerald-700" role="status">Complete · Batch #{{ $result['batch'] }}</p>
                                                 <p class="mt-1 text-xs text-slate-500">
@@ -336,7 +327,7 @@
                         @if (count($apiPreparationResults) === count($apiPreparationSteps))
                             <p class="mt-3 text-sm font-medium text-emerald-700">HRIS preparation complete. Review the scope and timekeeping, then proceed to generation.</p>
                         @endif
-                        <p class="mt-3 text-xs text-slate-500">Leaves are filtered by cutoff and departments, then restricted locally to scoped employees. Step 4 loads the month before payroll: API summaries use the HRIS database only to fill a null DTR-day count; database punches require DTR encoding and MRA finalization. Previously prepared data can be used without starting a new sync.</p>
+                        <p class="mt-3 text-xs text-slate-500">Leaves are filtered by cutoff and departments, then restricted locally to scoped employees. Step 4 loads the month before payroll: The API is tried first. Missing employee summaries use database punches for the whole scope; a null DTR-day count is filled from the database. Database punches require DTR encoding and MRA finalization. Complete all four steps before continuing.</p>
                         @error('sync') <p role="alert" class="mt-3 text-sm text-red-600">{{ $message }}</p> @enderror
                     </section>
                 @endif
@@ -353,7 +344,7 @@
                     <div><dt class="text-xs text-slate-500">Leave cutoff</dt><dd class="mt-1 text-sm font-semibold">{{ $leavePeriodStart }} through {{ $leavePeriodEnd }}</dd></div>
                     <div><dt class="text-xs text-slate-500">Included leave types</dt><dd class="mt-1 text-sm font-semibold">{{ $leaveTypes->whereIn('leave_type_id', $selectedLeaveTypeIds)->pluck('leave_name')->implode(', ') ?: 'None' }}</dd></div>
                     @if ($isStandalone)
-                        <div><dt class="text-xs text-slate-500">Data preparation</dt><dd class="mt-1 text-sm font-semibold">{{ count($apiPreparationResults) === count($apiPreparationSteps) ? 'All four sync steps complete' : 'Using previously prepared local data' }}</dd></div>
+                        <div><dt class="text-xs text-slate-500">Data preparation</dt><dd class="mt-1 text-sm font-semibold">{{ count($apiPreparationResults) === count($apiPreparationSteps) ? 'All four sync steps complete' : 'Preparation incomplete' }}</dd></div>
                     @endif
                 </dl>
                 <p class="text-sm text-slate-600">The next screen opens the main generation steps. Attendance and MRA checks still apply.</p>
@@ -390,7 +381,7 @@
         <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50 px-4 py-3">
             <button type="button" x-transition.opacity.duration.180ms x-show="configurationStep !== 'details'" x-cloak wire:click="previousConfigurationStep" wire:loading.attr="disabled" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700">Back</button>
             <span x-transition.opacity.duration.180ms x-show="configurationStep === 'details'" class="text-xs text-slate-500">Start with the payroll month and leave cutoff.</span>
-            <button type="button" x-transition.opacity.duration.180ms x-show="configurationStep !== 'review'" x-on:click="openStepReview()" wire:loading.attr="disabled" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white">
+            <button type="button" x-transition.opacity.duration.180ms x-show="configurationStep !== 'review'" x-on:click="openStepReview()" x-bind:disabled="configurationStep === 'preparation' && {{ count($apiPreparationResults) < count($apiPreparationSteps) ? 'true' : 'false' }}" wire:loading.attr="disabled" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
                 <span wire:loading.remove wire:target="nextConfigurationStep">Review &amp; Continue</span><span wire:loading wire:target="nextConfigurationStep">Checking...</span>
             </button>
             <div x-transition.opacity.duration.180ms x-show="configurationStep === 'review'" x-cloak class="flex flex-wrap gap-2">
@@ -463,7 +454,7 @@
             @if ($isStandalone)
                 <section x-transition.opacity.duration.180ms x-show="reviewStep === 'preparation' || reviewStep === 'review'" class="space-y-3">
                     <h3 class="text-sm font-semibold">Data preparation</h3>
-                    <p class="text-sm"><span class="text-slate-500">Selected timekeeping sync source:</span> <span x-text="$wire.timekeepingSyncSource === 'api' ? 'HRIS API attendance summaries' : 'HRIS database DTR punches'"></span></p>
+                    <p class="text-sm">Timekeeping: HRIS API first, with database DTR punches as fallback.</p>
                     <ul class="divide-y divide-slate-200">
                         @foreach ($apiPreparationSteps as $key => $step)
                             <li class="flex flex-wrap justify-between gap-2 py-2 text-sm">
@@ -476,7 +467,7 @@
                             </li>
                         @endforeach
                     </ul>
-                    <p class="text-xs text-slate-500">If you started syncing, complete all four steps. API summaries require attendance for every scoped employee in the previous month. Database punches require DTR encoding and MRA finalization.</p>
+                    <p class="text-xs text-slate-500">Complete all four steps. API summaries require attendance for every scoped employee in the previous month. Database punches require DTR encoding and MRA finalization.</p>
                 </section>
             @endif
 

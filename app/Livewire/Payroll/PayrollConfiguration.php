@@ -4,7 +4,6 @@ namespace App\Livewire\Payroll;
 
 use App\Enums\PayrollOperatingMode;
 use App\Services\Payroll\ApiCanonicalSyncService;
-use App\Services\Payroll\HrisTimekeepingSyncService;
 use App\Services\Payroll\HrisApiTimekeepingSyncService;
 use App\Services\Payroll\PayrollOperatingModeService;
 use App\Models\Payroll\Canonical\Department;
@@ -32,8 +31,6 @@ class PayrollConfiguration extends Component
     #[\Livewire\Attributes\Locked]
     public string $configurationStep = 'details';
 
-    public string $timekeepingSyncSource = 'api';
-
     private function configurationSteps(): array
     {
         $steps = ['details' => 'Run details', 'scope' => 'Payroll scope'];
@@ -52,7 +49,7 @@ class PayrollConfiguration extends Component
             $fields = ['period', 'workingDays', 'gsisDays', 'leavePeriodStart', 'leavePeriodEnd'];
             $this->validate(array_intersect_key($this->configurationRules(), array_flip($fields)));
         } elseif ($this->configurationStep === 'preparation') {
-            if ($this->apiPreparation !== [] && count($this->preparationResults()) < count($this->preparationSteps())) {
+            if (count($this->preparationResults()) < count($this->preparationSteps())) {
                 $this->addError('sync', 'Complete all four preparation steps before continuing.');
 
                 return;
@@ -88,13 +85,13 @@ class PayrollConfiguration extends Component
     {
         return ApiCanonicalSyncService::STEPS + ['timekeeping' => [
             'title' => 'Timekeeping',
-            'description' => 'Sync the previous attendance month through the HRIS API, or choose the HRIS database to copy raw DTR punches.',
+            'description' => 'Use HRIS API summaries first; missing summaries automatically fall back to HRIS database DTR punches.',
         ]];
     }
 
     private function preparationContext(): string
     {
-        return $this->period.'|'.$this->leavePeriodStart.'|'.$this->leavePeriodEnd.'|'.$this->timekeepingSyncSource.'|'.hash('sha256', json_encode($this->syncScope()));
+        return $this->period.'|'.$this->leavePeriodStart.'|'.$this->leavePeriodEnd.'|'.hash('sha256', json_encode($this->syncScope()));
     }
 
     private function syncScope(): array
@@ -231,12 +228,9 @@ class PayrollConfiguration extends Component
         ]);
         $scopeFields = ['selectedDivisionIds', 'selectedDivisionIds.*', 'selectedDepartmentIds', 'selectedDepartmentIds.*', 'employeeTypeFilter', 'employeeTypeFilter.*'];
         $this->validate(array_intersect_key($this->configurationRules(), array_flip($scopeFields)));
-        $this->validate(['timekeepingSyncSource' => ['required', Rule::in(['api', 'hris_db'])]]);
         try {
             $batch = $step === 'timekeeping'
-                ? ($this->timekeepingSyncSource === 'api'
-                    ? app(HrisApiTimekeepingSyncService::class)->sync($this->period, auth()->user()?->emp_id, $this->syncScope())
-                    : app(HrisTimekeepingSyncService::class)->sync($this->period, auth()->user()?->emp_id, $this->syncScope()))
+                ? app(HrisApiTimekeepingSyncService::class)->sync($this->period, auth()->user()?->emp_id, $this->syncScope())
                 : $service->sync($this->period, auth()->user()?->emp_id, $this->leavePeriodStart, $this->leavePeriodEnd, $step, $this->syncScope());
         } catch (\Illuminate\Database\QueryException $e) {
             $this->addError('sync', $step === 'timekeeping'
@@ -252,7 +246,7 @@ class PayrollConfiguration extends Component
         foreach (array_slice($steps, $index) as $laterStep) {
             unset($results[$laterStep]);
         }
-        $results[$step] = ['batch' => $batch->id, 'counts' => $batch->statistics ?? []];
+        $results[$step] = ['batch' => $batch->id, 'counts' => $batch->statistics ?? [], 'source' => $batch->source];
         $this->apiPreparation = ['context' => $this->preparationContext(), 'steps' => $results];
         $this->dismissExistingGenerationNotice();
         session()->flash('api_sync_status', $this->preparationSteps()[$step]['title']." synchronized in batch #{$batch->id}.");
@@ -261,7 +255,7 @@ class PayrollConfiguration extends Component
     public function proceed()
     {
         if (app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone
-            && $this->apiPreparation !== [] && count($this->preparationResults()) < count($this->preparationSteps())) {
+            && count($this->preparationResults()) < count($this->preparationSteps())) {
             $this->configurationStep = 'preparation';
             $this->addError('sync', 'Complete all four preparation steps before proceeding to payroll generation.');
 
@@ -283,7 +277,7 @@ class PayrollConfiguration extends Component
     public function continueToPayrollGeneration()
     {
         if (app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone
-            && $this->apiPreparation !== [] && count($this->preparationResults()) < count($this->preparationSteps())) {
+            && count($this->preparationResults()) < count($this->preparationSteps())) {
             return $this->proceed();
         }
         $data = $this->validatedConfiguration();
