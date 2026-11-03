@@ -43,7 +43,7 @@ class HrisApiClient
         if ($name === 'basic-pay' && isset($context['scope'])) {
             unset($parameters['emp_ids']);
             $scope = $context['scope'];
-            $parameters['include_inactive'] = true;
+            $parameters['include_inactive'] = false;
             if (! empty($scope['department_ids'])) {
                 $parameters['department_ids'] = array_values($scope['department_ids']);
             } elseif (! empty($scope['division_ids'])) {
