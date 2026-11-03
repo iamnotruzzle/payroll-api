@@ -525,10 +525,6 @@
             <summary class="cursor-pointer text-sm font-medium text-slate-700">View raw JSON</summary>
             <pre tabindex="0" aria-label="Returned employee JSON" class="mt-2 max-h-64 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-800">{{ $syncReturnedJson }}</pre>
         </details>
-        <div class="mt-4 flex justify-end">
-            <button type="button" x-on:click="erpOverlay.close('sync-returned-data')"
-                class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Close</button>
-        </div>
     </x-setup-form-modal>
 
     @if ($canManageHolidays)
