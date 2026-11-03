@@ -55,6 +55,9 @@ class HrisApiClient
         if ($name === 'employees' && isset($context['employee_ids'])) {
             $parameters['emp_ids'] = implode(',', $context['employee_ids']);
         }
+        if ($name === 'employees' && ! empty($context['groups'])) {
+            $parameters['groups'] = implode(',', $context['groups']);
+        }
         if ($name === 'salary-rates' && isset($context['year'])) {
             $parameters['year'] = $context['year'];
         }

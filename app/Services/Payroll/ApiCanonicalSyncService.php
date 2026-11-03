@@ -79,13 +79,20 @@ class ApiCanonicalSyncService
                 $context['year'] = substr($period, 0, 4);
             }
             if ($resource === 'employees' && $employeeIds !== null) {
+                $types = $scope['employee_types'] ?? [];
+                $groupMap = ['plantilla' => 'OSEC', 'cos' => 'COS'];
+                // Other categories retain local filtering until their HRIS group is defined.
+                if ($types !== [] && array_diff($types, array_keys($groupMap)) === []) {
+                    $context['groups'] = array_values(array_unique(array_map(fn ($type) => $groupMap[$type], $types)));
+                }
                 $result = ['rows' => [], 'warning_count' => 0];
                 foreach (array_chunk($employeeIds, 100) as $chunk) {
                     $part = $client->fetch($resource, $context + ['employee_ids' => $chunk]);
                     $result['rows'] = array_merge($result['rows'], $part['rows']);
                     $result['warning_count'] += $part['warning_count'];
                 }
-                if (array_diff($employeeIds, array_map('strval', array_column($result['rows'], 'employee_id'))) !== []) {
+                // Group filtering may intentionally exclude IDs discovered in other groups.
+                if (empty($context['groups']) && array_diff($employeeIds, array_map('strval', array_column($result['rows'], 'employee_id'))) !== []) {
                     throw new RuntimeException('HRIS did not return all requested employee records; no data was activated.');
                 }
             } else {
