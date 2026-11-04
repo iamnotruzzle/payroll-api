@@ -487,7 +487,7 @@
     </x-setup-form-modal>
 
     <x-setup-form-modal name="sync-returned-data" title="Returned HRIS data" size="lg"
-        description="The employee record returned by HRIS for the failed synchronization.">
+        description="The record returned by HRIS for the failed synchronization.">
         <div tabindex="0" role="region" aria-label="Returned employee data" class="max-h-[60vh] overflow-auto rounded-md border border-slate-200">
             <table class="w-full text-left text-sm">
                 <caption class="sr-only">Fields and values returned by HRIS for the affected employee</caption>

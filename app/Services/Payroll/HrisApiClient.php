@@ -104,6 +104,12 @@ class HrisApiClient
                 if (! is_array($record)) {
                     throw new RuntimeException('HRIS API records must be JSON objects.');
                 }
+                // The employees endpoint currently documents groups and emp_ids only;
+                // enforce active-only selection locally without an unsupported API filter.
+                if ($name === 'employees' && ($context['active_only'] ?? false)
+                    && data_get($record, $resource['fields']['is_active']) === false) {
+                    continue;
+                }
                 $mapped = [];
                 foreach ($resource['required_keys'] ?? [] as $target) {
                     if (! \Illuminate\Support\Arr::has($record, $resource['fields'][$target])) {

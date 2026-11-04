@@ -51,13 +51,7 @@ class ApiCanonicalSyncService
             if (empty($scope['division_ids']) && empty($scope['department_ids'])) {
                 throw ValidationException::withMessages(['sync' => 'Select a payroll scope before synchronizing.']);
             }
-            if ($step === 'employees' || $step === null) {
-                $discovery = $client->fetch('basic-pay', ['scope' => $scope]);
-                if ($discovery['warning_count']) {
-                    throw new RuntimeException('HRIS reported warnings while discovering scoped employees; no data was activated.');
-                }
-                $employeeIds = array_values(array_unique(array_map('strval', array_column($discovery['rows'], 'employee_id'))));
-            } else {
+            if ($step !== 'employees' && $step !== null) {
                 $employeeIds = app(PayrollSyncScope::class)->employees($scope)->pluck('emp_id')->map('strval')->all();
             }
             if ($employeeIds === []) {
@@ -78,23 +72,15 @@ class ApiCanonicalSyncService
             if ($scope !== null && $resource === 'salary-rates') {
                 $context['year'] = substr($period, 0, 4);
             }
-            if ($resource === 'employees' && $employeeIds !== null) {
+            if ($resource === 'employees' && $scope !== null) {
                 $types = $scope['employee_types'] ?? [];
                 $groupMap = ['plantilla' => 'OSEC', 'cos' => 'COS'];
                 // Other categories retain local filtering until their HRIS group is defined.
                 if ($types !== [] && array_diff($types, array_keys($groupMap)) === []) {
                     $context['groups'] = array_values(array_unique(array_map(fn ($type) => $groupMap[$type], $types)));
                 }
-                $result = ['rows' => [], 'warning_count' => 0];
-                foreach (array_chunk($employeeIds, 100) as $chunk) {
-                    $part = $client->fetch($resource, $context + ['employee_ids' => $chunk]);
-                    $result['rows'] = array_merge($result['rows'], $part['rows']);
-                    $result['warning_count'] += $part['warning_count'];
-                }
-                // Group filtering may intentionally exclude IDs discovered in other groups.
-                if (empty($context['groups']) && array_diff($employeeIds, array_map('strval', array_column($result['rows'], 'employee_id'))) !== []) {
-                    throw new RuntimeException('HRIS did not return all requested employee records; no data was activated.');
-                }
+                $result = $client->fetch($resource, $context + ['active_only' => true]);
+                $employeeIds = array_values(array_unique(array_map('strval', array_column($result['rows'], 'employee_id'))));
             } else {
                 $result = $client->fetch($resource, $context);
             }
@@ -205,6 +191,7 @@ class ApiCanonicalSyncService
                 : array_column(array_filter($departments, fn ($row) => in_array($row['division_id'], $scope['division_ids'])), 'department_id');
             $payload['Employees'] = array_values(array_filter($payload['Employees'], fn ($row) =>
                 in_array((string) $row['employee_id'], $employeeIds, true)
+                && $row['is_active'] === true
                 && in_array($row['department_id'], $departmentIds)
                 && $scopeService->matchesType($row, $scope)));
             if ($payload['Employees'] === []) {
