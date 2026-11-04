@@ -44,7 +44,7 @@ class HrisApiTimekeepingSyncService
                 }
                 if ($row['days_with_dtr'] === null) {
                     if ($dtrCounts === null) {
-                        $missingIds = array_values(array_intersect($chunk, array_column(array_filter($result['rows'], fn ($record) => $record['days_with_dtr'] === null && $record['period'] === $period), 'employee_id')));
+                        $missingIds = array_values(array_intersect($chunk, array_column(array_filter($result['rows'], fn($record) => $record['days_with_dtr'] === null && $record['period'] === $period), 'employee_id')));
                         $start = CarbonImmutable::createFromFormat('!Y-m', $period);
                         try {
                             $dtrCounts = DB::connection('hris')->table('tbl_employee_dtr')
@@ -81,13 +81,24 @@ class HrisApiTimekeepingSyncService
 
         return DB::connection('payroll')->transaction(function () use ($payload, $period, $payrollPeriod, $scope, $by, $workbooks) {
             $batch = PayrollSourceBatch::query()->firstOrCreate([
-                'kind' => 'api_timekeeping_'.str_replace('-', '', $period).'_'.substr(hash('sha256', json_encode($scope)), 0, 16),
-                'effective_period' => $period, 'checksum' => hash('sha256', json_encode($payload)),
-            ], ['source' => 'hris_api', 'status' => 'validated', 'schema_version' => '1.0',
-                'payload' => $payload, 'errors' => [], 'created_by' => $by,
-                'statistics' => ['Employees' => count($payload['Timekeeping']),
-                    'DTR database fallbacks' => count(array_filter($payload['Timekeeping'], fn ($row) => ($row['days_with_dtr_source'] ?? null) === 'hris_db')),
-                    'payroll_period' => $payrollPeriod, 'attendance_period' => $period, 'scope' => $scope]]);
+                'kind' => 'api_timekeeping_' . str_replace('-', '', $period) . '_' . substr(hash('sha256', json_encode($scope)), 0, 16),
+                'effective_period' => $period,
+                'checksum' => hash('sha256', json_encode($payload)),
+            ], [
+                'source' => 'hris_api',
+                'status' => 'validated',
+                'schema_version' => '1.0',
+                'payload' => $payload,
+                'errors' => [],
+                'created_by' => $by,
+                'statistics' => [
+                    'Employees' => count($payload['Timekeeping']),
+                    'DTR database fallbacks' => count(array_filter($payload['Timekeeping'], fn($row) => ($row['days_with_dtr_source'] ?? null) === 'hris_db')),
+                    'payroll_period' => $payrollPeriod,
+                    'attendance_period' => $period,
+                    'scope' => $scope
+                ]
+            ]);
             $storedCount = DB::connection('payroll')->table('payroll_canonical_timekeeping')
                 ->where('period', $period)->where('source_batch_id', $batch->id)
                 ->whereIn('emp_id', array_column($payload['Timekeeping'], 'employee_id'))->count();

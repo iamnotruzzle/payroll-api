@@ -305,6 +305,27 @@ class PayrollConfigurationTest extends TestCase
         $this->assertSame('preparation', $component->configurationStep);
     }
 
+    public function test_refresh_restores_the_configuration_and_completed_preparation(): void
+    {
+        Config::set('payroll_standalone.forced_mode', 'standalone');
+        $component = $this->configuredComponent([10], [20]);
+        $component->workingDays = 21;
+        $component->configurationStep = 'preparation';
+        $component->apiPreparation = [
+            'context' => (new \ReflectionMethod($component, 'preparationContext'))->invoke($component),
+            'steps' => ['employees' => ['batch' => 7]],
+        ];
+        $component->dehydrate();
+
+        $refreshed = app(PayrollConfiguration::class);
+        $refreshed->mount();
+
+        $this->assertSame('preparation', $refreshed->configurationStep);
+        $this->assertSame(21, $refreshed->workingDays);
+        $this->assertSame([20], $refreshed->selectedDepartmentIds);
+        $this->assertSame(['employees' => ['batch' => 7]], $refreshed->render()->getData()['apiPreparationResults']);
+    }
+
     public function test_connected_wizard_skips_preparation_and_renders_review(): void
     {
         Config::set('payroll_standalone.forced_mode', 'connected');

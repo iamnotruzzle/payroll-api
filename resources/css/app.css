@@ -3217,17 +3217,23 @@ html[data-theme="dark"] select::placeholder {
 .erp-content .payroll-table-scroll thead th,
 .erp-content .payroll-sticky-employee-header,
 .erp-content .payroll-sticky-employee-info-group,
+.erp-content .payroll-sticky-employee-summary-header,
+.erp-content .payroll-sticky-employee-totals,
 .erp-content .payroll-sticky-employee-no-header,
 .erp-content .payroll-sticky-employee-name-header,
 .erp-content .payroll-sticky-employee-position-header {
     background: color-mix(in srgb, var(--erp-primary) 5%, var(--erp-surface)) !important;
 }
 .erp-content .payroll-sticky-employee-cell,
+.erp-content .payroll-sticky-employee-summary-cell,
+.erp-content .payroll-generation-workspace td.sticky.right-0,
 .erp-content .payroll-sticky-employee-no-cell,
 .erp-content .payroll-sticky-employee-name-cell,
 .erp-content .payroll-sticky-employee-position-cell { background: var(--erp-surface) !important; }
 .erp-content tbody tr:hover,
 .erp-content tbody tr:hover .payroll-sticky-employee-cell,
+.erp-content tbody tr:hover .payroll-sticky-employee-summary-cell,
+.erp-content .payroll-generation-workspace tbody tr:hover td.sticky.right-0,
 .erp-content tbody tr:hover .payroll-sticky-employee-no-cell,
 .erp-content tbody tr:hover .payroll-sticky-employee-name-cell,
 .erp-content tbody tr:hover .payroll-sticky-employee-position-cell {
@@ -3236,6 +3242,10 @@ html[data-theme="dark"] select::placeholder {
 .erp-content th, .erp-content td { border-color: var(--erp-line) !important; }
 .erp-content th { color: var(--erp-muted) !important; letter-spacing: .06em !important; }
 .erp-content .payroll-floating-scrollbar { border-color: var(--erp-line); background: var(--erp-surface); }
+
+html[data-theme="dark"] .erp-content :is(th, td)[class*="payroll-sticky-employee"] {
+    box-shadow: 1px 0 0 var(--erp-line);
+}
 
 html[data-theme="dark"] .erp-body [class*="bg-slate-50"],
 html[data-theme="dark"] .erp-body [class*="bg-gray-50"],

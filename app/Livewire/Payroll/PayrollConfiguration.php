@@ -26,6 +26,14 @@ class PayrollConfiguration extends Component
 {
     private const DEFAULT_UNCHECKED_LEAVE_TYPE_IDS = [14, 15, 16, 20];
 
+    private const DRAFT_FIELDS = [
+        'period', 'workingDays', 'leavePeriodStart', 'leavePeriodEnd', 'payrollType',
+        'selectedDivisionIds', 'selectedDepartmentIds', 'employeeTypeFilter', 'selectedLeaveTypeIds',
+        'configurationStep', 'apiPreparation',
+    ];
+
+    private bool $openingGeneration = false;
+
     #[\Livewire\Attributes\Locked]
     public array $apiPreparation = [];
 
@@ -95,7 +103,7 @@ class PayrollConfiguration extends Component
 
     private function preparationContext(): string
     {
-        return $this->period.'|'.$this->leavePeriodStart.'|'.$this->leavePeriodEnd.'|'.hash('sha256', json_encode($this->syncScope()));
+        return $this->period . '|' . $this->leavePeriodStart . '|' . $this->leavePeriodEnd . '|' . hash('sha256', json_encode($this->syncScope()));
     }
 
     private function syncScope(): array
@@ -183,15 +191,15 @@ class PayrollConfiguration extends Component
             ->where('code', $requestedPayrollType)
             ->where('is_active', true)
             ->exists()
-                ? $requestedPayrollType
-                : PayrollType::CODE_GENERAL;
+            ? $requestedPayrollType
+            : PayrollType::CODE_GENERAL;
 
         if ($this->selectedDepartmentIds !== [] && $this->selectedDivisionIds !== []) {
             $this->selectedDepartmentIds = Department::query()
                 ->whereIn('external_id', $this->selectedDepartmentIds)
                 ->whereIn('division_external_id', $this->selectedDivisionIds)
                 ->pluck('external_id')
-                ->map(fn ($id) => (int) $id)
+                ->map(fn($id) => (int) $id)
                 ->all();
             $this->syncLegacyScopeIds();
         }
@@ -209,6 +217,38 @@ class PayrollConfiguration extends Component
         $this->employeeTypeFilter = Employee::normalizeEmployeeTypes(
             request()->query('employee_type', Employee::EMPLOYEE_TYPE_PLANTILLA)
         );
+
+        $configurationQueryKeys = [
+            'period', 'working_days', 'leave_period_start', 'leave_period_end', 'payroll_type',
+            'division_id', 'division_ids', 'department_id', 'department_ids', 'employee_type', 'leave_type_ids',
+        ];
+        if (array_intersect($configurationQueryKeys, array_keys(request()->query())) === []) {
+            $draft = session()->get($this->draftSessionKey(), []);
+            foreach (self::DRAFT_FIELDS as $field) {
+                if (isset($draft[$field])) {
+                    $this->{$field} = $draft[$field];
+                }
+            }
+            $this->gsisDays = $this->daysInPayrollMonth($this->period);
+            $this->syncLegacyScopeIds();
+            if ($this->configurationStep === 'review'
+                && isset($this->configurationSteps()['preparation'])
+                && count($this->preparationResults()) < count($this->preparationSteps())) {
+                $this->configurationStep = 'preparation';
+            }
+        }
+    }
+
+    public function dehydrate(): void
+    {
+        if (! $this->openingGeneration) {
+            session()->put($this->draftSessionKey(), array_intersect_key(get_object_vars($this), array_flip(self::DRAFT_FIELDS)));
+        }
+    }
+
+    private function draftSessionKey(): string
+    {
+        return 'payroll.configuration_draft.'.auth()->id().'.'.app(PayrollOperatingModeService::class)->current()->value;
     }
 
     public function syncApi(ApiCanonicalSyncService $service, string $step = 'employees'): void
@@ -257,13 +297,15 @@ class PayrollConfiguration extends Component
         $results[$step] = ['batch' => $batch->id, 'counts' => $batch->statistics ?? [], 'source' => $batch->source];
         $this->apiPreparation = ['context' => $this->preparationContext(), 'steps' => $results];
         $this->dismissExistingGenerationNotice();
-        session()->flash('api_sync_status', $this->preparationSteps()[$step]['title']." synchronized in batch #{$batch->id}.");
+        session()->flash('api_sync_status', $this->preparationSteps()[$step]['title'] . " synchronized in batch #{$batch->id}.");
     }
 
     public function proceed()
     {
-        if (app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone
-            && count($this->preparationResults()) < count($this->preparationSteps())) {
+        if (
+            app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone
+            && count($this->preparationResults()) < count($this->preparationSteps())
+        ) {
             $this->configurationStep = 'preparation';
             $this->addError('sync', 'Complete all four preparation steps before proceeding to payroll generation.');
 
@@ -284,8 +326,10 @@ class PayrollConfiguration extends Component
 
     public function continueToPayrollGeneration()
     {
-        if (app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone
-            && count($this->preparationResults()) < count($this->preparationSteps())) {
+        if (
+            app(PayrollOperatingModeService::class)->current() === PayrollOperatingMode::Standalone
+            && count($this->preparationResults()) < count($this->preparationSteps())
+        ) {
             return $this->proceed();
         }
         $data = $this->validatedConfiguration();
@@ -336,7 +380,7 @@ class PayrollConfiguration extends Component
             'holidayIsActive' => ['boolean'],
         ]);
 
-        if (! str_starts_with($data['holidayDate'], $this->period.'-')) {
+        if (! str_starts_with($data['holidayDate'], $this->period . '-')) {
             throw ValidationException::withMessages([
                 'holidayDate' => 'Choose a date within the selected payroll month.',
             ]);
@@ -451,7 +495,7 @@ class PayrollConfiguration extends Component
         $this->selectedDepartmentIds = Department::query()
             ->whereIn('division_external_id', $this->selectedDivisionIds)
             ->whereIn('external_id', $this->selectedDepartmentIds)
-            ->pluck('external_id')->map(fn ($id) => (int) $id)->all();
+            ->pluck('external_id')->map(fn($id) => (int) $id)->all();
         $this->syncLegacyScopeIds();
         $this->dismissExistingGenerationNotice();
     }
@@ -472,6 +516,9 @@ class PayrollConfiguration extends Component
 
     private function redirectToGeneration(array $data)
     {
+        $this->openingGeneration = true;
+        session()->forget($this->draftSessionKey());
+
         return redirect()->route(PayrollType::generationRouteFor($data['payrollType']), [
             'division_ids' => implode(',', $data['selectedDivisionIds']),
             'department_ids' => implode(',', $data['selectedDepartmentIds'] ?? []),
@@ -500,7 +547,7 @@ class PayrollConfiguration extends Component
             ->where('payroll_type_code', (string) $data['payrollType'])
             ->latest('saved_at')
             ->get()
-            ->filter(fn (PayrollGenerationDraft $draft) => $this->draftOverlapsConfiguration(
+            ->filter(fn(PayrollGenerationDraft $draft) => $this->draftOverlapsConfiguration(
                 $draft,
                 $selectedDivisionIds,
                 $selectedDepartmentIds,
@@ -523,7 +570,7 @@ class PayrollConfiguration extends Component
             ->where('payroll_type_code', (string) $data['payrollType'])
             ->latest('snapshot_created_at')
             ->get()
-            ->filter(fn (PayrollBatch $batch) => $this->batchOverlapsConfiguration(
+            ->filter(fn(PayrollBatch $batch) => $this->batchOverlapsConfiguration(
                 $batch,
                 $selectedDivisionIds,
                 $selectedDepartmentIds,
@@ -652,7 +699,7 @@ class PayrollConfiguration extends Component
         return Department::query()
             ->whereIn('division_external_id', $divisionIds)
             ->pluck('external_id')
-            ->map(fn ($id) => (int) $id)
+            ->map(fn($id) => (int) $id)
             ->all();
     }
 
@@ -695,8 +742,8 @@ class PayrollConfiguration extends Component
     private function normalizedIds(array $values): array
     {
         return collect($values)
-            ->filter(fn ($id) => $id !== null && $id !== '')
-            ->map(fn ($id) => (int) $id)
+            ->filter(fn($id) => $id !== null && $id !== '')
+            ->map(fn($id) => (int) $id)
             ->filter()
             ->unique()
             ->sort()
@@ -729,9 +776,9 @@ class PayrollConfiguration extends Component
         $validLeaveTypeIds = $this->validLeaveTypeIds();
 
         return collect($values)
-            ->filter(fn ($id) => $id !== null && $id !== '')
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn (int $id) => in_array($id, $validLeaveTypeIds, true))
+            ->filter(fn($id) => $id !== null && $id !== '')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn(int $id) => in_array($id, $validLeaveTypeIds, true))
             ->unique()
             ->sort()
             ->values()
@@ -741,7 +788,7 @@ class PayrollConfiguration extends Component
     private function defaultSelectedLeaveTypeIds(): array
     {
         return collect($this->validLeaveTypeIds())
-            ->reject(fn (int $id) => in_array($id, self::DEFAULT_UNCHECKED_LEAVE_TYPE_IDS, true))
+            ->reject(fn(int $id) => in_array($id, self::DEFAULT_UNCHECKED_LEAVE_TYPE_IDS, true))
             ->values()
             ->all();
     }
@@ -750,7 +797,7 @@ class PayrollConfiguration extends Component
     {
         return LeaveType::query()
             ->pluck('external_id')
-            ->map(fn ($id) => (int) $id)
+            ->map(fn($id) => (int) $id)
             ->all();
     }
 
@@ -761,9 +808,9 @@ class PayrollConfiguration extends Component
             $periodLabel = $month->format('F Y');
             $holidays = Schema::connection('payroll')->hasTable('payroll_holidays')
                 ? PayrollHoliday::query()
-                    ->whereBetween('holiday_date', [$month->startOfMonth()->toDateString(), $month->endOfMonth()->toDateString()])
-                    ->orderBy('holiday_date')
-                    ->get()
+                ->whereBetween('holiday_date', [$month->startOfMonth()->toDateString(), $month->endOfMonth()->toDateString()])
+                ->orderBy('holiday_date')
+                ->get()
                 : collect();
         } catch (\Throwable) {
             $periodLabel = 'the selected month';

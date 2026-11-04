@@ -805,7 +805,7 @@
             <div class="grid gap-3 border-b border-slate-200 bg-blue-50/50 px-4 py-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_180px_180px_auto] sm:items-end">
                 <div>
                     <div class="text-sm font-medium text-slate-800">Inclusive Dates for Leaves</div>
-                    <p class="text-xs text-slate-600">Overrides the MRA leave coverage. Previously finalized leave dates are automatically blocked.</p>
+                    <p class="text-xs text-slate-600">Payroll uses the loaded leave dates automatically. Previously finalized leave dates are excluded.</p>
                     @if ($leavePeriodAppliedMessage)
                         <p class="mt-1 text-xs font-medium text-blue-700">{{ $leavePeriodAppliedMessage }}</p>
                     @endif
@@ -820,6 +820,7 @@
                     <input wire:model.defer="leavePeriodEnd" type="date" @disabled(! $canEditStep1HrFields) class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100">
                     @error('leavePeriodEnd') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
+                <div wire:dirty.class.remove="hidden" wire:target="leavePeriodStart,leavePeriodEnd" class="hidden">
                 <button
                     type="button"
                     wire:click="applyLeavePeriod"
@@ -828,9 +829,10 @@
                     @disabled(! $canEditStep1HrFields)
                     class="rounded-md border border-blue-300 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                    <span wire:loading.remove wire:target="applyLeavePeriod">Apply Date Range</span>
+                    <span wire:loading.remove wire:target="applyLeavePeriod">Apply Date Changes</span>
                     <span wire:loading wire:target="applyLeavePeriod">Applying...</span>
                 </button>
+                </div>
             </div>
             <div class="payroll-table-scroll overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">

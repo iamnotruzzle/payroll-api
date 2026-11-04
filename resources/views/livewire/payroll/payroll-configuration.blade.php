@@ -1,11 +1,10 @@
 <section class="payroll-configuration max-w-6xl space-y-4" x-data="{
     configurationStep: @entangle('configurationStep'),
     reviewStep: 'details',
-    reviewProceedAnyway: false,
     reviewRevision: 0,
-    openStepReview(proceedAnyway = false) {
+    openStepReview() {
+        if (this.configurationStep === 'review') return $wire.submitConfiguration();
         this.reviewStep = this.configurationStep;
-        this.reviewProceedAnyway = proceedAnyway;
         this.reviewRevision++;
         erpOverlay.open($wire, 'configuration-step-review', {}, false);
     },
@@ -16,12 +15,11 @@
     },
     selectedLeaveLabels() {
         void this.reviewRevision;
-        return Array.from(document.querySelectorAll('.payroll-configuration input[data-review-leave]:checked')).map(input => input.closest('label').textContent.trim()).join(', ');
+        return Array.from(document.querySelectorAll('.payroll-configuration input[data-review-leave]:checked')).map(input => input.closest('label').textContent.trim());
     },
     confirmStepReview() {
         erpOverlay.close('configuration-step-review');
-        if (this.reviewProceedAnyway) return $wire.continueToPayrollGeneration();
-        return this.reviewStep === 'review' ? $wire.submitConfiguration() : $wire.nextConfigurationStep();
+        return $wire.nextConfigurationStep();
     }
 }">
     <div class="flex flex-wrap items-end justify-between gap-3">
@@ -63,7 +61,7 @@
 
                     <div>
                         <label class="text-sm font-medium">No of Day Paid</label>
-                        <input wire:model="workingDays" type="number" min="1" max="31"
+                        <input wire:model.change="workingDays" type="number" min="1" max="31"
                             class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                         @error('workingDays')
                             <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
@@ -158,7 +156,7 @@
                     <div class="mt-2 grid gap-3 sm:grid-cols-2">
                         <div>
                             <label class="text-xs font-medium text-slate-600">From</label>
-                            <input wire:model="leavePeriodStart" type="date"
+                            <input wire:model.change="leavePeriodStart" type="date"
                                 class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             @error('leavePeriodStart')
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
@@ -166,7 +164,7 @@
                         </div>
                         <div>
                             <label class="text-xs font-medium text-slate-600">To</label>
-                            <input wire:model="leavePeriodEnd" type="date"
+                            <input wire:model.change="leavePeriodEnd" type="date"
                                 class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             @error('leavePeriodEnd')
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
@@ -186,7 +184,7 @@
                 <div class="grid gap-3 md:grid-cols-2">
                     <div>
                         <label class="text-sm font-medium">Payroll Type</label>
-                        <select wire:model="payrollType" data-review-field="payrollType"
+                        <select wire:model.change="payrollType" data-review-field="payrollType"
                             class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
                             @foreach ($payrollTypes as $type)
                                 <option value="{{ $type->code }}">{{ $type->name }}</option>
@@ -199,7 +197,7 @@
 
                     <div>
                         <label class="text-sm font-medium">Employee Type</label>
-                        <select data-select2-searchable data-model="employeeTypeFilter" data-defer-request="true"
+                        <select data-select2-searchable data-model="employeeTypeFilter" data-defer-request="false"
                             data-placeholder="Select employee types" multiple
                             class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
                             @foreach ($employeeTypeOptions as $value => $label)
@@ -238,7 +236,7 @@
                     <div>
                         <label class="text-sm font-medium">Department <span
                                 class="font-normal text-slate-500">(Optional)</span></label>
-                        <select data-select2-searchable data-model="selectedDepartmentIds" data-defer-request="true"
+                        <select data-select2-searchable data-model="selectedDepartmentIds" data-defer-request="false"
                             @disabled($selectedDivisionIds === [])
                             data-placeholder="Search and select departments" multiple
                             class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 pr-10 text-sm">
@@ -265,7 +263,7 @@
                     <div class="mt-2 grid gap-x-3 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
                         @foreach ($leaveTypes as $leaveType)
                             <label class="flex min-h-7 items-center gap-2 text-xs text-slate-700">
-                                <input wire:model="selectedLeaveTypeIds" type="checkbox" data-review-leave
+                                <input wire:model.change="selectedLeaveTypeIds" type="checkbox" data-review-leave
                                     value="{{ $leaveType->leave_type_id }}"
                                     class="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
                                 <span class="leading-tight">{{ $leaveType->leave_name }}</span>
@@ -350,7 +348,21 @@
                     <div><dt class="text-xs text-slate-500">Departments</dt><dd class="mt-1 text-sm font-semibold">{{ $departments->whereIn('department_id', $selectedDepartmentIds)->pluck('department')->implode(', ') ?: 'All departments in selected divisions' }}</dd></div>
                     <div><dt class="text-xs text-slate-500">Days paid / GSIS days</dt><dd class="mt-1 text-sm font-semibold">{{ $workingDays }} / {{ $gsisDays }}</dd></div>
                     <div><dt class="text-xs text-slate-500">Leave cutoff</dt><dd class="mt-1 text-sm font-semibold">{{ $leavePeriodStart }} through {{ $leavePeriodEnd }}</dd></div>
-                    <div><dt class="text-xs text-slate-500">Included leave types</dt><dd class="mt-1 text-sm font-semibold">{{ $leaveTypes->whereIn('leave_type_id', $selectedLeaveTypeIds)->pluck('leave_name')->implode(', ') ?: 'None' }}</dd></div>
+                    <div>
+                        <dt class="text-xs text-slate-500">Included leave types</dt>
+                        <dd class="mt-1 text-sm font-semibold">
+                            @php($includedLeaveTypes = $leaveTypes->whereIn('leave_type_id', $selectedLeaveTypeIds))
+                            @if ($includedLeaveTypes->isNotEmpty())
+                                <ul class="list-disc space-y-1 pl-5">
+                                    @foreach ($includedLeaveTypes as $leaveType)
+                                        <li>{{ $leaveType->leave_name }}</li>
+                                    @endforeach
+                                </ul>
+                            @else
+                                None
+                            @endif
+                        </dd>
+                    </div>
                     @if ($isStandalone)
                         <div><dt class="text-xs text-slate-500">Data preparation</dt><dd class="mt-1 text-sm font-semibold">{{ count($apiPreparationResults) === count($apiPreparationSteps) ? 'All four sync steps complete' : 'Preparation incomplete' }}</dd></div>
                     @endif
@@ -398,7 +410,7 @@
                     class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
                     Review Configuration
                 </button>
-                <button type="button" x-on:click="openStepReview(true)" wire:loading.attr="disabled"
+                <button type="button" wire:click="continueToPayrollGeneration" wire:loading.attr="disabled"
                     wire:target="continueToPayrollGeneration,syncApi"
                     class="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-wait disabled:opacity-60">
                     <span wire:loading.remove wire:target="continueToPayrollGeneration">Proceed Anyway</span>
@@ -417,9 +429,9 @@
 
     <x-setup-form-modal name="configuration-step-review" title="Review and continue" size="lg">
         <form x-on:submit.prevent="confirmStepReview()" class="payroll-configuration space-y-5">
-            <p class="text-sm text-slate-600" x-text="reviewStep === 'review' ? 'Confirm the configuration before opening payroll generation.' : 'Review this step before continuing. Choose Back to edit to change any selections.'"></p>
+            <p class="text-sm text-slate-600">Review this step before continuing. Choose Back to edit to change any selections.</p>
 
-            <section x-transition.opacity.duration.180ms x-show="reviewStep === 'details' || reviewStep === 'review'" class="space-y-3">
+            <section x-transition.opacity.duration.180ms x-show="reviewStep === 'details'" class="space-y-3">
                 <h3 class="text-sm font-semibold">Run details</h3>
                 <dl class="grid gap-3 sm:grid-cols-2">
                     <div><dt class="text-xs text-slate-500">Payroll month</dt><dd class="mt-1 text-sm font-medium" x-text="$wire.period || 'No entry'"></dd></div>
@@ -448,19 +460,29 @@
                 </dl>
             </section>
 
-            <section x-transition.opacity.duration.180ms x-show="reviewStep === 'scope' || reviewStep === 'review'" class="space-y-3">
+            <section x-transition.opacity.duration.180ms x-show="reviewStep === 'scope'" class="space-y-3">
                 <h3 class="text-sm font-semibold">Payroll scope</h3>
                 <dl class="grid gap-3 sm:grid-cols-2">
                     <div><dt class="text-xs text-slate-500">Payroll type</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('payrollType') || 'No entry'"></dd></div>
                     <div><dt class="text-xs text-slate-500">Employee types</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('employeeTypeFilter') || 'No entry'"></dd></div>
                     <div><dt class="text-xs text-slate-500">Divisions</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('selectedDivisionIds') || 'No entry'"></dd></div>
                     <div><dt class="text-xs text-slate-500">Departments</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLabels('selectedDepartmentIds') || 'No entry — includes all departments in selected divisions'"></dd></div>
-                    <div class="sm:col-span-2"><dt class="text-xs text-slate-500">Included leave types</dt><dd class="mt-1 text-sm font-medium" x-text="selectedLeaveLabels() || 'No entry'"></dd></div>
+                    <div class="sm:col-span-2" x-data="{ get leaveLabels() { return selectedLeaveLabels(); } }">
+                        <dt class="text-xs text-slate-500">Included leave types</dt>
+                        <dd class="mt-1 text-sm font-medium">
+                            <ul x-show="leaveLabels.length" class="list-disc space-y-1 pl-5">
+                                <template x-for="(label, index) in leaveLabels" :key="index">
+                                    <li x-text="label"></li>
+                                </template>
+                            </ul>
+                            <span x-show="!leaveLabels.length">None</span>
+                        </dd>
+                    </div>
                 </dl>
             </section>
 
             @if ($isStandalone)
-                <section x-transition.opacity.duration.180ms x-show="reviewStep === 'preparation' || reviewStep === 'review'" class="space-y-3">
+                <section x-transition.opacity.duration.180ms x-show="reviewStep === 'preparation'" class="space-y-3">
                     <h3 class="text-sm font-semibold">Data preparation</h3>
                     <p class="text-sm">Timekeeping: HRIS API first, with database DTR punches as fallback.</p>
                     <ul class="divide-y divide-slate-200">
@@ -481,7 +503,7 @@
 
             <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
                 <button type="button" x-on:click="erpOverlay.close('configuration-step-review')" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700">Back to edit</button>
-                <button type="submit" wire:loading.attr="disabled" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white" x-text="reviewStep === 'review' ? 'Confirm & Open Generation' : 'Confirm & Continue'"></button>
+                <button type="submit" wire:loading.attr="disabled" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white">Confirm &amp; Continue</button>
             </div>
         </form>
     </x-setup-form-modal>
