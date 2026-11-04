@@ -9,7 +9,7 @@ use RuntimeException;
 class HrisApiClient
 {
     /** Fetch and map a complete resource without modifying payroll or contacting its databases. */
-    public function fetch(string $name, array $context = []): array
+    public function fetch(string $name, array $context = [], ?callable $inScope = null): array
     {
         $resource = config("hris_api.resources.{$name}");
         if (! is_array($resource) || ! ($resource['enabled'] ?? false)) {
@@ -111,14 +111,19 @@ class HrisApiClient
                     continue;
                 }
                 $mapped = [];
+                foreach ($resource['fields'] as $target => $source) {
+                    $mapped[$target] = data_get($record, $source);
+                }
+                if ($inScope !== null && ! $inScope($mapped)) {
+                    continue;
+                }
                 foreach ($resource['required_keys'] ?? [] as $target) {
                     if (! \Illuminate\Support\Arr::has($record, $resource['fields'][$target])) {
                         throw new RuntimeException("Missing HRIS response field {$target}.");
                     }
                 }
-                foreach ($resource['fields'] as $target => $source) {
-                    $mapped[$target] = data_get($record, $source);
-                    if ($mapped[$target] === null) {
+                foreach ($mapped as $target => $value) {
+                    if ($value === null) {
                         $missing[$target] = ($missing[$target] ?? 0) + 1;
                     }
                 }

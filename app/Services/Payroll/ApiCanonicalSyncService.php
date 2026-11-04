@@ -58,13 +58,26 @@ class ApiCanonicalSyncService
                 throw new RuntimeException('No employees match this payroll scope. Existing data was retained.');
             }
         }
-        foreach (['divisions' => 'Divisions', 'departments' => 'Departments', 'positions' => 'Positions',
-            'employment-statuses' => 'Employment Statuses', 'employees' => 'Employees',
+        foreach (['departments' => 'Departments', 'divisions' => 'Divisions', 'employees' => 'Employees',
+            'employment-statuses' => 'Employment Statuses', 'positions' => 'Positions',
             'salary-rates' => 'Salary Rates', 'leave-types' => 'Leave Types', 'leaves' => 'Leaves'] as $resource => $sheet) {
             if ($step !== null && ! in_array($resource, self::STEPS[$step]['resources'], true)) {
                 continue;
             }
             $context = ['from' => $from, 'to' => $to];
+            $inScope = null;
+            if ($scope !== null) {
+                $inScope = match ($resource) {
+                    'departments' => ! empty($scope['department_ids'])
+                        ? fn ($row) => in_array($row['department_id'], $scope['department_ids'])
+                        : fn ($row) => in_array($row['division_id'], $scope['division_ids']),
+                    'divisions' => $this->referenceFilter('division_id', $payload['Departments'], 'division_id'),
+                    'employees' => $this->referenceFilter('department_id', $payload['Departments'], 'department_id'),
+                    'employment-statuses' => $this->referenceFilter('employment_status_id', $payload['Employees'], 'employment_status_id'),
+                    'positions' => $this->referenceFilter('position_id', $payload['Employees'], 'position_id'),
+                    default => null,
+                };
+            }
             if ($scope !== null && $resource === 'leaves') {
                 $context['department_ids'] = ! empty($scope['department_ids']) ? $scope['department_ids']
                     : \App\Models\Payroll\Canonical\Department::query()->whereIn('division_external_id', $scope['division_ids'])->pluck('external_id')->all();
@@ -79,10 +92,10 @@ class ApiCanonicalSyncService
                 if ($types !== [] && array_diff($types, array_keys($groupMap)) === []) {
                     $context['groups'] = array_values(array_unique(array_map(fn ($type) => $groupMap[$type], $types)));
                 }
-                $result = $client->fetch($resource, $context + ['active_only' => true]);
+                $result = $client->fetch($resource, $context + ['active_only' => true], $inScope);
                 $employeeIds = array_values(array_unique(array_map('strval', array_column($result['rows'], 'employee_id'))));
             } else {
-                $result = $client->fetch($resource, $context);
+                $result = $client->fetch($resource, $context, $inScope);
             }
             if ($result['warning_count']) {
                 throw new RuntimeException("HRIS reported warnings for {$resource}; no data was activated.");
@@ -180,6 +193,13 @@ class ApiCanonicalSyncService
 
             return $batch->fresh();
         });
+    }
+
+    private function referenceFilter(string $field, array $rows, string $reference): callable
+    {
+        $ids = array_fill_keys(array_map('strval', array_filter(array_column($rows, $reference), 'is_scalar')), true);
+
+        return fn ($row) => is_scalar($row[$field]) && isset($ids[(string) $row[$field]]);
     }
 
     private function filterScopedPayload(array $payload, array $scope, array $employeeIds): array
