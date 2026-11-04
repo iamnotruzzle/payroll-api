@@ -3,6 +3,7 @@
 namespace App\Services\Payroll;
 
 use App\Enums\PayrollOperatingMode;
+use App\Models\Payroll\Canonical\Employee;
 use App\Models\Payroll\PayrollSourceBatch;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +18,12 @@ class ApiCanonicalSyncService
         'leaves' => ['title' => 'Leaves', 'description' => 'Leave types and leave records for the selected cutoff.', 'resources' => ['leave-types', 'leaves']],
     ];
 
-    public function sync(string $period, ?string $by = null, ?string $from = null, ?string $to = null, ?string $step = null, ?array $scope = null): PayrollSourceBatch
+    public function syncEmployeeLeaves(Employee $employee, string $period, string $from, string $to, ?string $by): PayrollSourceBatch
+    {
+        return $this->sync($period, $by, $from, $to, 'leaves', employee: $employee);
+    }
+
+    public function sync(string $period, ?string $by = null, ?string $from = null, ?string $to = null, ?string $step = null, ?array $scope = null, ?Employee $employee = null): PayrollSourceBatch
     {
         if ($step !== null && ! isset(self::STEPS[$step])) {
             throw ValidationException::withMessages(['sync' => 'Choose a valid synchronization step.']);
@@ -64,6 +70,9 @@ class ApiCanonicalSyncService
             if ($step !== null && ! in_array($resource, self::STEPS[$step]['resources'], true)) {
                 continue;
             }
+            if ($employee && $resource !== 'leaves') {
+                continue;
+            }
             $context = ['from' => $from, 'to' => $to];
             $inScope = null;
             if ($scope !== null) {
@@ -81,6 +90,10 @@ class ApiCanonicalSyncService
             if ($scope !== null && $resource === 'leaves') {
                 $context['department_ids'] = ! empty($scope['department_ids']) ? $scope['department_ids']
                     : \App\Models\Payroll\Canonical\Department::query()->whereIn('division_external_id', $scope['division_ids'])->pluck('external_id')->all();
+            }
+            if ($employee) {
+                $context['department_ids'] = [$employee->department_external_id];
+                $inScope = fn ($row) => $row['employee_id'] === (string) $employee->emp_id;
             }
             if ($scope !== null && $resource === 'salary-rates') {
                 $context['year'] = substr($period, 0, 4);
@@ -176,17 +189,19 @@ class ApiCanonicalSyncService
         }
         $workbooks = app(CanonicalWorkbookService::class);
 
-        return DB::connection('payroll')->transaction(function () use ($payload, $period, $by, $workbooks, $from, $to, $step, $scope) {
+        $batchScope = $employee ? ['employee_id' => (string) $employee->emp_id] : $scope;
+
+        return DB::connection('payroll')->transaction(function () use ($payload, $period, $by, $workbooks, $from, $to, $step, $batchScope) {
             $payload = $this->preserveLocalFields($payload);
             $errors = $workbooks->validatePayload($payload, $period);
             if ($errors !== []) {
                 throw ValidationException::withMessages(['sync' => $errors]);
             }
             $batch = PayrollSourceBatch::query()->firstOrCreate([
-                'kind' => ($step === null ? 'api_full' : 'api_'.$step).($scope !== null ? '_'.substr(hash('sha256', json_encode($scope)), 0, 16) : ''), 'checksum' => hash('sha256', json_encode([$payload, $from, $to, $scope])), 'effective_period' => $period,
+                'kind' => ($step === null ? 'api_full' : 'api_'.$step).($batchScope !== null ? '_'.substr(hash('sha256', json_encode($batchScope)), 0, 16) : ''), 'checksum' => hash('sha256', json_encode([$payload, $from, $to, $batchScope])), 'effective_period' => $period,
             ], ['source' => 'hris_api', 'status' => 'validated', 'schema_version' => '1.0',
-                'statistics' => array_map('count', $payload) + ['leave_range' => ['from' => $from, 'to' => $to], 'scope' => $scope], 'errors' => [], 'payload' => $payload, 'created_by' => $by]);
-            if ($batch->status !== 'active') {
+                'statistics' => array_map('count', $payload) + ['leave_range' => ['from' => $from, 'to' => $to], 'scope' => $batchScope], 'errors' => [], 'payload' => $payload, 'created_by' => $by]);
+            if ($batch->status !== 'active' || isset($batchScope['employee_id'])) {
                 $batch->update(['status' => 'validated']);
                 $workbooks->activate($batch, $by);
             }

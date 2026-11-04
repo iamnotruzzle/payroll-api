@@ -925,6 +925,44 @@
                                 </td>
                                 <td class="px-4 py-3">
                                     <div class="min-w-[340px] space-y-2">
+                                        @if ($operatingMode->value === 'standalone' && $canEditStep1HrFields)
+                                            @php
+                                                $employeeLeaveRange = $employeeLeavePeriods[$row['emp_id']] ?? null;
+                                            @endphp
+                                            <details wire:key="employee-leave-range-{{ $row['emp_id'] }}-{{ $row['leave_range_start'] }}-{{ $row['leave_range_end'] }}-{{ (int) ($employeeLeaveRange !== null) }}"
+                                                class="rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+                                                <summary class="cursor-pointer font-medium">
+                                                    {{ $employeeLeaveRange ? 'Custom leave dates: '.$employeeLeaveRange['from'].' to '.$employeeLeaveRange['to'] : 'Set custom leave dates' }}
+                                                </summary>
+                                                <form x-data
+                                                    x-on:submit.prevent="const dates = new FormData($event.currentTarget); $wire.applyEmployeeLeavePeriod(@js((string) $row['emp_id']), dates.get('from'), dates.get('to'))"
+                                                    class="mt-2 space-y-2">
+                                                    <div wire:ignore class="grid grid-cols-2 gap-2">
+                                                        <label>From
+                                                            <input name="from" type="date" required value="{{ $row['leave_range_start'] }}" class="block w-full rounded-md border border-slate-300 px-2 py-1">
+                                                        </label>
+                                                        <label>To
+                                                            <input name="to" type="date" required value="{{ $row['leave_range_end'] }}" class="block w-full rounded-md border border-slate-300 px-2 py-1">
+                                                        </label>
+                                                    </div>
+                                                    <div class="flex flex-wrap gap-2">
+                                                        <button type="submit"
+                                                            wire:loading.attr="disabled" wire:target="applyEmployeeLeavePeriod,clearEmployeeLeavePeriod"
+                                                            class="rounded-md border border-slate-300 px-2 py-1 font-medium disabled:opacity-50">Load HRIS leaves</button>
+                                                        @if ($employeeLeaveRange)
+                                                            <button type="button" wire:click="clearEmployeeLeavePeriod(@js((string) $row['emp_id']))"
+                                                                wire:loading.attr="disabled" wire:target="applyEmployeeLeavePeriod,clearEmployeeLeavePeriod"
+                                                                class="rounded-md border border-slate-300 px-2 py-1 disabled:opacity-50">Use payroll dates</button>
+                                                        @endif
+                                                    </div>
+                                                </form>
+                                            </details>
+                                            @error('employeeLeavePeriod.'.$row['emp_id'])
+                                                <p class="text-xs text-red-600" role="alert">{{ $message }}</p>
+                                            @enderror
+                                        @elseif (isset($employeeLeavePeriods[$row['emp_id']]))
+                                            <p class="text-xs">Custom leave dates: {{ $row['leave_range_start'] }} to {{ $row['leave_range_end'] }}</p>
+                                        @endif
                                         @forelse (($row['leave_deduction']['items'] ?? []) as $leaveItem)
                                             @php
                                                 $leaveId = (string) $leaveItem['id'];
@@ -951,8 +989,8 @@
                                                     </label>
                                                 </div>
                                                 <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                                                    <input wire:model.defer="leaveDateOverrides.{{ $leaveId }}.start_date" x-on:change="recalculateLeaveDays()" data-leave-start type="date" min="{{ $previousMraPeriod['start']->toDateString() }}" max="{{ $previousMraPeriod['end']->toDateString() }}" aria-label="Inclusive leave start date" @disabled(! $canEditStep1HrFields) class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
-                                                    <input wire:model.defer="leaveDateOverrides.{{ $leaveId }}.end_date" x-on:change="recalculateLeaveDays()" data-leave-end type="date" min="{{ $previousMraPeriod['start']->toDateString() }}" max="{{ $previousMraPeriod['end']->toDateString() }}" aria-label="Inclusive leave end date" @disabled(! $canEditStep1HrFields) class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
+                                                    <input wire:model.defer="leaveDateOverrides.{{ $leaveId }}.start_date" x-on:change="recalculateLeaveDays()" data-leave-start type="date" min="{{ $row['leave_range_start'] }}" max="{{ $row['leave_range_end'] }}" aria-label="Inclusive leave start date" @disabled(! $canEditStep1HrFields) class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
+                                                    <input wire:model.defer="leaveDateOverrides.{{ $leaveId }}.end_date" x-on:change="recalculateLeaveDays()" data-leave-end type="date" min="{{ $row['leave_range_start'] }}" max="{{ $row['leave_range_end'] }}" aria-label="Inclusive leave end date" @disabled(! $canEditStep1HrFields) class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500">
                                                 </div>
                                                 @if ($leaveItem['already_processed'])
                                                     <div class="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">

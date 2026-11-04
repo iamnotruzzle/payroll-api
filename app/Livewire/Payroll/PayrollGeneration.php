@@ -36,6 +36,7 @@ use App\Services\Payroll\EmployeeRosterImportService;
 use App\Services\Payroll\LegacyPayrollGenerationTestSource;
 use App\Services\Payroll\PayrollLoanImportService;
 use App\Services\Payroll\PayrollLoanReferenceService;
+use App\Services\Payroll\ApiCanonicalSyncService;
 use App\Services\Payroll\PayrollOperatingModeService;
 use App\Services\Payroll\PayrollReadinessService;
 use App\Services\Payroll\PayrollTaxService;
@@ -49,6 +50,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -131,6 +133,9 @@ class PayrollGeneration extends Component
     public array $leaveDeductionOverrides = [];
 
     public array $leaveDateOverrides = [];
+
+    #[Locked]
+    public array $employeeLeavePeriods = [];
 
     public array $payBasisOverrides = [];
 
@@ -1133,10 +1138,99 @@ class PayrollGeneration extends Component
             'leavePeriodEnd' => ['required', 'date', 'after_or_equal:leavePeriodStart'],
         ]);
 
-        // Rebuild date-derived defaults for the newly applied range.
-        $this->leaveDateOverrides = [];
-        $this->leaveDeductionOverrides = [];
+        // Rebuild defaults for employees using the payroll-wide range.
+        $customLeaveIds = $this->employeeLeavePeriods === [] ? [] : EmployeeLeave::withoutGlobalScope('approved')
+            ->whereIn('emp_id', array_keys($this->employeeLeavePeriods))
+            ->pluck('id')
+            ->all();
+        $this->leaveDateOverrides = array_intersect_key($this->leaveDateOverrides, array_flip($customLeaveIds));
+        $this->leaveDeductionOverrides = array_intersect_key($this->leaveDeductionOverrides, $this->employeeLeavePeriods);
         $this->leavePeriodAppliedMessage = 'Inclusive leave dates applied. Save Step 1 to retain this range.';
+    }
+
+    public function applyEmployeeLeavePeriod(string $empId, string $from, string $to): void
+    {
+        $errorKey = 'employeeLeavePeriod.'.$empId;
+        $this->resetValidation($errorKey);
+        $employee = $this->employeeForLeavePeriod($empId);
+        if (! $employee) {
+            return;
+        }
+
+        $validator = validator(compact('from', 'to'), [
+            'from' => ['required', 'date_format:Y-m-d'],
+            'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
+        if ($validator->fails()) {
+            $this->addError($errorKey, $validator->errors()->first());
+
+            return;
+        }
+
+        try {
+            $batch = app(ApiCanonicalSyncService::class)->syncEmployeeLeaves(
+                $employee, $this->period, $from, $to, auth()->user()?->emp_id ?? 'web',
+            );
+        } catch (\Exception $exception) {
+            report($exception);
+            $this->addError($errorKey, 'Could not load HRIS leaves. Check the HRIS connection and try again.');
+
+            return;
+        }
+
+        $this->employeeLeavePeriods[$empId] = [
+            'from' => $from,
+            'to' => $to,
+            'leave_ids' => array_column($batch->payload['Leaves'], 'leave_id'),
+        ];
+        $this->resetEmployeeLeaveDefaults($empId);
+    }
+
+    public function clearEmployeeLeavePeriod(string $empId): void
+    {
+        if (! $this->employeeForLeavePeriod($empId) || ! isset($this->employeeLeavePeriods[$empId])) {
+            return;
+        }
+
+        unset($this->employeeLeavePeriods[$empId]);
+        $this->resetValidation('employeeLeavePeriod.'.$empId);
+        $this->resetEmployeeLeaveDefaults($empId);
+    }
+
+    private function employeeForLeavePeriod(string $empId): ?Employee
+    {
+        if ($this->currentStep !== 1 || ! $this->canEditStep1HrFields()
+            || app(PayrollOperatingModeService::class)->current() !== \App\Enums\PayrollOperatingMode::Standalone) {
+            $this->addError('authorization', 'You do not have permission to load employee leave dates in this step.');
+
+            return null;
+        }
+
+        $employee = $this->applyPayrollEmployeeType($this->applyEmployeeScope(Employee::query()))
+            ->where('is_active', true)
+            ->when($this->appliedEmployeeFilterIds !== [], fn ($query) => $query->whereIn('emp_id', $this->appliedEmployeeFilterIds))
+            ->where('emp_id', $empId)
+            ->first();
+
+        if (! $employee?->department_external_id) {
+            $this->addError('employeeLeavePeriod.'.$empId, 'Select an active payroll employee with an HRIS department.');
+
+            return null;
+        }
+
+        return $employee;
+    }
+
+    private function resetEmployeeLeaveDefaults(string $empId): void
+    {
+        foreach (EmployeeLeave::withoutGlobalScope('approved')->where('emp_id', $empId)->pluck('id') as $leaveId) {
+            unset($this->leaveDateOverrides[$leaveId]['start_date'], $this->leaveDateOverrides[$leaveId]['end_date']);
+        }
+
+        unset(
+            $this->leaveDeductionOverrides[$empId]['subsistence_days'],
+            $this->leaveDeductionOverrides[$empId]['laundry_days'],
+        );
     }
 
     public function saveStepChangesAndGoToStep(int $step, array $browserDeductionPrograms = []): bool
@@ -1279,6 +1373,7 @@ class PayrollGeneration extends Component
                 'logbook_lwop_day_overrides' => $this->logbookLwopDayOverrides,
                 'leave_deduction_overrides' => $this->leaveDeductionOverrides,
                 'leave_date_overrides' => $this->leaveDateOverrides,
+                'employee_leave_periods' => $this->employeeLeavePeriods,
                 'pay_basis_overrides' => $this->payBasisOverrides,
             ];
         }
@@ -1294,6 +1389,7 @@ class PayrollGeneration extends Component
                     ['subsistence_days', 'pera_days', 'laundry_days'],
                 ),
                 'leave_date_overrides' => $this->leaveDateOverrides,
+                'employee_leave_periods' => $this->employeeLeavePeriods,
                 'pay_basis_overrides' => $this->payBasisOverrides,
             ];
         }
@@ -1340,6 +1436,7 @@ class PayrollGeneration extends Component
         $this->logbookLwopDayOverrides = [];
         $this->leaveDeductionOverrides = [];
         $this->leaveDateOverrides = [];
+        $this->employeeLeavePeriods = [];
         $this->payBasisOverrides = [];
         $this->compensationAdjustments = [];
         $this->mandatoryDeductionAdjustments = [];
@@ -1743,15 +1840,26 @@ class PayrollGeneration extends Component
             ->groupBy('matched_emp_id');
         $previousTaxAnnualization = $this->previousTaxAnnualizationByEmployee($empIds, $periodStart);
         $leaveClass = $canonical ? EmployeeLeave::class : app(LegacyPayrollGenerationTestSource::class)->leaveClass();
-        $leaveQuery = $leaveClass::query()
+        $leaveRangeQuery = $leaveClass::query()
             ->with('leaveType')
             ->whereIn('emp_id', $empIds)
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
-            // Keep the indexed columns bare; DATE(column) forces a scan of the
-            // legacy leave table (currently hundreds of thousands of rows).
-            ->where('start_date', '<=', $leavePeriodEnd->endOfDay()->toDateTimeString())
-            ->where('end_date', '>=', $leavePeriodStart->startOfDay()->toDateTimeString())
+            ->where(function ($query) use ($empIds, $leavePeriodStart, $leavePeriodEnd) {
+                $employeePeriods = array_intersect_key($this->employeeLeavePeriods, array_flip($empIds));
+                $query->where(fn ($default) => $default->whereNotIn('emp_id', array_keys($employeePeriods))
+                    ->where('start_date', '<=', $leavePeriodEnd->endOfDay()->toDateTimeString())
+                    ->where('end_date', '>=', $leavePeriodStart->startOfDay()->toDateTimeString()));
+
+                foreach ($employeePeriods as $empId => $range) {
+                    $query->orWhere(fn ($custom) => $custom->where('emp_id', $empId)
+                        ->whereIn('external_id', $range['leave_ids'])
+                        ->where('start_date', '<=', CarbonImmutable::parse($range['to'])->endOfDay()->toDateTimeString())
+                        ->where('end_date', '>=', CarbonImmutable::parse($range['from'])->startOfDay()->toDateTimeString()));
+                }
+            });
+
+        $leaveQuery = (clone $leaveRangeQuery)
             ->when(
                 $canonical,
                 fn ($query) => $query->where('is_cancelled', false),
@@ -1765,12 +1873,7 @@ class PayrollGeneration extends Component
         }
 
         $leaves = $leaveQuery->get()->groupBy('emp_id');
-        $cancelledLeaves = $leaveClass::query()
-            ->whereIn('emp_id', $empIds)
-            ->whereNotNull('start_date')
-            ->whereNotNull('end_date')
-            ->where('start_date', '<=', $leavePeriodEnd->endOfDay()->toDateTimeString())
-            ->where('end_date', '>=', $leavePeriodStart->startOfDay()->toDateTimeString())
+        $cancelledLeaves = (clone $leaveRangeQuery)
             ->when(
                 $canonical,
                 fn ($query) => $query->where('is_cancelled', true),
@@ -1811,10 +1914,13 @@ class PayrollGeneration extends Component
             if ($isPartTime) {
                 $baseBasicSalary = round($baseBasicSalary / 2, 2);
             }
+            $employeeLeavePeriod = $this->employeeLeavePeriods[$employee->emp_id] ?? null;
+            $employeeLeaveStart = $employeeLeavePeriod ? CarbonImmutable::parse($employeeLeavePeriod['from']) : $leavePeriodStart;
+            $employeeLeaveEnd = $employeeLeavePeriod ? CarbonImmutable::parse($employeeLeavePeriod['to']) : $leavePeriodEnd;
             $leaveDeduction = $this->leaveDeductionDetails(
                 $leaves->get($employee->emp_id, collect()),
-                $leavePeriodStart,
-                $leavePeriodEnd,
+                $employeeLeaveStart,
+                $employeeLeaveEnd,
                 $processedLeaveDates->get($employee->emp_id, collect()),
             );
             $leaveDeduction = $this->editableLeaveDeductionFor($employee->emp_id, $leaveDeduction);
@@ -2074,6 +2180,8 @@ class PayrollGeneration extends Component
                 'employee_classification' => $isPartTime ? 'Part-time' : ($isExternal ? 'External' : ''),
                 'vacation_leave_credits' => (float) $employee->vacation_leave_credits,
                 'sick_leave_credits' => (float) $employee->sick_leave_credits,
+                'leave_range_start' => $employeeLeaveStart->toDateString(),
+                'leave_range_end' => $employeeLeaveEnd->toDateString(),
                 'cancelled_leave_count' => $cancelledLeaves->get($employee->emp_id, collect())->count(),
                 'cto_availed_days' => collect($leaveDeduction['items'] ?? [])
                     ->filter(fn (array $item) => str_contains(strtolower((string) $item['leave_type']), 'cto')
@@ -2168,6 +2276,7 @@ class PayrollGeneration extends Component
         $this->logbookLwopDayOverrides = [];
         $this->leaveDeductionOverrides = [];
         $this->leaveDateOverrides = [];
+        $this->employeeLeavePeriods = [];
         $this->payBasisOverrides = [];
         $this->compensationAdjustments = [];
         $this->mandatoryDeductionAdjustments = [];
@@ -2211,6 +2320,7 @@ class PayrollGeneration extends Component
         $this->logbookLwopDayOverrides = (array) ($state['logbook_lwop_day_overrides'] ?? []);
         $this->leaveDeductionOverrides = (array) ($state['leave_deduction_overrides'] ?? []);
         $this->leaveDateOverrides = (array) ($state['leave_date_overrides'] ?? []);
+        $this->employeeLeavePeriods = (array) ($state['employee_leave_periods'] ?? []);
         $this->payBasisOverrides = (array) ($state['pay_basis_overrides'] ?? []);
         $this->compensationAdjustments = (array) ($state['compensation_adjustments'] ?? []);
         $this->mandatoryDeductionAdjustments = (array) ($state['mandatory_deduction_adjustments'] ?? []);
