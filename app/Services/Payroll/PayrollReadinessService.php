@@ -56,7 +56,7 @@ class PayrollReadinessService
             if ($error = app(PayrollTimekeepingSourceService::class)->databaseError()) {
                 $errors[] = $error;
             }
-            $requireTimekeeping = false; // DTR/MRA readiness is validated for the selected payroll scope.
+            $requireTimekeeping = false; // Database punches do not use canonical timekeeping summaries.
         }
         if (! $counts['active_employees']) {
             $errors[] = 'No active employees are loaded.';

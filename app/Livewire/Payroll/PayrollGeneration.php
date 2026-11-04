@@ -2650,13 +2650,11 @@ class PayrollGeneration extends Component
 
             return false;
         }
-        if ($this->previousMraReport($this->previousMraPeriod())) {
+        if (app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->usesHrisDatabase()) {
             return true;
         }
-        if (app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->usesHrisDatabase()) {
-            $this->addError($errorKey, 'Finalize the previous month DTR/MRA for the selected department before finalizing payroll with HRIS database timekeeping.');
-
-            return false;
+        if ($this->previousMraReport($this->previousMraPeriod())) {
+            return true;
         }
 
         $employeeIds = $this->employeeFilterOptions()->pluck('emp_id')->map('strval');

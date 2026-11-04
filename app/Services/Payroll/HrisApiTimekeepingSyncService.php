@@ -69,7 +69,7 @@ class HrisApiTimekeepingSyncService
             }
         }
         if (array_diff($ids, array_map('strval', array_keys($rows))) !== []) {
-            // Use one source for the whole scope so raw punches go through DTR/MRA checks.
+            // Use the same attendance source for the whole scope.
             return app(HrisTimekeepingSyncService::class)->sync($payrollPeriod, $by, $scope);
         }
         $payload = ['Timekeeping' => array_values($rows)];

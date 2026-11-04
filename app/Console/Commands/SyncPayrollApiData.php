@@ -38,7 +38,7 @@ class SyncPayrollApiData extends Command
         } elseif (app(\App\Services\Payroll\PayrollTimekeepingSourceService::class)->usesHrisApi()) {
             $this->info('HRIS API attendance summaries selected. Review scoped previous-month attendance before finalizing payroll.');
         } else {
-            $this->info('HRIS database timekeeping selected. Complete the DTR/MRA workflow before finalizing payroll.');
+            $this->info('HRIS database timekeeping selected.');
         }
 
         return self::SUCCESS;

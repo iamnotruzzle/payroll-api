@@ -327,7 +327,7 @@
                         @if (count($apiPreparationResults) === count($apiPreparationSteps))
                             <p class="mt-3 text-sm font-medium text-emerald-700">HRIS preparation complete. Review the scope and timekeeping, then proceed to generation.</p>
                         @endif
-                        <p class="mt-3 text-xs text-slate-500">Leaves are filtered by cutoff and departments, then restricted locally to scoped employees. Step 4 loads the month before payroll: The API is tried first. Missing employee summaries use database punches for the whole scope; a null DTR-day count is filled from the database. Database punches require DTR encoding and MRA finalization. Complete all four steps before continuing.</p>
+                        <p class="mt-3 text-xs text-slate-500">Leaves are filtered by cutoff and departments, then restricted locally to scoped employees. Step 4 loads the month before payroll: The API is tried first. Missing employee summaries use database punches for the whole scope; a null DTR-day count is filled from the database. Complete all four steps before continuing.</p>
                         @error('sync')
                             <p role="alert" class="mt-3 text-sm text-red-600">{{ $message }}</p>
                             @if ($syncReturnedJson !== null)
@@ -475,7 +475,7 @@
                             </li>
                         @endforeach
                     </ul>
-                    <p class="text-xs text-slate-500">Complete all four steps. API summaries require attendance for every scoped employee in the previous month. Database punches require DTR encoding and MRA finalization.</p>
+                    <p class="text-xs text-slate-500">Complete all four steps. API summaries require attendance for every scoped employee in the previous month.</p>
                 </section>
             @endif
 
